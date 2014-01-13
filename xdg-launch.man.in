@@ -133,7 +133,7 @@
 .\" ========================================================================
 .\"
 .IX Title "XDG-LAUNCH 1"
-.TH XDG-LAUNCH 1 "2013-12-30" "perl v5.18.1" "User Contributed Perl Documentation"
+.TH XDG-LAUNCH 1 "@DATE@" "@PACKAGE@ @VERSION@" "User Commands"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -142,11 +142,11 @@
 xdg\-launch \- an XDG compliant startup notification launcher
 .SH "SYNOPSIS"
 .IX Header "SYNOPSIS"
-xdg-launch [\fI\s-1OPTIONS\s0\fR] \fI\s-1APPID\s0\fR [\fI\s-1FILE\s0\fR|\fI\s-1URL\s0\fR]
+xdg-launch [\fI\s-1OPTIONS\s0\fR] [\fI\s-1APPID\s0\fR [\fI\s-1FILE\s0\fR|\fI\s-1URL\s0\fR]]
 .SH "DESCRIPTION"
 .IX Header "DESCRIPTION"
-\&\fBxdg-launch\fR is an \fIX11::Protocol\fR\|(3pm) application that can be used to
-launch \s-1XDG\s0 application programs with startup notification.
+\&\fBxdg-launch\fR is an application that can be used to launch \s-1XDG\s0 application
+programs with startup notification.
 .SH "ARGUMENTS"
 .IX Header "ARGUMENTS"
 The script accepts the following arguments:
@@ -168,22 +168,23 @@ file (e.g. \fI/usr/share/applications/gvim.desktop\fR).
 .RE
 .RS 4
 .Sp
-Providing an application identifier argument is mandatory.
+Providing a non-option application identifier argument is mandatory unless the
+\&\fB\-\-exec\fR or \fB\-\-appid\fR options are specified.
 .RE
 .IP "\fI\s-1FILE\s0\fR" 4
 .IX Item "FILE"
 Specifies the file name with which to launch the application.  This is
 used in \f(CW%f\fR substitutions in the \f(CW\*(C`Exec\*(C'\fR field of the \s-1XDG\s0 desktop
-entry file.  This may also be specified with the \fB\-\-file\fR option.
+entry file or \fB\-\-exec\fR command line.  This may also be specified with the \fB\-\-file\fR option.
 .IP "\fI\s-1URL\s0\fR" 4
 .IX Item "URL"
 Specifies the \s-1URL\s0 with which to launch the application.  This is used in
-\&\f(CW%u\fR substitutions in the \f(CW\*(C`Exec\*(C'\fR field of the \s-1XDG\s0 desktop entry file.
+\&\f(CW%u\fR substitutions in the \f(CW\*(C`Exec\*(C'\fR field of the \s-1XDG\s0 desktop entry file or \fB\-\-exec\fR command line.
 This may also be specified with the \fB\-\-url\fR option.
 .SH "OPTIONS"
 .IX Header "OPTIONS"
 The options that are detailed below are recognized by \fBxdg-launch\fR.
-b<xdg\-launch> uses \fIGetopt::Long\fR\|(3pm), so unambiguous abbreviations of
+\fBxdg-launch\fR uses \fIgetopt_long_only\fR\|(3), so unambiguous abbreviations of
 long options and long options with a single dash, are also supported.
 .SS "\s-1COMMAND OPTIONS\s0"
 .IX Subsection "COMMAND OPTIONS"
@@ -191,47 +192,44 @@ The default is to launch the application specified by \f(CW\*(C`APPID\*(C'\fR.  
 any of the following options are specified, the command mode changes.
 .IP "\fB\-\-help\fR, \fB\-h\fR" 4
 .IX Item "--help, -h"
-Print usage information to standard output and exit.
+Prints usage information to standard output and exits.
+.IP "\fB\-\-version\fR, \fB\-V\fR" 4
+.IX Item "--version, -V"
+Prints detailed version information and exits.
+.IP "\fB\-\-copying\fR, \fB\-C\fR" 4
+.IX Item "--copying, -C"
+Prints detailed copyring permissions and exits.
 .SS "\s-1CONFIGURATION OPTIONS\s0"
 .IX Subsection "CONFIGURATION OPTIONS"
 The following are primary configuration options:
-.IP "\fB\-\-verbose\fR, \fB\-v\fR" 4
-.IX Item "--verbose, -v"
-Print diagnostic information to standard error during operation.
-.IP "\fB\-\-display\fR, \fB\-d\fR \fI\s-1DISPLAY\s0\fR" 4
-.IX Item "--display, -d DISPLAY"
-Use the specified display, \fI\s-1DISPLAY\s0\fR, instead of the value of the
-\&\fB\s-1DISPLAY\s0\fR environment variable.
-.IP "\fB\-\-charset\fR, \fB\-c\fR \fI\s-1CHARSET\s0\fR" 4
-.IX Item "--charset, -c CHARSET"
-Specifies the character set that is to be used to display messages
-concerning the startup notification.  The (usually adequate) default is
-to use the locale settings of the launching process.
-.IP "\fB\-\-language\fR, \fB\-L\fR \fI\s-1LANGUAGE\s0\fR" 4
-.IX Item "--language, -L LANGUAGE"
-Specifies the language that is to be used to display messages concerning
-the startup notification.  The (usually adequate) default is to use the
-settings of the launching process.
+.IP "\fB\-\-verbose\fR, \fB\-v\fR [\fI\s-1LEVEL\s0\fR]" 4
+.IX Item "--verbose, -v [LEVEL]"
+Print diagnostic information to standard error during operation.  This option can be
+repeated to increase the verbosity of output.  The default level is 1.
+.IP "\fB\-\-debug\fR, \fB\-D\fR [\fI\s-1LEVEL\s0\fR]" 4
+.IX Item "--debug, -D [LEVEL]"
+Prints debugging information to standard error during operation.  This option can be
+repeasted to increase the debugging level.  The default level is 0.
 .SS "\s-1LAUNCH OPTIONS\s0"
 .IX Subsection "LAUNCH OPTIONS"
 The following options affect the parameters of startup notification
 \&\f(CW\*(C`new\*(C'\fR message that is sent for launch:
-.IP "\fB\-\-launcher\fR \fI\s-1LAUNCHER\s0\fR" 4
-.IX Item "--launcher LAUNCHER"
+.IP "\fB\-\-launcher\fR, \fB\-L\fR \fI\s-1LAUNCHER\s0\fR" 4
+.IX Item "--launcher, -L LAUNCHER"
 Specifies the string that will be used as the launcher when generating
 a startup notification identifier.  The default is the name of this
 program (i.e. \fBxdg-launch\fR).
-.IP "\fB\-\-launchee\fR \fI\s-1LAUNCHEE\s0\fR" 4
-.IX Item "--launchee LAUNCHEE"
+.IP "\fB\-\-launchee\fR, \fB\-l\fR \fI\s-1LAUNCHEE\s0\fR" 4
+.IX Item "--launchee, -l LAUNCHEE"
 Specifies the string that will be used as the launcher when generating a
 startup notification identifier.  The default is the application
 identifier.
-.IP "\fB\-\-sequence\fR \fI\s-1SEQUENCE\s0\fR" 4
-.IX Item "--sequence SEQUENCE"
+.IP "\fB\-\-sequence\fR, \fB\-S\fR \fI\s-1SEQUENCE\s0\fR" 4
+.IX Item "--sequence, -S SEQUENCE"
 Specifies a sequence number that will be used when generating a startup
 notification identifier.  The default, when unspecified, is zero (0).
-.IP "\fB\-\-hostname\fR \fI\s-1HOSTNAME\s0\fR" 4
-.IX Item "--hostname HOSTNAME"
+.IP "\fB\-\-hostname\fR, \fB\-n\fR \fI\s-1HOSTNAME\s0\fR" 4
+.IX Item "--hostname, -n HOSTNAME"
 Specifies the host name that will be used when generating a
 startup notification identifier.  The default, when unspecified, is
 the result of \f(CW\*(C`hostname \-f\*(C'\fR.
@@ -309,8 +307,8 @@ window that the \s-1XDG\s0 application is expected to map.  This overrides the
 unspecified, the default is the \fBStartupWMClass\fR field of the \s-1XDG\s0
 desktop entry file.  This value, when available, is placed in the
 \&\f(CW\*(C`WMCLASS\*(C'\fR key-value entry in the startup notification \f(CW\*(C`new\*(C'\fR message.
-.IP "\fB\-\-silent\fR, \fB\-s\fR \fI\s-1SILENT\s0\fR" 4
-.IX Item "--silent, -s SILENT"
+.IP "\fB\-\-silent\fR, \fB\-q\fR \fI\s-1SILENT\s0\fR" 4
+.IX Item "--silent, -q SILENT"
 Specify a boolean value (0/1) choosing whether visual feedback should be
 provided for the launching \s-1XDG\s0 application.  Normally, when unspecified,
 visual feedback would be determined from the presence of a value of a
@@ -325,6 +323,10 @@ When unspecified, the \f(CW\*(C`SILENT\*(C'\fR argument to the startup notificat
 message is set when the \s-1XDG\s0 desktop entry has neither a \fBStartupNotify\fR
 nor a \fBStartupWMClass\fR field, or it only has a \fBStartupNotify\fR field
 but it is set to false.
+.IP "\fB\-\-pid\fR, \fB\-p\fR \fI\s-1PID\s0\fR" 4
+.IX Item "--pid, -p PID"
+Specifies the process identifier for the launch sequence.  The default is the process
+identifier of the \fBxdg-launch\fR program.
 .IP "\fB\-\-appid\fR, \fB\-a\fR \fI\s-1APPLICATION_ID\s0\fR" 4
 .IX Item "--appid, -a APPLICATION_ID"
 Override the application identifier.  This overrides the name of the \s-1XDG\s0
@@ -375,6 +377,10 @@ the \fB_TIMESTAMP_PROP\fR property on the root window to obtain a time
 stamp.  In this way, \fBxdg-launch\fR can simply be executed using the
 execute mechanism of a light-weight window manager root menu or key
 binding.
+.IP "3." 4
+When \fBxdg-launch\fR is invoked by another startup notification launcher,
+it will obtain the timestamp (and other information) from the
+\fB\s-1DESKTOP_STARTUP_ID\s0\fR.
 .SS "\s-1WINDOW MANAGERS\s0"
 .IX Subsection "WINDOW MANAGERS"
 \&\fBxdg-launch\fR interacts with window managers in the following ways:
@@ -383,11 +389,11 @@ binding.
 technique from the \fIlibsn\fR library.  This consists of the following:
 .Sp
 .Vb 5
-\& $launcher =~ s{/}{|}g;
-\& $launchee =~ s{/}{|}g;
-\& $id = sprintf(\*(Aq%s/%s/%d\-%d\-%s_TIME%lu\*(Aq,
-\&         $launcher, $launchee, getpid(), $sequence_number++,
-\&         $timestamp);
+\& while((p = strchr(launcher, '/'))) *p = '|';
+\& while((p = strchr(launchee, '/'))) *p = '|';
+\& sprintf(id, \*(C`%s/%s/%d\-%d\-%s_TIME%lu\*(C',
+\&         launcher, launchee, getpid(), sequence_number++,
+\&         hostname, timestamp);
 .Ve
 .Sp
 Compliant applications will place the startup notification identifier
@@ -396,7 +402,10 @@ from the \fB\s-1DESKTOP_STARTUP_ID\s0\fR environment variable in the
 it is mapped.  The window manager can use the \f(CW\*(C`_TIME%lu\*(C'\fR portion of the
 startup identifier to determine the X server time stamp for the event
 that launched the application.  When the client does not set an initial
-\&\fB_NET_WM_uSER_TIME\fR, this time stamp can be used in its stead.
+\&\fB_NET_WM_USER_TIME\fR, this time stamp can be used in its stead.
+It can also use the \f(CW\*(C`/%d\-\*(C'\fR portion of the startup identifier
+to determine the process identifier, and the \f(CW\*(C`\-%s_TIME\*(C'\fR portion of the
+identifier to determine the hostname of the launching machine.
 .IP "2." 4
 Window managers that monitor startup notification messages may also use
 the \f(CW\*(C`TIMESTAMP=\*(C'\fR key-field entry in the \f(CW\*(C`new:\*(C'\fR message for this
@@ -404,7 +413,8 @@ purpose, particularly when the \f(CW\*(C`WMCLASS=\*(C'\fR field matches the reso
 name or class of a newly mapped top-level window.
 .IP "3." 4
 \&\fBxdg-launch\fR neither changes nor removes the startup notification
-sequence and is only responsible for issuing in the \f(CW\*(C`new:\*(C'\fR message.
+sequence and is only responsible for issuing in the \f(CW\*(C`new:\*(C'\fR or
+\&\f(CW\*(C`change:\*(C'\fR message.
 The window manager or desktop environment should issue a \f(CW\*(C`remove:\*(C'\fR
 message when it first manages a top-level window with a resource name or
 class than matches the \f(CW\*(C`WMCLASS=\*(C'\fR field of an outstanding \f(CW\*(C`new:\*(C'\fR
@@ -425,11 +435,13 @@ property on the window (group) when it is missing.
 The window manager may use this field to populate the
 \&\f(CW\*(C`WM_CLIENT_MACHINE\*(C'\fR property when it is missing or is not a fully
 qualified domain name.
+This field can also be derived from the \f(CW\*(C`ID=\*(C'\fR field.
 .ie n .IP """PID=""" 4
 .el .IP "\f(CWPID=\fR" 4
 .IX Item "PID="
 The window manager may use this field to populate the \f(CW\*(C`_NET_WM_PID\*(C'\fR
 property when it is missing.
+This field can also be derived from the \f(CW\*(C`ID=\*(C'\fR field.
 .ie n .IP """MONITOR=""" 4
 .el .IP "\f(CWMONITOR=\fR" 4
 .IX Item "MONITOR="
@@ -455,6 +467,7 @@ property when missing or otherwise unspecified.
 .IX Item "TIMESTAMP="
 The window manager may use this field to populate the
 \&\f(CW\*(C`_NET_WM_USER_TIME\*(C'\fR property when it is missing.
+This field can also be derived from the \f(CW\*(C`ID=\*(C'\fR field.
 .ie n .IP """NAME=""" 4
 .el .IP "\f(CWNAME=\fR" 4
 .IX Item "NAME="
@@ -482,11 +495,35 @@ populate the \f(CW\*(C`WM_COMMAND\*(C'\fR property; however, it may be executed 
 passing it literally as a shell command.  I suppose one could populate
 \&\f(CW\*(C`WM_COMMAND\*(C'\fR with \*(L"sh\*(R", \*(L"<\s-1COMMAND\s0>\*(R" if necessary.
 .RE
-.RS 4
-.RE
+.SH "ENVIRONMENT"
+.IX Header "ENVIRONMENT"
+The following environment variables are examined by \fBxdg-launch\fR:
+.IP "\fB\s-1DESKTOP_STARTUP_ID\s0\fR" 4
+.IX Item "DESKTOP_STARTUP_ID"
+Used by \fBxdg-launch\fI at program startup to determine whether it itself has been launche
+with startup notification.  The \fB\s-1DESKTOP_STARTUP_ID\s0\fR is reused in this case.  This
+environment variable is set to the startup notification identifier just prior to executing
+the launched program.
+.IP "\fB\s-1LANG\s0\fR" 4
+.IX Item "LANG"
+Used by \fBxdg-launch\fR at program startup to determine the language to use to select
+the language for \f(CW\*(C`Name=\*(C'\fR and \f(CW\*(C`Comment=\*(C'\fR fields from the
+desktop entry file.
+.IP "\fB\s-1HOME\s0\fR" 4
+.IX Item "HOME"
+Used by \fBxdg-launch\fR to determine the user's home directory.
+.IP "\fB\s-1XDG_DATA_HOME\s0\fR" 4
+.IX Item "XDG_DATA_HOME"
+Used by \fBxdg-launch\fR to determine the user's XDG data directory.  This defaults to
+\&\f(CW\*(C`$HOME/.local/share\*(C'\fR.  The \f(CW\*(C`applications\*(C'\fR subdirectory
+under this directory is the first searched to locate desktop entry files.  See the XDG
+Desktop Entry file specification for more information.
+.IP "\fB\s-1XDG_DATA_DIRS\s0\fR" 4
+.IX Item "XDG_DATA_DIRS"
+Used by \fBxdg-launch\fR to determine the system XDG data directories.  This defaults to
+\&\f(CW\*(C`/usr/local/share:/usr/share\*(C'\fR.  The \f(CW\*(C`applications\*(C'\fR
+subdirectory under these directories are searched in order to locate desktop entry files.
+See the XDG Desktop Entry file specification for more information.
 .SH "AUTHOR"
 .IX Header "AUTHOR"
 Brian Bidulock <bidulock@openss7.org>
-.SH "SEE ALSO"
-.IX Header "SEE ALSO"
-\&\fIX11::Protocol\fR\|(3pm), \fIX11::Protocol::Ext::XINERAMA\fR\|(3pm).

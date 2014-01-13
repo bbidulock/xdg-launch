@@ -2,12 +2,15 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xdg-launch],[0.1],[https://github.com/polachok/echinus/issues])
+AC_INIT([xdg-tools],[0.1],[https://github.com/bbidulock/xdg-launch/issues])
 AC_REVISION([0.1])
 AC_CONFIG_SRCDIR([xdg-launch.c])
 AC_CONFIG_HEADERS([autoconf.h])
 AC_CONFIG_AUX_DIR([scripts])
 AC_USE_SYSTEM_EXTENSIONS
+
+DATE=`date -uI`
+AC_SUBST([DATE])
 
 # Initialize Automake
 AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
@@ -38,7 +41,7 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([getcwd memmove regcomp select setlocale strchr strdup strerror strrchr])
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile xdg-launch.man])
 
 PKG_CHECK_MODULES([X11],[x11])
 

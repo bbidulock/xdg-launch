@@ -15,4 +15,5 @@ scripts/
 stamp-h*
 .*.sw[nop]
 xdg-launch
-
+autoconf.h.in~
+xdg-launch.man

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PACKAGE='xdg-launch'
+PACKAGE='xdg-tools'
 VERSION=
 
 if [ -z "$VERSION" ]; then
@@ -14,7 +14,7 @@ if [ -z "$VERSION" ]; then
 	fi
 fi
 
-sed -r -e "s:AC_INIT\([[]$PACKAGE[]],[[][^]]*[]]:AC_INIT([echinus],[$VERSION]:
+sed -r -e "s:AC_INIT\([[]$PACKAGE[]],[[][^]]*[]]:AC_INIT([$PACKAGE],[$VERSION]:
 	   s:AC_REVISION\([[][^]]*[]]\):AC_REVISION([$VERSION]):" \
 	  configure.template >configure.ac
 
