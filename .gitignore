@@ -1,12 +1,14 @@
 aclocal.m4
 autoconf.h
 autoconf.h.in
+autoconf.h.in~
 autom4te.cache/
 ChangeLog
 config.log
 config.status
 configure
 configure.ac
+cscope.*
 .deps/
 Makefile
 Makefile.in
@@ -15,5 +17,4 @@ scripts/
 stamp-h*
 .*.sw[nop]
 xdg-launch
-autoconf.h.in~
 xdg-launch.man
