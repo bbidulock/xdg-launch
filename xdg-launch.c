@@ -201,6 +201,10 @@ Atom _XA_NET_CURRENT_DESKTOP;
 Atom _XA_NET_VISIBLE_DESKTOPS;
 Atom _XA_WIN_WORKSPACE;
 Atom _XA_TIMESTAMP_PROP;
+Atom _XA_NET_WM_USER_TIME;
+Atom _XA_NET_WM_USER_TIME_WINDOW;
+Atom _XA_NET_WM_STATE;
+Atom _XA_NET_WM_ALLOWED_ACTIONS;
 
 struct atoms {
 	char *name;
@@ -218,6 +222,10 @@ struct atoms {
 	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS	},
 	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE		},
 	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP		},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME		},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW	},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE		},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS	},
 	{ NULL,					NULL				}
 	/* *INDENT-ON* */
 };
@@ -225,10 +233,20 @@ struct atoms {
 void
 intern_atoms()
 {
-	int i;
+	int i, n;
+	char **atom_names;
+	Atom *atom_values;
 
-	for (i = 0; atoms[i].name; i++)
-		*atoms[i].atom = XInternAtom(dpy, atoms[i].name, False);
+	for (n = 0; atoms[n].name; n++) ;
+	atom_names = calloc(n + 1, sizeof(*atom_names));
+	atom_values = calloc(n + 1, sizeof(*atom_values));
+	for (i = 0; i < n; i++)
+		atom_names[i] = atoms[i].name;
+	XInternAtoms(dpy, atom_names, n, False, atom_values);
+	for (i = 0; i < n; i++)
+		*atoms[i].atom = atom_values[i];
+	free(atom_names);
+	free(atom_values);
 }
 
 Bool
@@ -358,7 +376,7 @@ set_screen()
 	else if (options.pointer && find_pointer_screen())
 		snprintf(fields.screen, 64, "%d", screen);
 	else if (!options.keyboard && !options.pointer &&
-			(find_focus_screen() || find_pointer_screen()))
+		 (find_focus_screen() || find_pointer_screen()))
 		snprintf(fields.screen, 64, "%d", screen);
 	else {
 		screen = DefaultScreen(dpy);
@@ -376,6 +394,7 @@ segm_overlap(int min1, int max1, int min2, int max2)
 	if (min1 > max1) { tmp = min1; min1 = max1; max1 = tmp; }
 	if (min2 > max2) { tmp = min2; min2 = max2; max2 = tmp; }
 	/* *INDENT-ON* */
+
 	if (min1 <= min2 && max1 >= min2)
 		// min1 min2 (max2?) max1 (max2?)
 		res = (max2 <= max1) ? max2 - min2 : max1 - min2;
@@ -392,8 +411,7 @@ segm_overlap(int min1, int max1, int min2, int max2)
 }
 
 static int
-area_overlap(int xmin1, int ymin1, int xmax1, int ymax1,
-	     int xmin2, int ymin2, int xmax2, int ymax2)
+area_overlap(int xmin1, int ymin1, int xmax1, int ymax1, int xmin2, int ymin2, int xmax2, int ymax2)
 {
 	int w = 0, h = 0;
 
@@ -402,7 +420,6 @@ area_overlap(int xmin1, int ymin1, int xmax1, int ymax1,
 
 	return (w && h) ? (w * h) : 0;
 }
-
 
 Bool
 find_focus_monitor()
@@ -550,7 +567,7 @@ set_monitor()
 	else if (options.pointer && find_pointer_monitor())
 		snprintf(fields.monitor, 64, "%d", monitor);
 	else if (!options.keyboard && !options.pointer &&
-			(find_focus_monitor() || find_pointer_monitor()))
+		 (find_focus_monitor() || find_pointer_monitor()))
 		snprintf(fields.monitor, 64, "%d", monitor);
 	else {
 		free(fields.monitor);
@@ -649,7 +666,7 @@ set_name()
 	else if (entry.Name)
 		fields.name = strdup(entry.Name);
 	else
-		fields.name = strdup(""); /* must be included in new: message */
+		fields.name = strdup("");	/* must be included in new: message */
 }
 
 void
@@ -794,8 +811,8 @@ do_subst(char *cmd, char *chars, char *str)
 	char *p;
 
 	if (output > 2)
-		fprintf(stderr, "starting %s at %s:%d (cmd %s, char %s, str %s)\n", __FUNCTION__, __FILE__,
-		__LINE__, cmd, chars, str);
+		fprintf(stderr, "starting %s at %s:%d (cmd %s, char %s, str %s)\n", __FUNCTION__,
+			__FILE__, __LINE__, cmd, chars, str);
 	len = str ? strlen(str) : 0;
 	for (p = cmd; (p = strchr(p, '%')); p++) {
 		if (*(p - 1) != '%' && strspn(p + 1, chars)) {
@@ -834,8 +851,15 @@ set_command()
 		fprintf(stderr, "starting %s at %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
 	free(fields.command);
 	cmd = calloc(2048, sizeof(*cmd));
-	if (truth_value(entry.Terminal))
+	if (truth_value(entry.Terminal)) {
+		/* A little more to be done here: we should set WMCLASS to xterm to assist the DE.
+		   SILENT should be set to zero. */
 		strncat(cmd, "xterm -T \"%c\" -e ", 1024);
+		free(fields.wmclass);
+		fields.wmclass = strdup("xterm");
+		free(fields.silent);
+		fields.silent = NULL;
+	}
 	if (options.exec)
 		strncat(cmd, options.exec, 1024);
 	else if (entry.Exec)
@@ -1340,7 +1364,7 @@ send_msg(char *msg)
 struct {
 	char *label;
 	char **value;
-} labels[]  = {
+} labels[] = {
 	/* *INDENT-OFF* */
 	{ " NAME=",		&fields.name		},
 	{ " ICON=",		&fields.icon		},
@@ -1395,6 +1419,7 @@ void
 send_change()
 {
 	char *msg, *p;
+
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "change:");
 	add_field(&p, " ID=", fields.id);
@@ -1478,6 +1503,11 @@ handle_event(XEvent * e)
 	}
 }
 
+/*
+ * Assist the window manager to do the right thing with respect to focus and
+ * with respect to positioning of the window on the correct monitor and the
+ * correct desktop.
+ */
 void
 assist()
 {
@@ -1514,14 +1544,9 @@ assist()
 		fd_set rd;
 		int xfd;
 		XEvent ev;
-		SnDisplay *sn_dpy;
-		SnLauncheeContext *sn_ctx;
 
-		(void) sn_ctx;
-
-		sn_dpy = sn_display_new(dpy, NULL, NULL);
-		sn_ctx = sn_launchee_context_new_from_environment(sn_dpy, screen);
-		XSelectInput(dpy, root, StructureNotifyMask | PropertyChangeMask);
+		XSelectInput(dpy, root, VisibilityChangeMask | StructureNotifyMask |
+			     FocusChangeMask | PropertyChangeMask);
 		context = XUniqueContext();
 
 		/* main event loop */
