@@ -205,46 +205,62 @@ Atom _XA_NET_WM_USER_TIME;
 Atom _XA_NET_WM_USER_TIME_WINDOW;
 Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_ALLOWED_ACTIONS;
+Atom _XA_NET_CLIENT_LIST;
+Atom _XA_WIN_CLIENT_LIST;
+
+static void handle_NET_CLIENT_LIST(XEvent *);
+static void handle_WIN_CLIENT_LIST(XEvent *);
 
 struct atoms {
 	char *name;
 	Atom *atom;
+	void (*handler)(XEvent *);
+	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID		},
-	{ "_NET_WM_PID",			&_XA_NET_WM_PID			},
-	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN	},
-	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO		},
-	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK	},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK	},
-	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED		},
-	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP	},
-	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS	},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE		},
-	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP		},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME		},
-	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW	},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE		},
-	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS	},
-	{ NULL,					NULL				}
+	/* name					global				handler				atom value		*/
+	/* ----					------				-------				----------		*/
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,				None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,				None			},
+	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	NULL,				None			},
+	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		NULL,				None			},
+	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	NULL,				None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	NULL,				None			},
+	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		NULL,				None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,				None			},
+	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,				None			},
+	{ "WM_COMMAND",				NULL,				NULL,				XA_WM_COMMAND		},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,				None			},
+	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,				None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		NULL,				None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,				None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		NULL,				None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,				None			},
+	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,	None			},
+	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,	None			},
+	{ NULL,					NULL,				NULL,				None			}
 	/* *INDENT-ON* */
 };
 
 void
 intern_atoms()
 {
-	int i, n;
+	int i, j, n;
 	char **atom_names;
 	Atom *atom_values;
 
-	for (n = 0; atoms[n].name; n++) ;
+	for (i = 0, n = 0; atoms[i].name; i++)
+		if (atoms[i].atom)
+			n++;
 	atom_names = calloc(n + 1, sizeof(*atom_names));
 	atom_values = calloc(n + 1, sizeof(*atom_values));
-	for (i = 0; i < n; i++)
-		atom_names[i] = atoms[i].name;
+	for (i = 0, j = 0; j < n; i++)
+		if (atoms[i].atom)
+			atom_names[j++] = atoms[i].name;
 	XInternAtoms(dpy, atom_names, n, False, atom_values);
-	for (i = 0; i < n; i++)
-		*atoms[i].atom = atom_values[i];
+	for (i = 0, j = 0; j < n; i++)
+		if (atoms[i].atom)
+			*atoms[i].atom = atoms[i].value = atom_values[j++];
 	free(atom_names);
 	free(atom_values);
 }
@@ -1445,24 +1461,103 @@ typedef struct client client;
 struct client {
 	Window win;
 	client *next;
+	Bool breadcrumb;
+	Bool new;
 };
 
 client *clients = NULL;
 
+static void
+update_client(client *c)
+{
+	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
+			StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	c->new = False;
+}
+
+static void
+handle_CLIENT_LIST(XEvent * e, Atom atom, Atom type)
+{
+	Atom real;
+	int format;
+	unsigned long i, nitems, after = 64;
+	Window *data = NULL;
+	client *c, **cp;
+
+      try_again_larger:
+	if (XGetWindowProperty(dpy, root, atom, 0L, after, False,
+			       type, &real, &format, &nitems, &after,
+			       (unsigned char **) &data) == Success && format != 0) {
+		if (after) {
+			after = ((after + 1) >> 2) + 1;
+			if (data) {
+				XFree(data);
+				data = NULL;
+			}
+			goto try_again_larger;
+		}
+		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
+		for (i = 0, c = NULL; i < nitems; c = NULL, i++)
+			if (XFindContext(dpy, data[i], context, (XPointer *) & c) == Success)
+				c->breadcrumb = True;
+			else {
+				c = calloc(1, sizeof(*c));
+				c->win = data[i];
+				c->breadcrumb = True;
+				c->new = True;
+				c->next = clients;
+				clients = c;
+				XSaveContext(dpy, c->win, context, (XPointer) c);
+			}
+		for (cp = &clients, c = *cp; c; cp = &c->next, c = *cp)
+			if (!c->breadcrumb) {
+				*cp = c->next;
+				XDeleteContext(dpy, c->win, context);
+				free(c);
+			}
+		for (c = clients; c; c = c->next)
+			if (c->new)
+				update_client(c);
+	}
+}
+
+static void
+handle_NET_CLIENT_LIST(XEvent * e)
+{
+	handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
+}
+
+static void
+handle_WIN_CLIENT_LIST(XEvent * e)
+{
+	handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
+}
+
+/*
+ * If the window manager has a client list, we can check for newly mapped
+ * windows by additions to the client list.  We can calculate the user time by
+ * tracking _NET_WM_USER_TIME and _NET_WM_USER_TIME_WINDOW on all clients.
+ * If the window manager supports _NET_WM_STATE_FOCUSED or at least
+ * _NET_ACTIVE_WINDOW, coupled with FocusIn and FocusOut events, we should be
+ * able to track the last focused window at the time that the app started (not
+ * all apps support _NET_WM_USER_TIME).
+ */
 void
 handle_event(XEvent * e)
 {
 	client *c = NULL;
+	int i;
 
 	XFindContext(dpy, e->xany.window, context, (XPointer *) & c);
 
 	switch (e->type) {
 	case PropertyNotify:
-		if (!c)
-			break;
-		if (e->xproperty.atom == _XA_NET_STARTUP_ID) {
-		} else if (e->xproperty.atom == XA_WM_HINTS) {
-		} else if (e->xproperty.atom == XA_WM_NORMAL_HINTS) {
+		for (i = 0; atoms[i].atom; i++) {
+			if (e->xproperty.atom == atoms[i].value) {
+				if (atoms[i].handler)
+					atoms[i].handler(e);
+				break;
+			}
 		}
 		break;
 	case FocusIn:
