@@ -97,6 +97,9 @@ const char *program = NAME;
 static int debug = 0;
 static int output = 1;
 
+char **eargv = NULL;
+int eargc = 0;
+
 struct params {
 	char *appid;
 	char *launcher;
@@ -190,6 +193,30 @@ int monitor;
 int screen;
 Window root;
 
+typedef struct client client;
+
+struct client {
+	Window win;
+	Window time_win;
+	client *next;
+	Bool breadcrumb;
+	Bool new;
+	Time active_time;
+	Time focus_time;
+	Time user_time;
+	pid_t pid;
+	char *startup_id;
+	char **command;
+	char *name;
+	char *hostname;
+	XClassHint ch;
+};
+
+client *clients = NULL;
+
+Time last_user_time = CurrentTime;
+Time launch_time = CurrentTime;
+
 Atom _XA_NET_STARTUP_ID;
 Atom _XA_NET_WM_PID;
 Atom _XA_NET_STARTUP_INFO_BEGIN;
@@ -207,14 +234,24 @@ Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_ALLOWED_ACTIONS;
 Atom _XA_NET_CLIENT_LIST;
 Atom _XA_WIN_CLIENT_LIST;
+Atom _XA_NET_ACTIVE_WINDOW;
+Atom _XA_KDE_WM_CHANGE_STATE;
+Atom _XA_NET_VIRTUAL_ROOTS;
+Atom _XA_WM_STATE;
+Atom _XA__SWM_VROOT;
+Atom _XA_NET_WM_STATE_FOCUSED;
 
-static void handle_NET_CLIENT_LIST(XEvent *);
-static void handle_WIN_CLIENT_LIST(XEvent *);
+static void handle_NET_CLIENT_LIST(XEvent *, client *);
+static void handle_WIN_CLIENT_LIST(XEvent *, client *);
+static void handle_NET_ACTIVE_WINDOW(XEvent *, client *);
+static void handle_NET_WM_STATE(XEvent *, client *);
+static void handle_NET_WM_USER_TIME(XEvent *, client *);
+static void handle_WM_STATE(XEvent *, client *);
 
 struct atoms {
 	char *name;
 	Atom *atom;
-	void (*handler)(XEvent *);
+	void (*handler) (XEvent *, client *);
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
@@ -230,14 +267,20 @@ struct atoms {
 	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,				None			},
 	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,				None			},
 	{ "WM_COMMAND",				NULL,				NULL,				XA_WM_COMMAND		},
+	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,		None			},
 	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,				None			},
 	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,				None			},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		NULL,				None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,	None			},
 	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,				None			},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		NULL,				None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,		None			},
 	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,				None			},
 	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,	None			},
 	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,	None			},
+	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,	None			},
+	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,				None			},
+	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,				None			},
+	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,				None			},
+	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,				None			},
 	{ NULL,					NULL,				NULL,				None			}
 	/* *INDENT-ON* */
 };
@@ -279,6 +322,93 @@ get_display()
 		}
 	}
 	return (dpy ? True : False);
+}
+
+static char *
+get_text(Window win, Atom prop)
+{
+	XTextProperty tp = { NULL, };
+
+	XGetTextProperty(dpy, win, &tp, prop);
+	if (tp.value) {
+		tp.value[tp.nitems + 1] = '\0';
+		return (char *) tp.value;
+	}
+	return NULL;
+}
+
+static long *
+get_cardinals(Window win, Atom prop, Atom type, long *n)
+{
+	Atom real;
+	int format;
+	unsigned long nitems, after, num = 1;
+	long *data = NULL;
+
+      try_harder:
+	if (XGetWindowProperty(dpy, win, prop, 0L, num, False, type, &real, &format,
+			       &nitems, &after, (unsigned char **) &data) == Success
+	    && format != 0) {
+		if (after) {
+			num += ((after + 1) >> 2);
+			XFree(data);
+			goto try_harder;
+		}
+		if ((*n = nitems) > 0)
+			return data;
+		if (data)
+			XFree(data);
+	} else
+		*n = -1;
+	return NULL;
+}
+
+static Bool
+get_cardinal(Window win, Atom prop, Atom type, long *card_ret)
+{
+	Bool result = False;
+	long *data, n;
+
+	if ((data = get_cardinals(win, prop, type, &n)) && n > 0) {
+		*card_ret = data[0];
+		result = True;
+	}
+	if (data)
+		XFree(data);
+	return result;
+}
+
+static Window *
+get_windows(Window win, Atom prop, Atom type, long *n)
+{
+	return (Window *) get_cardinals(win, prop, type, n);
+}
+static Bool
+get_window(Window win, Atom prop, Atom type, Window *win_ret)
+{
+	return get_cardinal(win, prop, type, (long *)win_ret);
+}
+
+Time *
+get_times(Window win, Atom prop, Atom type, long *n)
+{
+	return (Time *) get_cardinals(win, prop, type, n);
+}
+static Bool
+get_time(Window win, Atom prop, Atom type, Time *time_ret)
+{
+	return get_cardinal(win, prop, type, (long *)time_ret);
+}
+
+static Atom *
+get_atoms(Window win, Atom prop, Atom type, long *n)
+{
+	return (Atom *) get_cardinals(win, prop, type, n);
+}
+Bool
+get_atom(Window win, Atom prop, Atom type, Atom *atom_ret)
+{
+	return get_cardinal(win, prop, type, (long *)atom_ret);
 }
 
 Bool
@@ -350,19 +480,66 @@ set_screen_of_root(Window sroot)
 	return False;
 }
 
-Bool
-find_focus_screen()
+/* @brief find the frame of a client window.
+ *
+ * This only really works for reparenting window managers (which are the most
+ * common).  It watches out for virual roots.
+ */
+Window
+get_frame(Window win)
 {
-	Window focus, froot;
-	int di;
+	Window frame = win, fparent, froot = None, *fchildren, *vroots, vroot = None;
 	unsigned int du;
+	long i, n = 0;
+
+	vroots = get_windows(root, _XA_NET_VIRTUAL_ROOTS, XA_WINDOW, &n);
+	get_window(root, _XA__SWM_VROOT, XA_WINDOW, &vroot);
+
+	for (fparent = frame; fparent != froot; frame = fparent) {
+		if (!XQueryTree(dpy, frame, &froot, &fparent, &fchildren, &du)) {
+			frame = None;
+			goto done;
+		}
+		if (fchildren)
+			XFree(fchildren);
+		/* When the parent is a virtual root, we have the frame. */
+		for (i = 0; i < n; i++)
+			if (fparent == vroots[i])
+				goto done;
+		if (vroot && fparent == vroot)
+			goto done;
+	}
+      done:
+	if (vroots)
+		XFree(vroots);
+	return frame;
+}
+
+Window
+get_focus_frame()
+{
+	Window focus;
+	int di;
 
 	XGetInputFocus(dpy, &focus, &di);
 
 	if (focus == None || focus == PointerRoot)
+		return None;
+
+	return get_frame(focus);
+}
+
+Bool
+find_focus_screen()
+{
+	Window frame, froot;
+	int di;
+	unsigned int du;
+
+	if (!(frame = get_focus_frame()))
 		return False;
 
-	if (!XGetGeometry(dpy, focus, &froot, &di, &di, &du, &du, &du, &du))
+	if (!XGetGeometry(dpy, frame, &froot, &di, &di, &du, &du, &du, &du))
 		return False;
 
 	return set_screen_of_root(froot);
@@ -440,21 +617,22 @@ area_overlap(int xmin1, int ymin1, int xmax1, int ymax1, int xmin2, int ymin2, i
 Bool
 find_focus_monitor()
 {
-	Window focus, froot;
+#if defined XINERAMA || defined XRANDR
+	Window frame, froot;
 	int x, y, xmin, xmax, ymin, ymax, a, area, best, di;
 	unsigned int w, h, b, du;
 
-	XGetInputFocus(dpy, &focus, &di);
+	if (!(frame = get_focus_frame()))
+		return False;
 
-	if (focus == None || focus == PointerRoot)
+	if (!XGetGeometry(dpy, frame, &froot, &x, &y, &w, &h, &b, &du))
 		return False;
-	if (!XGetGeometry(dpy, focus, &froot, &x, &y, &w, &h, &b, &du))
-		return False;
+
 	xmin = x;
 	xmax = x + w + 2 * b;
 	ymin = y;
 	ymax = y + h + 2 * b;
-#if XINERAMA
+#ifdef XINERAMA
 	if (XineramaQueryExtension(dpy, &di, &di) && XineramaIsActive(dpy)) {
 		int i, n;
 		XineramaScreenInfo *si;
@@ -478,8 +656,8 @@ find_focus_monitor()
 		}
 	}
       no_xinerama:
-#endif
-#if XRANDR
+#endif				/* XINERAMA */
+#ifdef XRANDR
 	if (XRRQueryExtension(dpy, &di, &di)) {
 		XRRScreenResources *sr;
 		int i, n;
@@ -510,19 +688,21 @@ find_focus_monitor()
 		}
 	}
       no_xrandr:
-#endif
+#endif				/* XRANDR */
+#endif				/* defined XINERAMA || defined XRANDR */
 	return False;
 }
 
 Bool
 find_pointer_monitor()
 {
+#if defined XINERAMA || defined XRANDR
 	int di, x, y;
 	Window proot, dw;
 	unsigned int du;
 
 	XQueryPointer(dpy, root, &proot, &dw, &x, &y, &di, &di, &du);
-#if XINERAMA
+#ifdef XINERAMA
 	if (XineramaQueryExtension(dpy, &di, &di) && XineramaIsActive(dpy)) {
 		int i, n;
 		XineramaScreenInfo *si;
@@ -539,8 +719,8 @@ find_pointer_monitor()
 		XFree(si);
 	}
       no_xinerama:
-#endif
-#if XRANDR
+#endif				/* XINERAMA */
+#ifdef XRANDR
 	if (XRRQueryExtension(dpy, &di, &di)) {
 		XRRScreenResources *sr;
 		int i, n;
@@ -567,7 +747,8 @@ find_pointer_monitor()
 		XFree(sr);
 	}
       no_xrandr:
-#endif
+#endif				/* XRANDR */
+#endif				/* defined XINERAMA || defined XRANDR */
 	return False;
 }
 
@@ -674,6 +855,8 @@ set_desktop()
 void
 set_name()
 {
+	char *pos;
+
 	if (output > 2)
 		fprintf(stderr, "starting %s at %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
 	free(fields.name);
@@ -681,6 +864,8 @@ set_name()
 		fields.name = strdup(options.name);
 	else if (entry.Name)
 		fields.name = strdup(entry.Name);
+	else if (eargv)
+		fields.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else
 		fields.name = strdup("");	/* must be included in new: message */
 }
@@ -732,11 +917,15 @@ set_icon()
 char *
 set_wmclass()
 {
+	char *pos;
+
 	if (output > 2)
 		fprintf(stderr, "starting %s at %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
 	free(fields.wmclass);
 	if (options.wmclass)
 		fields.wmclass = strdup(options.wmclass);
+	else if (eargv)
+		fields.wmclass = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else if (entry.StartupWMClass)
 		fields.wmclass = strdup(entry.StartupWMClass);
 	else
@@ -786,6 +975,8 @@ set_sequence()
 	free(fields.sequence);
 	if (options.sequence)
 		fields.sequence = strdup(options.sequence);
+	else if (options.monitor)
+		fields.sequence = strdup(options.monitor);
 	else {
 		fields.sequence = calloc(64, sizeof(*fields.sequence));
 		snprintf(fields.sequence, 64, "%d", 0);
@@ -880,7 +1071,7 @@ set_command()
 		strncat(cmd, options.exec, 1024);
 	else if (entry.Exec)
 		strncat(cmd, entry.Exec, 1024);
-	else {
+	else if (!eargv) {
 		fprintf(stderr, "%s: cannot launch anything without a command\n", NAME);
 		exit(1);
 	}
@@ -941,6 +1132,8 @@ set_bin()
 	free(fields.bin);
 	if (options.binary)
 		fields.bin = strdup(options.binary);
+	else if (eargv)
+		fields.bin = strdup(eargv[0]);
 	else if (fields.id && (p = strrchr(fields.id, '/')) && p++ && (q = strchr(p, '-')))
 		fields.bin = strndup(p, q - p);
 	else if (options.exec)
@@ -1268,14 +1461,17 @@ parse_file(char *path)
 }
 
 char *
-lookup_file(void)
+lookup_file(char *name)
 {
-	char *path = NULL;
+	char *path = NULL, *appid;
 	struct stat st;
 
-	if (strstr(options.appid, ".desktop") != options.appid + strlen(options.appid) - 8)
-		options.appid = strcat(options.appid, ".desktop");
-	if (!strchr(options.appid, '/')) {
+	appid = calloc(1024, sizeof(*appid));
+	strncat(appid, name, 1023);
+
+	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
+		strncat(appid, ".desktop", 1024);
+	if (!strchr(appid, '/')) {
 		/* go looking for it, need to look in XDG_DATA_HOME and then each of the
 		   directories in XDG_DATA_DIRS */
 		char *home, *dirs;
@@ -1310,19 +1506,20 @@ lookup_file(void)
 			}
 			path = realloc(path, 4096);
 			strcat(path, "/applications/");
-			strcat(path, options.appid);
+			strcat(path, appid);
 			if (stat(path, &st) == 0)
 				break;
 			free(path);
 			path = NULL;
 		}
 	} else {
-		path = strdup(options.appid);
+		path = strdup(appid);
 		if (stat(path, &st) == 0) {
 			free(path);
 			path = NULL;
 		}
 	}
+	free(appid);
 	return path;
 }
 
@@ -1456,79 +1653,346 @@ send_remove()
 	free(msg);
 }
 
-typedef struct client client;
+static void
+push_time(Time * accum, Time now)
+{
+	if (now == CurrentTime)
+		return;
+	else if (*accum == CurrentTime) {
+		*accum = now;
+		return;
+	} else if ((int) ((int) now - (int) *accum) > 0)
+		*accum = now;
+}
 
-struct client {
-	Window win;
-	client *next;
-	Bool breadcrumb;
-	Bool new;
-};
+char *
+get_proc_file(pid_t pid, char *name, size_t *size)
+{
+	struct stat st;
+	char *file, *buf;
+	FILE *f;
+	size_t read, total;
 
-client *clients = NULL;
+	file = calloc(64, sizeof(*file));
+	snprintf(file, 64, "/proc/%d/%s", pid, name);
+
+	if (stat(file, &st)) {
+		free(file);
+		*size = 0;
+		return NULL;
+	}
+	buf = calloc(st.st_size, sizeof(*buf));
+	if (!(f = fopen(file, "rb"))) {
+		free(file);
+		free(buf);
+		*size = 0;
+		return NULL;
+	}
+	free(file);
+	/* read entire file into buffer */
+	for (total = 0; total < st.st_size; total += read)
+		if ((read = fread(buf + total, 1, st.st_size - total, f)))
+			if (total < st.st_size) {
+				free(buf);
+				fclose(f);
+				*size = 0;
+				return NULL;
+			}
+	fclose(f);
+	*size = st.st_size;
+	return buf;
+}
+
+char *
+get_proc_startup_id(pid_t pid)
+{
+	char *buf, *pos, *end;
+	size_t size;
+
+	if (!(buf = get_proc_file(pid, "environ", &size)))
+		return NULL;
+
+	for (pos = buf, end = buf + size; pos < end; pos += strlen(pos) + 1) {
+		if (strstr(pos, "DESKTOP_STARTUP_ID=") == pos) {
+			pos += strlen("DESKTOP_STARTUP_ID=");
+			pos = strdup(pos);
+			free(buf);
+			return pos;
+		}
+	}
+	free(buf);
+	return NULL;
+}
+
+char *
+get_proc_comm(pid_t pid)
+{
+	size_t size;
+
+	return get_proc_file(pid, "comm", &size);
+}
+
+char *
+get_proc_exec(pid_t pid)
+{
+	struct stat st;
+	char *file, *buf;
+	ssize_t size;
+
+	file = calloc(64, sizeof(*file));
+	snprintf(file, 64, "/proc/%d/exe", pid);
+	if (stat(file, &st)) {
+		free(file);
+		return NULL;
+	}
+	buf = calloc(256, sizeof(*buf));
+	if ((size = readlink(file, buf, 256)) < 0 || size > 256 - 1) {
+		free(file);
+		free(buf);
+		return NULL;
+	}
+	buf[size+1] = '\0';
+	return buf;
+}
+
+char *
+get_proc_argv0(pid_t pid)
+{
+	size_t size;
+
+	return get_proc_file(pid, "cmdline", &size);
+}
+
+
+static Bool
+test_client(client *c)
+{
+	pid_t pid;
+	char *str;
+
+	if (c->startup_id) {
+		if (!strcmp(c->startup_id, fields.id))
+			return True;
+		else
+			return False;
+	}
+	if ((pid = c->pid) && (!c->hostname || strcmp(fields.hostname, c->hostname)))
+		pid = 0;
+	if (pid && (str = get_proc_startup_id(pid))) {
+		if (strcmp(fields.id, str))
+			return False;
+		else
+			return True;
+		free(str);
+	}
+	/* correct wmclass */
+	if (fields.wmclass) {
+		if (c->ch.res_name && !strcmp(fields.wmclass, c->ch.res_name))
+			return True;
+		if (c->ch.res_class && !strcmp(fields.wmclass, c->ch.res_class))
+			return True;
+	}
+	/* same process id */
+	if (pid && atoi(fields.pid) == pid)
+		return True;
+	/* same timestamp to the millisecond */
+	if (c->user_time && c->user_time == strtoul(fields.timestamp, NULL, 0))
+		return True;
+	/* correct executable */
+	if (pid && fields.bin) {
+		if ((str = get_proc_comm(pid)))
+			if (!strcmp(fields.bin, str)) {
+				free(str);
+				return True;
+			}
+		free(str);
+		if ((str = get_proc_exec(pid)))
+			if (!strcmp(fields.bin, str)) {
+				free(str);
+				return True;
+			}
+		free(str);
+		if ((str = get_proc_argv0(pid)))
+			if (!strcmp(fields.bin, str)) {
+				free(str);
+				return True;
+			}
+		free(str);
+	}
+	/* NOTE: we use the PID to look in:
+	 *	/proc/[pid]/cmdline for argv[]
+	 *	/proc/[pid]/environ for env[]
+	 *	/proc/[pid]/comm    basename of executable
+	 *      /proc/[pid]/exe     symbolic link to executable
+	 */
+	return False;
+}
+
+void
+setup_client(client *c)
+{
+	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
+}
 
 static void
 update_client(client *c)
 {
+	long card;
+
+	XGetClassHint(dpy, c->win, &c->ch);
+	XFetchName(dpy, c->win, &c->name);
+	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win) && c->time_win) {
+		XSaveContext(dpy, c->time_win, context, (XPointer) c);
+		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
+	}
+	c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE);
+	c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID);
+	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
+		c->pid = card;
+
+	if (test_client(c))
+		setup_client(c);
+
+	XSaveContext(dpy, c->win, context, (XPointer) c);
 	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
-			StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
 	c->new = False;
 }
 
-static void
-handle_CLIENT_LIST(XEvent * e, Atom atom, Atom type)
+static client *
+add_client(Window win)
 {
-	Atom real;
-	int format;
-	unsigned long i, nitems, after = 64;
-	Window *data = NULL;
+	client *c;
+
+	c = calloc(1, sizeof(*c));
+	c->win = win;
+	c->next = clients;
+	clients = c;
+	update_client(c);
+	c->new = True;
+	return (c);
+}
+
+static void
+delete_client(client * c)
+{
+	if (c->ch.res_name)
+		XFree(c->ch.res_name);
+	if (c->ch.res_class)
+		XFree(c->ch.res_class);
+	if (c->name)
+		XFree(c->name);
+	if (c->startup_id)
+		XFree(c->startup_id);
+	XDeleteContext(dpy, c->win, context);
+	if (c->time_win)
+		XDeleteContext(dpy, c->time_win, context);
+	free(c);
+}
+
+void
+remove_client(client * r)
+{
 	client *c, **cp;
 
-      try_again_larger:
-	if (XGetWindowProperty(dpy, root, atom, 0L, after, False,
-			       type, &real, &format, &nitems, &after,
-			       (unsigned char **) &data) == Success && format != 0) {
-		if (after) {
-			after = ((after + 1) >> 2) + 1;
-			if (data) {
-				XFree(data);
-				data = NULL;
+	for (cp = &clients, c = *cp; c && c != r; cp = &c->next, c = *cp) ;
+	if (c == r)
+		*cp = c->next;
+	delete_client(r);
+}
+
+static void
+handle_WM_STATE(XEvent *e, client *c)
+{
+	long data;
+
+	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
+			&& data != WithdrawnState && !c)
+		c = add_client(e->xany.window);
+}
+
+static void
+handle_NET_WM_STATE(XEvent *e, client *c)
+{
+	Atom *atoms = NULL;
+	long i, n;
+
+	if ((atoms = get_atoms(e->xany.window, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
+		if (!c)
+			c = add_client(e->xany.window);
+		for (i = 0; i < n; i++)
+			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+				c->focus_time = e->xproperty.time;
+				break;
 			}
-			goto try_again_larger;
-		}
-		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
-		for (i = 0, c = NULL; i < nitems; c = NULL, i++)
-			if (XFindContext(dpy, data[i], context, (XPointer *) & c) == Success)
-				c->breadcrumb = True;
-			else {
-				c = calloc(1, sizeof(*c));
-				c->win = data[i];
-				c->breadcrumb = True;
-				c->new = True;
-				c->next = clients;
-				clients = c;
-				XSaveContext(dpy, c->win, context, (XPointer) c);
-			}
-		for (cp = &clients, c = *cp; c; cp = &c->next, c = *cp)
-			if (!c->breadcrumb) {
-				*cp = c->next;
-				XDeleteContext(dpy, c->win, context);
-				free(c);
-			}
-		for (c = clients; c; c = c->next)
-			if (c->new)
-				update_client(c);
+		XFree(atoms);
+	}
+}
+
+/** @brief track the active window
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  *
+  * This handler tracks the _NET_ACTIVE_WINDOW property on the root window set
+  * by EWMH/NetWM compliant window managers to indicate the active window.  We
+  * keep track of the last time that each client window was active.
+  */
+static void
+handle_NET_ACTIVE_WINDOW(XEvent *e, client *c)
+{
+	Window active = None;
+
+	if (get_window(root, _XA_NET_ACTIVE_WINDOW, XA_WINDOW, &active) && active) {
+		if (XFindContext(dpy, active, context, (XPointer *) &c) != Success)
+			c = add_client(active);
+		if (e)
+			c->active_time = e->xproperty.time;
 	}
 }
 
 static void
-handle_NET_CLIENT_LIST(XEvent * e)
+handle_NET_WM_USER_TIME(XEvent *e, client *c)
+{
+	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
+		push_time(&last_user_time, c->user_time);
+}
+
+static void
+handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
+{
+	Window *list;
+	long i, n;
+	client *c, **cp;
+
+	if ((list = get_windows(root, atom, type, &n))) {
+		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
+		for (i = 0, c = NULL; i < n; c = NULL, i++) {
+			if (XFindContext(dpy, list[i], context, (XPointer *) &c) != Success)
+				c = add_client(list[i]);
+			c->breadcrumb = True;
+		}
+		XFree(list);
+		for (cp = &clients, c = *cp; c;) {
+			if (!c->breadcrumb) {
+				*cp = c->next;
+				delete_client(c);
+				c = *cp;
+			} else {
+				cp = &c->next;
+				c = *cp;
+			}
+		}
+	}
+}
+
+static void
+handle_NET_CLIENT_LIST(XEvent *e, client *c)
 {
 	handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
 
 static void
-handle_WIN_CLIENT_LIST(XEvent * e)
+handle_WIN_CLIENT_LIST(XEvent *e, client *c)
 {
 	handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
@@ -1543,19 +2007,21 @@ handle_WIN_CLIENT_LIST(XEvent * e)
  * all apps support _NET_WM_USER_TIME).
  */
 void
-handle_event(XEvent * e)
+handle_event(XEvent *e)
 {
 	client *c = NULL;
 	int i;
 
-	XFindContext(dpy, e->xany.window, context, (XPointer *) & c);
+	XFindContext(dpy, e->xany.window, context, (XPointer *) &c);
 
 	switch (e->type) {
 	case PropertyNotify:
 		for (i = 0; atoms[i].atom; i++) {
 			if (e->xproperty.atom == atoms[i].value) {
-				if (atoms[i].handler)
-					atoms[i].handler(e);
+				if (atoms[i].handler) {
+					XFindContext(dpy, e->xany.window, context, (XPointer *) &c);
+					atoms[i].handler(e, c);
+				}
 				break;
 			}
 		}
@@ -1598,6 +2064,22 @@ handle_event(XEvent * e)
 	}
 }
 
+/** @brief set up for an assist
+  *
+  * We want to perform as much as possible in the master process before the
+  * acutal launch so that this information is immediately available to the child
+  * process before the launch.
+  */
+void
+setup_to_assist()
+{
+	handle_NET_CLIENT_LIST(NULL, NULL);
+	handle_WIN_CLIENT_LIST(NULL, NULL);
+	handle_NET_ACTIVE_WINDOW(NULL, NULL);
+	if (fields.timestamp)
+		push_time(&launch_time, (Time) strtoul(fields.timestamp, NULL, 0));
+}
+
 /*
  * Assist the window manager to do the right thing with respect to focus and
  * with respect to positioning of the window on the correct monitor and the
@@ -1608,6 +2090,7 @@ assist()
 {
 	pid_t pid;
 
+	setup_to_assist();
 	XSync(dpy, False);
 	if ((pid = fork()) < 0) {
 		perror(NAME);
@@ -1719,12 +2202,16 @@ launch()
 			fprintf(stderr, "%s: window manager assistance is NOT needed\n", NAME);
 	}
 
-	cmd = calloc(strlen(fields.command) + 32, sizeof(cmd));
-	strcat(cmd, "exec ");
-	strcat(cmd, fields.command);
-	if (output > 1)
-		fprintf(stderr, "Command is: '%s'\n", cmd);
-	execlp("/bin/sh", "sh", "-c", cmd, NULL);
+	if (eargv) {
+		execvp(eargv[0], eargv);
+	} else {
+		cmd = calloc(strlen(fields.command) + 32, sizeof(cmd));
+		strcat(cmd, "exec ");
+		strcat(cmd, fields.command);
+		if (output > 1)
+			fprintf(stderr, "Command is: '%s'\n", cmd);
+		execlp("/bin/sh", "sh", "-c", cmd, NULL);
+	}
 	fprintf(stderr, "Should never get here!\n");
 	exit(127);
 }
@@ -1889,6 +2376,8 @@ Options:\n\
 int
 main(int argc, char *argv[])
 {
+	int exec_mode = 0; /* application mode is default */
+
 	while (1) {
 		int c, val;
 		char *buf;
@@ -1936,12 +2425,12 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:x:f:u:KPAD::v::hVCH?",
+				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPAD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:x:f:u:KPADvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPADvhVC?");
 #endif				/* defined _GNU_SOURCE */
-		if (c == -1) {
+		if (c == -1 || exec_mode) {
 			if (debug)
 				fprintf(stderr, "%s: done options processing\n", argv[0]);
 			break;
@@ -2001,6 +2490,9 @@ main(int argc, char *argv[])
 			break;
 		case 'x':	/* -x, --exec EXEC */
 			defaults.exec = options.exec = strdup(optarg);
+			break;
+		case 'e':	/* -e command and options */
+			exec_mode = 1;
 			break;
 		case 'f':	/* -f, --file FILE */
 			defaults.file = options.file = strdup(optarg);
@@ -2092,7 +2584,16 @@ main(int argc, char *argv[])
 		fprintf(stderr, "%s: option index = %d\n", argv[0], optind);
 		fprintf(stderr, "%s: option count = %d\n", argv[0], argc);
 	}
-	if (optind < argc) {
+	if (exec_mode) {
+		int i;
+
+		if (optind >= argc)
+			goto bad_nonopt;
+		eargv = calloc(argc - optind + 1, sizeof(*eargv));
+		eargc = argc - optind;
+		for (i = 0;optind < argc; optind++, i++)
+			eargv[i] = strdup(argv[optind]);
+	} else if (optind < argc) {
 		if (options.appid)
 			optind++;
 		else
@@ -2113,13 +2614,21 @@ main(int argc, char *argv[])
 				goto bad_nonopt;
 		}
 	}
-	if (!options.appid && !options.exec) {
+	if (!eargv && !options.appid && !options.exec) {
 		fprintf(stderr, "%s: APPID or EXEC must be specified\n", argv[0]);
 		goto bad_usage;
+	} else if (eargv) {
+		char *path, *pos;
+
+		if (!(pos = strrchr(eargv[0], '/')))
+			pos = eargv[0];
+		if ((path = lookup_file(pos)))
+			if (!parse_file(path))
+				entry.TryExec = strdup(eargv[0]);
 	} else if (options.appid) {
 		char *path;
 
-		if (!(path = lookup_file())) {
+		if (!(path = lookup_file(options.appid))) {
 			fprintf(stderr, "%s: could not find file '%s'\n", argv[0], options.appid);
 			exit(1);
 		}
@@ -2147,7 +2656,7 @@ main(int argc, char *argv[])
 		if (entry.StartupWMClass)
 			fprintf(stderr, "%-30s = %s\n", "StartupWMClass", entry.StartupWMClass);
 	}
-	if (!options.exec && !entry.Exec) {
+	if (!eargv && !options.exec && !entry.Exec) {
 		fprintf(stderr, "%s: no exec command\n", argv[0]);
 		exit(1);
 	}
@@ -2195,3 +2704,5 @@ main(int argc, char *argv[])
 	launch();
 	exit(0);
 }
+
+// vim: set sw=8 tw=80 com=srO\:/**,mb\:*,ex\:*/,srO\:/*,mb\:*,ex\:*/,b\:TRANS foldmarker=@{,@} foldmethod=marker:

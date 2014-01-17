@@ -18,3 +18,6 @@ stamp-h*
 .*.sw[nop]
 xdg-launch
 xdg-launch.man
+xde-theme.man
+xde-theme.man.in
+
