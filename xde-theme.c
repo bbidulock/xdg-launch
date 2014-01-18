@@ -97,6 +97,535 @@ const char *program = NAME;
 static int debug = 0;
 static int output = 1;
 
+typedef struct {
+	Bool grab;
+	Bool setroot;
+	Bool nomonitor;
+	char *theme;
+	unsigned long delay;
+	Bool areas;
+	char **files;
+} Options;
+
+Options options = {
+	False,
+	False,
+	False,
+	NULL,
+	2000,
+	False,
+	NULL
+};
+
+Display *dpy = NULL;
+int screen;
+Window root;
+
+Atom _XA_BB_THEME;
+Atom _XA_BLACKBOX_PID;
+Atom _XA_ESETROOT_PMAP_ID;
+Atom _XA_ICEWMBG_QUIT;
+Atom _XA_NET_CURRENT_DESKTOP;
+Atom _XA_NET_DESKTOP_LAYOUT;
+Atom _XA_NET_DESKTOP_PIXMAPS;
+Atom _XA_NET_NUMBER_OF_DESKTOPS;
+Atom _XA_NET_SUPPORTING_WM_CHECK;
+Atom _XA_NET_VISIBLE_DESKTOPS;
+Atom _XA_NET_WM_NAME;
+Atom _XA_NET_WM_PID;
+Atom _XA_OB_THEME;
+Atom _XA_OPENBOX_PID;
+Atom _XA_WIN_DESKTOP_BUTTON_PROXY;
+Atom _XA_WIN_SUPPORTING_WM_CHECK;
+Atom _XA_WIN_WORKSPACE;
+Atom _XA_WIN_WORKSPACE_COUNT;
+Atom _XA_XROOTPMAP_ID;
+Atom _XA_XSETROOT_ID;
+
+static void handle_BB_THEME(XEvent *);
+static void handle_BLACKBOX_PID(XEvent *);
+static void handle_ESETROOT_PMAP_ID(XEvent *);
+static void handle_NET_CURRENT_DESKTOP(XEvent *);
+static void handle_NET_DESKTOP_LAYOUT(XEvent *);
+static void handle_NET_NUMBER_OF_DESKTOPS(XEvent *);
+static void handle_NET_SUPPORTING_WM_CHECK(XEvent *);
+static void handle_NET_VISIBLE_DESKTOPS(XEvent *);
+static void handle_OB_THEME(XEvent *);
+static void handle_OPENBOX_PID(XEvent *);
+static void handle_WIN_DESKTOP_BUTTON_PROXY(XEvent *);
+static void handle_WIN_SUPPORTING_WM_CHECK(XEvent *);
+static void handle_WIN_WORKSPACE_COUNT(XEvent *);
+static void handle_WIN_WORKSPACE(XEvent *);
+static void handle_XROOTPMAP_ID(XEvent *);
+static void handle_XSETROOT_ID(XEvent *);
+
+typedef struct {
+	char *name;
+	Atom *atom;
+	void (*handler) (XEvent *);
+	Atom value;
+} Atoms;
+
+Atoms atoms[] = {
+	/* *INDENT-OFF* */
+	/* name				global				handler					value			*/
+	/* ----				------				-------					-----			*/
+	{ "_BB_THEME",			&_XA_BB_THEME,			handle_BB_THEME,			None			},
+	{ "_BLACKBOX_PID",		&_XA_BLACKBOX_PID,		handle_BLACKBOX_PID,			None			},
+	{ "ESETROOT_PMAP_ID",		&_XA_ESETROOT_PMAP_ID,		handle_ESETROOT_PMAP_ID,		None			},
+	{ "_ICEWMBG_QUIT",		&_XA_ICEWMBG_QUIT,		NULL,					None			},
+	{ "_NET_CURRENT_DESKTOP",	&_XA_NET_CURRENT_DESKTOP,	handle_NET_CURRENT_DESKTOP,		None			},
+	{ "_NET_DESKTOP_LAYOUT",	&_XA_NET_DESKTOP_LAYOUT,	handle_NET_DESKTOP_LAYOUT,		None			},
+	{ "_NET_DESKTOP_PIXMAPS",	&_XA_NET_DESKTOP_PIXMAPS,	NULL,					None			},
+	{ "_NET_NUMBER_OF_DESKTOPS",	&_XA_NET_NUMBER_OF_DESKTOPS,	handle_NET_NUMBER_OF_DESKTOPS,		None			},
+	{ "_NET_SUPPORTING_WM_CHECK",	&_XA_NET_SUPPORTING_WM_CHECK,	handle_NET_SUPPORTING_WM_CHECK,		None			},
+	{ "_NET_VISIBLE_DESKTOPS",	&_XA_NET_VISIBLE_DESKTOPS,	handle_NET_VISIBLE_DESKTOPS,		None			},
+	{ "_NET_WM_NAME",		&_XA_NET_WM_NAME,		NULL,					None			},
+	{ "_NET_WM_PID",		&_XA_NET_WM_PID,		NULL,					None			},
+	{ "_OB_THEME",			&_XA_OB_THEME,			handle_OB_THEME,			None			},
+	{ "_OPENBOX_PID",		&_XA_OPENBOX_PID,		handle_OPENBOX_PID,			None			},
+	{ "_WIN_DESKTOP_BUTTON_PROXY",	&_XA_WIN_DESKTOP_BUTTON_PROXY,	handle_WIN_DESKTOP_BUTTON_PROXY,	None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",	&_XA_WIN_SUPPORTING_WM_CHECK,	handle_WIN_SUPPORTING_WM_CHECK,		None			},
+	{ "_WIN_WORKSPACE_COUNT",	&_XA_WIN_WORKSPACE_COUNT,	handle_WIN_WORKSPACE_COUNT,		None			},
+	{ "_WIN_WORKSPACE",		&_XA_WIN_WORKSPACE,		handle_WIN_WORKSPACE,			None			},
+	{ "WM_COMMAND",			NULL,				NULL,					XA_WM_COMMAND		},
+	{ "_XROOTPMAP_ID",		&_XA_XROOTPMAP_ID,		handle_XROOTPMAP_ID,			None			},
+	{ "_XSETROOT_ID",		&_XA_XSETROOT_ID,		handle_XSETROOT_ID,			None			},
+	{ NULL,				NULL,				NULL,					None			}
+	/* *INDENT-ON* */
+};
+
+void
+intern_atoms()
+{
+	int i, j, n;
+	char **atom_names;
+	Atom *atom_values;
+
+	for (i = 0, n = 0; atoms[i].name; i++)
+		if (atoms[i].atom)
+			n++;
+	atom_names = calloc(n + 1, sizeof(*atom_names));
+	atom_values = calloc(n + 1, sizeof(*atom_values));
+	for (i = 0, j = 0; j < n; i++)
+		if (atoms[i].atom)
+			atom_names[j++] = atoms[i].name;
+	XInternAtoms(dpy, atom_names, n, False, atom_values);
+	for (i = 0, j = 0; j < n; i++)
+		if (atoms[i].atom)
+			*atoms[i].atom = atoms[i].value = atom_values[j++];
+	free(atom_names);
+	free(atom_values);
+}
+
+Bool
+get_display()
+{
+	if (!dpy) {
+		if (!(dpy = XOpenDisplay(0))) {
+			fprintf(stderr, "cannot open display\n");
+			exit(127);
+		} else {
+			screen = DefaultScreen(dpy);
+			root = RootWindow(dpy, screen);
+			intern_atoms();
+		}
+	}
+	return (dpy ? True : False);
+}
+
+static long *
+get_cardinals(Window win, Atom prop, Atom type, long *n)
+{
+	Atom real;
+	int format;
+	unsigned long nitems, after, num = 1;
+	long *data = NULL;
+
+      try_harder:
+	if (XGetWindowProperty(dpy, win, prop, 0L, num, False, type, &real, &format,
+			       &nitems, &after, (unsigned char **) &data) == Success
+	    && format != 0) {
+		if (after) {
+			num += ((after + 1) >> 2);
+			XFree(data);
+			goto try_harder;
+		}
+		if ((*n = nitems) > 0)
+			return data;
+		if (data)
+			XFree(data);
+	} else
+		*n = -1;
+	return NULL;
+}
+
+static Bool
+get_cardinal(Window win, Atom prop, Atom type, long *card_ret)
+{
+	Bool result = False;
+	long *data, n;
+
+	if ((data = get_cardinals(win, prop, type, &n)) && n > 0) {
+		*card_ret = data[0];
+		result = True;
+	}
+	if (data)
+		XFree(data);
+	return result;
+}
+
+Window *
+get_windows(Window win, Atom prop, Atom type, long *n)
+{
+	return (Window *) get_cardinals(win, prop, type, n);
+}
+
+Bool
+get_window(Window win, Atom prop, Atom type, Window *win_ret)
+{
+	return get_cardinal(win, prop, type, (long *) win_ret);
+}
+
+Time *
+get_times(Window win, Atom prop, Atom type, long *n)
+{
+	return (Time *) get_cardinals(win, prop, type, n);
+}
+
+Bool
+get_time(Window win, Atom prop, Atom type, Time * time_ret)
+{
+	return get_cardinal(win, prop, type, (long *) time_ret);
+}
+
+Atom *
+get_atoms(Window win, Atom prop, Atom type, long *n)
+{
+	return (Atom *) get_cardinals(win, prop, type, n);
+}
+
+Bool
+get_atom(Window win, Atom prop, Atom type, Atom *atom_ret)
+{
+	return get_cardinal(win, prop, type, (long *) atom_ret);
+}
+
+Window
+check_recursive(Atom atom, Atom type)
+{
+	Atom real;
+	int format;
+	unsigned long nitems, after;
+	unsigned long *data = NULL;
+	Window check;
+
+	if (XGetWindowProperty(dpy, root, atom, 0L, 1L, False, type, &real,
+			       &format, &nitems, &after, (unsigned char **) &data) == Success
+	    && format != 0) {
+		if (nitems > 0) {
+			check = data[0];
+			XFree(data);
+			data = NULL;
+		} else {
+			if (data)
+				XFree(data);
+			return None;
+		}
+		if (XGetWindowProperty(dpy, check, atom, 0L, 1L, False, type, &real,
+				       &format, &nitems, &after,
+				       (unsigned char **) &data) == Success && format != 0) {
+			if (nitems > 0) {
+				if (check != (Window) data[0]) {
+					XFree(data);
+					return None;
+				}
+			} else {
+				if (data)
+					XFree(data);
+				return None;
+			}
+			XFree(data);
+		} else
+			return None;
+	} else
+		return None;
+	return check;
+}
+
+Window netwm_check;
+Window winwm_check;
+
+Window
+check_netwm()
+{
+	if ((netwm_check = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW)))
+		XSelectInput(dpy, netwm_check, PropertyChangeMask | StructureNotifyMask);
+	return netwm_check;
+}
+
+Window
+check_winwm()
+{
+	if ((winwm_check = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL)))
+		XSelectInput(dpy, winwm_check, PropertyChangeMask | StructureNotifyMask);
+	return winwm_check;
+}
+
+typedef struct Deferred Deferred;
+struct Deferred {
+	Deferred *next;
+	void (*action)(void);
+};
+
+Deferred *deferred = NULL;
+
+Deferred *
+defer_action(void (*action) (void))
+{
+	Deferred *d = calloc(1, sizeof(*d));
+
+	d->next = deferred;
+	deferred = d;
+	d->action = action;
+	return d;
+}
+
+static void
+handle_BB_THEME(XEvent *e)
+{
+}
+
+static void
+handle_BLACKBOX_PID(XEvent *e)
+{
+}
+
+static void
+handle_ESETROOT_PMAP_ID(XEvent *e)
+{
+}
+
+static void
+handle_NET_CURRENT_DESKTOP(XEvent *e)
+{
+}
+
+static void
+handle_NET_DESKTOP_LAYOUT(XEvent *e)
+{
+}
+
+static void
+handle_NET_NUMBER_OF_DESKTOPS(XEvent *e)
+{
+}
+
+static void
+handle_NET_SUPPORTING_WM_CHECK(XEvent *e)
+{
+}
+
+static void
+handle_NET_VISIBLE_DESKTOPS(XEvent *e)
+{
+}
+
+static void
+handle_OB_THEME(XEvent *e)
+{
+}
+
+static void
+handle_OPENBOX_PID(XEvent *e)
+{
+}
+
+static void
+handle_WIN_DESKTOP_BUTTON_PROXY(XEvent *e)
+{
+}
+
+static void
+handle_WIN_SUPPORTING_WM_CHECK(XEvent *e)
+{
+}
+
+static void
+handle_WIN_WORKSPACE_COUNT(XEvent *e)
+{
+}
+
+static void
+handle_WIN_WORKSPACE(XEvent *e)
+{
+}
+
+static void
+handle_XROOTPMAP_ID(XEvent *e)
+{
+}
+
+static void
+handle_XSETROOT_ID(XEvent *e)
+{
+}
+
+Bool running;
+
+void
+handle_event(XEvent *e)
+{
+	int i;
+
+	switch (e->type) {
+	case PropertyNotify:
+		for (i = 0; atoms[i].atom; i++) {
+			if (e->xproperty.atom == atoms[i].value) {
+				if (atoms[i].handler)
+					atoms[i].handler(e);
+				break;
+			}
+		}
+		break;
+	}
+}
+
+void
+handle_deferred_events()
+{
+	Deferred *d, *next;
+
+	while ((d = deferred)) {
+		next = d->next;
+		d->action();
+		if (deferred == d) {
+			deferred = next;
+			free(d);
+		}
+	}
+}
+
+void
+event_loop()
+{
+	fd_set rd;
+	int xfd;
+	XEvent ev;
+
+	running = True;
+	XSelectInput(dpy, root, PropertyChangeMask);
+	XSync(dpy, False);
+	xfd = ConnectionNumber(dpy);
+
+	while (running) {
+		FD_ZERO(&rd);
+		FD_SET(xfd, &rd);
+		if (select(xfd + 1, &rd, NULL, NULL, NULL) == -1) {
+			if (errno == EINTR)
+				continue;
+			fprintf(stderr, "select failed\n");
+			fflush(stderr);
+			exit(1);
+		}
+		while (XPending(dpy)) {
+			XNextEvent(dpy, &ev);
+			handle_event(&ev);
+		}
+		handle_deferred_events();
+	}
+}
+
+/*
+ * Testing for window managers:
+ *
+ * IceWM:   Sets _NET_SUPPORTING_WM_CHECK(WINDOW) appropriately.  Note that it sets
+ *	    _WIN_SUPPORTING_WM_CHECK(CARDINAL) as well.  Also, it sets both to the
+ *	    same window.  It sets _NET_WM_NAME(STRING) to "IceWM 1.3.7 (Linux
+ *	    3.4.0/x86_64)" or some such.  Extract the first word of the string for
+ *	    the actual name.  Note that _NET_WM_NAME should be (UTF8_STRING) instead
+ *	    of (STRING) [this has been fixed].  It sets _NET_WM_PID(CARDINAL) to the
+ *	    pid of the window manager; however, it does not set
+ *	    WM_CLIENT_MACHINE(STRING) to the fully qualified domain name of the
+ *	    window manager machine as required by the EWMH specification [this has
+ *	    been fixed].
+ *
+ * Blackbox:
+ *	    Blackbox is only ICCCM/EWMH compliant and is not GNOME/WMH compliant.  It
+ *	    properly sets _NET_SUPPORTING_WM_CHECK(WINDOW) on both the root and the
+ *	    check window.  On the check window the only other thing that it sets is
+ *	    _NET_WM_NAME(UTF8_STRING) whcih is a property UTF8_STRING with the single
+ *	    word "Blackbox".  [It now sets _NET_WM_PID correctly, but still does not
+ *	    set WM_CLIENT_MACHINE(STRING) to the fully qualified domain name of the
+ *	    window manager machine. [fixed]]
+ *
+ * Fluxbox: Fluxbox is only ICCCM/EWMH compliant and is not GNOME/WMH compliant.  It
+ *	    properly sets _NET_SUPPORTING_WM_CHECK(WINDOW) on both the root and the
+ *	    check window.  On the check window the only other thing it sets is
+ *	    _NET_WM_NAME(UTF8_STRING) which is a propert UTF8_STRING with the single
+ *	    word "Fluxbox".
+ *
+ *	    Fluxbox also sets _BLACKBOX_PID(CARDINAL) on the root window.  (Gee,
+ *	    blackbox doesn't!)  Fluxbox interns the _BLACKBOX_ATTRIBUTES atom and
+ *	    then does nothing with it.  Fluxbox interns the _FLUXBOX_ACTION,
+ *	    _FLUXBOX_ACTION_RESULT and _FLUXBOX_GROUP_LEFT atoms.  Actions are only
+ *	    possible when the session.session0.allowRemoteActions resources is set to
+ *	    tru.  THey are affected by changing the _FLUXBOX_ACTION(STRING) property
+ *	    on the root window to reflect the new command.  The result is
+ *	    communicated by fluxbox setting the _FLUXBOX_ACTION_RESULT(STRING)
+ *	    property on the root window with the result.
+ *
+ * Openbox: Openbox is only ICCCM/EWMH compliant and is not GNOME/WMH compliant.  It
+ *	    properly sets _NET_SUPPORTING_WM_CHECK(WINDOW) on both the root and the
+ *	    check window.  On the check window, the only other thing that it sets is
+ *	    _NET_WM_NAME(UTF8_STRING) which is a proper UTF8_STRING with the single
+ *	    word "Openbox".
+ *
+ *	    Openbox also sets _OPENBOX_PID(CARDINAL) on the root window.  It also
+ *	    sets _OB_VERSION(UTF8_STRING) and _OB_THEME(UTF8_STRING) on the root
+ *	    window.
+ *
+ * FVWM:    FVWM is both GNOME/WMH and ICCCM/EWMH compliant.  It sets
+ *	    _NET_SUPPORTING_WM_CHECK(WINDOW) properly on the root and check window.
+ *	    On the check window it sets _NET_WM_NAME(UTF8_STRING) to "FVWM".  It sets
+ *	    WM_NAME(STRING) to "fvwm" and WM_CLASS(STRING) to "fvwm", "FVWM".  FVWM
+ *	    implements _WIN_SUPPORTING_WM_CHECK(CARDINAL) in a separate window from
+ *	    _NET_SUPPORTING_WM_CHECK(WINDOW), but the same one as
+ *	    _WIN_DESKTOP_BUTTON_PROXY(CARDINAL).  There are no additional properties
+ *	    set on those windows.
+ *
+ * WindowMaker:
+ *	    WindowMaker is only ICCCM/EWMH compliant and is not GNOME/WMH compliant.
+ *	    It properly sets _NET_SUPPORTING_WM_CHECK(WINDOW) on both the root and
+ *	    the check window.  It does not set the _NET_WM_NAME(UTF8_STRING) on the
+ *	    check window.  It does, however, define a recursive
+ *	    _WINDOWMAKER_NOTICEBOARD(WINDOW) that shares the same window as the check
+ *	    window and sets the _WINDOWMAKER_ICON_TILE(_RGBA_IMAGE) property on this
+ *	    window to the ICON/DOCK/CLIP tile.
+ *
+ * PeKWM:
+ *	    PeKWM is only ICCCM/EWMH compliant and is not GNOME/WMH compliant.  It
+ *	    properly sets _NET_SUPPORTING_WM_CHECK(WINDOW) on both the root and the
+ *	    check window.  It sets _NET_WM_NAME(STRING) on the check window.  Note
+ *	    that _NET_WM_NAME should be (UTF8_STRING) instead of (STRING) (corrected
+ *	    in 'git' version).  It does not set WM_CLIENT_MACHINE(STRING) on the
+ *	    check window as required by EWMH, but sets it on the root window.  It
+ *	    does not, however, set it to the fully qualified domain name as required
+ *	    by EWMH.  Also, it sets _NET_WM_PID(CARDINAL) on the check window, but
+ *	    mistakenly sets it on the root window.  It sets WM_CLASS(STRING) to a
+ *	    null string on the check window and does not set WM_NAME(STRING).
+ *
+ * JWM:
+ *	    JWM is only ICCCM/EWMH compliant and is not GNOME/WMH compliant.  It
+ *	    properly sets _NET_SUPPORTING_WM_CHECK(WINDOW) on both the root and the
+ *	    check window.  It properly sets _NET_WM_NAME(UTF8_STRING) on the check
+ *	    window (to "JWM").  It does not properly set _NET_WM_PID(CARDINAL) on the
+ *	    check window, or anywhere for that matter [it does now].  It does not set
+ *	    WM_CLIENT_MACHINE(STRING) anywhere and there is no WM_CLASS(STRING) or
+ *	    WM_NAME(STRING) on the check window.
+ *
+ */
+
 static void
 copying(int argc, char *argv[])
 {
@@ -170,7 +699,7 @@ usage(int argc, char *argv[])
 		return;
 	(void) fprintf(stderr, "\
 Usage:\n\
-    %1$s [options] [APPID [FILE|URL]]\n\
+    %1$s [command option] [options] [FILE [FILE ...]]\n\
     %1$s {-h|--help}\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
@@ -184,74 +713,47 @@ help(int argc, char *argv[])
 		return;
 	(void) fprintf(stdout, "\
 Usage:\n\
-    %1$s [options] [APPID [FILE|URL]]\n\
+    %1$s [command option] [options] [FILE [FILE ...]]\n\
     %1$s {-h|--help}\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 Arguments:\n\
-    APPID\n\
-        the application identifier of XDG application to launch\n\
-    FILE\n\
-        the file name with which to launch the application\n\
-    URL\n\
-        the URL with which to launch the application\n\
-Options:\n\
-    -L, --launcher LAUNCHER\n\
-        name of launcher for startup id, default: '%2$s'\n\
-    -l, --launchee LAUNCHEE\n\
-        name of launchee for startup id, default: APPID\n\
-    -S, --sequence SEQUENCE\n\
-        sequence number to use in startup id, default: %3$s\n\
-    -n, --hostname HOSTNAME\n\
-        hostname to use in startup id, default: '%4$s'\n\
-    -m, --monitor MONITOR\n\
-        Xinerama monitor to specify in SCREEN tag, default: %5$s\n\
-    -s, --screen SCREEN\n\
-        screen to specify in SCREEN tag, default: %6$s\n\
-    -w, --workspace DESKTOP\n\
-        workspace to specify in DESKTOP tag, default: %7$s\n\
-    -t, --timestamp TIMESTAMP\n\
-        X server timestamp for startup id, default: %8$s\n\
-    -N, --name NAME\n\
-        name of XDG application, default: '%9$s'\n\
-    -i, --icon ICON\n\
-        icon name of the XDG application, default: '%10$s'\n\
-    -b, --binary BINARY\n\
-        binary name of the XDG application, default: '%11$s'\n\
-    -D, --description DESCRIPTION\n\
-        description of the XDG application, default: '%12$s'\n\
-    -W, --wmclass WMCLASS\n\
-        resource name or class of the XDG application, default: '%13$s'\n\
-    -q, --silent SILENT\n\
-        whether startup notification is silent (0/1), default: '%14$s'\n\
-    -p, --pid PID\n\
-        process id of the XDG application, default '%15$s'\n\
-    -a, --appid APPID\n\
-        override application identifier\n\
-    -x, --exec EXEC\n\
-        override command to execute\n\
-    -f, --file FILE\n\
-        filename to use with application\n\
-    -u, --url URL\n\
-        URL to use with application\n\
-    -K, --keyboard\n\
-        determine screen (monitor) from keyboard focus, default: '%16$s'\n\
-    -P, --pointer\n\
-        determine screen (monitor) from pointer location, default: '%17$s'\n\
-    -A, --assist\n\
-        assist non-startup notification aware window manager, default: '%18$s'\n\
-    -D, --debug [LEVEL]\n\
-        increment or set debug LEVEL [default: 0]\n\
-    -v, --verbose [LEVEL]\n\
-        increment or set output verbosity LEVEL [default: 1]\n\
-        this option may be repeated.\n\
+    [FILE [FILE ...]]\n\
+        a list of files (one per virtual desktop)\n\
+Command options:\n\
+    -s, --set\n\
+        set the background\n\
+    -e, --edit\n\
+        launch background settings editor\n\
+    -q, --quit\n\
+        ask running instance to quit\n\
+    -r, --restart\n\
+        ask running instance to restart\n\
     -h, --help, -?, --?\n\
         print this usage information and exit\n\
     -V, --version\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0], defaults.launcher, defaults.sequence, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.assist);
+Options:\n\
+    -g, --grab\n\
+	grab the X server while setting backgrounds\n\
+    -s, --setroot\n\
+	set the background pixmap instead of just properties\n\
+    -n, --nomonitor\n\
+	exit after setting the background\n\
+    -t, --theme THEME\n\
+	set the specified theme\n\
+    -d, --delay MILLISECONDS\n\
+	specifies delay after window manager appearance\n\
+    -a, --areas\n\
+	distribute backgrounds also over work areas\n\
+    -D, --debug [LEVEL]\n\
+        increment or set debug LEVEL [default: 0]\n\
+    -v, --verbose [LEVEL]\n\
+        increment or set output verbosity LEVEL [default: 1]\n\
+        this option may be repeated.\n\
+", argv[0]);
 }
 
 int
@@ -259,39 +761,17 @@ main(int argc, char *argv[])
 {
 	while (1) {
 		int c, val;
-		char *buf;
-
-		buf = defaults.hostname = options.hostname = calloc(64, sizeof(*buf));
-		gethostname(buf, 64);
-		defaults.pid = options.pid = calloc(64, sizeof(*buf));
-		sprintf(defaults.pid, "%d", getpid());
 
 #ifdef _GNU_SOURCE
 		int option_index = 0;
 		/* *INDENT-OFF* */
 		static struct option long_options[] = {
-			{"launcher",	required_argument,	NULL, 'L'},
-			{"launchee",	required_argument,	NULL, 'l'},
-			{"sequence",	required_argument,	NULL, 'S'},
-			{"hostname",	required_argument,	NULL, 'n'},
-			{"monitor",	required_argument,	NULL, 'm'},
-			{"screen",	required_argument,	NULL, 's'},
-			{"workspace",	required_argument,	NULL, 'w'},
-			{"timestamp",	required_argument,	NULL, 't'},
-			{"name",	required_argument,	NULL, 'N'},
-			{"icon",	required_argument,	NULL, 'i'},
-			{"binary",	required_argument,	NULL, 'b'},
-			{"description",	required_argument,	NULL, 'd'},
-			{"wmclass",	required_argument,	NULL, 'W'},
-			{"silent",	required_argument,	NULL, 'q'},
-			{"pid",		required_argument,	NULL, 'p'},
-			{"appid",	required_argument,	NULL, 'a'},
-			{"exec",	required_argument,	NULL, 'x'},
-			{"file",	required_argument,	NULL, 'f'},
-			{"url",		required_argument,	NULL, 'u'},
-			{"keyboard",	no_argument,		NULL, 'K'},
-			{"pointer",	no_argument,		NULL, 'P'},
-			{"assist",	no_argument,		NULL, 'A'},
+			{"grab",	no_argument,		NULL, 'g'},
+			{"setroot",	no_argument,		NULL, 's'},
+			{"nomonitor",	no_argument,		NULL, 'n'},
+			{"theme",	required_argument,	NULL, 't'},
+			{"delay",	required_argument,	NULL, 'd'},
+			{"areas",	no_argument,		NULL, 'a'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -303,11 +783,9 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:x:f:u:KPAD::v::hVCH?",
-				     long_options, &option_index);
+		c = getopt_long_only(argc, argv, "D::v::hVCH?", long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:x:f:u:KPADvhVC?");
+		c = getopt(argc, argv, "DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1) {
 			if (debug)
@@ -317,83 +795,23 @@ main(int argc, char *argv[])
 		switch (c) {
 		case 0:
 			goto bad_usage;
-		case 'L':	/* -L, --lancher LAUNCHER */
-			defaults.launcher = options.launcher = strdup(optarg);
+		case 'g':	/* -g, --grab */
+			options.grab = True;
 			break;
-		case 'l':	/* -l, --launchee LAUNCHEE */
-			defaults.launchee = options.launchee = strdup(optarg);
+		case 's':	/* -s, --setroot */
+			options.setroot = True;
 			break;
-		case 'S':	/* -S, --sequence SEQUENCE */
-			defaults.sequence = options.sequence = strdup(optarg);
+		case 'n':	/* -n, --nomonitor */
+			options.nomonitor = True;
 			break;
-		case 'n':	/* -n, --hostname HOSTNAME */
-			defaults.hostname = options.hostname = strdup(optarg);
+		case 't':	/* -t, --theme THEME */
+			options.theme = strdup(optarg);
 			break;
-		case 'm':	/* -m, --monitor MONITOR */
-			defaults.monitor = options.monitor = strdup(optarg);
-			monitor = strtoul(optarg, NULL, 0);
+		case 'd':	/* -d, --delay MILLISECONDS */
+			options.delay = strtoul(optarg, NULL, 0);
 			break;
-		case 's':	/* -s, --screen SCREEN */
-			defaults.screen = options.screen = strdup(optarg);
-			screen = strtoul(optarg, NULL, 0);
-			break;
-		case 'p':	/* -p, --pid PID */
-			defaults.pid = options.pid = strdup(optarg);
-			break;
-		case 'w':	/* -w, --workspace WORKSPACE */
-			defaults.desktop = options.desktop = strdup(optarg);
-			break;
-		case 't':	/* -t, --timestamp TIMESTAMP */
-			defaults.timestamp = options.timestamp = strdup(optarg);
-			break;
-		case 'N':	/* -N, --name NAME */
-			defaults.name = options.name = strdup(optarg);
-			break;
-		case 'i':	/* -i, --icon ICON */
-			defaults.icon = options.icon = strdup(optarg);
-			break;
-		case 'b':	/* -b, --binary BINARY */
-			defaults.binary = options.binary = strdup(optarg);
-			break;
-		case 'd':	/* -d, --description DESCRIPTION */
-			defaults.description = options.description = strdup(optarg);
-			break;
-		case 'W':	/* -W, --wmclass WMCLASS */
-			defaults.wmclass = options.wmclass = strdup(optarg);
-			break;
-		case 'q':	/* -q, --silent SILENT */
-			defaults.silent = options.silent = strdup(optarg);
-			break;
-		case 'a':	/* -a, --appid APPID */
-			defaults.appid = options.appid = strdup(optarg);
-			break;
-		case 'x':	/* -x, --exec EXEC */
-			defaults.exec = options.exec = strdup(optarg);
-			break;
-		case 'f':	/* -f, --file FILE */
-			defaults.file = options.file = strdup(optarg);
-			break;
-		case 'u':	/* -u, --url URL */
-			defaults.url = options.url = strdup(optarg);
-			break;
-		case 'K':	/* -K, --keyboard */
-			defaults.keyboard = options.keyboard = strdup("true");
-			if (options.pointer) {
-				free(options.pointer);
-				options.pointer = NULL;
-				defaults.pointer = "inactive";
-			}
-			break;
-		case 'P':	/* -P, --pointer */
-			defaults.pointer = options.pointer = strdup("true");
-			if (options.keyboard) {
-				free(options.keyboard);
-				options.keyboard = NULL;
-				defaults.keyboard = "inactive";
-			}
-			break;
-		case 'A':	/* -A, --assist */
-			defaults.assist = options.assist = strdup("true");
+		case 'a':	/* -a, --areas */
+			options.areas = True;
 			break;
 
 		case 'D':	/* -D, --debug [level] */
@@ -438,6 +856,7 @@ main(int argc, char *argv[])
 		default:
 		      bad_option:
 			optind--;
+			goto bad_nonopt;
 		      bad_nonopt:
 			if (output || debug) {
 				if (optind < argc) {
@@ -461,25 +880,11 @@ main(int argc, char *argv[])
 		fprintf(stderr, "%s: option count = %d\n", argv[0], argc);
 	}
 	if (optind < argc) {
-		if (options.appid)
-			optind++;
-		else
-			options.appid = strdup(argv[optind++]);
-		if (optind < argc) {
-			if (strchr(argv[optind], ':')) {
-				if (options.url)
-					optind++;
-				else
-					options.url = strdup(argv[optind++]);
-			} else {
-				if (options.file)
-					optind++;
-				else
-					options.file = strdup(argv[optind++]);
-			}
-			if (optind > argc)
-				goto bad_nonopt;
-		}
+		int n = argc - optind, j = 0;
+
+		options.files = calloc(n + 1, sizeof(*options.files));
+		while (optind < argc)
+			options.files[j++] = strdup(argv[optind++]);
 	}
 	exit(0);
 }

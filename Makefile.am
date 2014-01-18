@@ -3,10 +3,17 @@
 AM_CPPFLAGS = -include autoconf.h -DNAME='"xdg-launch"'
 AM_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS)
 
-bin_PROGRAMS = xdg-launch
+bin_PROGRAMS = xdg-launch xde-keys xde-theme
 
 xdg_launch_SOURCES = xdg-launch.c
 xdg_launch_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+
+xde_keys_SOURCES = xde-keys.c
+xde_keys_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+
+xde_theme_SOURCES = xde-theme.c
+xde_theme_LDADD =  $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+
 
 man1_MANS  = \
 	     xdg-launch.man \
