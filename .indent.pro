@@ -7,8 +7,8 @@
 -sob
 -bbo
 -ncdb
--l100
--lc100
+-l90
+-lc90
 -i8
 -ip8
 -cli0
@@ -24,6 +24,12 @@
 -ss
 -hnl
 -nbc
+-TWindowManager
+-TWmDisplay
+-TWmScreen
+-TWmDesktop
+-TWmArea
+-TWmImage
 -TXEvent
 -TDisplay
 -TAtom
