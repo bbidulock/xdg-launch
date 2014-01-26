@@ -1,0 +1,259 @@
+=pod
+
+=head1 NAME
+
+xdg-assist - startup-notification assist window managers and clients
+
+=head1 SYNOPSIS
+
+B<xdg-assist> [I<OPTIONS>]
+
+=head1 DESCRIPTION
+
+B<xdg-assist> is a C<C>-language daemon process that assists
+light-weight window managers and non-conforming clients with
+startup-notification and EWMH support.  B<xdg-assist> is a background
+process that should be started before the window manager or any other
+client.
+
+=head1 OPTIONS
+
+The options that are detailed below are recognized by B<xdg-assist>.
+B<xdg-assist> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+of long options and long options with a single dash are also supported.
+
+B<xdg-assist> supports the following options:
+
+=head2 COMMAND OPTIONS
+
+The default is to start B<xdg-assist> and daemonize it (placing it in
+the background).
+
+=over
+
+=item [B<-m>, B<--monitor>]
+
+Run as a monitoring process.  This is the default if no other command
+option is specified.
+
+=item B<-r>, B<--replace>
+
+Restart B<xdg-assist> by replacing the existing running process with the
+current one.
+
+=item B<-q>, B<--quit>
+
+Asks a running B<xdg-assist> process to stop.
+
+=item B<-h>, B<--help>
+
+Prints usage information to standard output and exits.
+
+=item B<-V>, B<--version>
+
+Prints detailed version information and exits.
+
+=item B<-C>, B<--copying>
+
+Prints detailed copying permissions and exits.
+
+=back
+
+=head2 GENERAL OPTIONS
+
+=over
+
+=item B<-f>, B<--foreground>
+
+Run B<xdg-assist> in the foreground for debugging (so that standard
+error goes to the terminal.
+
+=item B<-g>, B<--guard-time> I<TIMEOUT>
+
+Specifies the amount of time, I<TIMEOUT>, in milliseconds, that
+B<xdg-assist> will wait for a destop application to launch.
+
+=back
+
+=head1 USAGE
+
+The primary purpose of the B<xdg-assist> program is to support window
+managers and clients for launchers other than L<xdg-launch(1)>.
+L<xdg-launch(1)> can provide its own startup notification monitoring and
+completion in a superior fashion to B<xdg-assist>.  This is because
+B<xdg-launch(1)> runs on the same host as the launched process, whereas,
+B<xdg-assist> may not be running on the same host that launched and is
+running the process.
+
+Nevertheless, it is advantageous to start B<xdg-assist(1)> and run it as
+a background process before the window manager starts.  An XDG autostart
+F<.desktop> file is provided for this purpose.
+
+=head1 BEHAVIOUR
+
+Non-startup-notification aware clients and window managers are assisted
+when B<xdg-assist> is running and it detects that the window manager
+does not support full startup notification.
+
+When running and when B<xdg-assist> detects that the client or window
+manager does not support startup notification (or cannot decide one way
+or the other), B<xdg-assist> will perform the following actions:
+
+=over
+
+=item 1.
+
+B<xdg-assist> forks a monitoring process, daemonizes it, placing it in
+the background.  This process will run until killed.
+
+=item 2.
+
+B<xdg-assist> monitors for startup notification messages and collects
+outstanding startup notification sequences.
+
+=item 3.
+
+B<xdg-assist> monitor for the appearance of new top-level and client
+windows.
+
+=over
+
+=item *
+
+For EWMH/NetWM compliant window managers, this can be determined using
+the B<_NET_CLIENT_LIST> property on the root window of the screen on
+which the client is launching.
+
+=item *
+
+For WMH/WinWM compliant window managers,
+this can be determined using the B<_WIN_CLIENT_LIST> property on the
+root window.
+
+=item *
+
+For ICCCM compliant window managers, the appearance of a
+B<WM_STATE> property on a top-level window with a state other than
+C<WithdrawnState> can be used.
+
+=back
+
+=item 4.
+
+When a definitive match can be made from the properties of the mapped
+window, B<xdg-launch> will populate the following properties unless
+otherwise populated by the client or window manager:
+
+=over
+
+=item B<_NET_STARTUP_ID>
+
+This property will be populated with the startup id of the launched
+desktop application when it is missing.  (Very few applications in fact
+populate this property: not because their toolkits do not support it,
+but because the facility of the toolkit has not been invoked.)
+
+=item B<_NET_WM_USER_TIME>
+
+This property will be populated with the time stamp, unless it already
+exists.
+
+=item B<_NET_WM_PID>
+
+This property will be populated with the launched process id.
+
+=item B<_NET_WM_DESKTOP>, B<_WIN_WORKSPACE>, B<_DT_WORKSPACE_PRESENCE>
+
+These properties will be populated with the desktop for the launched
+application unless this property was set by the client (and not the
+window manager).  If the property was not set by the client but was set
+by the window manager and it does not match the value requested during
+launch, B<xdg-launch> will send the appropriate client messages to
+effect the transfer.
+
+=item B<WM_NAME>, B<_NET_WM_NAME>, B<_NET_WM_VISIBLE_NAME>
+
+When none of these properties are present, B<xdg-launch> will populate
+them from the C<NAME=> field of the startup notification sequence.
+
+=item B<WM_ICON>, B<_NET_WM_ICON>, B<_KDE_NET_WM_ICON>
+
+When none of these properties are present, B<xdg-assist> will populate
+them from the C<ICON=> field of the startup notification sequence.
+
+=item B<_NET_WM_FULLSCREEN_MONITORS>
+
+This property will be populated with the monitor number on which the
+desktop application was to launch.  If the client has already mapped, a
+client message to change the value will be sent to the root window when
+the window manager supports such things.
+
+=item B<WM_HINTS>
+
+If the client window has mapped on the incorrect monitor, and the client
+has not specified the initial location using B<WM_HINTS>, B<xdg-launch>
+will unmap the window, set the B<WM_HINTS> property for the appropriate
+monitor, and remap the window.
+
+=item B<WM_COMMAND>
+
+This property will be populated with the command and arguments of the
+launched process, unless otherwise populated.
+
+=item B<WM_CLIENT_MACHINE>
+
+This property will be populated with the fully qualified host name
+even when populated by the client.
+
+=back
+
+=item 5.
+
+B<xdg-assist> monitors for the creation and removal of process
+ids (using L<inotify(7)> on the F</proc> file system).  It performs
+startup notification completion on process ids that are removed or which
+perform an L<execve(3)> or related function that changes the current
+executable, and command arguments.
+
+B<xdg-assist> can also monitor when process ids appear that have a
+specified B<DESKTOP_STARTUP_ID> variable in their environment.
+
+=back
+
+=head1 ENVIRONMENT
+
+The following environment variables are examined by B<xdg-assist>, both
+in its own environment as well as in the environments of monitored
+processes:
+
+=over
+
+=item B<DISPLAY>
+
+Used by B<xdg-assist> to determine the X display and default screen on
+which it has been invoked.
+
+=item B<DESKTOP_STARTUP_ID>
+
+Used by B<xdg-assist> at program startup to determine whether it itself
+has been launched with startup notification.  The B<DESKTOP_STARTUP_ID>
+is removed from the environment in this case and a startup notification
+C<remove:> message is issued to complete its own startup.
+
+B<xdg-assist> also monitors for this environment variables in processes
+to which it has access to match appearing processes with startup
+notification.  A client that property supports desktop startup
+notification will remove this environment variable from its environment
+at startup.  One that ignores the environment variable will not remove
+it.
+
+=back
+
+
+=head1 AUTHOR
+
+Brian Bidulock E<lt>bidulock@openss7.orgE<gt>
+
+=cut
+
+# vim: sw=4 tw=72 nocin

@@ -8,10 +8,12 @@ xdg-launch - an XDG compliant startup notification launcher
 
 B<xdg-launch> [I<OPTIONS>] [I<APPID> [I<FILE>|I<URL>]]
 
+B<xdg-launch> [I<OPTIONS>] -c I<command and arguments>
+
 =head1 DESCRIPTION
 
-B<xdg-launch> is a C<C> language program that can be used to launch XDG desktop applications with
-startup notification.
+B<xdg-launch> is a C<C> language program that can be used to launch XDG
+desktop applications with startup notification.
 
 =head1 ARGUMENTS
 
@@ -21,55 +23,68 @@ The program accepts the following arguments:
 
 =item I<APPID>
 
-Specifies the application identifier of an XDG desktop application to launch.  The application
-identifier, I<APPID>, can be one of the following:
+Specifies the application identifier of an XDG desktop application to
+launch.  The application identifier, I<APPID>, can be one of the
+following:
 
 =over
 
 =item 1.
 
-the name of a desktop entry file without the F<.desktop> suffix (e.g. C<gvim>);
+the name of a desktop entry file without the F<.desktop> suffix (e.g.
+C<gvim>);
 
 =item 2.
 
-the name of a desktop entry file with the F<.desktop> suffix (e.g. C<gvim.desktop>); or,
+the name of a desktop entry file with the F<.desktop> suffix (e.g.
+C<gvim.desktop>); or,
 
 =item 3.
 
-the full path (absolute or relative) and filename of a desktop entry file (e.g.
-F</usr/share/applications/gvim.desktop>).
+the full path (absolute or relative) and filename of a desktop entry
+file (e.g.  F</usr/share/applications/gvim.desktop>).
 
 =back
 
-Providing a non-option application identifier argument is mandatory unless the B<--exec> or
-B<--appid> options are specified.
+Providing a non-option application identifier argument is mandatory
+unless the B<--exec> or B<--appid> options are specified.
 
 =item I<FILE>
 
-Specifies the file name with which to launch the application.  This is used in C<%f> substitutions
-in the C<Exec> field of the XDG desktop entry file or B<--exec> command line.  This may also be
-Specified with the B<--file> option.
+Specifies the file name with which to launch the application.  This is
+used in C<%f> substitutions in the C<Exec> field of the XDG desktop
+entry file or B<--exec> command line.  This may also be Specified with
+the B<--file> option.
 
 =item I<URL>
 
-Specifies the URL with which to launch the application.  This is used in C<%u> substitutions in the
-C<Exec> field of the XDG desktop entry file or B<--exec> command line.  This may also be specified
-with the B<--url> option.
+Specifies the URL with which to launch the application.  This is used in
+C<%u> substitutions in the C<Exec> field of the XDG desktop entry file
+or B<--exec> command line.  This may also be specified with the B<--url>
+option.
 
 =back
 
 =head1 OPTIONS
 
-THe options that are detailed below are recognized by B<xdg-launch>.  B<xdg-launch> uses
-L<getopt_long_only(3)>, so unambiguous abbreviations of long options and long options with a single
-dash are also supported.
+The options that are detailed below are recognized by B<xdg-launch>.
+B<xdg-launch> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+of long options and long options with a single dash are also supported.
 
 =head2 COMMAND OPTIONS
 
-The default is to launch the application specified by C<APPID>.  When any of the following options
-are specified, the command mode changes:
+The default is to launch the application specified by C<APPID>.  When
+any of the following options are specified, the command mode changes:
 
 =over
+
+=item B<-c>, B<--command> I<command arguments>
+
+When specified, this option must be the last option on the command line.
+Options processing stops abruptly at this option and remaining arguments
+are considered to be the command and the command arguments to execute.
+B<xdg-launch> will L<execve(3)> the arguments under startup notification
+control in a similar fashion to C<sh -c>.
 
 =item B<-h>, B<--help>
 
@@ -93,172 +108,202 @@ The following are primary configuration options:
 
 =item B<-v>, B<--verbose> [I<LEVEL>]
 
-Print diagnostic information to standard error during operation.  This option can be repeated to
-increase the verbosity of output.  The default level is 1.
+Print diagnostic information to standard error during operation.  This
+option can be repeated to increase the verbosity of output.  The default
+level is 1.
 
 =item B<-D>, B<--debug> [I<LEVEL>]
 
-Prints debugging information to standard error during operation.  This option can be repeated to
-increase the debugging level.  The default level is 0.
+Prints debugging information to standard error during operation.  This
+option can be repeated to increase the debugging level.  The default
+level is 0.
 
 =back
 
 =head2 LAUNCH OPTIONS
 
-The following options affect the parameters of the startup notification C<new> message that is sent
-for launch:
+The following options affect the parameters of the startup notification
+C<new> message that is sent for launch:
 
 =over
 
 =item B<-L>, B<--launcher> I<LAUNCHER>
 
-Specifies the string that will be used as the launcher when generating a startup notification
-identifier.  The default is the name of this program (i.e. C<xdg-launch>).
+Specifies the string that will be used as the launcher when generating a
+startup notification identifier.  The default is the name of this
+program (i.e. C<xdg-launch>).
 
 =item B<-l>, B<--launchee> I<LAUNCHEE>
 
-Specifies the string that will be used as the launcher when generating a startup notification
-identifier.  The default is the application identifier.
+Specifies the string that will be used as the launcher when generating a
+startup notification identifier.  The default is the application
+identifier.
 
 =item B<-S>, B<--sequence> I<SEQUENCE>
 
-Specifies a sequence number that will be used when generating a startup notification identifier.
-The default, when unspecified, is zero (0).
+Specifies a sequence number that will be used when generating a startup
+notification identifier.  The default, when unspecified, is zero (0).
 
 =item B<-n>, B<--hostname> I<HOSTNAME>
 
-Specifies the host name that will be used when generating a startup notification identifier.  The
-default, when unspecified, is the result of C<hostname -f>.
+Specifies the host name that will be used when generating a startup
+notification identifier.  The default, when unspecified, is the result
+of C<hostname -f>.
 
 =item B<-m>, B<--monitor> I<MONITOR>
 
-Specifies the monitor, I<MONITOR>, on which the XDG application, I<APPID>, is to launch.  When
-unspecified, the monitor currently containing the pointer is used.  I<MONITOR> must be numerical
-zero-based index of the desired monitor.  This value is placed in the C<MONITOR> key-value entry in
-the startup notification C<new> message.  No value will be placed when Xinerama (or RANDR) is not
-active for the display, or for single-screen Xinerama (or RANDR) setups (C<SCREEN> is used in this
-case).
+Specifies the monitor, I<MONITOR>, on which the XDG application,
+I<APPID>, is to launch.  When unspecified, the monitor currently
+containing the pointer is used.  I<MONITOR> must be numerical zero-based
+index of the desired monitor.  This value is placed in the C<MONITOR>
+key-value entry in the startup notification C<new> message.  No value
+will be placed when Xinerama (or RANDR) is not active for the display,
+or for single-screen Xinerama (or RANDR) setups (C<SCREEN> is used in
+this case). See L</Multiple Monitors>, below.
 
 =item B<-s>, B<--screen> I<SCREEN>
 
-Specifies the screen, SCREEN, on which the XDG application, I<APPID>, is to launch.  When
-unspecified, the screen containing the pointer used.  For single-screen Xinerama (or RANDR) setups,
-the value of I<MONITOR> is used for I<SCREEN>.  I<SCREEN> must be the numerical zero-based index of
-the desired screen.  This value is placed in the I<SCREEN> key-value entry in the startup
-notification C<new> message.  No value will be placed when there is a single screen, and Xinerama
-(or RANDR) is not active for the display.
+Specifies the screen, SCREEN, on which the XDG application, I<APPID>, is
+to launch.  When unspecified, the screen containing the pointer used.
+For single-screen Xinerama (or RANDR) setups, the value of I<MONITOR> is
+used for I<SCREEN>.  I<SCREEN> must be the numerical zero-based index of
+the desired screen.  This value is placed in the I<SCREEN> key-value
+entry in the startup notification C<new> message.  No value will be
+placed when there is a single screen, and Xinerama (or RANDR) is not
+active for the display.  See L</Multiple Screens>, below.
 
 =item B<-w>, B<--workspace> I<DESKTOP>
 
-Specifies the desktop, I<DESKTOP>, on which the XDG application is to launch.  The default, when
-unspecified, is the current desktop for the screen, I<SCREEN>.  This value is placed in the
-C<DESKTOP> key-value entry in the startup notification C<new> message.
+Specifies the desktop, I<DESKTOP>, on which the XDG application is to
+launch.  The default, when unspecified, is the current desktop for the
+screen, I<SCREEN>.  This value is placed in the C<DESKTOP> key-value
+entry in the startup notification C<new> message.
 
 =item B<-t>, B<--timestamp> I<TIMESTAMP>
 
-Specifies an X Server time stamp that corresponds to the X window event that caused the launch to
-occur.  This is only useful in conjunction with specification of an I<APPID> argument.  When the
-time stamp is not specified, B<xdg-launch> will use the time of the last event (or generate an
-event) for the time stamp.  The resulting time stamp (whether specified or not) is used in the
-C<_TIME> portion of the startup notification identifier, as well as the C<TIMESTAMP> key-value entry
-in the startup notification C<new> message.
+Specifies an X Server time stamp that corresponds to the X window event
+that caused the launch to occur.  This is only useful in conjunction
+with specification of an I<APPID> argument.  When the time stamp is not
+specified, B<xdg-launch> will use the time of the last event (or
+generate an event) for the time stamp.  The resulting time stamp
+(whether specified or not) is used in the C<_TIME> portion of the
+startup notification identifier, as well as the C<TIMESTAMP> key-value
+entry in the startup notification C<new> message.
 
 =item B<-N>, B<--name> I<NAME>
 
-Specify the name of the XDG application.  This overrides the C<Name> field from the XDG desktop
-entry file.  When unspecified, the default is the C<Name> field from the XDG desktop entry file.
-This value, when available, is placed in the C<NAME> key-value entry in the startup notification
-C<new> message.
+Specify the name of the XDG application.  This overrides the C<Name>
+field from the XDG desktop entry file.  When unspecified, the default is
+the C<Name> field from the XDG desktop entry file.  This value, when
+available, is placed in the C<NAME> key-value entry in the startup
+notification C<new> message.
 
 =item B<-i>, B<--icon> I<ICON>
 
-Specifies the icon name of the XDG application, I<ICON>.  This overrides the C<Icon> field from the
-XDG desktop entry file.  When unspecified, the default is the C<Icon> field from the XDG desktop
-entry file.  This value, when available, is placed in the C<ICON> key-value entry in the startup
-notification C<new> message.
+Specifies the icon name of the XDG application, I<ICON>.  This overrides
+the C<Icon> field from the XDG desktop entry file.  When unspecified,
+the default is the C<Icon> field from the XDG desktop entry file.  This
+value, when available, is placed in the C<ICON> key-value entry in the
+startup notification C<new> message.
 
 =item B<-b>, B<--binary> I<BIN>
 
-Specifies the name of the binary for the XDG application, I<BIN>.  This overrides the C<TryExec> and
-C<Exec> fields from the XDG desktop entry file.  When unspecified, default is the C<TryExec> field,
-or the C<argv[0]> option of the C<Exec> field, from the XDG desktop entry file.  This value, when
-available, is placed in the C<BIN> key-value entry in the startup notification C<new> message.
+Specifies the name of the binary for the XDG application, I<BIN>.  This
+overrides the C<TryExec> and C<Exec> fields from the XDG desktop entry
+file.  When unspecified, default is the C<TryExec> field, or the
+C<argv[0]> option of the C<Exec> field, from the XDG desktop entry file.
+This value, when available, is placed in the C<BIN> key-value entry in
+the startup notification C<new> message.
 
 =item B<-D>, B<--description> I<DESCRIPTION>
 
-Specifies the description of the XDG application, I<DESCRIPTION>.  This overrides the C<Comment>
-field from the XDG desktop entry file.  When unspecified, the default is to use the C<Comment> field
-from the XDG desktop entry file, or a descriptive sequence such as "Staring Name".  This value, when
-available, is placed in the C<DESCRIPTION> key-value entry in the startup notification C<new> message.
+Specifies the description of the XDG application, I<DESCRIPTION>.  This
+overrides the C<Comment> field from the XDG desktop entry file.  When
+unspecified, the default is to use the C<Comment> field from the XDG
+desktop entry file, or a descriptive sequence such as "Staring Name".
+This value, when available, is placed in the C<DESCRIPTION> key-value
+entry in the startup notification C<new> message.
 
 =item B<-W>, B<--wmclass> I<WMCLASS>
 
-Specify the window manager class (matched against the C<res_name> or C<res_class> of the C<WM_CLASS>
-property on a window), of the top-level window that the XDG application is expected to map.  This
-overrides the C<StartupWMClass> field of the XDG desktop entry file.  When unspecified, the default
-is the C<StartupWMClass> field of the XDG desktop entry file.  This value, when available, is placed
-in the C<WMCLASS> key-value entry in the startup notification C<new> message.
+Specify the window manager class (matched against the C<res_name> or
+C<res_class> of the C<WM_CLASS> property on a window), of the top-level
+window that the XDG application is expected to map.  This overrides the
+C<StartupWMClass> field of the XDG desktop entry file.  When
+unspecified, the default is the C<StartupWMClass> field of the XDG
+desktop entry file.  This value, when available, is placed in the
+C<WMCLASS> key-value entry in the startup notification C<new> message.
 
 =item B<-q>, B<--silent> I<SILENT>
 
-Specify a boolean value (0/1) choosing whether visual feedback should be provided for the launching
-XDG application, I<SILENT>.  Normally, when unspecified, visual feedback would be determined from
-the presence of a value of a C<StartupNotify> or C<StartupWMClass> field in the XDG desktop entry
-file.  The I<SILENT> argument should be some boolean value like 0 or 1 or "yes" or "no" or "true" or
-"false".  The default when unspecified is to determine the value from the other fields of the XDG
-desktop entry file.  This value, when available, is placed in the C<SILENT> key-value entry in the
-startup notification C<new> message.
+Specify a boolean value (0/1) choosing whether visual feedback should be
+provided for the launching XDG application, I<SILENT>.  Normally, when
+unspecified, visual feedback would be determined from the presence of a
+value of a C<StartupNotify> or C<StartupWMClass> field in the XDG
+desktop entry file.  The I<SILENT> argument should be some boolean value
+like 0 or 1 or "yes" or "no" or "true" or "false".  The default when
+unspecified is to determine the value from the other fields of the XDG
+desktop entry file.  This value, when available, is placed in the
+C<SILENT> key-value entry in the startup notification C<new> message.
 
-When unspecified, the C<SILENT> argument to the startup notification message is set when the XDG
-desktop entry has neither a C<StartupNotify> nor a C<StartupWMClass> field, or it only has a
-C<StartupNotify> field but it is set to false.
+When unspecified, the C<SILENT> argument to the startup notification
+message is set when the XDG desktop entry has neither a C<StartupNotify>
+nor a C<StartupWMClass> field, or it only has a C<StartupNotify> field
+but it is set to false.
 
 =item B<-p>, B<--pid> I<PID>
 
-Specifies the process identifier for the launch sequence.  The default is the process identifier of
-the xdg-launch program.
+Specifies the process identifier for the launch sequence.  The default
+is the process identifier of the xdg-launch program.
 
 =item B<-a>, B<--appid> I<APPLICATION_ID>
 
-Override the application identifier.  This overrides the name of the XDG application file.  When
-unspecified, the default is to use the non-option I<APPID> argument to determine the application
-identifier.  This value, when available, is placed in the C<APPLICATION_ID> key-value entry in the
-startup notification C<new> message.
+Override the application identifier.  This overrides the name of the XDG
+application file.  When unspecified, the default is to use the
+non-option I<APPID> argument to determine the application identifier.
+This value, when available, is placed in the C<APPLICATION_ID> key-value
+entry in the startup notification C<new> message.
 
 =item B<-x>, B<--exec> I<COMMAND>
 
-Specifies the command to execute.  This overrides the C<Exec> field of the XDG desktop entry file.
-When unspecified, the default is the C<Exec> field of the XDG desktop entry file.
+Specifies the command to execute.  This overrides the C<Exec> field of
+the XDG desktop entry file.  When unspecified, the default is the
+C<Exec> field of the XDG desktop entry file.
 
 =item B<-f>, B<--file> I<FILE>
 
-Specifies a filename, I<FILE>, to be substituted into the XDG desktop entry C<Exec> command in
-accordance with XDG desktop entry specifications.  The default is to use the non-option I<FILE>
-argument, or no filename.  When B<--url> or URL is specified as a F<file://> URL, this option
-defaults to the URL with the F<file:> portion removed.
+Specifies a filename, I<FILE>, to be substituted into the XDG desktop
+entry C<Exec> command in accordance with XDG desktop entry
+specifications.  The default is to use the non-option I<FILE> argument,
+or no filename.  When B<--url> or URL is specified as a F<file://> URL,
+this option defaults to the URL with the F<file:> portion removed.
 
 =item B<-u>, B<--url> I<URL>
 
-Specifies a URL, I<URL>, to be substituted into the XDG desktop entry C<Exec> command in accordance
-with XDG desktop entry specifications.  The default is to use the non-option I<URL> argument, or no
-URL.  When B<--file> or I<FILE> is specified, this option defaults to the I<FILE> with a F<file://>
-portion prefixed.
+Specifies a URL, I<URL>, to be substituted into the XDG desktop entry
+C<Exec> command in accordance with XDG desktop entry specifications.
+The default is to use the non-option I<URL> argument, or no URL.  When
+B<--file> or I<FILE> is specified, this option defaults to the I<FILE>
+with a F<file://> portion prefixed.
 
 =item B<-P>, B<--pointer>
 
-When specified, B<xdg-launch> will determine the screen or monitor from the current location of the
-pointer.  This option should be used when B<xdg-launch> is invoked from a menu or mouse binding.
+When specified, B<xdg-launch> will determine the screen or monitor from
+the current location of the pointer.  This option should be used when
+B<xdg-launch> is invoked from a menu or mouse binding.
 
 =item B<-K>, B<--keyboard>
 
-When specified, B<xdg-launch> will determine the screen or monitor from the location of the window
-with the current keyboard focus.  This option should be used when B<xdg-launch> is invoked from a
-command line or keyboard binding.
+When specified, B<xdg-launch> will determine the screen or monitor from
+the location of the window with the current keyboard focus.  This option
+should be used when B<xdg-launch> is invoked from a command line or
+keyboard binding.
 
 =item B<-A>, B<--assist>
 
-Assist a window manager that is not startup-notification aware.  The default is to automatically
-determine whether the window manager needs assistance and provide it when needed.
+Assist a window manager that is not startup-notification aware.  The
+default is to automatically determine whether the window manager needs
+assistance and provide it when needed.
 
 =head1 BEHAVIOUR
 
@@ -266,34 +311,82 @@ B<xdg-launch> exhibits the following behaviour:
 
 =head2 TIME STAMPS
 
-B<xdg-launch> is intended on being invoked directly from a user interface, such as the root menu of
-a light-weight window manager, or an X windows application such as a system tray menu.  To perform
-proper startup notification, B<xdg-launch> determines the X server time stamp of the invocation as
-follows:
+B<xdg-launch> is intended on being invoked directly from a user
+interface, such as the root menu of a light-weight window manager, or an
+X windows application such as a system tray menu.  To perform proper
+startup notification, B<xdg-launch> determines the X server time stamp
+of the invocation as follows:
 
 =over
 
 =item 1.
 
-When B<xdg-lanuch> is invoked directly (executed) from an application that has access to the X
-server event that invoked the launch, it can supply the X server time stamp directly to
-B<xdg-launch> using the B<--timestamp> option (see L</OPTIONS>).  B<xdg-launch> will use this time
-stamp in the generation of the B<DESKTOP_STARTUP_ID> as well as the C<TIMESTAMP> key-value pair in
-the startup notification C<new> message.
+When B<xdg-lanuch> is invoked directly (executed) from an application
+that has access to the X server event that invoked the launch, it can
+supply the X server time stamp directly to B<xdg-launch> using the
+B<--timestamp> option (see L</OPTIONS>).  B<xdg-launch> will use this
+time stamp in the generation of the B<DESKTOP_STARTUP_ID> as well as the
+C<TIMESTAMP> key-value pair in the startup notification C<new> message.
 
 =item 2.
 
-When B<xdg-launch> is invoked by an application that does not have access to the X event that
-invoked the launch, B<xdg-launch> will change the B<_TIMESTAMP_PROP> property on the root window to
-obtain a time stamp.  In this way, B<xdg-launch> can simply be executed using the execute mechanism
-of a light-weight window manager root menu or key binding.
+When B<xdg-launch> is invoked by an application that does not have
+access to the X event that invoked the launch, B<xdg-launch> will change
+the B<_TIMESTAMP_PROP> property on the root window to obtain a time
+stamp.  In this way, B<xdg-launch> can simply be executed using the
+execute mechanism of a light-weight window manager root menu or key
+binding.
 
 =item 3.
 
-When B<xdg-launch> is invoked by another startup notification launcher, it will obtain the time
-stamp (and other information) from the B<DESKTOP_STARTUP_ID> environment variable.
+When B<xdg-launch> is invoked by another startup notification launcher,
+it will obtain the time stamp (and other information) from the
+B<DESKTOP_STARTUP_ID> environment variable.
 
 =back
+
+=head2 MULTIPLE HEADS
+
+B<xdg-launch> fully supports multiple heads (screens) and Xinerama (or
+RANDR) multiple physical monitors per screen.
+
+=head3 Multiple Screens
+
+When there are multiple screens, some window managers will adjust the
+B<DISPLAY> environment variable to include the screen number for
+launched applications.  For example, if the window manager B<DISPLAY>
+environment variable is C<:7> and a program is launched on screen 1, the
+program will be launched with a B<DISPLAY> environment variable of
+C<:7.1>.  Therefore, when B<xdg-launch> detects a screen number in its
+B<DISPLAY> environment variable, the screen used will be that specified
+in the environment variable, unless the B<--keyboard>, B<--pointer> or
+B<--screen> options are specified.  When B<xdg-launch> launches the
+ultimate desktop application, it adjusts the B<DISPLAY> environment
+variable to include the screen.  As most applications launch on the
+default screen, this manages to get the desktop application to launch on
+the correct screen.
+
+=head3 Multiple Monitors
+
+B<xdg-launch> detects Xinerama and RANDR multiple monitor setups.  When
+the B<--keyboard>  or B<--pointer> options are specified, B<xdg-launch>
+determines the monitor number from the keyboard focus window or pointer
+location.  This monitor number is placed in the C<MONITOR=> field of the
+startup notification C<new> message.  However, launched desktop
+applications have no way of determining information outside of the
+B<DESKTOP_STARTUP_ID> with which they were launched (the screen number
+can be obtained from the B<DISPLAY> environment variable).  The
+B<DESKTOP_STARTUP_ID> is formatted (ala libstartup-notification) as
+follows:
+
+    %s/%s/%d-%d-%s_TIME%lu
+
+Where the fields are the launcher, launchee, pid, sequence, host and
+timestamp.  The sequence number is of no use to the application and it
+is also of no use to B<xdg-launch> because the pid changes with each
+invocation.  Therefore, when the launcher is B<xdg-launch>, the
+application (or window manager) can use the I<sequence> field as the
+monitor index.
 
 =head2 WINDOW MANAGERS
 
@@ -303,114 +396,253 @@ B<xdg-launch> interacts with window managers in the following ways:
 
 =item 1.
 
-B<xdg-launch> creates startup notification identifiers using the technique from the
-F<libstartup-notification> library.  This consists of the following:
+B<xdg-launch> creates startup notification identifiers using the
+technique from the F<libstartup-notification> library.  This consists of
+the following:
 
- while((p = strchr(launcher, '/'))) *p = '|';
- while((p = strchr(launchee, '/'))) *p = '|';
- sprintf(id, "%s/%s/%d-%d-%s_TIME%lu",
-     launcher, launchee, getpid(), sequence_number++,
-     hostname, timestamp);
+    while((p = strchr(launcher, '/'))) *p = '|';
+    while((p = strchr(launchee, '/'))) *p = '|';
+    sprintf(id, "%s/%s/%d-%d-%s_TIME%lu",
+        launcher, launchee, getpid(), monitor,
+        hostname, timestamp);
 
-Compliant applications will place the startup notification identifier from the B<DESKTOP_STARTUP_ID>
-environment variable in the B<_NET_STARTUP_ID> property on its group leader top-level window before
-it is mapped.  The window manager can use the C<_TIME%lu> portion of the startup identifier to
-determine the X server time stamp for the event that launched the application.  When the client
-does not set an initial B<_NET_WM_USER_TIME>, this time stamp can be used in its stead.  It can also
-use the C</%d-> portion of the startup identifier to determine the process identifier, and the
-C<-%s_TIME> portion of the identifier to determine the host name of the launching machine.
+Compliant applications will place the startup notification identifier
+from the B<DESKTOP_STARTUP_ID> environment variable in the
+B<_NET_STARTUP_ID> property on its group leader top-level window before
+it is mapped.  The window manager can use the C<_TIME%lu> portion of the
+startup identifier to determine the X server time stamp for the event
+that launched the application.  When the client does not set an initial
+B<_NET_WM_USER_TIME>, this time stamp can be used in its stead.  It can
+also use the C</%d-> portion of the startup identifier to determine the
+process identifier, the C<-%d-> portion to determine the monitor on
+which to start the application, and the C<-%s_TIME> portion of the
+identifier to determine the host name of the launching machine.
 
 =item 2.
 
-Window managers that monitor startup notification messages may also use the C<TIMESTAMP=> key-field
-entry in the C<new:> message for this purpose, particularly when the C<WMCLASS=> field matches the
-resource name or class of a newly mapped top-level window.
+Window managers that monitor startup notification messages may also use
+the C<TIMESTAMP=> key-field entry in the C<new:> message for this
+purpose, particularly when the C<WMCLASS=> field matches the resource
+name or class of a newly mapped top-level window.
 
 =item 3.
 
-B<xdg-launch> neither changes nor removes the startup notification sequence and is only responsible
-for issuing in the C<new:> or C<change:> message.  The window manager or desktop environment should
-issue a C<remove:> message when it first manages a top-level window with a resource name or class
-than matches the C<WMCLASS=> field of an outstanding C<new:> message.
+B<xdg-launch> neither changes nor removes the startup notification
+sequence and is only responsible for issuing in the C<new:> or
+C<change:> message.  The window manager or desktop environment should
+issue a C<remove:> message when it first manages a top-level window with
+a resource name or class than matches the C<WMCLASS=> field of an
+outstanding C<new:> message.
 
 =item 4.
 
-Window managers that monitor startup notification messages and associates them with managed
-top-level windows may use the following fields to populate missing properties on those windows:
+Window managers that monitor startup notification messages and
+associates them with managed top-level windows may use the following
+fields to populate missing properties on those windows:
 
 =over
 
 =item C<ID=>
 
-The window manager may use this field to populate the B<_NET_STARTUP_ID> property on the window
-(group) when it is missing.
+The window manager may use this field to populate the B<_NET_STARTUP_ID>
+property on the window (group) when it is missing.
 
 =item C<HOSTNAME=>
 
-The window manager may use this field to populate the B<WM_CLIENT_MACHINE> property when it is
-missing or is not a fully qualified domain name.  This field can also be derived from the C<ID=>
+The window manager may use this field to populate the
+B<WM_CLIENT_MACHINE> property when it is missing or is not a fully
+qualified domain name.  This field can also be derived from the C<ID=>
 field.
 
 =item C<PID=>
-The window manager may use this field to populate the B<_NET_WM_PID> property when it is missing.
-This field can also be derived from the C<ID=> field.
+
+The window manager may use this field to populate the B<_NET_WM_PID>
+property when it is missing.  This field can also be derived from the
+C<ID=> field.
 
 =item C<MONITOR=>
 
-The window manager may use this field to choose the Xinerama (or RANDR) screen on which the
-top-level window (group) will be mapped.  It may also be used to populate the
-B<_NET_WM_FULLSCREEN_MONITORS> property when it is missing.
+The window manager may use this field to choose the Xinerama (or RANDR)
+screen on which the top-level window (group) will be mapped.  It may
+also be used to populate the B<_NET_WM_FULLSCREEN_MONITORS> property
+when it is missing.
 
 =item C<SCREEN=>
 
-The window manager may use this field to choose the Xinerama (or RANDR) or multi-head screen on
-which the top-level window (group) will be mapped.  When it specifies a Xinerama (or RANDR) screen,
-it may also be used to populate the B<_NET_WM_FULLSCREEN_MONITORS> property when it is missing.
+The window manager may use this field to choose the Xinerama (or RANDR)
+or multi-head screen on which the top-level window (group) will be
+mapped.  When it specifies a Xinerama (or RANDR) screen, it may also be
+used to populate the B<_NET_WM_FULLSCREEN_MONITORS> property when it is
+missing.
 
 =item C<DESKTOP=>
 
-The window manager may use this field to populate the B<_NET_WM_DESKTOP>, B<_WIN_WORKSPACE>, or
-B<_DT_WORKSPACE_PRESENCE> property when missing or otherwise unspecified.
+The window manager may use this field to populate the
+B<_NET_WM_DESKTOP>, B<_WIN_WORKSPACE>, or B<_DT_WORKSPACE_PRESENCE>
+property when missing or otherwise unspecified.
 
 =item C<TIMESTAMP=>
 
-The window manager may use this field to populate the B<_NET_WM_USER_TIME> property when it is
-missing.  This field can also be derived from the C<ID=> field.
+The window manager may use this field to populate the
+B<_NET_WM_USER_TIME> property when it is missing.  This field can also
+be derived from the C<ID=> field.
 
 =item C<NAME=>
 
-The window manager may use this field to populate the B<WM_NAME>, B<_NET_WM_NAME>, or
-B<_NET_WM_VISIBLE_NAME> properties when they are missing or empty.
+The window manager may use this field to populate the B<WM_NAME>,
+B<_NET_WM_NAME>, or B<_NET_WM_VISIBLE_NAME> properties when they are
+missing or empty.
 
 =item C<ICON=>
 
-The window manager may use this field to establish an icon for the window when the B<WM_ICON>,
-B<_NET_WM_ICON> or B<_KDE_NET_WM_ICON> properties are missing or otherwise unusable.
+The window manager may use this field to establish an icon for the
+window when the B<WM_ICON>, B<_NET_WM_ICON> or B<_KDE_NET_WM_ICON>
+properties are missing or otherwise unusable.
 
 =item C<WMCLASS=>
 
-The window manager may use this field to associate a startup notification sequence with a newly
-mapped top-level window.
+The window manager may use this field to associate a startup
+notification sequence with a newly mapped top-level window.
 
 =item C<COMMAND=>
 
-The window manager may use this field when the B<WM_COMMAND> field is missing (and for the same
-purposes).  Because rather complicated shell expansion would be required to expand the command, it
-cannot be used to populate the B<WM_COMMAND> property; however, it may be executed by passing it
-literally as a shell command.  I suppose one could populate B<WM_COMMAND> with C<sh>, C<COMMAND> if
-necessary.
+The window manager may use this field when the B<WM_COMMAND> field is
+missing (and for the same purposes).  Because rather complicated shell
+expansion would be required to expand the command, it cannot be used to
+populate the B<WM_COMMAND> property; however, it may be executed by
+passing it literally as a shell command.  I suppose one could populate
+B<WM_COMMAND> with C<sh>, C<COMMAND> if necessary.
 
 =back
 
 =item 5.
 
-Window managers that are not startup notification aware will be automatically assisted in performing
-startup notification completion.  When it is detected that assistance is required, B<xdg-launch will
-fork a background process to monitor for startup completion.
+Window managers that are not startup notification aware will be
+automatically assisted in performing startup notification completion.
+When it is detected that assistance is required, B<xdg-launch will fork
+a background process to monitor for startup completion.
 
-It can be detected whether an EWMH compliant window manager performs startup notification completion
-by the presence or absence of the B<_NET_STARTUP_ID> atom in the B<_NET_SUPPORTED> list of atoms.
-Non-EWMH compliant window managers are assumed to not support startup notification.
+It can be detected whether an EWMH compliant window manager performs
+startup notification completion by the presence or absence of the
+B<_NET_STARTUP_ID> atom in the B<_NET_SUPPORTED> list of atoms.
+Non-EWMH compliant window managers are assumed to not support startup
+notification.
+
+=back
+
+=head2 WM/CLIENT ASSISTANCE
+
+Non-startup-notification aware clients and window managers can be
+assisted using the B<--assist> command line option or when B<xdg-launch>
+detects that the window manager does not support startup notification.
+
+When the B<--assist> command line option is specified, or when
+B<xdg-launch> detects that the client or window manager does not support
+startup notification (or cannot decide one way or the other),
+B<xdg-launch> performs the following actions:
+
+=over
+
+=item 1.
+
+B<xdg-launch> forks a monitoring process that is a proper child of the
+launched process.  This is so that if the launched process exists, the
+monitoring process also exits.
+
+=item 2.
+
+The monitoring process monitors for the appearance of a client window.
+
+=over
+
+=item *
+
+For EWMH/NetWM compliant window managers, this can be determined using
+the B<_NET_CLIENT_LIST> property on the root window of the screen on
+which the client is launching.
+
+=item *
+
+For WMH/WinWM compliant window managers,
+this can be determined using the B<_WIN_CLIENT_LIST> property on the
+root window.
+
+=item *
+
+For ICCCM compliant window managers, the appearance of a
+B<WM_STATE> property on a top-level window with a state other than
+C<WithdrawnState> can be used.
+
+=back
+
+=item 3.
+
+When a definitive match can be made from the properties of the mapped
+window, B<xdg-launch> will populate the following properties unless
+otherwise populated by the client or window manager:
+
+=over
+
+=item B<_NET_STARTUP_ID>
+
+This property will be populated with the startup id of the launched
+desktop application when it is missing.  (Very few applications in fact
+populate this property: not because their toolkits do not support it,
+but because the facility of the toolkit has not been invoked.)
+
+=item B<_NET_WM_USER_TIME>
+
+This property will be populated with the time stamp, unless it already
+exists.
+
+=item B<_NET_WM_PID>
+
+This property will be populated with the launched process id.
+
+=item B<_NET_WM_DESKTOP>, B<_WIN_WORKSPACE>, B<_DT_WORKSPACE_PRESENCE>
+
+These properties will be populated with the desktop for the launched
+application unless this property was set by the client (and not the
+window manager).  If the property was not set by the client but was set
+by the window manager and it does not match the value requested during
+launch, B<xdg-launch> will send the appropriate client messages to
+effect the transfer.
+
+=item B<WM_NAME>, B<_NET_WM_NAME>, B<_NET_WM_VISIBLE_NAME>
+
+When none of these properties are present, B<xdg-launch> will populate
+them from the C<NAME=> field of the startup notification sequence.
+
+=item B<WM_ICON>, B<_NET_WM_ICON>, B<_KDE_NET_WM_ICON>
+
+When none of these properties are present, B<xdg-assist> will populate
+them from the C<ICON=> field of the startup notification sequence.
+
+=item B<_NET_WM_FULLSCREEN_MONITORS>
+
+This property will be populated with the monitor number on which the
+desktop application was to launch.  If the client has already mapped, a
+client message to change the value will be sent to the root window when
+the window manager supports such things.
+
+=item B<WM_HINTS>
+
+If the client window has mapped on the incorrect monitor, and the client
+has not specified the initial location using B<WM_HINTS>, B<xdg-launch>
+will unmap the window, set the B<WM_HINTS> property for the appropriate
+monitor, and remap the window.
+
+=item B<WM_COMMAND>
+
+This property will be populated with the command and arguments of the
+launched process, unless otherwise populated.
+
+=item B<WM_CLIENT_MACHINE>
+
+This property will be populated with the fully qualified host name
+even when populated by the client.
+
+=back
 
 =back
 
@@ -420,16 +652,23 @@ The following environment variables are examined by B<xdg-launch>:
 
 =over
 
+=item B<DISPLAY>
+
+Use by B<xdg-launch> to determine the X display and default screen On
+which it has been invoked.
+
 =item B<DESKTOP_STARTUP_ID>
 
-Used by B<xdg-launch> at program startup to determine whether it itself has been launched with
-startup notification.  The B<DESKTOP_STARTUP_ID> is reused in this case.  This environment variable
-is set to the startup notification identifier just prior to executing the launched program.
+Used by B<xdg-launch> at program startup to determine whether it itself
+has been launched with startup notification.  The B<DESKTOP_STARTUP_ID>
+is reused in this case.  This environment variable is set to the startup
+notification identifier just prior to executing the launched program.
 
 =item B<LANG>
 
-Used by B<xdg-launch> at program startup to determine the language to use to select the language for
-C<Name=> and C<Comment=> fields from the desktop entry file.
+Used by B<xdg-launch> at program startup to determine the language to
+use to select the language for C<Name=> and C<Comment=> fields from the
+desktop entry file.
 
 =item B<HOME>
 
@@ -437,15 +676,18 @@ Used by B<xdg-launch> to determine the user's home directory.
 
 =item B<XDG_DATA_HOME>
 
-Used by B<xdg-launch> to determine the user's XDG data directory.  This defaults to
-F<$HOME/.local/share>.  The F<applications> subdirectory under this directory is the first searched
-to locate desktop entry files.  See the XDG Desktop Entry file specification for more information.
+Used by B<xdg-launch> to determine the user's XDG data directory.  This
+defaults to F<$HOME/.local/share>.  The F<applications> subdirectory
+under this directory is the first searched to locate desktop entry
+files.  See the XDG Desktop Entry file specification for more
+information.
 
 =item B<XDG_DATA_DIRS>
 
-Used by B<xdg-launch> to determine the system XDG data directories.  This defaults to
-F</usr/local/share:/usr/share>.  The F<applications> subdirectory under these directories are
-searched in order to locate desktop entry files.  See the XDG Desktop Entry file specification for
+Used by B<xdg-launch> to determine the system XDG data directories.
+This defaults to F</usr/local/share:/usr/share>.  The F<applications>
+subdirectory under these directories are searched in order to locate
+desktop entry files.  See the XDG Desktop Entry file specification for
 more information.
 
 =head1 AUTHOR
@@ -453,3 +695,5 @@ more information.
 Brian Bidulock E<lt>bidulock@openss7.orgE<gt>
 
 =cut
+
+# vim: sw=4 tw=72 nocin

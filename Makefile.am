@@ -9,9 +9,12 @@ xdg_launch_SOURCES = xdg-launch.c
 xdg_launch_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
 
 nodist_man1_MANS  = \
-	     xdg-launch.man
+	     xdg-launch.man \
+	     xdg-assist.man
 
 xdg-launch.man: xdg-launch.pod
+
+xdg-assist.man: xdg-assist.pod
 
 CLEANFILES = xdg-launch.man
 
@@ -30,4 +33,4 @@ SUFFIXES = .man .pod
 		--section="1" \
 		$< >$@
 
-EXTRA_DIST = TODO xdg-launch.pod
+EXTRA_DIST = TODO xdg-launch.pod xdg-assist.pod
