@@ -1,0 +1,5 @@
+xdg-launch -- acknowledgements file.  2014-01-26
+
+Thanks to freedesktop.org for their excellent specifications.
+
+# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:

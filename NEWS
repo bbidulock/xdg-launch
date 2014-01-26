@@ -1,0 +1,9 @@
+xdg-launch -- history of user-visible changes.  2014-01-26
+
+Release xdg-launch-0.1 released 2014-01-26
+-------------------------------------------
+
+This is the initial development release of xdg-launch.
+
+
+# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:
