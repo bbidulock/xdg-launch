@@ -13,7 +13,7 @@ DATE=`date -uI`
 AC_SUBST([DATE])
 
 # Initialize Automake
-AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
+AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
 AM_MAINTAINER_MODE
 
 # Checks for programs.

@@ -30,4 +30,4 @@ SUFFIXES = .man .pod
 		--section="1" \
 		$< >$@
 
-EXTRA_DIST = LICENSE README TODO ChangeLog xde-theme.pod
+EXTRA_DIST = TODO xdg-launch.pod
