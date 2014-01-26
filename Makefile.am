@@ -3,23 +3,21 @@
 AM_CPPFLAGS = -include autoconf.h -DNAME='"xdg-launch"'
 AM_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS)
 
-bin_PROGRAMS = xdg-launch xde-keys xde-theme
+bin_PROGRAMS = xdg-launch
 
 xdg_launch_SOURCES = xdg-launch.c
 xdg_launch_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
 
-xde_keys_SOURCES = xde-keys.c
-xde_keys_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+nodist_man1_MANS  = \
+	     xdg-launch.man
 
-xde_theme_SOURCES = xde-theme.c
-xde_theme_LDADD =  $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+xdg-launch.man: xdg-launch.pod
 
+CLEANFILES = xdg-launch.man
 
-man1_MANS  = \
-	     xdg-launch.man \
-	     xde-theme.man
+SUFFIXES = .man .pod
 
-xde-theme.man: xde-theme.pod
+.pod.man:
 	pod2man --center="User Commands" \
 		--date="$(DATE)" \
 		--errors="none" \
@@ -27,11 +25,9 @@ xde-theme.man: xde-theme.pod
 		--fixedbold="CB" \
 		--fixeditalic="CI" \
 		--fixedbolditalic="CX" \
-		--name="XDE-THEME" \
 		--nourls \
 		--release="$(PACKAGE) $(VERSION)" \
 		--section="1" \
 		$< >$@
-
 
 EXTRA_DIST = LICENSE README TODO ChangeLog xde-theme.pod
