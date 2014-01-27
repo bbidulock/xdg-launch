@@ -139,7 +139,9 @@ Specifies the string that will be used as the launcher when generating a
 startup notification identifier.  The default is the application
 identifier.
 
-=item B<-S>, B<--sequence> I<SEQUENCE>
+=cut
+
+item B<-S>, B<--sequence> I<SEQUENCE>
 
 Specifies a sequence number that will be used when generating a startup
 notification identifier.  The default, when unspecified, is zero (0).
@@ -290,14 +292,21 @@ with a F<file://> portion prefixed.
 
 When specified, B<xdg-launch> will determine the screen or monitor from
 the current location of the pointer.  This option should be used when
-B<xdg-launch> is invoked from a menu or mouse binding.
+B<xdg-launch> is invoked from a menu or mouse binding.  This option has
+no effect on the screen when the screen was specified using either the
+B<DISPLAY> environment variable or the B<--screen> option.  This option
+has no effect on the monitor when the B<--monitor> option is also
+specified.
 
 =item B<-K>, B<--keyboard>
 
 When specified, B<xdg-launch> will determine the screen or monitor from
 the location of the window with the current keyboard focus.  This option
 should be used when B<xdg-launch> is invoked from a command line or
-keyboard binding.
+keyboard binding.  This option has no effect on the screen when the
+screen was specified using either the B<DISPLAY> environment variable
+or the B<--screen> option.  This option has no effect on the monitor
+when the B<--monitor> option is also specified.
 
 =item B<-A>, B<--assist>
 
@@ -383,7 +392,7 @@ follows:
 
 Where the fields are the launcher, launchee, pid, sequence, host and
 timestamp.  The sequence number is of no use to the application and it
-is also of no use to B<xdg-launch> because the pid changes with each
+is also of no use to B<xdg-launch> because the PID changes with each
 invocation.  Therefore, when the launcher is B<xdg-launch>, the
 application (or window manager) can use the I<sequence> field as the
 monitor index.
