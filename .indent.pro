@@ -36,7 +36,7 @@
 -TWindow
 -TBool
 -TXPointer
--Tclient
+-TClient
 -T_STR_DECLARATION
 -T_HEAD_DECLARATION
 -T_SLIST_HEAD

@@ -1,4 +1,4 @@
-xdg-launch -- history of user-visible changes.  @DATE@
+@PACKAGE@ -- history of user-visible changes.  @DATE@
 
 Release @PACKAGE@-@VERSION@ released @DATE@
 -------------------------------------------

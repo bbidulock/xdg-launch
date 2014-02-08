@@ -210,12 +210,12 @@ int monitor;
 int screen;
 Window root;
 
-typedef struct client client;
+typedef struct _Client Client;
 
-struct client {
+struct _Client {
 	Window win;
 	Window time_win;
-	client *next;
+	Client *next;
 	Bool breadcrumb;
 	Bool new;
 	Time active_time;
@@ -229,7 +229,17 @@ struct client {
 	XClassHint ch;
 };
 
-client *clients = NULL;
+Client *clients = NULL;
+
+typedef struct {
+	Window netwm_check;		/* _NET_SUPPORTING_WM_CHECK or None */
+	Window winwm_check;		/* _WIN_SUPPORTING_WM_CHECK or None */
+	Window motif_check;		/* _MOTIF_MW_INFO window or None */
+	Window maker_check;		/* _WINDOWMAKER_NOTICEBOARD or None */
+	Window icccm_check;		/* WM_S%d selection owner or root */
+} WindowManager;
+
+WindowManager wm;
 
 Time last_user_time = CurrentTime;
 Time launch_time = CurrentTime;
@@ -258,17 +268,17 @@ Atom _XA_WM_STATE;
 Atom _XA__SWM_VROOT;
 Atom _XA_NET_WM_STATE_FOCUSED;
 
-static void handle_NET_CLIENT_LIST(XEvent *, client *);
-static void handle_WIN_CLIENT_LIST(XEvent *, client *);
-static void handle_NET_ACTIVE_WINDOW(XEvent *, client *);
-static void handle_NET_WM_STATE(XEvent *, client *);
-static void handle_NET_WM_USER_TIME(XEvent *, client *);
-static void handle_WM_STATE(XEvent *, client *);
+static void handle_NET_CLIENT_LIST(XEvent *, Client *);
+static void handle_WIN_CLIENT_LIST(XEvent *, Client *);
+static void handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
+static void handle_NET_WM_STATE(XEvent *, Client *);
+static void handle_NET_WM_USER_TIME(XEvent *, Client *);
+static void handle_WM_STATE(XEvent *, Client *);
 
 struct atoms {
 	char *name;
 	Atom *atom;
-	void (*handler) (XEvent *, client *);
+	void (*handler) (XEvent *, Client *);
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
@@ -325,6 +335,11 @@ intern_atoms()
 	free(atom_values);
 }
 
+/** @brief check desktop of a client window.
+  *
+  * This method checks to see whether a client window was assigned the correct
+  * desktop and changes the desktop when it is the wrong one.
+  */
 Bool
 get_display()
 {
@@ -431,7 +446,7 @@ get_atom(Window win, Atom prop, Atom type, Atom *atom_ret)
 	return get_cardinal(win, prop, type, (long *) atom_ret);
 }
 
-Bool
+Window
 check_recursive(Atom atom, Atom type)
 {
 	Atom real;
@@ -450,7 +465,7 @@ check_recursive(Atom atom, Atom type)
 		} else {
 			if (data)
 				XFree(data);
-			return False;
+			return None;
 		}
 		if (XGetWindowProperty(dpy, check, atom, 0L, 1L, False, type, &real,
 				       &format, &nitems, &after,
@@ -459,31 +474,31 @@ check_recursive(Atom atom, Atom type)
 			if (nitems > 0) {
 				if (check != (Window) data[0]) {
 					XFree(data);
-					return False;
+					return None;
 				}
 			} else {
 				if (data)
 					XFree(data);
-				return False;
+				return None;
 			}
 			XFree(data);
 		} else
-			return False;
+			return None;
 	} else
-		return False;
-	return True;
+		return None;
+	return check;
 }
 
-Bool
+Window
 check_netwm()
 {
-	return check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW);
+	return (wm.netwm_check = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW));
 }
 
-Bool
+Window
 check_winwm()
 {
-	return check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL);
+	return (wm.winwm_check = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL));
 }
 
 Bool
@@ -1824,7 +1839,7 @@ get_proc_argv0(pid_t pid)
 }
 
 static Bool
-test_client(client *c)
+test_client(Client *c)
 {
 	pid_t pid;
 	char *str;
@@ -1885,13 +1900,13 @@ test_client(client *c)
 }
 
 void
-setup_client(client *c)
+setup_client(Client *c)
 {
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
 static void
-update_client(client *c)
+update_client(Client *c)
 {
 	long card;
 
@@ -1916,10 +1931,10 @@ update_client(client *c)
 	c->new = False;
 }
 
-static client *
+static Client *
 add_client(Window win)
 {
-	client *c;
+	Client *c;
 
 	c = calloc(1, sizeof(*c));
 	c->win = win;
@@ -1931,7 +1946,7 @@ add_client(Window win)
 }
 
 static void
-delete_client(client *c)
+delete_client(Client *c)
 {
 	if (c->ch.res_name)
 		XFree(c->ch.res_name);
@@ -1948,9 +1963,9 @@ delete_client(client *c)
 }
 
 void
-remove_client(client *r)
+remove_client(Client *r)
 {
-	client *c, **cp;
+	Client *c, **cp;
 
 	for (cp = &clients, c = *cp; c && c != r; cp = &c->next, c = *cp) ;
 	if (c == r)
@@ -1959,7 +1974,7 @@ remove_client(client *r)
 }
 
 static void
-handle_WM_STATE(XEvent *e, client *c)
+handle_WM_STATE(XEvent *e, Client *c)
 {
 	long data;
 
@@ -1969,7 +1984,7 @@ handle_WM_STATE(XEvent *e, client *c)
 }
 
 static void
-handle_NET_WM_STATE(XEvent *e, client *c)
+handle_NET_WM_STATE(XEvent *e, Client *c)
 {
 	Atom *atoms = NULL;
 	long i, n;
@@ -1995,7 +2010,7 @@ handle_NET_WM_STATE(XEvent *e, client *c)
   * keep track of the last time that each client window was active.
   */
 static void
-handle_NET_ACTIVE_WINDOW(XEvent *e, client *c)
+handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 {
 	Window active = None;
 
@@ -2008,7 +2023,7 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, client *c)
 }
 
 static void
-handle_NET_WM_USER_TIME(XEvent *e, client *c)
+handle_NET_WM_USER_TIME(XEvent *e, Client *c)
 {
 	if (c
 	    && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
@@ -2020,7 +2035,7 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 {
 	Window *list;
 	long i, n;
-	client *c, **cp;
+	Client *c, **cp;
 
 	if ((list = get_windows(root, atom, type, &n))) {
 		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
@@ -2045,30 +2060,32 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 }
 
 static void
-handle_NET_CLIENT_LIST(XEvent *e, client *c)
+handle_NET_CLIENT_LIST(XEvent *e, Client *c)
 {
 	handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
 
 static void
-handle_WIN_CLIENT_LIST(XEvent *e, client *c)
+handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
 {
 	handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
 
-/*
- * If the window manager has a client list, we can check for newly mapped
- * windows by additions to the client list.  We can calculate the user time by
- * tracking _NET_WM_USER_TIME and _NET_WM_USER_TIME_WINDOW on all clients.
- * If the window manager supports _NET_WM_STATE_FOCUSED or at least
- * _NET_ACTIVE_WINDOW, coupled with FocusIn and FocusOut events, we should be
- * able to track the last focused window at the time that the app started (not
- * all apps support _NET_WM_USER_TIME).
- */
+/** @brief handle monitoring events.
+  * @param e - X event to handle
+  *
+  * If the window manager has a client list, we can check for newly mapped
+  * windows by additions to the client list.  We can calculate the user time by
+  * tracking _NET_WM_USER_TIME and _NET_WM_USER_TIME_WINDOW on all clients.  If
+  * the window manager supports _NET_WM_STATE_FOCUSED or at least
+  * _NET_ACTIVE_WINDOW, coupled with FocusIn and FocusOut events, we should be
+  * able to track the last focused window at the time that the app started (not
+  * all apps support _NET_WM_USER_TIME).
+  */
 void
 handle_event(XEvent *e)
 {
-	client *c = NULL;
+	Client *c = NULL;
 	int i;
 
 	XFindContext(dpy, e->xany.window, context, (XPointer *) &c);
@@ -2156,7 +2173,7 @@ assist()
 	setup_to_assist();
 	XSync(dpy, False);
 	if ((pid = fork()) < 0) {
-		perror(NAME);
+		EPRINTF("%s\n", strerror(errno));
 		exit(1);
 	} else if (pid != 0) {
 		/* parent returns with new connection */
@@ -2168,7 +2185,7 @@ assist()
 	fclose(stdin);
 	/* fork once more for SVR4 */
 	if ((pid = fork()) < 0) {
-		perror(NAME);
+		EPRINTF("%s\n", strerror(errno));
 		exit(1);
 	} else if (pid != 0) {
 		/* parent exits */
@@ -2176,7 +2193,7 @@ assist()
 	}
 	/* release current directory */
 	if (chdir("/") < 0) {
-		perror(NAME);
+		EPRINTF("%s\n", strerror(errno));
 		exit(1);
 	}
 	umask(0);		/* clear file creation mask */
