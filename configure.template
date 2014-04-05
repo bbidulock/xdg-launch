@@ -6,6 +6,7 @@ AC_INIT([xdg-launch],[0.1.6],[https://github.com/bbidulock/xdg-launch/issues])
 AC_REVISION([0.1.6])
 AC_CONFIG_SRCDIR([xdg-launch.c])
 AC_CONFIG_HEADERS([autoconf.h])
+AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([scripts])
 AC_USE_SYSTEM_EXTENSIONS
 
@@ -13,7 +14,7 @@ DATE=`date -uI`
 AC_SUBST([DATE])
 
 # Initialize Automake
-AM_INIT_AUTOMAKE([gnits dist-xz no-dist-gzip])
+AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
 AM_MAINTAINER_MODE
 
 # Checks for programs.
