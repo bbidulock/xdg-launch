@@ -1501,9 +1501,9 @@ lookup_file(char *name)
 	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
 		strncat(appid, ".desktop", 1024);
 	if (!strchr(appid, '/')) {
-		/* need to look in appliactions subdirectory of XDG_DATA_HOME and then
+		/* need to look in applications subdirectory of XDG_DATA_HOME and then
 		   each of the subdirectories in XDG_DATA_DIRS */
-		char *home, *dirs;
+		char *home, *copy, *dirs;
 
 		if (getenv("XDG_DATA_DIRS") && *getenv("XDG_DATA_DIRS") != '\0')
 			dirs = getenv("XDG_DATA_DIRS");
@@ -1521,8 +1521,8 @@ lookup_file(char *name)
 		}
 		strcat(home, ":");
 		strcat(home, dirs);
-
-		for (dirs = home; !path && strlen(dirs);) {
+		copy = strdup(home);
+		for (dirs = copy; !path && strlen(dirs);) {
 			char *p;
 
 			if ((p = strchr(dirs, ':'))) {
@@ -1541,10 +1541,40 @@ lookup_file(char *name)
 				path = NULL;
 				continue;
 			}
+			free(copy);
 			free(home);
 			free(appid);
 			return (path);
 		}
+		free(copy);
+		/* next look in fallback subdirectory of XDG_DATA_HOME and then
+		   each of the subdirectories in XDG_DATA_DIRS */
+		copy = strdup(home);
+		for (dirs = copy; !path && strlen(dirs);) {
+			char *p;
+
+			if ((p = strchr(dirs, ':'))) {
+				*p = 0;
+				path = strdup(dirs);
+				dirs = p + 1;
+			} else {
+				path = strdup(dirs);
+				*dirs = '\0';
+			}
+			path = realloc(path, 4096);
+			strcat(path, "/fallback/");
+			strcat(path, appid);
+			if (stat(path, &st)) {
+				free(path);
+				path = NULL;
+				continue;
+			}
+			free(copy);
+			free(home);
+			free(appid);
+			return (path);
+		}
+		free(copy);
 		/* next look in autostart subdirectory of XDG_CONFIG_HOME and then each
 		   of the subdirectories in XDG_CONFIG_DIRS */
 		if (getenv("XDG_CONFIG_DIRS") && *getenv("XDG_CONFIG_DIRS") != '\0')
@@ -1562,8 +1592,8 @@ lookup_file(char *name)
 		}
 		strcat(home, ":");
 		strcat(home, dirs);
-
-		for (dirs = home; !path && strlen(dirs);) {
+		copy = strdup(home);
+		for (dirs = copy; !path && strlen(dirs);) {
 			char *p;
 
 			if ((p = strchr(dirs, ':'))) {
@@ -1582,10 +1612,12 @@ lookup_file(char *name)
 				path = NULL;
 				continue;
 			}
+			free(copy);
 			free(home);
 			free(appid);
 			return (path);
 		}
+		free(copy);
 		free(home);
 	} else {
 		path = strdup(appid);
