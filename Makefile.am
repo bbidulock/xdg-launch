@@ -1,12 +1,15 @@
 
-
-AM_CPPFLAGS = -include autoconf.h -DNAME='"xdg-launch"'
-AM_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS)
-
-bin_PROGRAMS = xdg-launch
+bin_PROGRAMS = xdg-launch xdg-assist
 
 xdg_launch_SOURCES = xdg-launch.c
 xdg_launch_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+xdg_launch_CPPFLAGS = -include autoconf.h -DNAME='"xdg-launch"'
+xdg_launch_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS)
+
+xdg_assist_SOURCES = xdg-assist.c
+xdg_assist_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+xdg_assist_CPPFLAGS = -include autoconf.h -DNAME='"xdg-assist"'
+xdg_assist_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS)
 
 nodist_man1_MANS  = \
 	     xdg-launch.man \
