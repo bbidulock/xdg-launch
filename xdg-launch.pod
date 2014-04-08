@@ -699,6 +699,8 @@ subdirectory under these directories are searched in order to locate
 desktop entry files.  See the XDG Desktop Entry file specification for
 more information.
 
+=back
+
 =head1 AUTHOR
 
 Brian Bidulock E<lt>bidulock@openss7.orgE<gt>

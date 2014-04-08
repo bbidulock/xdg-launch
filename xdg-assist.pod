@@ -242,7 +242,7 @@ C<remove:> message is issued to complete its own startup.
 
 B<xdg-assist> also monitors for this environment variables in processes
 to which it has access to match appearing processes with startup
-notification.  A client that property supports desktop startup
+notification.  A client that properly supports desktop startup
 notification will remove this environment variable from its environment
 at startup.  One that ignores the environment variable will not remove
 it.

@@ -1398,6 +1398,9 @@ parse_file(char *path)
 		exit(1);
 	}
 	while ((p = fgets(buf, sizeof(buf), file))) {
+		/* watch out for DOS formatted files */
+		if ((q = strchr(p, '\r')))
+			*q = '\0';
 		if ((q = strchr(p, '\n')))
 			*q = '\0';
 		if (*p == '[' && (q = strchr(p, ']'))) {
@@ -1413,6 +1416,11 @@ parse_file(char *path)
 		*q = '\0';
 		key = p;
 		val = q + 1;
+
+		/* space before and after the equals sign should be ignored */
+		for (q = q - 1; q >= key && isspace(*q); *q = '\0', q--) ;
+		for (q = val; *q && isspace(*q); q++) ;
+
 		if (strstr(key, "Name") == key) {
 			if (strcmp(key, "Name") == 0) {
 				if (!entry.Name)

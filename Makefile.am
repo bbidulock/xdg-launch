@@ -13,13 +13,19 @@ xdg_assist_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAG
 
 nodist_man1_MANS  = \
 	     xdg-launch.man \
-	     xdg-assist.man
+	     xdg-assist.man \
+	     xdg-monitor.man
 
 xdg-launch.man: xdg-launch.pod
 
 xdg-assist.man: xdg-assist.pod
 
-CLEANFILES = xdg-launch.man
+xdg-monitor.man: xdg-monitor.pod
+
+CLEANFILES = \
+	     xdg-launch.man \
+	     xdg-assist.man \
+	     xdg-monitor.man
 
 SUFFIXES = .man .pod
 
@@ -36,4 +42,4 @@ SUFFIXES = .man .pod
 		--section="1" \
 		$< >$@
 
-EXTRA_DIST = TODO xdg-launch.pod xdg-assist.pod
+EXTRA_DIST = TODO xdg-launch.pod xdg-assist.pod xdg-monitor.pod
