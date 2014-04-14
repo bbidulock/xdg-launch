@@ -1,0 +1,33 @@
+=pod
+
+=head1 NAME
+
+dmenu_launch - launch XDG applications using dmenu
+
+=head1 SYNOPSIS
+
+dmenu_launch [dmenu options]
+
+=head1 DESCRIPTION
+
+B<dmenu_launch> is a script that can be used by L<dwm(1)> which lists
+desktop applications in XDG directories and runs the result using
+L<xdg-launch(1)>.
+
+=head1 OPTIONS
+
+Takes the same options as L<dmenu(1)>.
+
+=head1 SEE ALSO
+
+L<dmenu(1)>,
+L<stest(1)>,
+L<xdg-launch(1)>
+
+=head1 AUTHOR
+
+Brian Bidulock E<lt>bidulock@openss7.orgE<gt>
+
+=cut
+
+# vim: sw=4 tw=72 nocin

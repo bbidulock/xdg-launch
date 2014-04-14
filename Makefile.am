@@ -11,10 +11,15 @@ xdg_assist_LDADD = $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
 xdg_assist_CPPFLAGS = -include autoconf.h -DNAME='"xdg-assist"'
 xdg_assist_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS)
 
+dist_bin_SCRIPTS = dmenu_apps dmenu_launch
+
+AM_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
+
 nodist_man1_MANS  = \
 	     xdg-launch.man \
 	     xdg-assist.man \
-	     xdg-monitor.man
+	     xdg-monitor.man \
+	     dmenu_launch.man
 
 xdg-launch.man: xdg-launch.pod
 
@@ -22,10 +27,13 @@ xdg-assist.man: xdg-assist.pod
 
 xdg-monitor.man: xdg-monitor.pod
 
+dmenu_launch.man: dmenu_launch.pod
+
 CLEANFILES = \
 	     xdg-launch.man \
 	     xdg-assist.man \
-	     xdg-monitor.man
+	     xdg-monitor.man \
+	     dmenu_launch.man
 
 SUFFIXES = .man .pod
 
@@ -42,4 +50,4 @@ SUFFIXES = .man .pod
 		--section="1" \
 		$< >$@
 
-EXTRA_DIST = TODO xdg-launch.pod xdg-assist.pod xdg-monitor.pod
+EXTRA_DIST = TODO xdg-launch.pod xdg-assist.pod xdg-monitor.pod dmenu_launch.pod

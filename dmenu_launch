@@ -1,0 +1,2 @@
+#!/bin/sh
+dmenu_apps | dmenu "$@" | awk '{print "xdg-launch " $1}' | ${SHELL:-"/bin/sh"} &
