@@ -1,0 +1,4 @@
+todo file -- 2014-05-02
+
+- handle XDG_CURRENT_DESKTOP that has multiple fields separated by ':'
+- handle applications desktop entry file id's correctly

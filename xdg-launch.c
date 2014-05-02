@@ -1508,7 +1508,7 @@ lookup_file(char *name)
 
 	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
 		strncat(appid, ".desktop", 1024);
-	if (!strchr(appid, '/')) {
+	if ((*appid != '/') && (*appid != '.')) {
 		/* need to look in applications subdirectory of XDG_DATA_HOME and then
 		   each of the subdirectories in XDG_DATA_DIRS */
 		char *home, *copy, *dirs;

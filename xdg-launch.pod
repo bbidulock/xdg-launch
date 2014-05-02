@@ -32,17 +32,20 @@ following:
 =item 1.
 
 the name of a desktop entry file without the F<.desktop> suffix (e.g.
-C<gvim>);
+C<gvim>); the name may contain a C</> if it is specified relative to a
+user or system application directory, in which case it must not start
+with a C</> or C<.>.
 
 =item 2.
 
 the name of a desktop entry file with the F<.desktop> suffix (e.g.
-C<gvim.desktop>); or,
+C<gvim.desktop>); the same restrictions as (1), above, apply; or,
 
 =item 3.
 
 the full path (absolute or relative) and filename of a desktop entry
-file (e.g.  F</usr/share/applications/gvim.desktop>).
+file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
+contain at least one C</> and start with either a C</> or a C<.>.
 
 =back
 
