@@ -1441,7 +1441,7 @@ parse_file(char *path)
 				outside_entry = strcmp(section, "Window Manager");
 			if (outside_entry && options.action &&
 			    strstr(section, "Desktop Action ") == section &&
-			    strcmp(section + 15, options.action == 0)) {
+			    strcmp(section + 15, options.action) == 0) {
 				outside_entry = 0;
 				action_found = 1;
 			}
