@@ -2,3 +2,5 @@ todo file -- 2014-05-02
 
 - handle XDG_CURRENT_DESKTOP that has multiple fields separated by ':'
 - handle applications desktop entry file id's correctly
+- handle Desktop Action and provide option to launch specified action
+- handle DBusName and DBusPath for dbus launching

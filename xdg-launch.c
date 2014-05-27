@@ -139,7 +139,8 @@ struct params {
 	char *pid;
 	char *keyboard;
 	char *pointer;
-	char *assist;
+	char *action;
+	char *xsession;
 };
 
 struct params options = {
@@ -166,7 +167,8 @@ struct params defaults = {
 	.url = "",
 	.keyboard = "auto",
 	.pointer = "auto",
-	.assist = "auto",
+	.action = "none",
+	.xsession = "false",
 };
 
 struct fields {
@@ -188,6 +190,7 @@ struct fields {
 	char *pid;
 	char *hostname;
 	char *command;
+        char *action;
 };
 
 struct fields fields = { NULL, };
@@ -201,6 +204,7 @@ struct entry {
 	char *Terminal;
 	char *StartupNotify;
 	char *StartupWMClass;
+        char *SessionSetup;
 };
 
 struct entry entry = { NULL, };
@@ -950,6 +954,17 @@ set_icon()
 	}
 }
 
+void
+set_action()
+{
+        PTRACE();
+        free(fields.action);
+        if (options.action)
+                fields.action = strdup(options.action);
+        else
+                fields.action = NULL;
+}
+
 char *
 set_wmclass()
 {
@@ -960,9 +975,8 @@ set_wmclass()
 	if (options.wmclass)
 		fields.wmclass = strdup(options.wmclass);
 	else if (eargv)
-		fields.wmclass = (pos =
-				  strrchr(eargv[0],
-					  '/')) ? strdup(pos) : strdup(eargv[0]);
+		fields.wmclass = (pos = strrchr(eargv[0], '/'))
+		    ? strdup(pos) : strdup(eargv[0]);
 	else if (entry.StartupWMClass)
 		fields.wmclass = strdup(entry.StartupWMClass);
 	else
@@ -1064,6 +1078,28 @@ do_subst(char *cmd, char *chars, char *str)
 	}
 }
 
+void
+subst_command(char *cmd)
+{
+        int len;
+        char *p;
+
+	do_subst(cmd, "i", fields.icon);
+	do_subst(cmd, "c", fields.name);
+	do_subst(cmd, "C", fields.wmclass);
+	do_subst(cmd, "k", fields.application_id);
+	do_subst(cmd, "uU", options.url);
+	do_subst(cmd, "fF", options.file);
+	do_subst(cmd, "dDnNvm", NULL);
+	// do_subst(cmd, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", NULL);
+	do_subst(cmd, "%", "%");
+	if ((len = strspn(cmd, " \t")))
+		memmove(cmd, cmd + len, strlen(cmd + len));
+	if (((p = strrchr(cmd, ' ')) && strspn(p, " \t") == strlen(p)) ||
+	    ((p = strrchr(cmd, '\t')) && strspn(p, " \t") == strlen(p)))
+		*p = '\0';
+}
+
 Bool
 truth_value(char *p)
 {
@@ -1086,19 +1122,22 @@ char *
 set_command()
 {
 	char *cmd, *p;
-	int len;
 
 	PTRACE();
 	free(fields.command);
 	cmd = calloc(2048, sizeof(*cmd));
 	if (truth_value(entry.Terminal)) {
-		/* A little more to be done here: we should set WMCLASS to xterm to
-		   assist the DE. SILENT should be set to zero. */
-		strncat(cmd, "xterm -T \"%c\" -e ", 1024);
-		free(fields.wmclass);
-		fields.wmclass = strdup("xterm");
-		free(fields.silent);
-		fields.silent = NULL;
+		if (fields.wmclass) {
+			snprintf(cmd, 1024, "xterm -name \"%s\" -T \"%%c\" -e ", fields.wmclass);
+		} else {
+			/* A little more to be done here: we should set WMCLASS to xterm
+			   to assist the DE. SILENT should be set to zero. */
+			strncat(cmd, "xterm -T \"%c\" -e ", 1024);
+			free(fields.wmclass);
+			fields.wmclass = strdup("xterm");
+			free(fields.silent);
+			fields.silent = NULL;
+		}
 	}
 	if (options.exec)
 		strncat(cmd, options.exec, 1024);
@@ -1118,19 +1157,7 @@ set_command()
 		   (p = strstr(options.url, "file://")) == options.url) {
 		options.file = strdup(options.url + 7);
 	}
-	do_subst(cmd, "i", fields.icon);
-	do_subst(cmd, "c", fields.name);
-	do_subst(cmd, "k", fields.application_id);
-	do_subst(cmd, "uU", options.url);
-	do_subst(cmd, "fF", options.file);
-	do_subst(cmd, "dDnNvm", NULL);
-	// do_subst(cmd, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", NULL);
-	do_subst(cmd, "%", "%");
-	if ((len = strspn(cmd, " \t")))
-		memmove(cmd, cmd + len, strlen(cmd + len));
-	if (((p = strrchr(cmd, ' ')) && strspn(p, " \t") == strlen(p)) ||
-	    ((p = strrchr(cmd, '\t')) && strspn(p, " \t") == strlen(p)))
-		*p = '\0';
+        subst_command(cmd);
 	return (fields.command = cmd);
 }
 
@@ -1310,6 +1337,8 @@ set_all()
 		set_command();
 	if (!fields.id)
 		set_id();
+        if (!fields.action)
+                set_action();
 }
 
 /*
@@ -1371,7 +1400,7 @@ parse_file(char *path)
 	int outside_entry = 1;
 	char *section = NULL;
 	char *key, *val, *lang, *llang, *slang;
-	int ok = 0;
+	int ok = 0, action_found = options.action ? 0 : 1;
 
 	if (getenv("LANG") && *getenv("LANG"))
 		llang = strdup(getenv("LANG"));
@@ -1408,6 +1437,14 @@ parse_file(char *path)
 			free(section);
 			section = strdup(p + 1);
 			outside_entry = strcmp(section, "Desktop Entry");
+			if (outside_entry && options.xsession)
+				outside_entry = strcmp(section, "Window Manager");
+			if (outside_entry && options.action &&
+			    strstr(section, "Desktop Action ") == section &&
+			    strcmp(section + 15, options.action == 0)) {
+				outside_entry = 0;
+				action_found = 1;
+			}
 		}
 		if (outside_entry)
 			continue;
@@ -1423,8 +1460,8 @@ parse_file(char *path)
 
 		if (strstr(key, "Name") == key) {
 			if (strcmp(key, "Name") == 0) {
-				if (!entry.Name)
-					entry.Name = strdup(val);
+				free(entry.Name);
+				entry.Name = strdup(val);
 				ok = 1;
 				continue;
 			}
@@ -1443,8 +1480,8 @@ parse_file(char *path)
 			}
 		} else if (strstr(key, "Comment") == key) {
 			if (strcmp(key, "Comment") == 0) {
-				if (!entry.Comment)
-					entry.Comment = strdup(val);
+				free(entry.Comment);
+				entry.Comment = strdup(val);
 				ok = 1;
 				continue;
 			}
@@ -1461,16 +1498,16 @@ parse_file(char *path)
 				}
 			}
 		} else if (strcmp(key, "Icon") == 0) {
-			if (!entry.Icon)
-				entry.Icon = strdup(val);
+			free(entry.Icon);
+			entry.Icon = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "TryExec") == 0) {
 			if (!entry.TryExec)
 				entry.TryExec = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Exec") == 0) {
-			if (!entry.Exec)
-				entry.Exec = strdup(val);
+			free(entry.Exec);
+			entry.Exec = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Terminal") == 0) {
 			if (!entry.Terminal)
@@ -1484,10 +1521,16 @@ parse_file(char *path)
 			if (!entry.StartupWMClass)
 				entry.StartupWMClass = strdup(val);
 			ok = 1;
+		} else if (strcmp(key, "SessionSetup") == 0) {
+			if (options.xsession) {
+				if (!entry.SessionSetup)
+					entry.SessionSetup = strdup(val);
+				ok = 1;
+			}
 		}
 	}
 	fclose(file);
-	return ok;
+	return (ok && action_found);
 }
 
 /** @brief look up the file from APPID.
@@ -1542,7 +1585,10 @@ lookup_file(char *name)
 				*dirs = '\0';
 			}
 			path = realloc(path, 4096);
-			strcat(path, "/applications/");
+                        if (options.xsession)
+                                strcat(path, "/xsessions/");
+                        else
+                                strcat(path, "/applications/");
 			strcat(path, appid);
 			if (stat(path, &st)) {
 				free(path);
@@ -1555,6 +1601,12 @@ lookup_file(char *name)
 			return (path);
 		}
 		free(copy);
+                /* only look in xsessions for xsession entries */
+                if (options.xsession) {
+                        free(home);
+                        free(appid);
+                        return (NULL);
+                }
 		/* next look in fallback subdirectory of XDG_DATA_HOME and then
 		   each of the subdirectories in XDG_DATA_DIRS */
 		copy = strdup(home);
@@ -1708,6 +1760,7 @@ struct {
 	{ " PID=",		&fields.pid		},
 	{ " HOSTNAME=",		&fields.hostname	},
 	{ " COMMAND=",		&fields.command		},
+        { " ACTION=",           &fields.action          },
 	{ NULL,			NULL			}
 	/* *INDENT-ON* */
 };
@@ -2270,6 +2323,28 @@ assist()
 }
 
 void
+setup()
+{
+	int status;
+	char *pre;
+
+	if (!entry.SessionSetup)
+		return;
+
+	pre = calloc(2048, sizeof(*pre));
+	strncat(pre, entry.SessionSetup, 1024);
+	subst_command(pre);
+	status = system(pre);
+	free(pre);
+	if (status == -1)
+		exit(1);
+	if (WIFSIGNALED(status))
+		exit(WTERMSIG(status));
+	if (WIFEXITED(status) && (status = WEXITSTATUS(status)))
+		exit(status);
+}
+
+void
 launch()
 {
 	size_t size;
@@ -2306,9 +2381,11 @@ launch()
 	else {
 		OPRINTF("WindowManager: needs assistance\n");
 	}
+#if 0
 	if (options.assist) {
 		need_assist = True;
 	}
+#endif
 
 	/* make the call... */
 	if (change_only)
@@ -2477,8 +2554,10 @@ Options:\n\
         determine screen (monitor) from keyboard focus, default: '%15$s'\n\
     -P, --pointer\n\
         determine screen (monitor) from pointer location, default: '%16$s'\n\
-    -A, --assist\n\
-        assist non-startup notification aware window manager, default: '%17$s'\n\
+    -A, --action ACTION\n\
+        specify a desktop action other than the default, default: '%17$s'\n\
+    -X, --xsession\n\
+        interpret entry as xsession instead of application, default: '%18$s'\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -2490,7 +2569,7 @@ Options:\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.assist);
+", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession);
 }
 
 int
@@ -2535,7 +2614,8 @@ main(int argc, char *argv[])
 			{"url",		required_argument,	NULL, 'u'},
 			{"keyboard",	no_argument,		NULL, 'K'},
 			{"pointer",	no_argument,		NULL, 'P'},
-			{"assist",	no_argument,		NULL, 'A'},
+			{"action",	required_argument,	NULL, 'A'},
+			{"xsession",	no_argument,		NULL, 'X'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -2548,11 +2628,11 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPAD::v::hVCH?",
+				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
 		c = getopt(argc, argv,
-			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPADvhVC?");
+			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XDvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -2640,10 +2720,12 @@ main(int argc, char *argv[])
 				defaults.keyboard = "inactive";
 			}
 			break;
-		case 'A':	/* -A, --assist */
-			defaults.assist = options.assist = strdup("true");
+		case 'A':	/* -A, --action ACTION */
+			defaults.action = options.action = strdup(optarg);
 			break;
-
+		case 'X':	/* -X, --xsession */
+			defaults.xsession = options.xsession = strdup("true");
+			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)
 				fprintf(stderr, "%s: increasing debug verbosity\n",
@@ -2785,6 +2867,8 @@ main(int argc, char *argv[])
 			OPRINTF("%-30s = %s\n", "StartupNotify", entry.StartupNotify);
 		if (entry.StartupWMClass)
 			OPRINTF("%-30s = %s\n", "StartupWMClass", entry.StartupWMClass);
+                if (entry.SessionSetup)
+                        OPRINTF("%-30s = %s\n", "SessionSetup", entry.SessionSetup);
 	}
 	if (!eargv && !options.exec && !entry.Exec) {
 		EPRINTF("no exec command\n");
@@ -2830,7 +2914,10 @@ main(int argc, char *argv[])
 			OPRINTF("%-30s = %s\n", "HOSTNAME", fields.hostname);
 		if (fields.command)
 			OPRINTF("%-30s = %s\n", "COMMAND", fields.command);
+                if (fields.action)
+                        OPRINTF("%-30s = %s\n", "ACTION", fields.action);
 	}
+        setup();
 	launch();
 	exit(0);
 }

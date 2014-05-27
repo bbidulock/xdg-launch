@@ -220,7 +220,7 @@ C<argv[0]> option of the C<Exec> field, from the XDG desktop entry file.
 This value, when available, is placed in the C<BIN> key-value entry in
 the startup notification C<new> message.
 
-=item B<-D>, B<--description> I<DESCRIPTION>
+=item B<-d>, B<--description> I<DESCRIPTION>
 
 Specifies the description of the XDG application, I<DESCRIPTION>.  This
 overrides the C<Comment> field from the XDG desktop entry file.  When
@@ -311,11 +311,19 @@ screen was specified using either the B<DISPLAY> environment variable
 or the B<--screen> option.  This option has no effect on the monitor
 when the B<--monitor> option is also specified.
 
-=item B<-A>, B<--assist>
+=item B<-A>, B<--action> I<ACTION>
 
-Assist a window manager that is not startup-notification aware.  The
-default is to automatically determine whether the window manager needs
-assistance and provide it when needed.
+Specifies a desktop action, I<ACTION>, to perform instead of the default
+action.  The default is to perform the default action in the desktop
+entry file.  This value, when available, is placed in the "ACTION"
+key-value entry in the startup notification "new" message.
+
+=item B<-X>, B<--xsession>
+
+Interpret and search for the desktop entry file as an C<XSession>
+desktop entry instead of an C<Application> desktop entry.  Aside from
+this difference, the launcher operates in the same fashion.  This option
+is intended for launching window managers.
 
 =head1 BEHAVIOUR
 
@@ -524,135 +532,6 @@ expansion would be required to expand the command, it cannot be used to
 populate the B<WM_COMMAND> property; however, it may be executed by
 passing it literally as a shell command.  I suppose one could populate
 B<WM_COMMAND> with C<sh>, C<COMMAND> if necessary.
-
-=back
-
-=item 5.
-
-Window managers that are not startup notification aware will be
-automatically assisted in performing startup notification completion.
-When it is detected that assistance is required, B<xdg-launch will fork
-a background process to monitor for startup completion.
-
-It can be detected whether an EWMH compliant window manager performs
-startup notification completion by the presence or absence of the
-B<_NET_STARTUP_ID> atom in the B<_NET_SUPPORTED> list of atoms.
-Non-EWMH compliant window managers are assumed to not support startup
-notification.
-
-=back
-
-=head2 WM/CLIENT ASSISTANCE
-
-Non-startup-notification aware clients and window managers can be
-assisted using the B<--assist> command line option or when B<xdg-launch>
-detects that the window manager does not support startup notification.
-
-When the B<--assist> command line option is specified, or when
-B<xdg-launch> detects that the client or window manager does not support
-startup notification (or cannot decide one way or the other),
-B<xdg-launch> performs the following actions:
-
-=over
-
-=item 1.
-
-B<xdg-launch> forks a monitoring process that is a proper child of the
-launched process.  This is so that if the launched process exists, the
-monitoring process also exits.
-
-=item 2.
-
-The monitoring process monitors for the appearance of a client window.
-
-=over
-
-=item *
-
-For EWMH/NetWM compliant window managers, this can be determined using
-the B<_NET_CLIENT_LIST> property on the root window of the screen on
-which the client is launching.
-
-=item *
-
-For WMH/WinWM compliant window managers,
-this can be determined using the B<_WIN_CLIENT_LIST> property on the
-root window.
-
-=item *
-
-For ICCCM compliant window managers, the appearance of a
-B<WM_STATE> property on a top-level window with a state other than
-C<WithdrawnState> can be used.
-
-=back
-
-=item 3.
-
-When a definitive match can be made from the properties of the mapped
-window, B<xdg-launch> will populate the following properties unless
-otherwise populated by the client or window manager:
-
-=over
-
-=item B<_NET_STARTUP_ID>
-
-This property will be populated with the startup id of the launched
-desktop application when it is missing.  (Very few applications in fact
-populate this property: not because their toolkits do not support it,
-but because the facility of the toolkit has not been invoked.)
-
-=item B<_NET_WM_USER_TIME>
-
-This property will be populated with the time stamp, unless it already
-exists.
-
-=item B<_NET_WM_PID>
-
-This property will be populated with the launched process id.
-
-=item B<_NET_WM_DESKTOP>, B<_WIN_WORKSPACE>, B<_DT_WORKSPACE_PRESENCE>
-
-These properties will be populated with the desktop for the launched
-application unless this property was set by the client (and not the
-window manager).  If the property was not set by the client but was set
-by the window manager and it does not match the value requested during
-launch, B<xdg-launch> will send the appropriate client messages to
-effect the transfer.
-
-=item B<WM_NAME>, B<_NET_WM_NAME>, B<_NET_WM_VISIBLE_NAME>
-
-When none of these properties are present, B<xdg-launch> will populate
-them from the C<NAME=> field of the startup notification sequence.
-
-=item B<WM_ICON>, B<_NET_WM_ICON>, B<_KDE_NET_WM_ICON>
-
-When none of these properties are present, B<xdg-assist> will populate
-them from the C<ICON=> field of the startup notification sequence.
-
-=item B<_NET_WM_FULLSCREEN_MONITORS>
-
-This property will be populated with the monitor number on which the
-desktop application was to launch.  If the client has already mapped, a
-client message to change the value will be sent to the root window when
-the window manager supports such things.
-
-=item B<WM_HINTS>
-
-If the client window has mapped on the incorrect monitor, and the client
-has not specified the initial location using B<WM_HINTS>, B<xdg-launch>
-will unmap the window, set the B<WM_HINTS> property for the appropriate
-monitor, and remap the window.
-
-=item B<WM_COMMAND>
-
-This property will be populated with the command and arguments of the
-launched process, unless otherwise populated.
-
-=item B<WM_CLIENT_MACHINE>
-
-This property will be populated with the fully qualified host name
-even when populated by the client.
 
 =back
 
