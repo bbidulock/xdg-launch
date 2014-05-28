@@ -339,6 +339,22 @@ intern_atoms()
 	free(atom_values);
 }
 
+int
+handler(Display *display, XErrorEvent *xev)
+{
+	if (debug) {
+		char msg[80], req[80], num[80], def[80];
+
+		snprintf(num, sizeof(num), "%d", xev->request_code);
+		snprintf(def, sizeof(def), "[request_code=%d]", xev->request_code);
+		XGetErrorDatabaseText(dpy, "xdg-launch", num, def, req, sizeof(req));
+		if (XGetErrorText(dpy, xev->error_code, msg, sizeof(msg)) != Success)
+			msg[0] = '\0';
+		fprintf(stderr, "X error %s(0x%lx): %s\n", req, xev->resourceid, msg);
+	}
+	return(0);
+}
+
 /** @brief check desktop of a client window.
   *
   * This method checks to see whether a client window was assigned the correct
@@ -351,11 +367,11 @@ get_display()
 		if (!(dpy = XOpenDisplay(0))) {
 			EPRINTF("cannot open display\n");
 			exit(127);
-		} else {
-			screen = DefaultScreen(dpy);
-			root = RootWindow(dpy, screen);
-			intern_atoms();
 		}
+		XSetErrorHandler(handler);
+		screen = DefaultScreen(dpy);
+		root = RootWindow(dpy, screen);
+		intern_atoms();
 	}
 	return (dpy ? True : False);
 }
