@@ -259,6 +259,16 @@ typedef struct {
 	int len;	    /* number of message bytes */
 } Message;
 
+#ifdef STARTUP_NOTIFICATION
+typedef struct Notify Notify;
+
+struct Notify {
+	Notify *next;
+	SnStartupSequence *seq;
+	Bool assigned;
+};
+#endif
+
 struct entry {
 	char *Name;
 	char *Comment;
@@ -279,6 +289,11 @@ int screen;
 Window root;
 Window tray;
 
+#ifdef STARTUP_NOTIFICATION
+SnDisplay *sn_dpy;
+SnMonitorContext *sn_ctx;
+#endif
+
 struct _Client {
 	int screen;
 	Window win;
@@ -295,6 +310,10 @@ struct _Client {
 	char *name;
 	char *hostname;
 	XClassHint ch;
+	XWMHints *wmh;
+#ifdef STARTUP_NOTIFICATION
+	SnStartupSequence *seq;
+#endif
 };
 
 Client *clients = NULL;
@@ -358,6 +377,9 @@ static void handle_WIN_CLIENT_LIST(XEvent *, Client *);
 static void handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
 static void handle_WIN_PROTOCOLS(XEvent *, Client *);
 static void handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static void handle_WM_CLIENT_MACHINE(XEvent *, Client *);
+static void handle_WM_COMMAND(XEvent *, Client *);
+static void handle_WM_HINTS(XEvent *, Client *);
 static void handle_WM_STATE(XEvent *, Client *);
 
 struct atoms {
@@ -367,40 +389,42 @@ struct atoms {
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
-	/* name					global				handler					atom value	*/
-	/* ----					------				-------					----------	*/
-	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					None		},
-	{ "MANAGER",				&_XA_MANAGER,			&handle_MANAGER,			None		},
-	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&handle_MOTIF_WM_INFO,			None		},
-	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,		None		},
-	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,		None		},
-	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					None		},
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,					None		},
-	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	&handle_NET_STARTUP_INFO_BEGIN,		None		},
-	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		&handle_NET_STARTUP_INFO,		None		},
-	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&handle_NET_SUPPORTED,			None		},
-	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&handle_NET_SUPPORTING_WM_CHECK,	None		},
-	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					None		},
-	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					None		},
-	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,					None		},
-	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,					None		},
-	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					None		},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,			None		},
-	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,					None		},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,		None		},
-	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					None		},
-	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,					None		},
-	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,		None		},
-	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&handle_WINDOWMAKER_NOTICEBOARD,	None		},
-	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&handle_WIN_PROTOCOLS,			None		},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&handle_WIN_SUPPORTING_WM_CHECK,	None		},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,					None		},
-	{ "WM_COMMAND",				NULL,				NULL,					XA_WM_COMMAND	},
-	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,			None		},
-	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					None		},
-	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					None		},
-	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					None		},
-	{ NULL,					NULL,				NULL,					None		}
+	/* name					global				handler					atom value		*/
+	/* ----					------				-------					----------		*/
+	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					None			},
+	{ "MANAGER",				&_XA_MANAGER,			&handle_MANAGER,			None			},
+	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&handle_MOTIF_WM_INFO,			None			},
+	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,		None			},
+	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,		None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,					None			},
+	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	&handle_NET_STARTUP_INFO_BEGIN,		None			},
+	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		&handle_NET_STARTUP_INFO,		None			},
+	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&handle_NET_SUPPORTED,			None			},
+	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&handle_NET_SUPPORTING_WM_CHECK,	None			},
+	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					None			},
+	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,					None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,					None			},
+	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,			None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,					None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,		None			},
+	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					None			},
+	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,					None			},
+	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,		None			},
+	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&handle_WINDOWMAKER_NOTICEBOARD,	None			},
+	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&handle_WIN_PROTOCOLS,			None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&handle_WIN_SUPPORTING_WM_CHECK,	None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,					None			},
+	{ "WM_CLIENT_MACHINE",			NULL,				&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
+	{ "WM_COMMAND",				NULL,				&handle_WM_COMMAND,			XA_WM_COMMAND		},
+	{ "WM_HINTS",				NULL,				&handle_WM_HINTS,			XA_WM_HINTS		},
+	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,			None			},
+	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					None			},
+	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					None			},
+	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					None			},
+	{ NULL,					NULL,				NULL,					None			}
 	/* *INDENT-ON* */
 };
 
@@ -461,6 +485,9 @@ get_display()
 				     VisibilityChangeMask | StructureNotifyMask |
 				     FocusChangeMask | PropertyChangeMask);
 		}
+#ifdef STARTUP_NOTIFICATION
+		sn_dpy = sn_display_new(dpy, NULL, NULL);
+#endif
 		screen = DefaultScreen(dpy);
 		root = RootWindow(dpy, screen);
 		intern_atoms();
@@ -2455,11 +2482,17 @@ remove_client(Client *c)
 		XFree(c->ch.res_class);
 	if (c->name)
 		XFree(c->name);
+	if (c->hostname)
+		XFree(c->hostname);
 	if (c->startup_id)
 		XFree(c->startup_id);
 	XDeleteContext(dpy, c->win, ClientContext);
 	if (c->time_win)
 		XDeleteContext(dpy, c->time_win, ClientContext);
+#ifdef STARTUP_NOTIFICATION
+	if (c->seq)
+		sn_startup_sequence_unref(c->seq);
+#endif
 	free(c);
 }
 
@@ -2475,10 +2508,94 @@ del_client(Client *r)
 }
 
 static void
+handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
+{
+	if (!c || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		break;
+	case PropertyDelete:
+		break;
+	}
+}
+
+static void
+handle_WM_COMMAND(XEvent *e, Client *c)
+{
+	if (!c || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		break;
+	case PropertyDelete:
+		break;
+	}
+}
+
+/** @brief a sophisticated dock app test
+  */
+Bool
+is_dockapp(Client *c)
+{
+	if (!c->wmh)
+		return False;
+	if ((c->wmh->flags & StateHint) && c->wmh->initial_state == WithdrawnState)
+		return True;
+	if ((c->wmh->flags & ~IconPositionHint) ==
+	    (StateHint | IconWindowHint | WindowGroupHint))
+		return True;
+	if (!c->ch.res_class)
+		return False;
+	if (!strcmp(c->ch.res_class, "DockApp"))
+		return True;
+	return False;
+}
+
+/** @brief a sophisticated tray icon test
+  */
+Bool
+is_trayicon(Client *c)
+{
+	return False;
+}
+
+static void
+handle_WM_HINTS(XEvent *e, Client *c)
+{
+	Window grp = None;
+	Client *g = NULL;
+
+	if (!c || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if (c->wmh)
+			XFree(c->wmh);
+		if ((c->wmh = XGetWMHints(dpy, c->win))) {
+			/* ensure that the group leader is also tracked */
+			if (c->wmh->flags & WindowGroupHint)
+				if ((grp = c->wmh->window_group) && grp != root)
+					if (XFindContext(dpy, grp, ClientContext, (XPointer *) &g))
+						add_client(grp);
+		}
+		break;
+	case PropertyDelete:
+		if (c->wmh) {
+			XFree(c->wmh);
+			c->wmh = NULL;
+		}
+		break;
+	}
+}
+
+static void
 handle_WM_STATE(XEvent *e, Client *c)
 {
 	long data;
 
+	if (!c || e->type != PropertyNotify)
+		return;
 	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
 	    && data != WithdrawnState && !c)
 		c = add_client(e->xany.window);
@@ -2644,6 +2761,169 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 	}
 	convert_sequence_fields(old);
 }
+
+#ifdef STARTUP_NOTIFICATION
+static Notify *notifies;
+
+SnStartupSequence *
+find_startup_seq(Client *c)
+{
+	Notify *n = NULL;
+	SnStartupSequence *seq = NULL;
+	XClassHint ch;
+	char **argv;
+	int argc;
+	const char *binary, *wmclass;
+	char *startup_id;
+	Window win, grp = None;
+
+	if ((seq = c->seq))
+		return seq;
+	win = c->win;
+	if (!(startup_id = get_text(win, _XA_NET_STARTUP_ID))) {
+		XWMHints *wmh;
+
+		if ((wmh = XGetWMHints(dpy, c->win))) {
+			if (wmh->flags & WindowGroupHint) {
+				grp = wmh->window_group;
+				startup_id = get_text(grp, _XA_NET_STARTUP_ID);
+			}
+			XFree(wmh);
+		}
+	}
+	if (startup_id) {
+		for (n = notifies; n; n = n->next)
+			if (!strcmp(startup_id, sn_startup_sequence_get_id(n->seq)))
+				break;
+		if (!n) {
+			DPRINTF("Cannot find startup id '%s'\n", startup_id);
+			XFree(startup_id);
+			return NULL;
+		}
+		XFree(startup_id);
+		goto found_it;
+	}
+	if (XGetClassHint(dpy, win, &ch)) {
+		for (n = notifies; n; n = n->next) {
+			if (n->assigned)
+				continue;
+			if (sn_startup_sequence_get_completed(n->seq))
+				continue;
+			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
+				if (ch.res_name && !strcmp(wmclass, ch.res_name))
+					break;
+				if (ch.res_class && !strcmp(wmclass, ch.res_class))
+					break;
+			}
+		}
+		if (ch.res_class)
+			XFree(ch.res_class);
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (n)
+			goto found_it;
+	}
+	if (grp && XGetClassHint(dpy, grp, &ch)) {
+		for (n = notifies; n; n = n->next) {
+			if (n->assigned)
+				continue;
+			if (sn_startup_sequence_get_completed(n->seq))
+				continue;
+			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
+				if (ch.res_name && !strcmp(wmclass, ch.res_name))
+					break;
+				if (ch.res_class && !strcmp(wmclass, ch.res_class))
+					break;
+			}
+		}
+		if (ch.res_class)
+			XFree(ch.res_class);
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (n)
+			goto found_it;
+	}
+	if (XGetCommand(dpy, win, &argv, &argc)) {
+		for (n = notifies; n; n = n->next) {
+			if (n->assigned)
+				continue;
+			if (sn_startup_sequence_get_completed(n->seq))
+				continue;
+			if ((binary = sn_startup_sequence_get_binary_name(n->seq)))
+				if (argv[0] && !strcmp(binary, argv[0]))
+					break;
+		}
+		if (argv)
+			XFreeStringList(argv);
+		if (n)
+			goto found_it;
+	}
+	if (grp && XGetCommand(dpy, win, &argv, &argc)) {
+		for (n = notifies; n; n = n->next) {
+			if (n->assigned)
+				continue;
+			if (sn_startup_sequence_get_completed(n->seq))
+				continue;
+			if ((binary = sn_startup_sequence_get_binary_name(n->seq)))
+				if (argv[0] && !strcmp(binary, argv[0]))
+					break;
+		}
+		if (argv)
+			XFreeStringList(argv);
+		if (n)
+			goto found_it;
+	}
+	/* try again case insensitive */
+	if (XGetClassHint(dpy, win, &ch)) {
+		for (n = notifies; n; n = n->next) {
+			if (n->assigned)
+				continue;
+			if (sn_startup_sequence_get_completed(n->seq))
+				continue;
+			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
+				if (ch.res_name && !strcasecmp(wmclass, ch.res_name))
+					break;
+				if (ch.res_class && !strcasecmp(wmclass, ch.res_class))
+					break;
+			}
+		}
+		if (ch.res_class)
+			XFree(ch.res_class);
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (n)
+			goto found_it;
+	}
+	if (grp && XGetClassHint(dpy, grp, &ch)) {
+		for (n = notifies; n; n = n->next) {
+			if (n->assigned)
+				continue;
+			if (sn_startup_sequence_get_completed(n->seq))
+				continue;
+			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
+				if (ch.res_name && !strcasecmp(wmclass, ch.res_name))
+					break;
+				if (ch.res_class && !strcasecmp(wmclass, ch.res_class))
+					break;
+			}
+		}
+		if (ch.res_class)
+			XFree(ch.res_class);
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (n)
+			goto found_it;
+	}
+	return NULL;
+      found_it:
+	n->assigned = True;
+	seq = n->seq;
+	sn_startup_sequence_ref(seq);
+	sn_startup_sequence_complete(seq);
+	c->seq = seq;
+	return seq;
+}
+#endif
 
 static Sequence *
 find_seq_by_id(char *id)
@@ -2906,6 +3186,46 @@ clean_msgs(Window w)
 	free(m);
 }
 
+#ifdef STARTUP_NOTIFICATION
+static void
+sn_handler(SnMonitorEvent *event, void *dummy)
+{
+	Notify *n, **np;
+	SnStartupSequence *seq;
+
+	seq = sn_monitor_event_get_startup_sequence(event);
+
+	switch (sn_monitor_event_get_type(event)) {
+	case SN_MONITOR_EVENT_INITIATED:
+		n = calloc(1, sizeof(*n));
+		n->seq = sn_monitor_event_get_startup_sequence(event);
+		n->assigned = False;
+		n->next = notifies;
+		notifies = n;
+		break;
+	case SN_MONITOR_EVENT_CHANGED:
+		break;
+	case SN_MONITOR_EVENT_COMPLETED:
+	case SN_MONITOR_EVENT_CANCELED:
+		seq = sn_monitor_event_get_startup_sequence(event);
+		np = &notifies;
+		while ((n = *np)) {
+			if (n->seq == seq) {
+				sn_startup_sequence_unref(n->seq);
+				*np = n->next;
+				free(n);
+			} else {
+				np = &n->next;
+			}
+		}
+		break;
+	}
+	if (seq)
+		sn_startup_sequence_unref(seq);
+	sn_monitor_event_unref(event);
+}
+#endif
+
 void
 handle_atom(XEvent *e, Client *c, Atom atom)
 {
@@ -3049,6 +3369,10 @@ assist()
 		signal(SIGINT, sighandler);
 		signal(SIGTERM, sighandler);
 		signal(SIGQUIT, sighandler);
+
+#ifdef STARTUP_NOTIFICATION
+		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
+#endif
 
 		/* main event loop */
 		running = True;
