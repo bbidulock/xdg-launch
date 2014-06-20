@@ -92,6 +92,12 @@
 #define SN_API_NOT_YET_FROZEN
 #include <libsn/sn.h>
 #endif
+#ifdef DESKTOP_NOTIFICATIONS
+#include <libnotify/notify.h>
+#endif
+#ifdef SYSTEM_TRAY_STATUS_ICON
+#include <gtk/gtk.h>
+#endif
 
 #define DPRINTF(_args...) do { if (options.debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
@@ -107,7 +113,6 @@
 
 #define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
-					} } while (0)
 
 typedef enum {
 	EXEC_MODE_MONITOR = 0,
@@ -1990,14 +1995,14 @@ handle_atom(XEvent *e, Client *c, Atom atom)
 	}
 }
 
-/** @brief handle monitoring events.
+/** @brief handle monitoring events
   * @param e - X event to handle
   *
-  * If the window manager has a client list, we can check for newly mapped
-  * windows by additions to the client list.  We can calculate the user time by
-  * tracking _NET_WM_USER_TIME and _NET_WM_USER_TIME_WINDOW on all clients.  If
-  * the window manager supports _NET_WM_STATE_FOCUSED or at least
-  * _NET_ACTIVE_WINDOW, coupled with FocusIn and FocusOut events, we should be
+  * If the window mwnager has a client list, we can chekc for newly mapped
+  * window by additions to the client list.  We can calculate the user time by
+  * tracking _NET_WM_USER_TMIE and _NET_WM_TIME_WINDOW on all clients.  If the
+  * window manager supports _NET_WM_STATE_FOCUSED ro at least
+  * _NET_ACTIVE_WINDOW, couples with FocusIn and FocusOut events, we should be
   * able to track the last focused window at the time that the app started (not
   * all apps support _NET_WM_USER_TIME).
   */
@@ -2036,20 +2041,21 @@ handle_event(XEvent *e)
 		handle_atom(e, c, e->xclient.message_type);
 		break;
 	case MappingNotify:
-		break;
 	default:
 		break;
 	}
 }
 
-/** @brief set up for an assist
+/** @brief set up for monitoring
   *
-  * We want to perform as much as possible in the master process before the
-  * acutal launch so that this information is immediately available to the child
-  * process before the launch.
+  * We want to establish the client lists, dock app lists and system tray lists
+  * before we first enter the event loop (whether in daemon node or not) and
+  * then syncronize to the X server so that we do not consider window that were
+  * mapped before a startup notification as being part of a startup notification
+  * completion.
   */
 void
-setup_to_assist()
+setup_to_monitor()
 {
 	handle_NET_CLIENT_LIST(NULL, NULL);
 	handle_WIN_CLIENT_LIST(NULL, NULL);
@@ -2066,18 +2072,14 @@ sighandler(int sig)
 	signum = sig;
 }
 
-/** @brief assist the window manager.
-  *
-  * Assist the window manager to do the right thing with respect to focus and
-  * with respect to positioning of the window on the correct monitor and the
-  * correct desktop.
+/** @brief monitor startup and assist the window manager.
   */
 void
-assist()
+do_monitor()
 {
 	pid_t pid;
 
-	setup_to_assist();
+	setup_to_monitor();
 	XSync(dpy, False);
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
@@ -2087,23 +2089,18 @@ assist()
 		XCloseDisplay(dpy);
 		return;
 	}
-	setsid();		/* become a session leader */
+	setsid(); /* become a session leader */
 	/* close files */
 	fclose(stdin);
 	/* fork once more for SVR4 */
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		exit(EXIT_SUCCESS);
 	} else if (pid != 0) {
 		/* parent exits */
 		exit(EXIT_SUCCESS);
 	}
-	/* release current directory */
-	if (chdir("/") < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	umask(0);		/* clear file creation mask */
+	umask(0);
 	/* continue on monitoring */
 	{
 		int xfd;
@@ -2148,7 +2145,10 @@ assist()
 			}
 		}
 	}
+
+
 }
+
 
 static void
 copying(int argc, char *argv[])
@@ -2414,7 +2414,7 @@ main(int argc, char *argv[])
 	if (optind < argc)
 		goto bad_nonopt;
 	get_display();
-	assist();
+	do_monitor();
 	exit(EXIT_SUCCESS);
 }
 
