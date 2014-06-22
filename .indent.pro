@@ -24,6 +24,15 @@
 -ss
 -hnl
 -nbc
+-TNotifyNotification
+-TGIOChannel
+-TGtkTooltip
+-TGdkEvent
+-TGtkStatusIcon
+-TMessage
+-TTime
+-TXErrorEvent
+-TSequence
 -TWindowManager
 -TWmDisplay
 -TWmScreen
