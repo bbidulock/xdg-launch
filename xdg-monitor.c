@@ -255,6 +255,7 @@ Window root;
 Window tray;
 
 struct _Client {
+	Sequence *seq;
 	int screen;
 	Window win;
 	Window time_win;
@@ -1488,6 +1489,126 @@ test_client(Client *c)
 	return False;
 }
 
+static Sequence * ref_sequence(Sequence *seq);
+
+/** @brief find the startup sequence for a client
+  * @param c - client to lookup startup sequence for
+  * @return Sequence * - the found sequence or NULL if not found
+  */
+static Sequence *
+find_startup_seq(Client *c)
+{
+	Sequence *seq;
+
+	if ((seq = c->seq))
+		return seq;
+
+	/* search by startup id */
+	if (c->startup_id) {
+		for (seq = sequences; seq; seq = seq->next) {
+			if (!seq->f.id) {
+				EPRINTF("sequence with null id!\n");
+				continue;
+			}
+			if (!strcmp(c->startup_id, seq->f.id))
+				break;
+		}
+		if (!seq) {
+			DPRINTF("cannot find startup id '%s'!\n", c->startup_id);
+			return (seq);
+		}
+		goto found_it;
+	}
+
+	/* search by wmclass */
+	if (c->ch.res_name || c->ch.res_class) {
+		for (seq = sequences; seq; seq = seq->next) {
+			const char *wmclass;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if ((wmclass = seq->f.wmclass)) {
+				if (c->ch.res_name && !strcmp(wmclass, c->ch.res_name))
+					break;
+				if (c->ch.res_class && !strcmp(wmclass, c->ch.res_class))
+					break;
+			}
+		}
+		if (seq)
+			goto found_it;
+	}
+
+	/* search by binary */
+	if (c->command) {
+		for (seq = sequences; seq; seq = seq->next) {
+			const char *binary;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if ((binary = seq->f.bin)) {
+				if (c->command[0] && !strcmp(binary, c->command[0]))
+					break;
+			}
+
+		}
+		if (seq)
+			goto found_it;
+	}
+
+	/* search by wmclass (this time case insensitive) */
+	if (c->ch.res_name || c->ch.res_class) {
+		for (seq = sequences; seq; seq = seq->next) {
+			const char *wmclass;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if ((wmclass = seq->f.wmclass)) {
+				if (c->ch.res_name
+				    && !strcasecmp(wmclass, c->ch.res_name))
+					break;
+				if (c->ch.res_class
+				    && !strcasecmp(wmclass, c->ch.res_class))
+					break;
+			}
+		}
+		if (seq)
+			goto found_it;
+	}
+
+	/* search by pid and hostname */
+	if (c->pid && c->hostname) {
+		for (seq = sequences; seq; seq = seq->next) {
+			const char *hostname;
+			pid_t pid;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if (!(pid = seq->n.pid) || !(hostname = seq->f.hostname))
+				continue;
+			if (c->pid == pid && !strcmp(c->hostname, hostname))
+				break;
+		}
+		if (seq)
+			goto found_it;
+	}
+	DPRINTF("could not find startup ID for client\n");
+	return NULL;
+      found_it:
+	seq->client = c;
+	c->seq = ref_sequence(seq);
+	/* FIXME: send startup sequence complete */
+	return (seq);
+}
+
+
 void
 setup_client(Client *c)
 {
@@ -1551,9 +1672,12 @@ update_client(Client *c)
 	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && leader)
 		c->startup_id = get_text(leader, _XA_NET_STARTUP_ID);
 
-	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
-		c->pid = card;
+	card = 0;
+	if (!get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) && leader)
+		get_cardinal(leader, _XA_NET_WM_PID, XA_CARDINAL, &card);
+	c->pid = card;
 
+	find_startup_seq(c);
 	if (test_client(c))
 		setup_client(c);
 
