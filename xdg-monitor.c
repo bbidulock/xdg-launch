@@ -270,6 +270,7 @@ struct _Client {
 	char *name;
 	char *hostname;
 	XClassHint ch;
+	XWMHints *wmh;
 };
 
 Client *clients = NULL;
@@ -1493,20 +1494,63 @@ setup_client(Client *c)
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
+/** @brief update client from X server
+  * @param c - the client to update
+  *
+  * Updates the client from information and properties maintained by the X
+  * server.  Care should be taken that information that shoule be obtained from
+  * a group window is obtained from that window first and then overwritten by
+  * any information contained in the specific window.
+  */
 static void
 update_client(Client *c)
 {
 	long card;
+	Window leader = None;
+	int count = 0;
 
-	XGetClassHint(dpy, c->win, &c->ch);
+	if (c->wmh)
+		XFree(c->wmh);
+	if ((c->wmh = XGetWMHints(dpy, c->win))) {
+		if (c->wmh->flags & WindowGroupHint)
+			leader = c->wmh->window_group;
+		if (leader == c->win)
+			leader = None;
+	}
+
+	if (c->ch.res_name) {
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (!XGetClassHint(dpy, c->win, &c->ch) && leader)
+		XGetClassHint(dpy, leader, &c->ch);
+
 	XFetchName(dpy, c->win, &c->name);
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
 	    && c->time_win) {
 		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
 		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
 	}
-	c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE);
-	c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID);
+
+	free(c->hostname);
+	if (!(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) && leader)
+		c->hostname = get_text(leader, XA_WM_CLIENT_MACHINE);
+
+	if (c->command) {
+		XFreeStringList(c->command);
+		c->command = NULL;
+	}
+	if (!XGetCommand(dpy, c->win, &c->command, &count) && leader)
+		XGetCommand(dpy, leader, &c->command, &count);
+
+	free(c->startup_id);
+	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && leader)
+		c->startup_id = get_text(leader, _XA_NET_STARTUP_ID);
+
 	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
 		c->pid = card;
 
@@ -1540,10 +1584,14 @@ remove_client(Client *c)
 		XFree(c->ch.res_name);
 	if (c->ch.res_class)
 		XFree(c->ch.res_class);
+	if (c->wmh)
+		XFree(c->wmh);
 	if (c->name)
 		XFree(c->name);
 	if (c->startup_id)
 		XFree(c->startup_id);
+	if (c->command)
+		XFreeStringList(c->command);
 	XDeleteContext(dpy, c->win, ClientContext);
 	if (c->time_win)
 		XDeleteContext(dpy, c->time_win, ClientContext);
@@ -1746,9 +1794,10 @@ find_seq_by_id(char *id)
 static void
 add_sequence(Sequence *seq)
 {
+	seq->refs = 1;
+	seq->client = NULL;
 	seq->next = sequences;
 	sequences = seq;
-	++seq->refs;
 }
 
 static Sequence *
@@ -1821,7 +1870,7 @@ process_startup_msg(Message *m)
 		while (*p == ' ')
 			p++;
 		k = p;
-		if ((v = strchr(k, '=')) == NULL) {
+		if (!(v = strchr(k, '='))) {
 			free_sequence_fields(&cmd);
 			DPRINTF("mangled message\n");
 			return;
@@ -1863,31 +1912,28 @@ process_startup_msg(Message *m)
 	}
 	free(m->data);
 	free(m);
-	if (cmd.f.id == NULL) {
+	if (!cmd.f.id) {
 		free_sequence_fields(&cmd);
 		DPRINTF("message with no ID= field\n");
 		return;
 	}
 	/* get timestamp from ID if necessary */
-	if (cmd.f.timestamp == NULL && (p = strstr(cmd.f.id, "_TIME")) != NULL)
+	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
 		cmd.f.timestamp = strdup(p + 5);
 	convert_sequence_fields(&cmd);
-	if ((seq = find_seq_by_id(cmd.f.id)) == NULL) {
+	if (!(seq = find_seq_by_id(cmd.f.id))) {
 		if (cmd.state != StartupNotifyNew) {
 			free_sequence_fields(&cmd);
 			DPRINTF("message out of sequence\n");
 			return;
 		}
-		if ((seq = calloc(1, sizeof(*seq))) == NULL) {
+		if (!(seq = calloc(1, sizeof(*seq)))) {
 			free_sequence_fields(&cmd);
 			DPRINTF("no memory\n");
 			return;
 		}
 		*seq = cmd;
 		add_sequence(seq);
-		seq->refs = 1;
-		seq->client = NULL;
-		seq->changed = False;
 		return;
 	}
 	switch (seq->state) {
@@ -2733,7 +2779,7 @@ main(int argc, char *argv[])
 			options.foreground = 1;
 			break;
 		case 'g':	/* -g, --guard-time TIMEOUT */
-			if (optarg == NULL)
+			if (!optarg)
 				options.guardtime = 15000;
 			else {
 				if ((val = strtol(optarg, NULL, 0)) < 0)
@@ -2746,7 +2792,7 @@ main(int argc, char *argv[])
 			if (options.debug)
 				fprintf(stderr, "%s: increasing debug verbosity\n",
 					argv[0]);
-			if (optarg == NULL) {
+			if (!optarg) {
 				options.debug++;
 			} else {
 				if ((val = strtol(optarg, NULL, 0)) < 0)
@@ -2758,7 +2804,7 @@ main(int argc, char *argv[])
 			if (options.debug)
 				fprintf(stderr, "%s: increasing output verbosity\n",
 					argv[0]);
-			if (optarg == NULL) {
+			if (!optarg) {
 				options.output++;
 				break;
 			}
