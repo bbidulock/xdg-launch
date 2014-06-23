@@ -309,6 +309,7 @@ Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_STATE_FOCUSED;
 Atom _XA_NET_WM_USER_TIME;
 Atom _XA_NET_WM_USER_TIME_WINDOW;
+Atom _XA_SM_CLIENT_ID;
 Atom _XA__SWM_VROOT;
 Atom _XA_TIMESTAMP_PROP;
 Atom _XA_WIN_CLIENT_LIST;
@@ -316,7 +317,10 @@ Atom _XA_WINDOWMAKER_NOTICEBOARD;
 Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
+Atom _XA_WM_CLIENT_LEADER;
+Atom _XA_WM_PROTOCOLS;
 Atom _XA_WM_STATE;
+Atom _XA_WM_WINDOW_ROLE;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
@@ -331,11 +335,27 @@ static void handle_NET_SUPPORTED(XEvent *, Client *);
 static void handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
 static void handle_NET_WM_STATE(XEvent *, Client *);
 static void handle_NET_WM_USER_TIME(XEvent *, Client *);
+static void handle_SM_CLIENT_ID(XEvent *, Client *);
 static void handle_WIN_CLIENT_LIST(XEvent *, Client *);
 static void handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
 static void handle_WIN_PROTOCOLS(XEvent *, Client *);
 static void handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static void handle_WM_CLASS(XEvent *, Client *);
+static void handle_WM_CLIENT_LEADER(XEvent *, Client *);
+static void handle_WM_CLIENT_MACHINE(XEvent *, Client *);
+static void handle_WM_COMMAND(XEvent *, Client *);
+static void handle_WM_HINTS(XEvent *, Client *);
+static void handle_WM_ICON_NAME(XEvent *, Client *);
+static void handle_WM_ICON_SIZE(XEvent *, Client *);
+static void handle_WM_NAME(XEvent *, Client *);
+static void handle_WM_NORMAL_HINTS(XEvent *, Client *);
+static void handle_WM_PROTOCOLS(XEvent *, Client *);
+static void handle_WM_SIZE_HINTS(XEvent *, Client *);
 static void handle_WM_STATE(XEvent *, Client *);
+static void handle_WM_TRANSIENT_FOR(XEvent *, Client *);
+static void handle_WM_WINDOW_ROLE(XEvent *, Client *);
+static void handle_WM_ZOOM_HINTS(XEvent *, Client *);
+
 
 struct atoms {
 	char *name;
@@ -344,40 +364,54 @@ struct atoms {
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
-	/* name					global				handler					atom value	*/
-	/* ----					------				-------					----------	*/
-	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					None		},
-	{ "MANAGER",				&_XA_MANAGER,			&handle_MANAGER,			None		},
-	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&handle_MOTIF_WM_INFO,			None		},
-	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,		None		},
-	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,		None		},
-	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					None		},
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,					None		},
-	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	&handle_NET_STARTUP_INFO_BEGIN,		None		},
-	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		&handle_NET_STARTUP_INFO,		None		},
-	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&handle_NET_SUPPORTED,			None		},
-	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&handle_NET_SUPPORTING_WM_CHECK,	None		},
-	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					None		},
-	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					None		},
-	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,					None		},
-	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,					None		},
-	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					None		},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,			None		},
-	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,					None		},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,		None		},
-	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					None		},
-	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,					None		},
-	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,		None		},
-	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&handle_WINDOWMAKER_NOTICEBOARD,	None		},
-	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&handle_WIN_PROTOCOLS,			None		},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&handle_WIN_SUPPORTING_WM_CHECK,	None		},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,					None		},
-	{ "WM_COMMAND",				NULL,				NULL,					XA_WM_COMMAND	},
-	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,			None		},
-	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					None		},
-	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					None		},
-	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					None		},
-	{ NULL,					NULL,				NULL,					None		}
+	/* name					global				handler					atom value		*/
+	/* ----					------				-------					----------		*/
+	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					None			},
+	{ "MANAGER",				&_XA_MANAGER,			&handle_MANAGER,			None			},
+	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&handle_MOTIF_WM_INFO,			None			},
+	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,		None			},
+	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,		None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,					None			},
+	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	&handle_NET_STARTUP_INFO_BEGIN,		None			},
+	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		&handle_NET_STARTUP_INFO,		None			},
+	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&handle_NET_SUPPORTED,			None			},
+	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&handle_NET_SUPPORTING_WM_CHECK,	None			},
+	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					None			},
+	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,					None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,					None			},
+	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,			None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,					None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,		None			},
+	{ "SM_CLIENT_ID",			&_XA_SM_CLIENT_ID,		&handle_SM_CLIENT_ID,			None			},
+	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					None			},
+	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,					None			},
+	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,		None			},
+	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&handle_WINDOWMAKER_NOTICEBOARD,	None			},
+	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&handle_WIN_PROTOCOLS,			None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&handle_WIN_SUPPORTING_WM_CHECK,	None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,					None			},
+	{ "WM_CLASS",				NULL,				&handle_WM_CLASS,			XA_WM_CLASS		},
+	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,		&handle_WM_CLIENT_LEADER,		None			},
+	{ "WM_CLIENT_MACHINE",			NULL,				&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
+	{ "WM_COMMAND",				NULL,				&handle_WM_COMMAND,			XA_WM_COMMAND		},
+	{ "WM_HINTS",				NULL,				&handle_WM_HINTS,			XA_WM_HINTS		},
+	{ "WM_ICON_NAME",			NULL,				&handle_WM_ICON_NAME,			XA_WM_ICON_NAME		},
+	{ "WM_ICON_SIZE",			NULL,				&handle_WM_ICON_SIZE,			XA_WM_ICON_SIZE		},
+	{ "WM_NAME",				NULL,				&handle_WM_NAME,			XA_WM_NAME		},
+	{ "WM_NORMAL_HINTS",			NULL,				&handle_WM_NORMAL_HINTS,		XA_WM_NORMAL_HINTS	},
+	{ "WM_PROTOCOLS",			&_XA_WM_PROTOCOLS,		&handle_WM_PROTOCOLS,			None			},
+	{ "WM_SIZE_HINTS",			NULL,				&handle_WM_SIZE_HINTS,			XA_WM_SIZE_HINTS	},
+	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,			None			},
+	{ "WM_TRANSIENT_FOR",			NULL,				&handle_WM_TRANSIENT_FOR,		XA_WM_TRANSIENT_FOR	},
+	{ "WM_WINDOW_ROLE",			&_XA_WM_WINDOW_ROLE,		&handle_WM_WINDOW_ROLE,			None			},
+	{ "WM_ZOOM_HINTS",			NULL,				&handle_WM_ZOOM_HINTS,			XA_WM_ZOOM_HINTS	},
+	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					None			},
+	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					None			},
+	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					None			},
+	{ NULL,					NULL,				NULL,					None			}
 	/* *INDENT-ON* */
 };
 
@@ -1684,6 +1718,11 @@ update_client(Client *c)
 	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
 	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
 		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	if (leader) {
+		XSaveContext(dpy, leader, ClientContext, (XPointer) c);
+		XSelectInput(dpy, leader, ExposureMask | VisibilityChangeMask |
+			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	}
 	c->new = False;
 }
 
@@ -1734,6 +1773,66 @@ del_client(Client *r)
 }
 
 static void
+handle_SM_CLIENT_ID(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_CLASS(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_CLIENT_LEADER(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_COMMAND(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_HINTS(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_ICON_NAME(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_ICON_SIZE(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_NAME(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_NORMAL_HINTS(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_PROTOCOLS(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_SIZE_HINTS(XEvent *e, Client *c)
+{
+}
+
+static void
 handle_WM_STATE(XEvent *e, Client *c)
 {
 	long data;
@@ -1741,6 +1840,21 @@ handle_WM_STATE(XEvent *e, Client *c)
 	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
 	    && data != WithdrawnState && !c)
 		c = add_client(e->xany.window);
+}
+
+static void
+handle_WM_TRANSIENT_FOR(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_WINDOW_ROLE(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_WM_ZOOM_HINTS(XEvent *e, Client *c)
+{
 }
 
 static void
@@ -1855,9 +1969,25 @@ handle_MANAGER(XEvent *e, Client *c)
 	}
 }
 
+/** @brief update client from startup notification sequence
+  * @param seq - the sequence that has changed state
+  *
+  * Update the client associated with a startup notification sequence.
+  */
 static void
 update_startup_client(Sequence *seq)
 {
+	Client *c;
+
+	if (!(c = seq->client))
+		/* Note that we do not want to go searching for clients because any
+		   client that we would find at this point could get a false positive
+		   against an client that existed before the startup notification
+		   sequence.  We could use creation timestamps to filter out the false
+		   positives, but that is for later. */
+		return;
+	/* TODO: things to update are: _NET_WM_PID, WM_CLIENT_MACHINE, ...  Note
+	 * that _NET_WM_STARTUP_ID should already be set. */
 }
 
 static void
