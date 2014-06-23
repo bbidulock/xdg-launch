@@ -254,24 +254,40 @@ int screen;
 Window root;
 Window tray;
 
+typedef struct {
+	unsigned long state;
+	Window icon_window;
+} XWMState;
+
 struct _Client {
-	Sequence *seq;
-	int screen;
-	Window win;
-	Window time_win;
-	Client *next;
-	Bool breadcrumb;
-	Bool new;
-	Time active_time;
-	Time focus_time;
-	Time user_time;
-	pid_t pid;
-	char *startup_id;
-	char **command;
-	char *name;
-	char *hostname;
-	XClassHint ch;
-	XWMHints *wmh;
+	Client *next;			/* next client in list */
+	Sequence *seq;			/* associated startup sequence */
+	int screen;			/* screen number */
+	Window win;			/* client window */
+	Window time_win;		/* client time window */
+	Window transient_for;		/* transient for */
+	Window leader;			/* client leader window */
+	Window group;			/* client group window */
+	Bool dockapp;			/* client is a dock app */
+	Bool statusicon;		/* client is a status icon */
+	Bool breadcrumb;		/* for traversing list */
+	Bool managed;			/* managed by window manager */
+	Bool new;			/* brand new */
+	Time active_time;		/* last time active */
+	Time focus_time;		/* last time focused */
+	Time user_time;			/* last time used */
+	Time map_time;			/* last time window was mapped */
+	Time last_time;			/* last time something happened to this window */
+	pid_t pid;			/* process id */
+	char *startup_id;		/* startup id (property) */
+	char **command;			/* command */
+	char *name;			/* window name */
+	char *hostname;			/* client machine */
+	char *client_id;		/* session management id */
+	char *role;			/* session management role */
+	XClassHint ch;			/* class hint */
+	XWMHints *wmh;			/* window manager hints */
+	XWMState *wms;			/* window manager state */
 };
 
 Client *clients = NULL;
@@ -355,7 +371,6 @@ static void handle_WM_STATE(XEvent *, Client *);
 static void handle_WM_TRANSIENT_FOR(XEvent *, Client *);
 static void handle_WM_WINDOW_ROLE(XEvent *, Client *);
 static void handle_WM_ZOOM_HINTS(XEvent *, Client *);
-
 
 struct atoms {
 	char *name;
@@ -570,6 +585,54 @@ Bool
 get_atom(Window win, Atom prop, Atom type, Atom *atom_ret)
 {
 	return get_cardinal(win, prop, type, (long *) atom_ret);
+}
+
+XWMState *
+XGetWMState(Display *d, Window win)
+{
+	Atom real;
+	int format;
+	unsigned long nitems, after, num = 2;
+	XWMState *wms = NULL;
+
+	if (XGetWindowProperty(d, win, _XA_WM_STATE, 0L, num, False,
+			       AnyPropertyType, &real, &format, &nitems,
+			       &after, (unsigned char **) &wms) == Success
+	    && format != 0) {
+		if (nitems < 2) {
+			if (wms) {
+				XFree(wms);
+				return NULL;
+			}
+		}
+		return wms;
+	}
+	return NULL;
+
+}
+
+Bool
+latertime(Time last, Time time)
+{
+	if (time == CurrentTime)
+		return False;
+	if (last == CurrentTime || (int) time - (int) last > 0)
+		return True;
+	return False;
+}
+
+void
+pushtime(Time *last, Time time)
+{
+	if (latertime(*last, time))
+		*last = time;
+}
+
+void
+pulltime(Time *last, Time time)
+{
+	if (!latertime(*last, time))
+		*last = time;
 }
 
 /** @brief Check for recursive window properties
@@ -1523,7 +1586,7 @@ test_client(Client *c)
 	return False;
 }
 
-static Sequence * ref_sequence(Sequence *seq);
+static Sequence *ref_sequence(Sequence *seq);
 
 /** @brief find the startup sequence for a client
   * @param c - client to lookup startup sequence for
@@ -1642,7 +1705,6 @@ find_startup_seq(Client *c)
 	return (seq);
 }
 
-
 void
 setup_client(Client *c)
 {
@@ -1661,16 +1723,16 @@ static void
 update_client(Client *c)
 {
 	long card;
-	Window leader = None;
 	int count = 0;
 
 	if (c->wmh)
 		XFree(c->wmh);
+	c->group = None;
 	if ((c->wmh = XGetWMHints(dpy, c->win))) {
 		if (c->wmh->flags & WindowGroupHint)
-			leader = c->wmh->window_group;
-		if (leader == c->win)
-			leader = None;
+			c->group = c->wmh->window_group;
+		if (c->group == c->win)
+			c->group = None;
 	}
 
 	if (c->ch.res_name) {
@@ -1681,8 +1743,8 @@ update_client(Client *c)
 		XFree(c->ch.res_class);
 		c->ch.res_class = NULL;
 	}
-	if (!XGetClassHint(dpy, c->win, &c->ch) && leader)
-		XGetClassHint(dpy, leader, &c->ch);
+	if (!XGetClassHint(dpy, c->win, &c->ch) && c->group)
+		XGetClassHint(dpy, c->group, &c->ch);
 
 	XFetchName(dpy, c->win, &c->name);
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
@@ -1691,24 +1753,25 @@ update_client(Client *c)
 		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
 	}
 
-	free(c->hostname);
-	if (!(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) && leader)
-		c->hostname = get_text(leader, XA_WM_CLIENT_MACHINE);
+	if (c->hostname)
+		XFree(c->hostname);
+	if (!(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) && c->group)
+		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
 
 	if (c->command) {
 		XFreeStringList(c->command);
 		c->command = NULL;
 	}
-	if (!XGetCommand(dpy, c->win, &c->command, &count) && leader)
-		XGetCommand(dpy, leader, &c->command, &count);
+	if (!XGetCommand(dpy, c->win, &c->command, &count) && c->group)
+		XGetCommand(dpy, c->group, &c->command, &count);
 
 	free(c->startup_id);
-	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && leader)
-		c->startup_id = get_text(leader, _XA_NET_STARTUP_ID);
+	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && c->group)
+		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
 
 	card = 0;
-	if (!get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) && leader)
-		get_cardinal(leader, _XA_NET_WM_PID, XA_CARDINAL, &card);
+	if (!get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) && c->group)
+		get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card);
 	c->pid = card;
 
 	find_startup_seq(c);
@@ -1718,9 +1781,9 @@ update_client(Client *c)
 	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
 	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
 		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
-	if (leader) {
-		XSaveContext(dpy, leader, ClientContext, (XPointer) c);
-		XSelectInput(dpy, leader, ExposureMask | VisibilityChangeMask |
+	if (c->group) {
+		XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->group, ExposureMask | VisibilityChangeMask |
 			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
 	}
 	c->new = False;
@@ -1755,6 +1818,10 @@ remove_client(Client *c)
 		XFree(c->startup_id);
 	if (c->command)
 		XFreeStringList(c->command);
+	if (c->hostname)
+		XFree(c->hostname);
+	if (c->role)
+		XFree(c->role);
 	XDeleteContext(dpy, c->win, ClientContext);
 	if (c->time_win)
 		XDeleteContext(dpy, c->time_win, ClientContext);
@@ -1775,86 +1842,211 @@ del_client(Client *r)
 static void
 handle_SM_CLIENT_ID(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->client_id) {
+		XFree(c->client_id);
+		c->client_id = NULL;
+	}
+	if (e && e->xproperty.state == PropertyDelete)
+		return;
+	if (!(c->client_id = get_text(c->win, _XA_SM_CLIENT_ID)) && c->leader)
+		c->client_id = get_text(c->leader, _XA_SM_CLIENT_ID);
+	if (!(c->client_id) && c->group)
+		c->client_id = get_text(c->group, _XA_SM_CLIENT_ID);
 }
 
 static void
 handle_WM_CLASS(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->ch.res_name) {
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (e && e->xproperty.state == PropertyDelete)
+		return;
+	if (!XGetClassHint(dpy, c->win, &c->ch) && c->group)
+		XGetClassHint(dpy, c->group, &c->ch);
 }
 
 static void
 handle_WM_CLIENT_LEADER(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	c->leader = None;
+	if (e && e->xproperty.state == PropertyDelete)
+		return;
+	get_window(c->win, _XA_WM_CLIENT_LEADER, AnyPropertyType, &c->leader);
 }
 
 static void
 handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->hostname) {
+		XFree(c->hostname);
+		c->hostname = NULL;
+	}
+	if (e && e->xproperty.state == PropertyDelete)
+		return;
+	if (!(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) && c->group)
+		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
 }
 
 static void
 handle_WM_COMMAND(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_HINTS(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_ICON_NAME(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_ICON_SIZE(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_NAME(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_NORMAL_HINTS(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_PROTOCOLS(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_SIZE_HINTS(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
 }
 
 static void
 handle_WM_STATE(XEvent *e, Client *c)
 {
-	long data;
-
-	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
-	    && data != WithdrawnState && !c)
-		c = add_client(e->xany.window);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->wms) {
+		XFree(c->wms);
+		c->wms = NULL;
+	}
+	if (e && e->xproperty.state == PropertyDelete) {
+		c->managed = False;
+		/* FIXME: the window manager has unmanaged this client so we need to
+		   remove it from our lists */
+		return;
+	}
+	if (!(c->wms = XGetWMState(dpy, c->win))) {
+		/* FIXME: about the only time this should happed would be if the window
+		   was destroyed out from under us: check that. */
+		return;
+	}
+	if (c->managed) {
+		switch (c->wms->state) {
+		case WithdrawnState:
+			c->managed = False;
+			/* FIXME: the window manager just unmanaged this client so we
+			   need to remove it from our lists */
+			break;
+		case NormalState:
+		case IconicState:
+		case ZoomState:
+		case InactiveState:
+		default:
+			/* This is merely a state transition between active states. */
+			break;
+		}
+	} else {
+		/* FIXME: the window manager just managed this window, so we need to
+		   check it against startup notification.  */
+		pulltime(&c->map_time, c->last_time);
+		c->managed = True;
+		switch (c->wms->state) {
+		case WithdrawnState:
+			/* FIXME: the window manager placed a WM_STATE of WithdrawnState
+			   on the window which probably means that it is a dock app that
+			   was just managed. */
+			break;
+		case NormalState:
+		case IconicState:
+		case ZoomState:
+		case InactiveState:
+		default:
+			/* FIXME: the window manager place a WM_STATE of other than
+			   WithdrawnState on the window which means that it was just
+			   managed per ICCCM. */
+			break;
+		}
+	}
 }
 
 static void
 handle_WM_TRANSIENT_FOR(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	c->transient_for = None;
+	if (e && e->xproperty.state == PropertyDelete)
+		return;
+	get_window(c->win, XA_WM_TRANSIENT_FOR, AnyPropertyType, &c->transient_for);
 }
 
 static void
 handle_WM_WINDOW_ROLE(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->role) {
+		XFree(c->role);
+		c->role = NULL;
+	}
+	if (e && e->xproperty.state == PropertyDelete)
+		return;
+	c->role = get_text(c->win, _XA_WM_WINDOW_ROLE);
 }
 
 static void
 handle_WM_ZOOM_HINTS(XEvent *e, Client *c)
 {
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	/* we don't actually process zoom hints */
 }
 
 static void
@@ -1986,8 +2178,8 @@ update_startup_client(Sequence *seq)
 		   sequence.  We could use creation timestamps to filter out the false
 		   positives, but that is for later. */
 		return;
-	/* TODO: things to update are: _NET_WM_PID, WM_CLIENT_MACHINE, ...  Note
-	 * that _NET_WM_STARTUP_ID should already be set. */
+	/* TODO: things to update are: _NET_WM_PID, WM_CLIENT_MACHINE, ...  Note that
+	   _NET_WM_STARTUP_ID should already be set. */
 }
 
 static void
@@ -2390,26 +2582,47 @@ handle_event(XEvent *e)
 
 	switch (e->type) {
 	case PropertyNotify:
-		c = find_client(e->xproperty.window);
+		if ((c = find_client(e->xproperty.window)))
+			pushtime(&c->last_time, e->xproperty.time);
 		handle_atom(e, c, e->xproperty.atom);
 		break;
 	case FocusIn:
 	case FocusOut:
 	case Expose:
+		break;
 	case VisibilityNotify:
+		if ((c = find_client(e->xvisibility.window)) && !c->managed) {
+			c->managed = True;
+			/* FIXME: we missed a management event, so treat the window as
+			   managed now. */
+		}
+
 		break;
 	case CreateNotify:
+		/* only interested in top-level windows that are not override redirect */
+		if (e->xcreatewindow.override_redirect)
+			break;
 		if (!(c = find_client(e->xcreatewindow.window)))
-			c = add_client(e->xcreatewindow.window);
+			if (e->xcreatewindow.parent == root)
+				c = add_client(e->xcreatewindow.window);
 		break;
 	case DestroyNotify:
 		if ((c = find_client(e->xdestroywindow.window)))
 			del_client(c);
-		else
-			clean_msgs(e->xdestroywindow.window);
+		clean_msgs(e->xdestroywindow.window);
+		break;
+	case MapNotify:
+		if (e->xmap.override_redirect)
+			break;
+		if ((c = find_client(e->xmap.window)) && !c->managed) {
+			c->managed = True;
+			/* FIXME: we missed a management event, so treat the window as
+			   managed now */
+		}
 		break;
 	case UnmapNotify:
-	case MapNotify:
+		/* Just because we unmapped doesn't mean much. */
+		break;
 	case ReparentNotify:
 	case ConfigureNotify:
 		break;
@@ -2719,8 +2932,7 @@ create_notification(Sequence *seq)
 	g_signal_connect(G_OBJECT(notify), "closed", G_CALLBACK(notify_closed_callback),
 			 (gpointer) seq);
 #define UPDATE_INTERVAL 2
-	g_timeout_add_seconds(UPDATE_INTERVAL, notify_update_callback,
-			(gpointer) seq);
+	g_timeout_add_seconds(UPDATE_INTERVAL, notify_update_callback, (gpointer) seq);
 	if (!notify_notification_show(notify, NULL)) {
 		DPRINTF("could not show notification\n");
 		g_object_unref(G_OBJECT(notify));
