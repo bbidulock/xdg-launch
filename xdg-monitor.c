@@ -1973,7 +1973,7 @@ static void
 process_startup_msg(Message *m)
 {
 	Sequence cmd = { NULL, }, *seq;
-	char *p = m->data, *k, *v, *q;
+	char *p = m->data, *k, *v, *q, *copy, *b;
 	const char **f;
 	int i;
 	int escaped, quoted;
@@ -2041,6 +2041,44 @@ process_startup_msg(Message *m)
 		DPRINTF("message with no ID= field\n");
 		return;
 	}
+	/* get information from ID */
+	do {
+		p = q = copy = strdup(cmd.f.id);
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!cmd.f.launcher)
+			cmd.f.launcher = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!cmd.f.launchee)
+			cmd.f.launchee = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.pid)
+			cmd.f.pid = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '_')))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.sequence)
+			cmd.f.sequence = strdup(q);
+		q = p;
+		if (!(p = strstr(q, "TIME")) || p != q)
+			break;
+		q = p + 4;
+		if (!cmd.f.timestamp)
+			cmd.f.timestamp = strdup(q);
+	} while (0);
+	free(copy);
 	/* get timestamp from ID if necessary */
 	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
 		cmd.f.timestamp = strdup(p + 5);
