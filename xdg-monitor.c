@@ -3283,6 +3283,28 @@ handle_event(XEvent *e)
 	case MappingNotify:
 	default:
 		break;
+	case SelectionClear:
+#if 0
+		int s;
+#endif
+
+		if (!find_screen(e->xselectionclear.window))
+			break;
+		if (e->xselectionclear.selection != scr->slctn_atom)
+			break;
+		if (e->xselectionclear.window != scr->selwin)
+			break;
+		XDestroyWindow(dpy, scr->selwin);
+		scr->selwin = None;
+#if 0
+		for (s = 0; s < nscr; s++)
+			if (screens[s].selwin)
+				break;
+		if (s < nscr)
+			break;
+#endif
+		DPRINTF("lost _XDG_MONITOR_S%d selection: exiting\n", scr->screen);
+		exit(EXIT_SUCCESS);
 	}
 }
 
@@ -4080,6 +4102,8 @@ main(int argc, char *argv[])
 			break;
 		case 'f':	/* -f, --foreground */
 			options.foreground = 1;
+			if (!options.debug)
+				options.debug++;
 			break;
 		case 'g':	/* -g, --guard-time TIMEOUT */
 			if (!optarg)
@@ -4092,9 +4116,7 @@ main(int argc, char *argv[])
 			break;
 
 		case 'D':	/* -D, --debug [level] */
-			if (options.debug)
-				fprintf(stderr, "%s: increasing debug verbosity\n",
-					argv[0]);
+			DPRINTF("%s: increasing debug verbosity\n", argv[0]);
 			if (!optarg) {
 				options.debug++;
 			} else {
@@ -4104,9 +4126,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'v':	/* -v, --verbose [level] */
-			if (options.debug)
-				fprintf(stderr, "%s: increasing output verbosity\n",
-					argv[0]);
+			DPRINTF("%s: increasing output verbosity\n", argv[0]);
 			if (!optarg) {
 				options.output++;
 				break;
@@ -4117,20 +4137,15 @@ main(int argc, char *argv[])
 			break;
 		case 'h':	/* -h, --help */
 		case 'H':	/* -H, --? */
-			if (options.debug)
-				fprintf(stderr, "%s: printing help message\n", argv[0]);
+			DPRINTF("%s: printing help message\n", argv[0]);
 			help(argc, argv);
 			exit(EXIT_SUCCESS);
 		case 'V':	/* -V, --version */
-			if (options.debug)
-				fprintf(stderr, "%s: printing version message\n",
-					argv[0]);
+			DPRINTF("%s: printing version message\n", argv[0]);
 			version(argc, argv);
 			exit(EXIT_SUCCESS);
 		case 'C':	/* -C, --copying */
-			if (options.debug)
-				fprintf(stderr, "%s: printing copying message\n",
-					argv[0]);
+			DPRINTF("%s: printing copying message\n", argv[0]);
 			copying(argc, argv);
 			exit(EXIT_SUCCESS);
 		case '?':
