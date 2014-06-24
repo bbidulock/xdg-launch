@@ -164,6 +164,30 @@ static const char *StartupNotifyFields[] = {
 	NULL
 };
 
+typedef enum {
+	FIELD_OFFSET_LAUNCHER,
+	FIELD_OFFSET_LAUNCHEE,
+	FIELD_OFFSET_SEQUENCE,
+	FIELD_OFFSET_ID,
+	FIELD_OFFSET_NAME,
+	FIELD_OFFSET_ICON,
+	FIELD_OFFSET_BIN,
+	FIELD_OFFSET_DESCRIPTION,
+	FIELD_OFFSET_WMCLASS,
+	FIELD_OFFSET_SILENT,
+	FIELD_OFFSET_APPLICATION_ID,
+	FIELD_OFFSET_DESKTOP,
+	FIELD_OFFSET_SCREEN,
+	FIELD_OFFSET_MONITOR,
+	FIELD_OFFSET_TIMESTAMP,
+	FIELD_OFFSET_PID,
+	FIELD_OFFSET_HOSTNAME,
+	FIELD_OFFSET_COMMAND,
+	FIELD_OFFSET_ACTION,
+	FIELD_OFFSET_FILE,
+	FIELD_OFFSET_URL,
+} FieldOffset;
+
 struct fields {
 	char *launcher;
 	char *launchee;
@@ -187,8 +211,6 @@ struct fields {
 	char *file;
 	char *url;
 };
-
-struct fields fields = { NULL, };
 
 typedef enum {
 	StartupNotifyIdle,
@@ -313,7 +335,6 @@ struct _Client {
 };
 
 Time last_user_time = CurrentTime;
-Time launch_time = CurrentTime;
 
 Atom _XA_KDE_WM_CHANGE_STATE;
 Atom _XA_MANAGER;
@@ -1362,8 +1383,8 @@ send_msg(char *msg)
 
 	DPRINTF("Message is: '%s'\n", msg);
 
-	from =
-	    XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
+	from = XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative,
+				   ParentRelative);
 
 	xev.type = ClientMessage;
 	xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
@@ -1386,94 +1407,87 @@ send_msg(char *msg)
 
 struct {
 	char *label;
-	char **value;
+	FieldOffset offset;
 } labels[] = {
 	/* *INDENT-OFF* */
-	{ " NAME=",		&fields.name		},
-	{ " ICON=",		&fields.icon		},
-	{ " BIN=",		&fields.bin		},
-	{ " DESCRIPTION=",	&fields.description	},
-	{ " WMCLASS=",		&fields.wmclass		},
-	{ " SILENT=",		&fields.silent		},
-	{ " APPLICATION_ID=",	&fields.application_id	},
-	{ " DESKTOP=",		&fields.desktop		},
-	{ " SCREEN=",		&fields.screen		},
-	{ " MONITOR=",		&fields.monitor		},
-	{ " TIMESTAMP=",	&fields.timestamp	},
-	{ " PID=",		&fields.pid		},
-	{ " HOSTNAME=",		&fields.hostname	},
-	{ " COMMAND=",		&fields.command		},
-        { " ACTION=",           &fields.action          },
-	{ NULL,			NULL			}
+	{ " NAME=",		FIELD_OFFSET_NAME		},
+	{ " ICON=",		FIELD_OFFSET_ICON		},
+	{ " BIN=",		FIELD_OFFSET_BIN		},
+	{ " DESCRIPTION=",	FIELD_OFFSET_DESCRIPTION	},
+	{ " WMCLASS=",		FIELD_OFFSET_WMCLASS		},
+	{ " SILENT=",		FIELD_OFFSET_SILENT		},
+	{ " APPLICATION_ID=",	FIELD_OFFSET_APPLICATION_ID	},
+	{ " DESKTOP=",		FIELD_OFFSET_DESKTOP		},
+	{ " SCREEN=",		FIELD_OFFSET_SCREEN		},
+	{ " MONITOR=",		FIELD_OFFSET_MONITOR		},
+	{ " TIMESTAMP=",	FIELD_OFFSET_TIMESTAMP		},
+	{ " PID=",		FIELD_OFFSET_PID		},
+	{ " HOSTNAME=",		FIELD_OFFSET_HOSTNAME		},
+	{ " COMMAND=",		FIELD_OFFSET_COMMAND		},
+        { " ACTION=",           FIELD_OFFSET_ACTION		},
+	{ NULL,			FIELD_OFFSET_ID			}
 	/* *INDENT-ON* */
 };
 
 void
-add_field(char **p, char *label, char *value)
+add_field(Sequence *seq, char **p, char *label, FieldOffset offset)
 {
-	if (value) {
+	char *value;
+
+	if ((value = seq->fields[offset])) {
 		strcat(*p, label);
 		apply_quotes(p, value);
 	}
 }
 
 void
-add_fields(char *msg)
+add_fields(Sequence *seq, char *msg)
 {
 	int i;
 
 	for (i = 0; labels[i].label; i++)
-		add_field(&msg, labels[i].label, *labels[i].value);
+		add_field(seq, &msg, labels[i].label, labels[i].offset);
 }
 
 void
-send_new()
+send_new(Sequence *seq)
 {
 	char *msg, *p;
 
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "new:");
-	add_field(&p, " ID=", fields.id);
-	add_fields(p);
+	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_fields(seq, p);
 	send_msg(msg);
 	free(msg);
+	seq->state = StartupNotifyNew;
 }
 
 void
-send_change()
+send_change(Sequence *seq)
 {
 	char *msg, *p;
 
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "change:");
-	add_field(&p, " ID=", fields.id);
-	add_fields(p);
+	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_fields(seq, p);
 	send_msg(msg);
 	free(msg);
+	seq->state = StartupNotifyChanged;
 }
 
 void
-send_remove()
+send_remove(Sequence *seq)
 {
 	char *msg, *p;
 
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "remove:");
-	add_field(&p, " ID=", fields.id);
+	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
 	send_msg(msg);
 	free(msg);
-}
-
-static void
-push_time(Time *accum, Time now)
-{
-	if (now == CurrentTime)
-		return;
-	else if (*accum == CurrentTime) {
-		*accum = now;
-		return;
-	} else if ((int) ((int) now - (int) *accum) > 0)
-		*accum = now;
+	seq->state = StartupNotifyComplete;
 }
 
 char *
@@ -1577,53 +1591,56 @@ get_proc_argv0(pid_t pid)
 static Bool
 test_client(Client *c)
 {
+	Sequence *seq;
 	pid_t pid;
 	char *str;
 
+	if (!(seq = c->seq))
+		return False;
 	if (c->startup_id) {
-		if (!strcmp(c->startup_id, fields.id))
+		if (!strcmp(c->startup_id, seq->f.id))
 			return True;
 		else
 			return False;
 	}
-	if ((pid = c->pid) && (!c->hostname || strcmp(fields.hostname, c->hostname)))
+	if ((pid = c->pid) && (!c->hostname || strcmp(seq->f.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
-		if (strcmp(fields.id, str))
+		if (strcmp(seq->f.id, str))
 			return False;
 		else
 			return True;
 		free(str);
 	}
 	/* correct wmclass */
-	if (fields.wmclass) {
-		if (c->ch.res_name && !strcmp(fields.wmclass, c->ch.res_name))
+	if (seq->f.wmclass) {
+		if (c->ch.res_name && !strcmp(seq->f.wmclass, c->ch.res_name))
 			return True;
-		if (c->ch.res_class && !strcmp(fields.wmclass, c->ch.res_class))
+		if (c->ch.res_class && !strcmp(seq->f.wmclass, c->ch.res_class))
 			return True;
 	}
 	/* same process id */
-	if (pid && atoi(fields.pid) == pid)
+	if (pid && atoi(seq->f.pid) == pid)
 		return True;
 	/* same timestamp to the millisecond */
-	if (c->user_time && c->user_time == strtoul(fields.timestamp, NULL, 0))
+	if (c->user_time && c->user_time == strtoul(seq->f.timestamp, NULL, 0))
 		return True;
 	/* correct executable */
-	if (pid && fields.bin) {
+	if (pid && seq->f.bin) {
 		if ((str = get_proc_comm(pid)))
-			if (!strcmp(fields.bin, str)) {
+			if (!strcmp(seq->f.bin, str)) {
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_exec(pid)))
-			if (!strcmp(fields.bin, str)) {
+			if (!strcmp(seq->f.bin, str)) {
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_argv0(pid)))
-			if (!strcmp(fields.bin, str)) {
+			if (!strcmp(seq->f.bin, str)) {
 				free(str);
 				return True;
 			}
@@ -1870,61 +1887,6 @@ update_client(Client *c)
 	c->new = False;
 }
 
-/** @brief perform actions necessary for a newly managed client
-  * @param c - the client
-  * @param t - the time that the client was managed or CurrentTime when unknown
-  *
-  * The client has just become managed, so try to associated it with a startup
-  * notfication sequence if it has not already been associated.  If the client
-  * can be associated with a startup notification sequence, then terminate the
-  * sequence when it has WMCLASS set, or when SILENT is set (indicating no
-  * startup notification is pending).  Otherwise, wait for the sequence to
-  * complete on its own.
-  *
-  * If we cannot associated a sequence at this point, the launcher may be
-  * defective and only sent the startup notification after the client has
-  * already launched, so leave the client around for later checks.  We can
-  * compare the map_time of the client to the timestamp of a later startup
-  * notification to determine whether the startup notification should have been
-  * sent before the client mapped.
-  */
-static void
-managed_client(Client *c, Time t)
-{
-	Sequence *seq = NULL;
-
-	c->managed = True;
-	pulltime(&c->map_time, t ? : c->last_time);
-	if (!(seq = c->seq) && !(seq = find_startup_seq(c)))
-		return;
-	switch (seq->state) {
-	case StartupNotifyIdle:
-	case StartupNotifyComplete:
-		break;
-	case StartupNotifyNew:
-	case StartupNotifyChanged:
-		if (!seq->f.wmclass && !seq->n.silent)
-			/* We are expecting that the client will generate startup
-			   notification completion on its own, so let the timers run and
-			   wait for completion. */
-			return;
-		/* We are not expecting that the client will generate startup
-		   notification completion on its own.  Either we generate the completion 
-		   or wait for a supporting window manager to do so. */
-		/* FIXME: send startup notification complete */
-		break;
-	}
-	/* FIXME: we can remove the startup notification and the client, but perhaps we
-	   will just wait for the client to be unmanaged or destroyed. */
-}
-
-static void
-unmanaged_client(Client *c)
-{
-	c->managed = False;
-	/* FIXME: we can remove the client and any associated startup notification. */
-}
-
 static Client *
 add_client(Window win)
 {
@@ -1977,6 +1939,453 @@ del_client(Client *r)
 	if (c == r)
 		*cp = c->next;
 	remove_client(r);
+}
+
+/** @brief update client from startup notification sequence
+  * @param seq - the sequence that has changed state
+  *
+  * Update the client associated with a startup notification sequence.
+  */
+static void
+update_startup_client(Sequence *seq)
+{
+	Client *c;
+
+	if (!(c = seq->client))
+		/* Note that we do not want to go searching for clients because any
+		   client that we would find at this point could get a false positive
+		   against an client that existed before the startup notification
+		   sequence.  We could use creation timestamps to filter out the false
+		   positives, but that is for later. */
+		return;
+	/* TODO: things to update are: _NET_WM_PID, WM_CLIENT_MACHINE, ...  Note that
+	   _NET_WM_STARTUP_ID should already be set. */
+}
+
+static void
+convert_sequence_fields(Sequence *seq)
+{
+	if (seq->f.screen)
+		seq->n.screen = atoi(seq->f.screen);
+	if (seq->f.monitor)
+		seq->n.monitor = atoi(seq->f.monitor);
+	if (seq->f.desktop)
+		seq->n.desktop = atoi(seq->f.desktop);
+	if (seq->f.timestamp)
+		seq->n.timestamp = atoi(seq->f.timestamp);
+	if (seq->f.silent)
+		seq->n.silent = atoi(seq->f.silent);
+	if (seq->f.pid)
+		seq->n.pid = atoi(seq->f.pid);
+	if (seq->f.sequence)
+		seq->n.sequence = atoi(seq->f.sequence);
+}
+
+static void
+free_sequence_fields(Sequence *seq)
+{
+	int i;
+
+	for (i = 0; i < sizeof(seq->f) / sizeof(char *); i++) {
+		free(seq->fields[i]);
+		seq->fields[i] = NULL;
+	}
+}
+
+static void
+copy_sequence_fields(Sequence *old, Sequence *new)
+{
+	int i;
+
+	for (i = 0; i < sizeof(old->f) / sizeof(char *); i++) {
+		if (new->fields[i]) {
+			free(old->fields[i]);
+			old->fields[i] = new->fields[i];
+		}
+	}
+	convert_sequence_fields(old);
+}
+
+static Sequence *
+find_seq_by_id(char *id)
+{
+	Sequence *seq;
+
+	for (seq = scr->sequences; seq; seq = seq->next)
+		if (!strcmp(seq->f.id, id))
+			break;
+	return (seq);
+}
+
+static void
+add_sequence(Sequence *seq)
+{
+	seq->refs = 1;
+	seq->client = NULL;
+	seq->next = scr->sequences;
+	scr->sequences = seq;
+}
+
+static Sequence *
+unref_sequence(Sequence *seq)
+{
+	if (seq) {
+		if (--seq->refs <= 0) {
+			Sequence *s, **prev;
+
+			for (prev = &scr->sequences, s = *prev; s && s != seq;
+			     prev = &s->next, s = *prev) ;
+			if (s) {
+				*prev = s->next;
+				s->next = NULL;
+			}
+			free_sequence_fields(seq);
+			free(seq);
+			return (NULL);
+		}
+	}
+	return (seq);
+}
+
+static Sequence *
+ref_sequence(Sequence *seq)
+{
+	if (seq)
+		++seq->refs;
+	return (seq);
+}
+
+static Sequence *
+remove_sequence(Sequence *del)
+{
+	Sequence *seq, **prev;
+
+	for (prev = &scr->sequences, seq = *prev; seq && seq != del;
+	     prev = &seq->next, seq = *prev) ;
+	if (seq) {
+		*prev = seq->next;
+		seq->next = NULL;
+		unref_sequence(seq);
+	} else
+		EPRINTF("could not find sequence\n");
+	return (seq);
+}
+
+static void
+process_startup_msg(Message *m)
+{
+	Sequence cmd = { NULL, }, *seq;
+	char *p = m->data, *k, *v, *q, *copy, *b;
+	const char **f;
+	int i;
+	int escaped, quoted;
+
+	if (!strncmp(p, "new:", 4)) {
+		cmd.state = StartupNotifyNew;
+	} else if (!strncmp(p, "change:", 7)) {
+		cmd.state = StartupNotifyChanged;
+	} else if (!strncmp(p, "remove:", 7)) {
+		cmd.state = StartupNotifyComplete;
+	} else {
+		free(m->data);
+		free(m);
+		return;
+	}
+	p = strchr(p, ':') + 1;
+	while (*p != '\0') {
+		while (*p == ' ')
+			p++;
+		k = p;
+		if (!(v = strchr(k, '='))) {
+			free_sequence_fields(&cmd);
+			DPRINTF("mangled message\n");
+			return;
+		} else {
+			*v++ = '\0';
+			p = q = v;
+			escaped = quoted = 0;
+			for (;;) {
+				if (!escaped) {
+					if (*p == '"') {
+						p++;
+						quoted ^= 1;
+						continue;
+					} else if (*p == '\\') {
+						p++;
+						escaped = 1;
+						continue;
+					} else if (*p == '\0' || (*p == ' ' && !quoted)) {
+						if (quoted) {
+							free_sequence_fields(&cmd);
+							DPRINTF("mangled message\n");
+							return;
+						}
+						if (*p == ' ')
+							p++;
+						*q = '\0';
+						break;
+					}
+				}
+				*q++ = *p++;
+				escaped = 0;
+			}
+			for (i = 0, f = StartupNotifyFields; f[i] != NULL; i++)
+				if (strcmp(f[i], k) == 0)
+					break;
+			if (f[i] != NULL)
+				cmd.fields[i] = strdup(v);
+		}
+	}
+	free(m->data);
+	free(m);
+	if (!cmd.f.id) {
+		free_sequence_fields(&cmd);
+		DPRINTF("message with no ID= field\n");
+		return;
+	}
+	/* get information from ID */
+	do {
+		p = q = copy = strdup(cmd.f.id);
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!cmd.f.launcher)
+			cmd.f.launcher = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!cmd.f.launchee)
+			cmd.f.launchee = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.pid)
+			cmd.f.pid = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.sequence)
+			cmd.f.sequence = strdup(q);
+		q = p;
+		if (!(p = strstr(q, "_TIME")))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.hostname)
+			cmd.f.hostname = strdup(q);
+		q = p + 4;
+		if (!cmd.f.timestamp)
+			cmd.f.timestamp = strdup(q);
+	} while (0);
+	free(copy);
+	/* get timestamp from ID if necessary */
+	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
+		cmd.f.timestamp = strdup(p + 5);
+	convert_sequence_fields(&cmd);
+	if (!(seq = find_seq_by_id(cmd.f.id))) {
+		if (cmd.state != StartupNotifyNew) {
+			free_sequence_fields(&cmd);
+			DPRINTF("message out of sequence\n");
+			return;
+		}
+		if (!(seq = calloc(1, sizeof(*seq)))) {
+			free_sequence_fields(&cmd);
+			DPRINTF("no memory\n");
+			return;
+		}
+		*seq = cmd;
+		add_sequence(seq);
+		return;
+	}
+	switch (seq->state) {
+	case StartupNotifyIdle:
+		switch (cmd.state) {
+		case StartupNotifyIdle:
+			DPRINTF("message state error\n");
+			return;
+		case StartupNotifyComplete:
+			seq->state = StartupNotifyComplete;
+			/* remove sequence */
+			break;
+		case StartupNotifyNew:
+			seq->state = StartupNotifyNew;
+			copy_sequence_fields(seq, &cmd);
+			if (seq->client)
+				update_startup_client(seq);
+			return;
+		case StartupNotifyChanged:
+			seq->state = StartupNotifyChanged;
+			copy_sequence_fields(seq, &cmd);
+			if (seq->client)
+				update_startup_client(seq);
+			return;
+		}
+		break;
+	case StartupNotifyNew:
+		switch (cmd.state) {
+		case StartupNotifyIdle:
+			DPRINTF("message state error\n");
+			return;
+		case StartupNotifyComplete:
+			seq->state = StartupNotifyComplete;
+			/* remove sequence */
+			break;
+		case StartupNotifyNew:
+		case StartupNotifyChanged:
+			seq->state = StartupNotifyChanged;
+			copy_sequence_fields(seq, &cmd);
+			if (seq->client)
+				update_startup_client(seq);
+			return;
+		}
+		break;
+	case StartupNotifyChanged:
+		switch (cmd.state) {
+		case StartupNotifyIdle:
+			DPRINTF("message state error\n");
+			return;
+		case StartupNotifyComplete:
+			seq->state = StartupNotifyComplete;
+			/* remove sequence */
+			break;
+		case StartupNotifyNew:
+		case StartupNotifyChanged:
+			seq->state = StartupNotifyChanged;
+			copy_sequence_fields(seq, &cmd);
+			if (seq->client)
+				update_startup_client(seq);
+			return;
+		}
+		break;
+	case StartupNotifyComplete:
+		/* remove sequence */
+		break;
+	}
+	/* remove sequence */
+	remove_sequence(seq);
+}
+
+static void
+handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
+{
+	Window from;
+	Message *m = NULL;
+	int len;
+
+	if (!e || e->type != ClientMessage)
+		return;
+	from = e->xclient.window;
+	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
+		m = calloc(1, sizeof(*m));
+		XSaveContext(dpy, from, MessageContext, (XPointer) m);
+	}
+	free(m->data);
+	m->origin = from;
+	m->data = calloc(21, sizeof(*m->data));
+	m->len = 0;
+	/* unpack data */
+	len = strnlen(e->xclient.data.b, 20);
+	strncat(m->data, e->xclient.data.b, 20);
+	if (len < 20) {
+		XDeleteContext(dpy, from, MessageContext);
+		process_startup_msg(m);
+	}
+}
+
+static void
+handle_NET_STARTUP_INFO(XEvent *e, Client *c)
+{
+	Window from;
+	Message *m = NULL;
+	int len;
+
+	if (!e || e->type != ClientMessage)
+		return;
+	from = e->xclient.window;
+	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
+		return;
+	m->data = realloc(m->data, m->len + 21);
+	/* unpack data */
+	len = strnlen(e->xclient.data.b, 20);
+	strncat(m->data, e->xclient.data.b, 20);
+	if (len < 20) {
+		XDeleteContext(dpy, from, MessageContext);
+		process_startup_msg(m);
+	}
+}
+
+void
+clean_msgs(Window w)
+{
+	Message *m = NULL;
+
+	if (XFindContext(dpy, w, MessageContext, (XPointer *) &m))
+		return;
+
+	XDeleteContext(dpy, w, MessageContext);
+	free(m->data);
+	free(m);
+}
+
+/** @brief perform actions necessary for a newly managed client
+  * @param c - the client
+  * @param t - the time that the client was managed or CurrentTime when unknown
+  *
+  * The client has just become managed, so try to associated it with a startup
+  * notfication sequence if it has not already been associated.  If the client
+  * can be associated with a startup notification sequence, then terminate the
+  * sequence when it has WMCLASS set, or when SILENT is set (indicating no
+  * startup notification is pending).  Otherwise, wait for the sequence to
+  * complete on its own.
+  *
+  * If we cannot associated a sequence at this point, the launcher may be
+  * defective and only sent the startup notification after the client has
+  * already launched, so leave the client around for later checks.  We can
+  * compare the map_time of the client to the timestamp of a later startup
+  * notification to determine whether the startup notification should have been
+  * sent before the client mapped.
+  */
+static void
+managed_client(Client *c, Time t)
+{
+	Sequence *seq = NULL;
+
+	c->managed = True;
+	pulltime(&c->map_time, t ? : c->last_time);
+	if (!(seq = c->seq) && !(seq = find_startup_seq(c)))
+		return;
+	switch (seq->state) {
+	case StartupNotifyIdle:
+	case StartupNotifyComplete:
+		break;
+	case StartupNotifyNew:
+	case StartupNotifyChanged:
+		if (!seq->f.wmclass && !seq->n.silent)
+			/* We are expecting that the client will generate startup
+			   notification completion on its own, so let the timers run and
+			   wait for completion. */
+			return;
+		/* We are not expecting that the client will generate startup
+		   notification completion on its own.  Either we generate the completion 
+		   or wait for a supporting window manager to do so. */
+		send_remove(seq);
+		break;
+	}
+	/* FIXME: we can remove the startup notification and the client, but perhaps we
+	   will just wait for the client to be unmanaged or destroyed. */
+}
+
+static void
+unmanaged_client(Client *c)
+{
+	c->managed = False;
+	/* FIXME: we can remove the client and any associated startup notification. */
 }
 
 static void
@@ -2395,9 +2804,8 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 static void
 handle_NET_WM_USER_TIME(XEvent *e, Client *c)
 {
-	if (c
-	    && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
-		push_time(&last_user_time, c->user_time);
+	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
+		pushtime(&last_user_time, c->user_time);
 }
 
 static void
@@ -2463,398 +2871,6 @@ handle_MANAGER(XEvent *e, Client *c)
 		DPRINTF("system tray removed from 0x%08lx\n", scr->tray);
 		scr->tray = None;
 	}
-}
-
-/** @brief update client from startup notification sequence
-  * @param seq - the sequence that has changed state
-  *
-  * Update the client associated with a startup notification sequence.
-  */
-static void
-update_startup_client(Sequence *seq)
-{
-	Client *c;
-
-	if (!(c = seq->client))
-		/* Note that we do not want to go searching for clients because any
-		   client that we would find at this point could get a false positive
-		   against an client that existed before the startup notification
-		   sequence.  We could use creation timestamps to filter out the false
-		   positives, but that is for later. */
-		return;
-	/* TODO: things to update are: _NET_WM_PID, WM_CLIENT_MACHINE, ...  Note that
-	   _NET_WM_STARTUP_ID should already be set. */
-}
-
-static void
-convert_sequence_fields(Sequence *seq)
-{
-	if (seq->f.screen)
-		seq->n.screen = atoi(seq->f.screen);
-	if (seq->f.monitor)
-		seq->n.monitor = atoi(seq->f.monitor);
-	if (seq->f.desktop)
-		seq->n.desktop = atoi(seq->f.desktop);
-	if (seq->f.timestamp)
-		seq->n.timestamp = atoi(seq->f.timestamp);
-	if (seq->f.silent)
-		seq->n.silent = atoi(seq->f.silent);
-	if (seq->f.pid)
-		seq->n.pid = atoi(seq->f.pid);
-	if (seq->f.sequence)
-		seq->n.sequence = atoi(seq->f.sequence);
-}
-
-static void
-free_sequence_fields(Sequence *seq)
-{
-	int i;
-
-	for (i = 0; i < sizeof(seq->f) / sizeof(char *); i++) {
-		free(seq->fields[i]);
-		seq->fields[i] = NULL;
-	}
-}
-
-static void
-copy_sequence_fields(Sequence *old, Sequence *new)
-{
-	int i;
-
-	for (i = 0; i < sizeof(old->f) / sizeof(char *); i++) {
-		if (new->fields[i]) {
-			free(old->fields[i]);
-			old->fields[i] = new->fields[i];
-		}
-	}
-	convert_sequence_fields(old);
-}
-
-static Sequence *
-find_seq_by_id(char *id)
-{
-	Sequence *seq;
-
-	for (seq = scr->sequences; seq; seq = seq->next)
-		if (!strcmp(seq->f.id, id))
-			break;
-	return (seq);
-}
-
-static void
-add_sequence(Sequence *seq)
-{
-	seq->refs = 1;
-	seq->client = NULL;
-	seq->next = scr->sequences;
-	scr->sequences = seq;
-}
-
-static Sequence *
-unref_sequence(Sequence *seq)
-{
-	if (seq) {
-		if (--seq->refs <= 0) {
-			Sequence *s, **prev;
-
-			for (prev = &scr->sequences, s = *prev; s && s != seq;
-			     prev = &s->next, s = *prev) ;
-			if (s) {
-				*prev = s->next;
-				s->next = NULL;
-			}
-			free_sequence_fields(seq);
-			free(seq);
-			return (NULL);
-		}
-	}
-	return (seq);
-}
-
-static Sequence *
-ref_sequence(Sequence *seq)
-{
-	if (seq)
-		++seq->refs;
-	return (seq);
-}
-
-static Sequence *
-remove_sequence(Sequence *del)
-{
-	Sequence *seq, **prev;
-
-	for (prev = &scr->sequences, seq = *prev; seq && seq != del;
-	     prev = &seq->next, seq = *prev) ;
-	if (seq) {
-		*prev = seq->next;
-		seq->next = NULL;
-		unref_sequence(seq);
-	} else
-		EPRINTF("could not find sequence\n");
-	return (seq);
-}
-
-static void
-process_startup_msg(Message *m)
-{
-	Sequence cmd = { NULL, }, *seq;
-	char *p = m->data, *k, *v, *q, *copy, *b;
-	const char **f;
-	int i;
-	int escaped, quoted;
-
-	if (!strncmp(p, "new:", 4)) {
-		cmd.state = StartupNotifyNew;
-	} else if (!strncmp(p, "change:", 7)) {
-		cmd.state = StartupNotifyChanged;
-	} else if (!strncmp(p, "remove:", 7)) {
-		cmd.state = StartupNotifyComplete;
-	} else {
-		free(m->data);
-		free(m);
-		return;
-	}
-	p = strchr(p, ':') + 1;
-	while (*p != '\0') {
-		while (*p == ' ')
-			p++;
-		k = p;
-		if (!(v = strchr(k, '='))) {
-			free_sequence_fields(&cmd);
-			DPRINTF("mangled message\n");
-			return;
-		} else {
-			*v++ = '\0';
-			p = q = v;
-			escaped = quoted = 0;
-			for (;;) {
-				if (!escaped) {
-					if (*p == '"') {
-						p++;
-						quoted ^= 1;
-						continue;
-					} else if (*p == '\\') {
-						p++;
-						escaped = 1;
-						continue;
-					} else if (*p == '\0' || (*p == ' ' && !quoted)) {
-						if (quoted) {
-							free_sequence_fields(&cmd);
-							DPRINTF("mangled message\n");
-							return;
-						}
-						if (*p == ' ')
-							p++;
-						*q = '\0';
-						break;
-					}
-				}
-				*q++ = *p++;
-				escaped = 0;
-			}
-			for (i = 0, f = StartupNotifyFields; f[i] != NULL; i++)
-				if (strcmp(f[i], k) == 0)
-					break;
-			if (f[i] != NULL)
-				cmd.fields[i] = strdup(v);
-		}
-	}
-	free(m->data);
-	free(m);
-	if (!cmd.f.id) {
-		free_sequence_fields(&cmd);
-		DPRINTF("message with no ID= field\n");
-		return;
-	}
-	/* get information from ID */
-	do {
-		p = q = copy = strdup(cmd.f.id);
-		if (!(p = strchr(q, '/')))
-			break;
-		*p++ = '\0';
-		while ((b = strchr(q, '|')))
-			*b = '/';
-		if (!cmd.f.launcher)
-			cmd.f.launcher = strdup(q);
-		q = p;
-		if (!(p = strchr(q, '/')))
-			break;
-		*p++ = '\0';
-		while ((b = strchr(q, '|')))
-			*b = '/';
-		if (!cmd.f.launchee)
-			cmd.f.launchee = strdup(q);
-		q = p;
-		if (!(p = strchr(q, '-')))
-			break;
-		*p++ = '\0';
-		if (!cmd.f.pid)
-			cmd.f.pid = strdup(q);
-		q = p;
-		if (!(p = strchr(q, '-')))
-			break;
-		*p++ = '\0';
-		if (!cmd.f.sequence)
-			cmd.f.sequence = strdup(q);
-		q = p;
-		if (!(p = strstr(q, "_TIME")))
-			break;
-		*p++ = '\0';
-		if (!cmd.f.hostname)
-			cmd.f.hostname = strdup(q);
-		q = p + 4;
-		if (!cmd.f.timestamp)
-			cmd.f.timestamp = strdup(q);
-	} while (0);
-	free(copy);
-	/* get timestamp from ID if necessary */
-	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
-		cmd.f.timestamp = strdup(p + 5);
-	convert_sequence_fields(&cmd);
-	if (!(seq = find_seq_by_id(cmd.f.id))) {
-		if (cmd.state != StartupNotifyNew) {
-			free_sequence_fields(&cmd);
-			DPRINTF("message out of sequence\n");
-			return;
-		}
-		if (!(seq = calloc(1, sizeof(*seq)))) {
-			free_sequence_fields(&cmd);
-			DPRINTF("no memory\n");
-			return;
-		}
-		*seq = cmd;
-		add_sequence(seq);
-		return;
-	}
-	switch (seq->state) {
-	case StartupNotifyIdle:
-		switch (cmd.state) {
-		case StartupNotifyIdle:
-			DPRINTF("message state error\n");
-			return;
-		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
-			/* remove sequence */
-			break;
-		case StartupNotifyNew:
-			seq->state = StartupNotifyNew;
-			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
-			return;
-		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
-			return;
-		}
-		break;
-	case StartupNotifyNew:
-		switch (cmd.state) {
-		case StartupNotifyIdle:
-			DPRINTF("message state error\n");
-			return;
-		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
-			/* remove sequence */
-			break;
-		case StartupNotifyNew:
-		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
-			return;
-		}
-		break;
-	case StartupNotifyChanged:
-		switch (cmd.state) {
-		case StartupNotifyIdle:
-			DPRINTF("message state error\n");
-			return;
-		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
-			/* remove sequence */
-			break;
-		case StartupNotifyNew:
-		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
-			return;
-		}
-		break;
-	case StartupNotifyComplete:
-		/* remove sequence */
-		break;
-	}
-	/* remove sequence */
-	remove_sequence(seq);
-}
-
-static void
-handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
-{
-	Window from;
-	Message *m = NULL;
-	int len;
-
-	if (!e || e->type != ClientMessage)
-		return;
-	from = e->xclient.window;
-	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
-		m = calloc(1, sizeof(*m));
-		XSaveContext(dpy, from, MessageContext, (XPointer) m);
-	}
-	free(m->data);
-	m->origin = from;
-	m->data = calloc(21, sizeof(*m->data));
-	m->len = 0;
-	/* unpack data */
-	len = strnlen(e->xclient.data.b, 20);
-	strncat(m->data, e->xclient.data.b, 20);
-	if (len < 20) {
-		XDeleteContext(dpy, from, MessageContext);
-		process_startup_msg(m);
-	}
-}
-
-static void
-handle_NET_STARTUP_INFO(XEvent *e, Client *c)
-{
-	Window from;
-	Message *m = NULL;
-	int len;
-
-	if (!e || e->type != ClientMessage)
-		return;
-	from = e->xclient.window;
-	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
-		return;
-	m->data = realloc(m->data, m->len + 21);
-	/* unpack data */
-	len = strnlen(e->xclient.data.b, 20);
-	strncat(m->data, e->xclient.data.b, 20);
-	if (len < 20) {
-		XDeleteContext(dpy, from, MessageContext);
-		process_startup_msg(m);
-	}
-}
-
-void
-clean_msgs(Window w)
-{
-	Message *m = NULL;
-
-	if (XFindContext(dpy, w, MessageContext, (XPointer *) &m))
-		return;
-
-	XDeleteContext(dpy, w, MessageContext);
-	free(m->data);
-	free(m);
 }
 
 void
@@ -3322,11 +3338,11 @@ create_notification(Sequence *seq)
 void
 setup_to_monitor()
 {
+#if 0
 	handle_NET_CLIENT_LIST(NULL, NULL);
 	handle_WIN_CLIENT_LIST(NULL, NULL);
 	handle_NET_ACTIVE_WINDOW(NULL, NULL);
-	if (fields.timestamp)
-		push_time(&launch_time, (Time) strtoul(fields.timestamp, NULL, 0));
+#endif
 }
 
 int signum;
