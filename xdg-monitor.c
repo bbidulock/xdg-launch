@@ -271,6 +271,8 @@ struct entry entry = { NULL, };
 typedef struct {
 	int screen;			/* screen number */
 	Window root;			/* root window of screen */
+	Window owner;			/* _XDG_MONITOR_S%d selection owner (theirs) */
+	Window selwin;			/* _XDG_MONITOR_S%d selection window (ours) */
 	Window netwm_check;		/* _NET_SUPPORTING_WM_CHECK or None */
 	Window winwm_check;		/* _WIN_SUPPORTING_WM_CHECK or None */
 	Window motif_check;		/* _MOTIF_MW_INFO window or None */
@@ -280,7 +282,7 @@ typedef struct {
 	Window stray;			/* _NET_SYSTEM_TRAY_S%d owner */
 	Atom icccm_atom;		/* WM_S%d atom for this screen */
 	Atom stray_atom;		/* _NET_SYSTEM_TRAY_S%d atom this screen */
-	Atom nonce_atom;		/* _XDG_MONITOR_S%d atom this screen */
+	Atom slctn_atom;		/* _XDG_MONITOR_S%d atom this screen */
 	Client *clients;		/* clients for this screen */
 	Sequence *sequences;		/* sequences for this screen */
 } XdgScreen;
@@ -564,7 +566,7 @@ XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
 Bool
-get_display()
+init_display()
 {
 	if (!dpy) {
 		int s;
@@ -592,7 +594,7 @@ get_display()
 			snprintf(sel, sizeof(sel), "_NET_SYSTEM_TRAY_S%d", s);
 			scr->stray_atom = XInternAtom(dpy, sel, False);
 			snprintf(sel, sizeof(sel), "_XDG_MONITOR_S%d", s);
-			scr->nonce_atom = XInternAtom(dpy, sel, False);
+			scr->slctn_atom = XInternAtom(dpy, sel, False);
 		}
 		s = DefaultScreen(dpy);
 		scr = screens + s;
@@ -3593,24 +3595,6 @@ create_notification(Sequence *seq)
 
 #endif				/* DESKTOP_NOTIFICATIONS */
 
-/** @brief set up for monitoring
-  *
-  * We want to establish the client lists, dock app lists and system tray lists
-  * before we first enter the event loop (whether in daemon node or not) and
-  * then syncronize to the X server so that we do not consider window that were
-  * mapped before a startup notification as being part of a startup notification
-  * completion.
-  */
-void
-setup_to_monitor()
-{
-#if 0
-	handle_NET_CLIENT_LIST(NULL, NULL);
-	handle_WIN_CLIENT_LIST(NULL, NULL);
-	handle_NET_ACTIVE_WINDOW(NULL, NULL);
-#endif
-}
-
 int signum;
 
 void
@@ -3651,103 +3635,270 @@ on_xfd_watch(GIOChannel *chan, GIOCondition cond, gpointer data)
 }
 #endif				/* HAVE_GLIB_EVENT_LOOP */
 
-/** @brief monitor startup and assist the window manager.
-  */
-void
-do_monitor()
+static void
+main_loop()
 {
-	pid_t pid;
-
-	setup_to_monitor();
-	XSync(dpy, False);
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent returns with new connection */
-		XCloseDisplay(dpy);
-		return;
-	}
-	setsid();		/* become a session leader */
-	/* close files */
-	fclose(stdin);
-	/* fork once more for SVR4 */
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_SUCCESS);
-	} else if (pid != 0) {
-		/* parent exits */
-		exit(EXIT_SUCCESS);
-	}
-	umask(0);
-	/* continue on monitoring */
 #ifdef HAVE_GLIB_EVENT_LOOP
-	{
-		int xfd;
-		GIOChannel *chan;
-		gint mask = G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_PRI;
-		guint srce;
+	int xfd;
+	GIOChannel *chan;
+	gint mask = G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_PRI;
+	guint srce;
 
-		xfd = ConnectionNumber(dpy);
-		chan = g_io_channel_unix_new(xfd);
-		srce = g_io_add_watch(chan, mask, on_xfd_watch, NULL);
-		(void) srce;
+	xfd = ConnectionNumber(dpy);
+	chan = g_io_channel_unix_new(xfd);
+	srce = g_io_add_watch(chan, mask, on_xfd_watch, NULL);
+	(void) srce;
 
 #ifdef HAVE_GTK
-		gtk_main();
+	gtk_main();
 #else				/* HAVE_GTK */
-		{
-			GMainLoop *loop = g_main_loop_new(NULL, FALSE);
-
-			g_main_loop_run(loop);
-		}
-#endif				/* HAVE_GTK */
-	}
-#else				/* HAVE_GLIB_EVENT_LOOP */
 	{
-		int xfd;
-		XEvent ev;
+		GMainLoop *loop = g_main_loop_new(NULL, FALSE);
 
-		signal(SIGHUP, sighandler);
-		signal(SIGINT, sighandler);
-		signal(SIGTERM, sighandler);
-		signal(SIGQUIT, sighandler);
+		g_main_loop_run(loop);
+	}
+#endif				/* HAVE_GTK */
+#else				/* HAVE_GLIB_EVENT_LOOP */
+	int xfd;
+	XEvent ev;
 
-		/* main event loop */
-		running = True;
-		XSync(dpy, False);
-		xfd = ConnectionNumber(dpy);
-		while (running) {
-			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+	signal(SIGHUP, sighandler);
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+	signal(SIGQUIT, sighandler);
 
-			if (signum)
-				exit(EXIT_SUCCESS);
+	/* main event loop */
+	running = True;
+	XSync(dpy, False);
+	xfd = ConnectionNumber(dpy);
+	while (running) {
+		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 
-			if (poll(&pfd, 1, -1) == -1) {
-				switch (errno) {
-				case EINTR:
-				case EAGAIN:
-				case ERESTART:
-					continue;
-				}
-				EPRINTF("poll: %s\n", strerror(errno));
-				fflush(stderr);
-				exit(EXIT_FAILURE);
+		if (signum)
+			exit(EXIT_SUCCESS);
+
+		if (poll(&pfd, 1, -1) == -1) {
+			switch (errno) {
+			case EINTR:
+			case EAGAIN:
+			case ERESTART:
+				continue;
 			}
-			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-				EPRINTF("poll: error\n");
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-				}
+			EPRINTF("poll: %s\n", strerror(errno));
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
+			EPRINTF("poll: error\n");
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (pfd.revents & (POLLIN)) {
+			while (XPending(dpy) && running) {
+				XNextEvent(dpy, &ev);
+				handle_event(&ev);
 			}
 		}
 	}
 #endif				/* HAVE_GLIB_EVENT_LOOP */
+}
+
+/** @brief monitor startup and assist the window manager.
+  */
+static void
+do_monitor()
+{
+	if (!options.foreground) {
+		pid_t pid;
+
+		if ((pid = fork()) < 0) {
+			EPRINTF("%s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		} else if (pid != 0) {
+			/* parent exits */
+			exit(EXIT_SUCCESS);
+		}
+		setsid();		/* become a session leader */
+		/* close files */
+		fclose(stdin);
+		/* fork once more for SVR4 */
+		if ((pid = fork()) < 0) {
+			EPRINTF("%s\n", strerror(errno));
+			exit(EXIT_SUCCESS);
+		} else if (pid != 0) {
+			/* parent exits */
+			exit(EXIT_SUCCESS);
+		}
+		/* release current directory */
+		if (chdir("/") < 0) {
+			EPRINTF("chdir: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		/* clear file creation mask */
+		umask(0);
+	}
+	/* continue on monitoring */
+	main_loop();
+}
+
+static void
+announce_selection(void)
+{
+	XEvent ev;
+
+	ev.xclient.type = ClientMessage;
+	ev.xclient.serial = 0;
+	ev.xclient.send_event = False;
+	ev.xclient.display = dpy;
+	ev.xclient.window = scr->root;
+	ev.xclient.message_type = _XA_MANAGER;
+	ev.xclient.format = 32;
+	ev.xclient.data.l[0] = CurrentTime; /* FIXME */
+	ev.xclient.data.l[1] = scr->slctn_atom;
+	ev.xclient.data.l[2] = scr->selwin;
+	ev.xclient.data.l[3] = 2;
+	ev.xclient.data.l[4] = 0;
+
+	XSendEvent(dpy, scr->root, False, StructureNotifyMask, (XEvent *) &ev);
+	XSync(dpy, False);
+}
+
+static Bool
+selectionreleased(Display *d, XEvent *e, XPointer arg)
+{
+	int *n = (typeof(n)) arg;
+
+	if (e->type != DestroyNotify)
+		return False;
+	if (XFindContext(d, e->xdestroywindow.window, ScreenContext, (XPointer *) &scr))
+		return False;
+	if (!scr->owner || scr->owner != e->xdestroywindow.window)
+		return False;
+	scr->owner = None;
+	*n = *n - 1;
+	return True;
+}
+
+/** @brief run without replacing a running instance
+  *
+  * This is performed by detecting owners of the _XDG_MONITOR_S%d selection for
+  * any screen and aborting when one exists.
+  */
+static void
+do_run()
+{
+	int s;
+
+	if (!init_display())
+		exit(EXIT_FAILURE);
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		scr->selwin = XCreateSimpleWindow(dpy, scr->root,
+				DisplayWidth(dpy, s),
+				DisplayHeight(dpy, s),
+				1, 1, 0,
+				BlackPixel(dpy, s),
+				BlackPixel(dpy, s));
+		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
+
+		XGrabServer(dpy);
+		if (!(scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
+			XSetSelectionOwner(dpy, scr->slctn_atom, scr->selwin, CurrentTime);
+			XSync(dpy, False);
+		}
+		XUngrabServer(dpy);
+
+		if (scr->owner) {
+			EPRINTF("another instance is running on screen %d\n", s);
+			exit(EXIT_FAILURE);
+		}
+		announce_selection();
+	}
+	do_monitor();
+}
+
+/** @brief replace running instance with this one
+  *
+  * This is performed by detecting owners of the _XDG_MONITOR_S%d selection for
+  * each screen and setting the selection to our own window.  When the runing
+  * instance detects the selection clear event for a managed screen, it will
+  * destroy the selection window and exit when no more screens are managed.
+  */
+static void
+do_replace()
+{
+	int s, selcount = 0;
+	XEvent ev;
+
+	if (!init_display())
+		exit(EXIT_FAILURE);
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		scr->selwin = XCreateSimpleWindow(dpy, scr->root,
+				DisplayWidth(dpy, s),
+				DisplayHeight(dpy, s),
+				1, 1, 0,
+				BlackPixel(dpy, s),
+				BlackPixel(dpy, s));
+		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
+
+		XGrabServer(dpy);
+		if ((scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
+			XSelectInput(dpy, scr->owner, StructureNotifyMask);
+			XSaveContext(dpy, scr->owner, ScreenContext, (XPointer) scr);
+			selcount++;
+		}
+		XSetSelectionOwner(dpy, scr->slctn_atom, scr->selwin, CurrentTime);
+		XSync(dpy, False);
+		XUngrabServer(dpy);
+
+		if (!scr->owner)
+			announce_selection();
+	}
+	while (selcount) {
+		XIfEvent(dpy, &ev, &selectionreleased, (XPointer) &selcount);
+		announce_selection();
+	}
+	do_monitor();
+}
+
+
+/** @brief ask running instance to quit
+  *
+  * This is performed by detecting owners of the _XDG_MONITOR_S%d selection for
+  * each screen and clearing the selection to None.  When the running instance
+  * detects the selection clear event for a managed screen, it will destroy
+  * the selection window and exit when no more screens are managed.
+  */
+static void
+do_quit()
+{
+	int s, selcount = 0;
+	XEvent ev;
+
+	if (!init_display())
+		exit(EXIT_FAILURE);
+
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		XGrabServer(dpy);
+		if ((scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
+			XSelectInput(dpy, scr->owner, StructureNotifyMask);
+			XSaveContext(dpy, scr->owner, ScreenContext, (XPointer) scr);
+			XSetSelectionOwner(dpy, scr->slctn_atom, None, CurrentTime);
+			XSync(dpy, False);
+			selcount++;
+		}
+		XUngrabServer(dpy);
+	}
+	/* sure, wait for them all to destroy */
+	while (selcount)
+		XIfEvent(dpy, &ev, &selectionreleased, (XPointer) &selcount);
 }
 
 static void
@@ -4015,8 +4166,29 @@ main(int argc, char *argv[])
 	}
 	if (optind < argc)
 		goto bad_nonopt;
-	get_display();
-	do_monitor();
+	switch (options.exec_mode) {
+	case EXEC_MODE_MONITOR:
+		do_run();
+		break;
+	case EXEC_MODE_REPLACE:
+		do_replace();
+		break;
+	case EXEC_MODE_QUIT:
+		do_quit();
+		break;
+	case EXEC_MODE_HELP:
+		help(argc, argv);
+		break;
+	case EXEC_MODE_VERSION:
+		version(argc, argv);
+		break;
+	case EXEC_MODE_COPYING:
+		copying(argc, argv);
+		break;
+	default:
+		usage(argc, argv);
+		exit(EXIT_FAILURE);
+	}
 	exit(EXIT_SUCCESS);
 }
 
