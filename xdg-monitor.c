@@ -383,8 +383,11 @@ Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_STATE;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
+Atom _XA_WM_CHANGE_STATE;
 Atom _XA_WM_CLIENT_LEADER;
+Atom _XA_WM_DELETE_WINDOW;
 Atom _XA_WM_PROTOCOLS;
+Atom _XA_WM_SAVE_YOURSELF;
 Atom _XA_WM_STATE;
 Atom _XA_WM_WINDOW_ROLE;
 Atom _XA_XEMBED;
@@ -450,6 +453,7 @@ static void cm_handle_NET_WM_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_WIN_LAYER(XClientMessageEvent *, Client *);
 static void cm_handle_WIN_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_WIN_WORKSPACE(XClientMessageEvent *, Client *);
+static void cm_handle_WM_CHANGE_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_WM_PROTOCOLS(XClientMessageEvent *, Client *);
 static void cm_handle_WM_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_XEMBED(XClientMessageEvent *, Client *);
@@ -509,16 +513,19 @@ struct atoms {
 	{ "_WIN_STATE",				&_XA_WIN_STATE,			&pc_handle_WIN_STATE,			&cm_handle_WIN_STATE,			None			},
 	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&pc_handle_WIN_SUPPORTING_WM_CHECK,	NULL,					None			},
 	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		&cm_handle_WIN_WORKSPACE,		None			},
+	{ "WM_CHANGE_STATE",			&_XA_WM_CHANGE_STATE,		NULL,					&cm_handle_WM_CHANGE_STATE,		None			},
 	{ "WM_CLASS",				NULL,				&pc_handle_WM_CLASS,			NULL,					XA_WM_CLASS		},
 	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,		&pc_handle_WM_CLIENT_LEADER,		NULL,					None			},
 	{ "WM_CLIENT_MACHINE",			NULL,				&pc_handle_WM_CLIENT_MACHINE,		NULL,					XA_WM_CLIENT_MACHINE	},
 	{ "WM_COMMAND",				NULL,				&pc_handle_WM_COMMAND,			NULL,					XA_WM_COMMAND		},
+	{ "WM_DELETE_WINDOW",			&_XA_WM_DELETE_WINDOW,		NULL,					NULL,					None			},
 	{ "WM_HINTS",				NULL,				&pc_handle_WM_HINTS,			NULL,					XA_WM_HINTS		},
 	{ "WM_ICON_NAME",			NULL,				&pc_handle_WM_ICON_NAME,		NULL,					XA_WM_ICON_NAME		},
 	{ "WM_ICON_SIZE",			NULL,				&pc_handle_WM_ICON_SIZE,		NULL,					XA_WM_ICON_SIZE		},
 	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
 	{ "WM_NORMAL_HINTS",			NULL,				&pc_handle_WM_NORMAL_HINTS,		NULL,					XA_WM_NORMAL_HINTS	},
 	{ "WM_PROTOCOLS",			&_XA_WM_PROTOCOLS,		&pc_handle_WM_PROTOCOLS,		&cm_handle_WM_PROTOCOLS,		None			},
+	{ "WM_SAVE_YOURSELF",			&_XA_WM_SAVE_YOURSELF,		NULL,					NULL,					None			},
 	{ "WM_SIZE_HINTS",			NULL,				&pc_handle_WM_SIZE_HINTS,		NULL,					XA_WM_SIZE_HINTS	},
 	{ "WM_STATE",				&_XA_WM_STATE,			&pc_handle_WM_STATE,			&cm_handle_WM_STATE,			None			},
 	{ "WM_TRANSIENT_FOR",			NULL,				&pc_handle_WM_TRANSIENT_FOR,		NULL,					XA_WM_TRANSIENT_FOR	},
@@ -2889,6 +2896,11 @@ pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
 	if (!XGetClassHint(dpy, c->win, &c->ch) && c->group)
 		XGetClassHint(dpy, c->group, &c->ch);
 	c->dockapp = is_dockapp(c);
+}
+
+static void
+cm_handle_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
+{
 }
 
 static void
