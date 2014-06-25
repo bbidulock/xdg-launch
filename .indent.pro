@@ -24,6 +24,8 @@
 -ss
 -hnl
 -nbc
+-TXPropertyEvent
+-TXClientMessageEvent
 -TNotifyNotification
 -TGIOChannel
 -TGtkTooltip

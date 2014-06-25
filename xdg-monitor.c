@@ -346,7 +346,11 @@ Atom _XA_MANAGER;
 Atom _XA_MOTIF_WM_INFO;
 Atom _XA_NET_ACTIVE_WINDOW;
 Atom _XA_NET_CLIENT_LIST;
+Atom _XA_NET_CLOSE_WINDOW;
 Atom _XA_NET_CURRENT_DESKTOP;
+Atom _XA_NET_MOVERESIZE_WINDOW;
+Atom _XA_NET_REQUEST_FRAME_EXTENTS;
+Atom _XA_NET_RESTACK_WINDOW;
 Atom _XA_NET_STARTUP_ID;
 Atom _XA_NET_STARTUP_INFO;
 Atom _XA_NET_STARTUP_INFO_BEGIN;
@@ -355,6 +359,8 @@ Atom _XA_NET_SUPPORTING_WM_CHECK;
 Atom _XA_NET_VIRTUAL_ROOTS;
 Atom _XA_NET_VISIBLE_DESKTOPS;
 Atom _XA_NET_WM_ALLOWED_ACTIONS;
+Atom _XA_NET_WM_FULLSCREEN_MONITORS;
+Atom _XA_NET_WM_MOVERESIZE;
 Atom _XA_NET_WM_PID;
 Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_STATE_FOCUSED;
@@ -391,6 +397,7 @@ static void pc_handle_NET_STARTUP_ID(XPropertyEvent *, Client *);
 static void pc_handle_NET_SUPPORTED(XPropertyEvent *, Client *);
 static void pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_FULLSCREEN_MONITORS(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_PID(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_STATE(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *, Client *);
@@ -430,10 +437,20 @@ static void pc_handle_XEMBED_INFO(XPropertyEvent *, Client *);
 static void cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_MANAGER(XClientMessageEvent *, Client *);
 static void cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_CLOSE_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *, Client *);
+static void cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *, Client *);
 static void cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *, Client *);
 static void cm_handle_NET_STARTUP_INFO(XClientMessageEvent *, Client *);
 static void cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *, Client *);
 static void cm_handle_NET_WM_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_WIN_LAYER(XClientMessageEvent *, Client *);
+static void cm_handle_WIN_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_WIN_WORKSPACE(XClientMessageEvent *, Client *);
+static void cm_handle_WM_PROTOCOLS(XClientMessageEvent *, Client *);
 static void cm_handle_WM_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_XEMBED(XClientMessageEvent *, Client *);
 
@@ -455,7 +472,11 @@ struct atoms {
 	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&pc_handle_MOTIF_WM_INFO,		NULL,					None			},
 	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&pc_handle_NET_ACTIVE_WINDOW,		&cm_handle_NET_ACTIVE_WINDOW,		None			},
 	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&pc_handle_NET_CLIENT_LIST,		NULL,					None			},
+	{ "_NET_CLOSE_WINDOW",			&_XA_NET_CLOSE_WINDOW,		NULL,					&cm_handle_NET_CLOSE_WINDOW,		None			},
 	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					NULL,					None			},
+	{ "_NET_MOVERESIZE_WINDOW",		&_XA_NET_MOVERESIZE_WINDOW,	NULL,					&cm_handle_NET_MOVERESIZE_WINDOW,	None			},
+	{ "_NET_REQUEST_FRAME_EXTENTS",		&_XA_NET_REQUEST_FRAME_EXTENTS,	NULL,					&cm_handle_NET_REQUEST_FRAME_EXTENTS,	None			},
+	{ "_NET_RESTACK_WINDOW",		&_XA_NET_RESTACK_WINDOW,	NULL,					&cm_handle_NET_RESTACK_WINDOW,		None			},
 	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		&pc_handle_NET_STARTUP_ID,		NULL,					None			},
 	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	NULL,					&cm_handle_NET_STARTUP_INFO_BEGIN,	None			},
 	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		NULL,					&cm_handle_NET_STARTUP_INFO,		None			},
@@ -464,6 +485,8 @@ struct atoms {
 	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					NULL,					None			},
 	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					NULL,					None			},
 	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	&pc_handle_NET_WM_ALLOWED_ACTIONS,	&cm_handle_NET_WM_ALLOWED_ACTIONS,	None			},
+	{ "_NET_WM_FULLSCREEN_MONITORS",	&_XA_NET_WM_FULLSCREEN_MONITORS,&pc_handle_NET_WM_FULLSCREEN_MONITORS,	&cm_handle_NET_WM_FULLSCREEN_MONITORS,	None			},
+	{ "_NET_WM_MOVERESIZE",			&_XA_NET_WM_MOVERESIZE,		NULL,					&cm_handle_NET_WM_MOVERESIZE,		None			},
 	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		&pc_handle_NET_WM_PID,			NULL,					None			},
 	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					NULL,					None			},
 	{ "_NET_WM_STATE_HIDDEN",		&_XA_NET_WM_STATE_HIDDEN,	NULL,					NULL,					None			},
@@ -481,11 +504,11 @@ struct atoms {
 	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&pc_handle_WINDOWMAKER_NOTICEBOARD,	NULL,					None			},
 	{ "_WIN_FOCUS",				&_XA_WIN_FOCUS,			&pc_handle_WIN_FOCUS,			NULL,					None			},
 	{ "_WIN_HINTS",				&_XA_WIN_HINTS,			&pc_handle_WIN_HINTS,			NULL,					None			},
-	{ "_WIN_LAYER",				&_XA_WIN_LAYER,			&pc_handle_WIN_LAYER,			NULL,					None			},
+	{ "_WIN_LAYER",				&_XA_WIN_LAYER,			&pc_handle_WIN_LAYER,			&cm_handle_WIN_LAYER,			None			},
 	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&pc_handle_WIN_PROTOCOLS,		NULL,					None			},
-	{ "_WIN_STATE",				&_XA_WIN_STATE,			&pc_handle_WIN_STATE,			NULL,					None			},
+	{ "_WIN_STATE",				&_XA_WIN_STATE,			&pc_handle_WIN_STATE,			&cm_handle_WIN_STATE,			None			},
 	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&pc_handle_WIN_SUPPORTING_WM_CHECK,	NULL,					None			},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		NULL,					None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		&cm_handle_WIN_WORKSPACE,		None			},
 	{ "WM_CLASS",				NULL,				&pc_handle_WM_CLASS,			NULL,					XA_WM_CLASS		},
 	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,		&pc_handle_WM_CLIENT_LEADER,		NULL,					None			},
 	{ "WM_CLIENT_MACHINE",			NULL,				&pc_handle_WM_CLIENT_MACHINE,		NULL,					XA_WM_CLIENT_MACHINE	},
@@ -495,7 +518,7 @@ struct atoms {
 	{ "WM_ICON_SIZE",			NULL,				&pc_handle_WM_ICON_SIZE,		NULL,					XA_WM_ICON_SIZE		},
 	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
 	{ "WM_NORMAL_HINTS",			NULL,				&pc_handle_WM_NORMAL_HINTS,		NULL,					XA_WM_NORMAL_HINTS	},
-	{ "WM_PROTOCOLS",			&_XA_WM_PROTOCOLS,		&pc_handle_WM_PROTOCOLS,		NULL,					None			},
+	{ "WM_PROTOCOLS",			&_XA_WM_PROTOCOLS,		&pc_handle_WM_PROTOCOLS,		&cm_handle_WM_PROTOCOLS,		None			},
 	{ "WM_SIZE_HINTS",			NULL,				&pc_handle_WM_SIZE_HINTS,		NULL,					XA_WM_SIZE_HINTS	},
 	{ "WM_STATE",				&_XA_WM_STATE,			&pc_handle_WM_STATE,			&cm_handle_WM_STATE,			None			},
 	{ "WM_TRANSIENT_FOR",			NULL,				&pc_handle_WM_TRANSIENT_FOR,		NULL,					XA_WM_TRANSIENT_FOR	},
@@ -1122,13 +1145,13 @@ handle_wmchange()
 }
 
 static void
-pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent * e, Client *c)
+pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent *e, Client *c)
 {
 	handle_wmchange();
 }
 
 static void
-pc_handle_MOTIF_WM_INFO(XPropertyEvent * e, Client *c)
+pc_handle_MOTIF_WM_INFO(XPropertyEvent *e, Client *c)
 {
 	handle_wmchange();
 }
@@ -2445,7 +2468,7 @@ process_startup_msg(Message *m)
 }
 
 static void
-cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent * e, Client *c)
+cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *e, Client *c)
 {
 	Window from;
 	Message *m = NULL;
@@ -2472,7 +2495,7 @@ cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent * e, Client *c)
 }
 
 static void
-cm_handle_NET_STARTUP_INFO(XClientMessageEvent * e, Client *c)
+cm_handle_NET_STARTUP_INFO(XClientMessageEvent *e, Client *c)
 {
 	Window from;
 	Message *m = NULL;
@@ -2562,7 +2585,7 @@ unmanaged_client(Client *c)
 }
 
 static void
-pc_handle_CLIENT_LIST(XPropertyEvent * e, Atom atom, Atom type)
+pc_handle_CLIENT_LIST(XPropertyEvent *e, Atom atom, Atom type)
 {
 	Window *list;
 	long i, n;
@@ -2600,7 +2623,7 @@ pc_handle_CLIENT_LIST(XPropertyEvent * e, Atom atom, Atom type)
   * keep track of the last time that each client window was active.
   */
 static void
-pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent * e, Client *c)
+pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent *e, Client *c)
 {
 	Window active = None;
 
@@ -2613,50 +2636,85 @@ pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent * e, Client *c)
 }
 
 static void
-cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent * e, Client *c)
+cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_CLIENT_LIST(XPropertyEvent * e, Client *c)
+pc_handle_NET_CLIENT_LIST(XPropertyEvent *e, Client *c)
 {
 	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
 
 static void
-pc_handle_NET_STARTUP_ID(XPropertyEvent * e, Client *c)
+cm_handle_NET_CLOSE_WINDOW(XClientMessageEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_SUPPORTED(XPropertyEvent * e, Client *c)
+cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_STARTUP_ID(XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_SUPPORTED(XPropertyEvent *e, Client *c)
 {
 	handle_wmchange();
 }
 
 static void
-pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent * e, Client *c)
+pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 {
 	handle_wmchange();
 }
 
 static void
-pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent * e, Client *c)
+pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent * e, Client *c)
+cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_WM_PID(XPropertyEvent * e, Client *c)
+pc_handle_NET_WM_FULLSCREEN_MONITORS(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_WM_STATE(XPropertyEvent * e, Client *c)
+cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_WM_PID(XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 {
 	Atom *atoms = NULL;
 	long i, n;
@@ -2697,71 +2755,76 @@ pc_handle_NET_WM_STATE(XPropertyEvent * e, Client *c)
 }
 
 static void
-cm_handle_NET_WM_STATE(XClientMessageEvent * e, Client *c)
+cm_handle_NET_WM_STATE(XClientMessageEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent * e, Client *c)
+pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_WM_USER_TIME(XPropertyEvent * e, Client *c)
+pc_handle_NET_WM_USER_TIME(XPropertyEvent *e, Client *c)
 {
 	if (c && get_time(e->window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
 		pushtime(&last_user_time, c->user_time);
 }
 
 static void
-pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent * e, Client *c)
+pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent * e, Client *c)
+pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WIN_APP_STATE(XPropertyEvent * e, Client *c)
+pc_handle_WIN_APP_STATE(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WIN_CLIENT_LIST(XPropertyEvent * e, Client *c)
+pc_handle_WIN_CLIENT_LIST(XPropertyEvent *e, Client *c)
 {
 	pc_handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
 
 static void
-pc_handle_WIN_CLIENT_MOVING(XPropertyEvent * e, Client *c)
+pc_handle_WIN_CLIENT_MOVING(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WIN_FOCUS(XPropertyEvent * e, Client *c)
+pc_handle_WIN_FOCUS(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WIN_HINTS(XPropertyEvent * e, Client *c)
+pc_handle_WIN_HINTS(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WIN_LAYER(XPropertyEvent * e, Client *c)
+pc_handle_WIN_LAYER(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WIN_PROTOCOLS(XPropertyEvent * e, Client *c)
+cm_handle_WIN_LAYER(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_PROTOCOLS(XPropertyEvent *e, Client *c)
 {
 	handle_wmchange();
 }
 
 static void
-pc_handle_WIN_STATE(XPropertyEvent * e, Client *c)
+pc_handle_WIN_STATE(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -2771,18 +2834,28 @@ pc_handle_WIN_STATE(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent * e, Client *c)
+cm_handle_WIN_STATE(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 {
 	handle_wmchange();
 }
 
 static void
-pc_handle_WIN_WORKSPACE(XPropertyEvent * e, Client *c)
+pc_handle_WIN_WORKSPACE(XPropertyEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_SM_CLIENT_ID(XPropertyEvent * e, Client *c)
+cm_handle_WIN_WORKSPACE(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_SM_CLIENT_ID(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -2799,7 +2872,7 @@ pc_handle_SM_CLIENT_ID(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_CLASS(XPropertyEvent * e, Client *c)
+pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -2819,7 +2892,7 @@ pc_handle_WM_CLASS(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_CLIENT_LEADER(XPropertyEvent * e, Client *c)
+pc_handle_WM_CLIENT_LEADER(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -2830,7 +2903,7 @@ pc_handle_WM_CLIENT_LEADER(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_CLIENT_MACHINE(XPropertyEvent * e, Client *c)
+pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -2849,7 +2922,7 @@ pc_handle_WM_CLIENT_MACHINE(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_COMMAND(XPropertyEvent * e, Client *c)
+pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 {
 	int count = 0;
 
@@ -2871,7 +2944,7 @@ pc_handle_WM_COMMAND(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_HINTS(XPropertyEvent * e, Client *c)
+pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -2899,54 +2972,59 @@ pc_handle_WM_HINTS(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_ICON_NAME(XPropertyEvent * e, Client *c)
+pc_handle_WM_ICON_NAME(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
 }
 
 static void
-pc_handle_WM_ICON_SIZE(XPropertyEvent * e, Client *c)
+pc_handle_WM_ICON_SIZE(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
 }
 
 static void
-pc_handle_WM_NAME(XPropertyEvent * e, Client *c)
+pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
 }
 
 static void
-pc_handle_WM_NORMAL_HINTS(XPropertyEvent * e, Client *c)
+pc_handle_WM_NORMAL_HINTS(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
 }
 
 static void
-pc_handle_WM_PROTOCOLS(XPropertyEvent * e, Client *c)
+pc_handle_WM_PROTOCOLS(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
 }
 
 static void
-pc_handle_WM_SIZE_HINTS(XPropertyEvent * e, Client *c)
+cm_handle_WM_PROTOCOLS(XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WM_SIZE_HINTS(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
 }
 
 static void
-cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent * e, Client *c)
+cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WM_STATE(XPropertyEvent * e, Client *c)
+pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3005,12 +3083,12 @@ pc_handle_WM_STATE(XPropertyEvent * e, Client *c)
 }
 
 static void
-cm_handle_WM_STATE(XClientMessageEvent * e, Client *c)
+cm_handle_WM_STATE(XClientMessageEvent *e, Client *c)
 {
 }
 
 static void
-pc_handle_WM_TRANSIENT_FOR(XPropertyEvent * e, Client *c)
+pc_handle_WM_TRANSIENT_FOR(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3021,7 +3099,7 @@ pc_handle_WM_TRANSIENT_FOR(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_WINDOW_ROLE(XPropertyEvent * e, Client *c)
+pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3035,7 +3113,7 @@ pc_handle_WM_WINDOW_ROLE(XPropertyEvent * e, Client *c)
 }
 
 static void
-pc_handle_WM_ZOOM_HINTS(XPropertyEvent * e, Client *c)
+pc_handle_WM_ZOOM_HINTS(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3080,7 +3158,7 @@ enum {
 };
 
 static void
-pc_handle_XEMBED_INFO(XPropertyEvent * e, Client *c)
+pc_handle_XEMBED_INFO(XPropertyEvent *e, Client *c)
 {
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3111,7 +3189,7 @@ pc_handle_XEMBED_INFO(XPropertyEvent * e, Client *c)
  */
 
 static void
-cm_handle_XEMBED(XClientMessageEvent * e, Client *c)
+cm_handle_XEMBED(XClientMessageEvent *e, Client *c)
 {
 	if (!c || !e || e->type != ClientMessage)
 		return;
@@ -3166,7 +3244,7 @@ cm_handle_XEMBED(XClientMessageEvent * e, Client *c)
 }
 
 static void
-cm_handle_MANAGER(XClientMessageEvent * e, Client *c)
+cm_handle_MANAGER(XClientMessageEvent *e, Client *c)
 {
 	Window win;
 
@@ -3187,12 +3265,12 @@ cm_handle_MANAGER(XClientMessageEvent * e, Client *c)
 }
 
 static void
-pc_handle_TIMESTAMP_PROP(XPropertyEvent * e, Client *c)
+pc_handle_TIMESTAMP_PROP(XPropertyEvent *e, Client *c)
 {
 }
 
 void
-pc_handle_atom(XPropertyEvent * e, Client *c)
+pc_handle_atom(XPropertyEvent *e, Client *c)
 {
 	pc_handler_t handle = NULL;
 
@@ -3201,7 +3279,7 @@ pc_handle_atom(XPropertyEvent * e, Client *c)
 }
 
 void
-cm_handle_atom(XClientMessageEvent * e, Client *c)
+cm_handle_atom(XClientMessageEvent *e, Client *c)
 {
 	cm_handler_t handle = NULL;
 
