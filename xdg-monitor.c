@@ -334,6 +334,7 @@ struct _Client {
 	Bool breadcrumb;		/* for traversing list */
 	Bool managed;			/* managed by window manager */
 	Bool listed;			/* listed by window manager */
+	Bool assigned;			/* assigned to sequence (even seq == NULL) */
 	Bool new;			/* brand new */
 	Time active_time;		/* last time active */
 	Time focus_time;		/* last time focused */
@@ -2124,29 +2125,61 @@ add_client(Window win)
 static void
 remove_client(Client *c)
 {
-	if (c->ch.res_name)
-		XFree(c->ch.res_name);
-	if (c->ch.res_class)
-		XFree(c->ch.res_class);
-	if (c->wmh)
-		XFree(c->wmh);
-	if (c->name)
-		XFree(c->name);
-	if (c->startup_id)
+	Window *winp;
+	int i;
+
+	if (c->startup_id) {
 		XFree(c->startup_id);
-	if (c->command)
+		c->startup_id = NULL;
+	}
+	if (c->command) {
 		XFreeStringList(c->command);
-	if (c->hostname)
+		c->command = NULL;
+	}
+	if (c->name) {
+		XFree(c->name);
+		c->name = NULL;
+	}
+	if (c->hostname) {
 		XFree(c->hostname);
-	if (c->role)
+		c->hostname = NULL;
+	}
+	if (c->client_id) {
+		XFree(c->client_id);
+		c->client_id = NULL;
+	}
+	if (c->role) {
 		XFree(c->role);
-	XDeleteContext(dpy, c->win, ClientContext);
-	if (c->time_win)
-		XDeleteContext(dpy, c->time_win, ClientContext);
-	if (c->wms)
+		c->role = NULL;
+	}
+	if (c->ch.res_name) {
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (c->wmh) {
+		XFree(c->wmh);
+		c->wmh = NULL;
+	}
+	if (c->wms) {
 		XFree(c->wms);
-	if (c->xei)
+		c->wms = NULL;
+	}
+	if (c->xei) {
 		XFree(c->xei);
+		c->xei = NULL;
+	}
+	for (i = 0, winp = &c->win; i < 5; i++, winp++) {
+		if (*winp) {
+			XDeleteContext(dpy, *winp, ScreenContext);
+			XDeleteContext(dpy, *winp, ClientContext);
+			XSelectInput(dpy, *winp, NoEventMask);
+			*winp = None;
+		}
+	}
 	free(c);
 }
 
