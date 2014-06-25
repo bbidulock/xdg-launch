@@ -2152,7 +2152,7 @@ send_msg(char *msg)
 	Window from;
 	char *p;
 
-	DPRINTF("Message is: '%s'\n", msg);
+	DPRINTF("Message to 0x%lx is: '%s'\n", root, msg);
 
 	from =
 	    XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
@@ -2169,10 +2169,15 @@ send_msg(char *msg)
 		strncpy(xev.xclient.data.b, p, 20);
 		p += 20;
 		l -= 20;
-		XSendEvent(dpy, root, False, PropertyChangeMask, &xev);
+		/* just PropertyChange mask in the spec doesn't work :( */
+		if (!XSendEvent(dpy, root, False, StructureNotifyMask |
+				SubstructureNotifyMask | SubstructureRedirectMask |
+				PropertyChangeMask, &xev))
+			EPRINTF("XSendEvent: failed!\n");
 		xev.xclient.message_type = _XA_NET_STARTUP_INFO;
 	}
 
+	XSync(dpy, False);
 	XDestroyWindow(dpy, from);
 }
 
@@ -3141,10 +3146,11 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	free(m->data);
 	m->origin = from;
 	m->data = calloc(21, sizeof(*m->data));
-	m->len = 0;
+	m->len  = 0;
 	/* unpack data */
 	len = strnlen(e->xclient.data.b, 20);
 	strncat(m->data, e->xclient.data.b, 20);
+	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
@@ -3167,6 +3173,7 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 	/* unpack data */
 	len = strnlen(e->xclient.data.b, 20);
 	strncat(m->data, e->xclient.data.b, 20);
+	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
