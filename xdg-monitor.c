@@ -2300,6 +2300,10 @@ remove_sequence(Sequence *del)
 	return (seq);
 }
 
+#ifdef DESKTOP_NOTIFICATIONS
+static NotifyNotification *create_notification(Sequence *seq);
+#endif				/* DESKTOP_NOTIFICATIONS */
+
 #ifdef HAVE_GLIB_EVENT_LOOP
 
 static gboolean
@@ -2307,13 +2311,14 @@ sequence_timeout_callback(gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
 
+	if (seq->state == StartupNotifyComplete) {
+		remove_sequence(seq);
+		return FALSE;	/* stop timeout interval */
+	}
+#ifdef DESKTOP_NOTIFICATIONS
+	create_notification(seq);
+#endif				/* DESKTOP_NOTIFICATIONS */
 	return TRUE;		/* continue timeout interval */
-}
-
-static void
-sequence_timeout_released(gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
 }
 
 #endif				/* HAVE_GLIB_EVENT_LOOP */
@@ -2327,9 +2332,12 @@ static GtkStatusIcon *create_statusicon(Sequence *seq);
 /** @brief add a new startup notification sequence to list for screen
   *
   * When a startup notification sequence is added, it is because we have
-  * received a 'new:' message.  What we want to do is to generate a status icon
-  * at this point that will be updated and removed as the startup notification
-  * sequence is changed or completed.
+  * received a 'new:' or 'remove:' message.  What we want to do is to generate a
+  * status icon at this point that will be updated and removed as the startup
+  * notification sequence is changed or completed.  We add StartupNotifyComplete
+  * sequences that start with a 'remove:' message in case the 'new:' message is
+  * late.  We always add a guard timer so that the StartupNotifyComplete
+  * sequence will always be removed at some point.
   */
 static void
 add_sequence(Sequence *seq)
@@ -2338,14 +2346,14 @@ add_sequence(Sequence *seq)
 	seq->client = NULL;
 	seq->next = scr->sequences;
 	scr->sequences = seq;
+	if (seq->state == StartupNotifyNew) {
 #ifdef SYSTEM_TRAY_STATUS_ICON
-	create_statusicon(seq);
+		create_statusicon(seq);
 #endif				/* SYSTEM_TRAY_STATUS_ICON */
+	}
 #ifdef HAVE_GLIB_EVENT_LOOP
 	seq->timer =
-	    g_timeout_add_full(G_PRIORITY_DEFAULT, options.guardtime,
-			       sequence_timeout_callback, (gpointer) ref_sequence(seq),
-			       sequence_timeout_released);
+	    g_timeout_add(options.guardtime, sequence_timeout_callback, (gpointer) seq);
 #endif				/* HAVE_GLIB_EVENT_LOOP */
 }
 
@@ -2467,10 +2475,14 @@ process_startup_msg(Message *m)
 		cmd.f.timestamp = strdup(p + 5);
 	convert_sequence_fields(&cmd);
 	if (!(seq = find_seq_by_id(cmd.f.id))) {
-		if (cmd.state != StartupNotifyNew) {
+		switch (cmd.state) {
+		default:
 			free_sequence_fields(&cmd);
 			DPRINTF("message out of sequence\n");
 			return;
+		case StartupNotifyNew:
+		case StartupNotifyComplete:
+			break;
 		}
 		if (!(seq = calloc(1, sizeof(*seq)))) {
 			free_sequence_fields(&cmd);
@@ -3926,7 +3938,7 @@ seq_can_kill(Sequence *seq)
   * XKill'ed), or continue waiting.  The secnod action is to continue waiting
   * and is the default if the desktop notification times out.
   */
-NotifyNotification *
+static NotifyNotification *
 create_notification(Sequence *seq)
 {
 	NotifyNotification *notify;
