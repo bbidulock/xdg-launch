@@ -320,6 +320,7 @@ struct _Client {
 	Bool statusicon;		/* client is a status icon */
 	Bool breadcrumb;		/* for traversing list */
 	Bool managed;			/* managed by window manager */
+	Bool listed;			/* listed by window manager */
 	Bool new;			/* brand new */
 	Time active_time;		/* last time active */
 	Time focus_time;		/* last time focused */
@@ -346,6 +347,7 @@ Atom _XA_MANAGER;
 Atom _XA_MOTIF_WM_INFO;
 Atom _XA_NET_ACTIVE_WINDOW;
 Atom _XA_NET_CLIENT_LIST;
+Atom _XA_NET_CLIENT_LIST_STACKING;
 Atom _XA_NET_CLOSE_WINDOW;
 Atom _XA_NET_CURRENT_DESKTOP;
 Atom _XA_NET_MOVERESIZE_WINDOW;
@@ -396,6 +398,7 @@ Atom _XA_XEMBED_INFO;
 static void pc_handle_MOTIF_WM_INFO(XPropertyEvent *, Client *);
 static void pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent *, Client *);
 static void pc_handle_NET_CLIENT_LIST(XPropertyEvent *, Client *);
+static void pc_handle_NET_CLIENT_LIST_STACKING(XPropertyEvent *, Client *);
 static void pc_handle_NET_STARTUP_ID(XPropertyEvent *, Client *);
 static void pc_handle_NET_SUPPORTED(XPropertyEvent *, Client *);
 static void pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *, Client *);
@@ -476,6 +479,7 @@ struct atoms {
 	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&pc_handle_MOTIF_WM_INFO,		NULL,					None			},
 	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&pc_handle_NET_ACTIVE_WINDOW,		&cm_handle_NET_ACTIVE_WINDOW,		None			},
 	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&pc_handle_NET_CLIENT_LIST,		NULL,					None			},
+	{ "_NET_CLIENT_LIST_STACKING",		&_XA_NET_CLIENT_LIST_STACKING,	&pc_handle_NET_CLIENT_LIST_STACKING,	NULL,					None			},
 	{ "_NET_CLOSE_WINDOW",			&_XA_NET_CLOSE_WINDOW,		NULL,					&cm_handle_NET_CLOSE_WINDOW,		None			},
 	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					NULL,					None			},
 	{ "_NET_MOVERESIZE_WINDOW",		&_XA_NET_MOVERESIZE_WINDOW,	NULL,					&cm_handle_NET_MOVERESIZE_WINDOW,	None			},
@@ -2591,31 +2595,40 @@ unmanaged_client(Client *c)
 	/* FIXME: we can remove the client and any associated startup notification. */
 }
 
+/** @brief handle a client list of windows
+  * @param e - PropertyNotify event that trigger the change
+  * @param atom - the client list atom
+  * @param type - the type of the list (XA_WINDOW or XA_CARDINAL)
+  *
+  * Process a changed client list.  Basically any client window that is on this
+  * list is managed if it was not previously managed.  Also, any client that was
+  * previously on the list is no longer managed when it does not appear on the
+  * list any more (unless it is a dockapp or a statusicon).
+  */
 static void
 pc_handle_CLIENT_LIST(XPropertyEvent *e, Atom atom, Atom type)
 {
 	Window *list;
 	long i, n;
-	Client *c, **cp;
+	Client *c, *cn;
 
 	if ((list = get_windows(scr->root, atom, type, &n))) {
 		for (c = scr->clients; c;
 		     c->breadcrumb = False, c->new = False, c = c->next) ;
-		for (i = 0, c = NULL; i < n; c = NULL, i++) {
-			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) !=
-			    Success)
-				c = add_client(list[i]);
-			c->breadcrumb = True;
+		for (i = 0; i < n; i++) {
+			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) ==
+			    Success) {
+				c->breadcrumb = True;
+				c->listed = True;
+				managed_client(c, e->time);
+			}
 		}
 		XFree(list);
-		for (cp = &scr->clients, c = *cp; c;) {
-			if (!c->breadcrumb) {
-				*cp = c->next;
-				remove_client(c);
-				c = *cp;
-			} else {
-				cp = &c->next;
-				c = *cp;
+		for (cn = scr->clients; (c = cn);) {
+			cn = c->next;
+			if (!c->breadcrumb && c->listed) {
+				c->listed = False;
+				unmanaged_client(c);
 			}
 		}
 	}
@@ -2634,43 +2647,86 @@ pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent *e, Client *c)
 {
 	Window active = None;
 
+	if (c || !e || e->window != scr->root || e->state == PropertyDelete)
+		return;
 	if (get_window(scr->root, _XA_NET_ACTIVE_WINDOW, XA_WINDOW, &active) && active) {
-		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c) != Success)
-			c = add_client(active);
-		if (e)
-			c->active_time = e->time;
+		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c) == Success) {
+			pushtime(&c->active_time, e->time);
+			managed_client(c, e->time);
+		}
 	}
 }
 
 static void
 cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *e, Client *c)
 {
+	if (!c)
+		return;
+	pushtime(&c->active_time, e->data.l[1]);
+	if (c->managed)
+		return;
+	EPRINTF("_NET_ACTIVE_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, e->data.l[1]);
 }
 
 static void
 pc_handle_NET_CLIENT_LIST(XPropertyEvent *e, Client *c)
 {
+	if (e && (e->window != scr->root || e->state == PropertyDelete))
+		return;
 	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
+}
+
+static void
+pc_handle_NET_CLIENT_LIST_STACKING(XPropertyEvent *e, Client *c)
+{
+	if (e && (e->window != scr->root || e->state == PropertyDelete))
+		return;
+	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST_STACKING, XA_WINDOW);
 }
 
 static void
 cm_handle_NET_CLOSE_WINDOW(XClientMessageEvent *e, Client *c)
 {
+	Time time;
+
+	if (!c)
+		return;
+	time = e ? e->data.l[0] : CurrentTime;
+	pushtime(&c->active_time, time);
+
+	if (c->managed)
+		return;
+	EPRINTF("_NET_CLOSE_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, time);
 }
 
 static void
 cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *e, Client *c)
 {
+	if (!c || c->managed)
+		return;
+	EPRINTF("_NET_MOVERESIZE_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
 }
 
 static void
 cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *e, Client *c)
 {
+	/* This message, unlike others, is sent before a window is initially mapped
+	   (managed). */
+	if (!c || !c->managed)
+		return;
+	EPRINTF("_NET_REQUEST_FRAME_EXTENTS for managed window 0x%lx\n", e->window);
 }
 
 static void
 cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *e, Client *c)
 {
+	if (!c || c->managed)
+		return;
+	EPRINTF("_NET_RESTACK_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
 }
 
 static void
@@ -2713,6 +2769,9 @@ cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *e, Client *c)
 static void
 cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *e, Client *c)
 {
+	if (c) {
+		managed_client(c, CurrentTime);
+	}
 }
 
 static void
@@ -2720,6 +2779,21 @@ pc_handle_NET_WM_PID(XPropertyEvent *e, Client *c)
 {
 }
 
+/** @brief handle _NET_WM_STATE property change
+  *
+  * Unlike WM_STATE, it is ok for the client to set this property before mapping
+  * a window.  After the window is mapped it must be changd with the
+  * _NET_WM_STATE client message.  There are, however, two atoms in the state:
+  * _NET_WM_STATE_HIDDEN and _NET_WM_STATE_FOCUSED, that should be treated as
+  * read-only by clients and will, therefore, only be set by the window manager.
+  * When either of these atoms are set (or removed [TODO]), we should treat the
+  * window as managed if it has not already been managed.
+  *
+  * The window manager is the only one responsible for deleting the property,
+  * and WM-SPEC-1.5 says that it should be deleted whenever a window is
+  * withdrawn but left in place when the window manager shuts down, is replaced,
+  * or restarts.
+  */
 static void
 pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 {
@@ -2728,19 +2802,8 @@ pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 
 	if (!c)
 		return;
-	if (e) {
-		if (e->type == ClientMessage) {
-			/* Basically a client message is a client request to alter state
-			   while the window is mapped, so mark window managed if it is
-			   not already. */
-			if (!c->managed)
-				managed_client(c, CurrentTime);
-			return;
-		}
-		if (e->type != PropertyNotify)
-			return;
-	}
 	if (e && e->state == PropertyDelete) {
+		/* only removed by window manager when window withdrawn */
 		unmanaged_client(c);
 		return;
 	}
@@ -2761,31 +2824,102 @@ pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 	}
 }
 
+/** @brief handle _NET_WM_STATE client message
+  *
+  * If the client sends _NET_WM_STATE client messages, the client thinks that
+  * the window is managed by the window manager because otherwise it would
+  * simply set the property itself.  Therefore, this client message indicates
+  * that the window should be managed if it has not already.
+  *
+  * Basically a client message is a client request to alter state while the
+  * window is mapped, so mark window managed if it is not already.
+  */
 static void
 cm_handle_NET_WM_STATE(XClientMessageEvent *e, Client *c)
 {
+	if (!c || c->managed)
+		return;
+	EPRINTF("_NET_WM_STATE sent for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
 }
 
 static void
 pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *e, Client *c)
 {
+	if (!c)
+		return;
+	c->time_win = None;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
+	    && c->time_win) {
+		Time time;
+
+		XSaveContext(dpy, c->time_win, ScreenContext, (XPointer) scr);
+		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
+
+		if (get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time)) {
+			pushtime(&c->user_time, time);
+			pushtime(&last_user_time, time);
+		}
+	}
+
 }
 
 static void
 pc_handle_NET_WM_USER_TIME(XPropertyEvent *e, Client *c)
 {
-	if (c && get_time(e->window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
-		pushtime(&last_user_time, c->user_time);
+	Time time;
+
+	if (!c || (e && e->state == PropertyDelete))
+		return;
+	if (get_time(e->window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time)) {
+		pushtime(&c->user_time, time);
+		pushtime(&last_user_time, time);
+	}
 }
 
+/** @brief handle _NET_WM_VISIBLE_ICON_NAME property changes
+  *
+  * Only the window manager sets this property, so it being set indicates that
+  * the window is managed.
+  */
 static void
 pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *e, Client *c)
 {
+	char *name;
+
+	if (!c || c->managed)
+		return;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(name = get_text(e->window, _XA_NET_WM_VISIBLE_ICON_NAME)))
+		return;
+	EPRINTF("_NET_WM_VISIBLE_ICON_NAME set unmanaged window 0x%lx\n", e->window);
+	managed_client(c, e ? e->time : CurrentTime);
+	XFree(name);
 }
 
+/** @brief handle _NET_WM_VISIBLE_NAME property changes
+  *
+  * Only the window manager sets this property, so it being set indicates that
+  * the window is managed.
+  */
 static void
 pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *e, Client *c)
 {
+	char *name;
+
+	if (!c || c->managed)
+		return;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(name = get_text(e->window, _XA_NET_WM_VISIBLE_NAME)))
+		return;
+	EPRINTF("_NET_WM_VISIBLE_ICON_NAME set unmanaged window 0x%lx\n", e->window);
+	managed_client(c, e ? e->time : CurrentTime);
+	XFree(name);
 }
 
 static void
@@ -2796,6 +2930,8 @@ pc_handle_WIN_APP_STATE(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_CLIENT_LIST(XPropertyEvent *e, Client *c)
 {
+	if (e && (e->window != scr->root || e->state == PropertyDelete))
+		return;
 	pc_handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
 
@@ -3303,11 +3439,11 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 /** @brief handle monitoring events
   * @param e - X event to handle
   *
-  * If the window mwnager has a client list, we can chekc for newly mapped
+  * If the window mwnager has a client list, we can check for newly mapped
   * window by additions to the client list.  We can calculate the user time by
-  * tracking _NET_WM_USER_TMIE and _NET_WM_TIME_WINDOW on all clients.  If the
-  * window manager supports _NET_WM_STATE_FOCUSED ro at least
-  * _NET_ACTIVE_WINDOW, couples with FocusIn and FocusOut events, we should be
+  * tracking _NET_WM_USER_TIME and _NET_WM_TIME_WINDOW on all clients.  If the
+  * window manager supports _NET_WM_STATE_FOCUSED or at least
+  * _NET_ACTIVE_WINDOW, coupled with FocusIn and FocusOut events, we should be
   * able to track the last focused window at the time that the app started (not
   * all apps support _NET_WM_USER_TIME).
   */
