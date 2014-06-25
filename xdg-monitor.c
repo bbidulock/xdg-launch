@@ -99,6 +99,16 @@
 #include <gtk/gtk.h>
 #endif
 
+#if defined DESKTOP_NOTIFICATIONS || defined SYSTEM_TRAY_STATUS_ICON
+#undef HAVE_GLIB_EVENT_LOOP
+#define HAVE_GLIB_EVENT_LOOP 1
+#endif
+
+#if defined SYSTEM_TRAY_STATUS_ICON
+#undef HAVE_GTK
+#define HAVE_GTK 1
+#endif
+
 #define DPRINTF(_args...) do { if (options.debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); } } while (0)
@@ -242,10 +252,13 @@ typedef struct _Sequence {
 	} n;
 #ifdef DESKTOP_NOTIFICATIONS
 	NotifyNotification *notification;
-#endif
+#endif					/* DESKTOP_NOTIFICATIONS */
 #ifdef SYSTEM_TRAY_STATUS_ICON
 	GtkStatusIcon *status;
-#endif
+#endif					/* SYSTEM_TRAY_STATUS_ICON */
+#ifdef HAVE_GLIB_EVENT_LOOP
+	gint timer;
+#endif					/* HAVE_GLIB_EVENT_LOOP */
 } Sequence;
 
 typedef struct {
@@ -1623,7 +1636,7 @@ send_remove(Sequence *seq)
   * @param pid - process id for which to get the proc file
   * @param name - name of the proc file
   * @param size - return the size of the buffer
-  * @return char * - the buffer or NULL if it does not exist or error
+  * @return char* - the buffer or NULL if it does not exist or error
   *
   * Used to get a proc file for a pid by name and read the entire file into a
   * buffer.  Returns the buffer and the size of the buffer read.
@@ -1668,7 +1681,7 @@ get_proc_file(pid_t pid, char *name, size_t *size)
 
 /** @brief get a process' startup id
   * @param pid - pid of the process
-  * @return char * - startup id or NULL
+  * @return char* - startup id or NULL
   *
   * Gets the DESKTOP_STARTUP_ID environment variable for a given process from
   * the environment file for the corresponding pid.  This only works when the
@@ -1700,7 +1713,7 @@ get_proc_startup_id(pid_t pid)
 
 /** @brief get the command of a process
   * @param pid - pid of the process
-  * @return char * - the command or NULL
+  * @return char* - the command or NULL
   *
   * Obtains the command line of a process.
   */
@@ -1714,7 +1727,7 @@ get_proc_comm(pid_t pid)
 
 /** @brief get the executable of a process
   * @param pid - pid of the process
-  * @return char * - the executable path or NULL
+  * @return char* - the executable path or NULL
   *
   * Obtains the executable path (binary file) executed by a process, or NULL if
   * there is no executable for the specified pid.  This uses the /proc/%d/exe
@@ -1753,7 +1766,7 @@ get_proc_exec(pid_t pid)
 
 /** @brief get the first argument of the command line for a process
   * @param pid - pid of the process
-  * @return char * - the command line
+  * @return char* - the command line
   *
   * Obtains the arguments of the command line (argv) from the /proc/%d/cmdline
   * file.  This file contains a list of null-terminated strings.  The pointer
@@ -1843,7 +1856,7 @@ static Sequence *ref_sequence(Sequence *seq);
 
 /** @brief find the startup sequence for a client
   * @param c - client to lookup startup sequence for
-  * @return Sequence * - the found sequence or NULL if not found
+  * @return Sequence* - the found sequence or NULL if not found
   */
 static Sequence *
 find_startup_seq(Client *c)
@@ -2224,15 +2237,6 @@ find_seq_by_id(char *id)
 	return (seq);
 }
 
-static void
-add_sequence(Sequence *seq)
-{
-	seq->refs = 1;
-	seq->client = NULL;
-	seq->next = scr->sequences;
-	scr->sequences = seq;
-}
-
 static Sequence *
 unref_sequence(Sequence *seq)
 {
@@ -2246,6 +2250,24 @@ unref_sequence(Sequence *seq)
 				*prev = s->next;
 				s->next = NULL;
 			}
+#ifdef HAVE_GLIB_EVENT_LOOP
+			if (seq->timer) {
+				g_source_remove(seq->timer);
+				seq->timer = 0;
+			}
+#endif				/* HAVE_GLIB_EVENT_LOOP */
+#ifdef SYSTEM_TRAY_STATUS_ICON
+			if (seq->status) {
+				g_object_unref(G_OBJECT(seq->status));
+				seq->status = NULL;
+			}
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+#ifdef DESKTOP_NOTIFICATIONS
+			if (seq->notification) {
+				g_object_unref(G_OBJECT(seq->notification));
+				seq->notification = NULL;
+			}
+#endif				/* DESKTOP_NOTIFICATIONS */
 			free_sequence_fields(seq);
 			free(seq);
 			return (NULL);
@@ -2276,6 +2298,55 @@ remove_sequence(Sequence *del)
 	} else
 		EPRINTF("could not find sequence\n");
 	return (seq);
+}
+
+#ifdef HAVE_GLIB_EVENT_LOOP
+
+static gboolean
+sequence_timeout_callback(gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return TRUE;		/* continue timeout interval */
+}
+
+static void
+sequence_timeout_released(gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+}
+
+#endif				/* HAVE_GLIB_EVENT_LOOP */
+
+#ifdef SYSTEM_TRAY_STATUS_ICON
+
+static GtkStatusIcon *create_statusicon(Sequence *seq);
+
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+
+/** @brief add a new startup notification sequence to list for screen
+  *
+  * When a startup notification sequence is added, it is because we have
+  * received a 'new:' message.  What we want to do is to generate a status icon
+  * at this point that will be updated and removed as the startup notification
+  * sequence is changed or completed.
+  */
+static void
+add_sequence(Sequence *seq)
+{
+	seq->refs = 1;
+	seq->client = NULL;
+	seq->next = scr->sequences;
+	scr->sequences = seq;
+#ifdef SYSTEM_TRAY_STATUS_ICON
+	create_statusicon(seq);
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+#ifdef HAVE_GLIB_EVENT_LOOP
+	seq->timer =
+	    g_timeout_add_full(G_PRIORITY_DEFAULT, options.guardtime,
+			       sequence_timeout_callback, (gpointer) ref_sequence(seq),
+			       sequence_timeout_released);
+#endif				/* HAVE_GLIB_EVENT_LOOP */
 }
 
 static void
@@ -3609,13 +3680,13 @@ handle_event(XEvent *e)
 
 #ifdef SYSTEM_TRAY_STATUS_ICON
 
-void
+static void
 icon_activate_cb(GtkStatusIcon *status, gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
 }
 
-gboolean
+static gboolean
 icon_button_press_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
@@ -3623,7 +3694,7 @@ icon_button_press_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
 	return FALSE;		/* propagate event */
 }
 
-gboolean
+static gboolean
 icon_button_release_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
@@ -3631,7 +3702,7 @@ icon_button_release_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
 	return FALSE;		/* propagate event */
 }
 
-gboolean
+static gboolean
 icon_popup_menu_cb(GtkStatusIcon *status, guint button, guint time, gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
@@ -3639,7 +3710,7 @@ icon_popup_menu_cb(GtkStatusIcon *status, guint button, guint time, gpointer dat
 	return FALSE;		/* propagate event */
 }
 
-gboolean
+static gboolean
 icon_query_tooltip_cb(GtkStatusIcon *status, gint x, gint y, gboolean keyboard_mode,
 		      GtkTooltip *tooltip, gpointer data)
 {
@@ -3657,7 +3728,7 @@ icon_query_tooltip_cb(GtkStatusIcon *status, gint x, gint y, gboolean keyboard_m
   * pressed.  Wheel mice are usually configured to generate button press events
   * for buttons 4 and 5 when the wheel is turned.
   */
-gboolean
+static gboolean
 icon_scroll_event_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
@@ -3673,7 +3744,7 @@ icon_scroll_event_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
   * Gets emitted when the size available for the image changes, e.g. because the
   * notification area got resized.
   */
-gboolean
+static gboolean
 icon_size_changed_cb(GtkStatusIcon *status, gint size, gpointer data)
 {
 	Sequence *seq = (typeof(seq)) data;
@@ -3684,7 +3755,7 @@ icon_size_changed_cb(GtkStatusIcon *status, gint size, gpointer data)
 /** @brief create a status icon for the startup sequence
   * @param seq - the sequence for which to create the status icon
   */
-GtkStatusIcon *
+static GtkStatusIcon *
 create_statusicon(Sequence *seq)
 {
 	GtkStatusIcon *status;
@@ -3923,16 +3994,6 @@ sighandler(int sig)
 {
 	signum = sig;
 }
-
-#if defined DESKTOP_NOTIFICATIONS || defined SYSTEM_TRAY_STATUS_ICON
-#undef HAVE_GLIB_EVENT_LOOP
-#define HAVE_GLIB_EVENT_LOOP 1
-#endif
-
-#if defined SYSTEM_TRAY_STATUS_ICON
-#undef HAVE_GTK
-#define HAVE_GTK 1
-#endif
 
 #ifdef HAVE_GLIB_EVENT_LOOP
 gboolean
