@@ -108,6 +108,12 @@ fi
 AC_MSG_CHECKING([for debug support])
 AC_MSG_RESULT([${enable_debug:-no}])
 
+appdir='${datadir}/applications'
+autodir='${sysconfdir}/xdg/autostart'
+
+AC_SUBST([appdir])
+AC_SUBST([autodir])
+
 AC_OUTPUT([Makefile])
 
 # vim: set ft=config:

@@ -23,6 +23,10 @@ dist_bin_SCRIPTS = dmenu_apps dmenu_launch
 
 AM_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
 
+dist_app_DATA = dmenu_launch.desktop
+
+dist_auto_DATA = xdg-monitor.desktop
+
 xdg_man_files = \
 	     xdg-launch.man \
 	     xdg-assist.man \

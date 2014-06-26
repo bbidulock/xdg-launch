@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=Dmenu Launch
+Comment=Use dmenu to launch XDG desktop applications
+Icon=system-run
+TryExec=/usr/bin/dmenu_launch
+Exec=/usr/bin/dmenu_launch
+Terminal=false
+Categories=XDE;Utilities;
+StartupNotify=false
