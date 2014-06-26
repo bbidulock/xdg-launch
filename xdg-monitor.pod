@@ -36,6 +36,11 @@ sent to standard error.
 Run as a monitoring process.  This is the default if no other command
 option is specified.
 
+=item B<-q>, B<--quit>
+
+Ask a running instance of the program to quit (if one is indeed
+running).
+
 =item B<-h>, B<--help>
 
 Prints usage information to standard output and exits.
@@ -52,19 +57,38 @@ Prints detailed copying permissions and exits.
 
 =head2 GENERAL OPTIONS
 
+In addition to command options, B<xdg-monitor> accepts the following
+general options:
+
 =over
 
-=item B<-b>, B<--background>
+=item B<-r>, B<--replace>
 
-Run B<xdg-monitor> in the background and print information to system
-logs instead of to standard error.
+Replace an existing running instance.  The default is to abort when an
+already running instance is encountered.
+
+=item B<-f>, B<--foreground>
+
+The default behaviour is for the program to run in the background as a
+deamon process; this option causes the program to run in the foreground
+and output debugging information to standard error (implies B<-d>).
 
 =item B<-g>, B<--guard-time> I<TIMEOUT>
 
 Specifies the amount of time, I<TIMEOUT>, in milliseconds, that
 B<xdg-monitor> will wait for a desktop application to complete before
 determining that is it never going to send a startup notification
-completion message.
+completion message.  The default is 15000 milliseconds (15 seconds).
+
+=item B<-d>, B<--debug> [I<LEVEL>]
+
+Increment or set the verbosity of debugging output to I<LEVEL>.  The
+default is to not print copious debugging information.
+
+=item B<-v>, B<--verbose> [I<LEVEL>]
+
+Increment or set the verbosity of normal output to I<LEVEL>.  The
+default for output is level 1.
 
 =back
 
