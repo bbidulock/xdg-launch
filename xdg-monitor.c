@@ -2426,16 +2426,24 @@ sequence_timeout_callback(gpointer data)
 
 	if (seq->state == StartupNotifyComplete) {
 		remove_sequence(seq);
+		seq->timer = 0;
 		return FALSE;	/* stop timeout interval */
 	}
+	/* for now, just generate a remove message after the guard-time */
+	if (1) {
+		send_remove(seq);
+		seq->timer = 0;
+		return FALSE;	/* remove timeout source */
+	} else {
 #ifdef DESKTOP_NOTIFICATIONS
 #if 0
-	create_notification(seq);
+		create_notification(seq);
 #else
-	(void) create_notification;
+		(void) create_notification;
 #endif
 #endif				/* DESKTOP_NOTIFICATIONS */
-	return TRUE;		/* continue timeout interval */
+		return TRUE;	/* continue timeout interval */
+	}
 }
 
 #endif				/* HAVE_GLIB_EVENT_LOOP */
@@ -4092,7 +4100,20 @@ create_statusicon(Sequence *seq)
 		gtk_status_icon_set_screen(status, screen);
 	}
 	{
-		char *markup = NULL;
+		char *markup, *p;
+		int len, size = BUFSIZ;
+		char **label, **field;
+
+		p = markup = calloc(size + 1, sizeof(*markup));
+		for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+			if (!*field)
+				continue;
+			len = snprintf(p, size, "<b>%s</b>=%s\n", *label, *field);
+			if (len > size)
+				break;
+			p += len;
+			size -= len;
+		}
 
 		/* Set the tooltip text as markup */
 		if (markup)
