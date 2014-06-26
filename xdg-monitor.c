@@ -414,6 +414,7 @@ Atom _XA_WM_STATE;
 Atom _XA_WM_WINDOW_ROLE;
 Atom _XA_XEMBED;
 Atom _XA_XEMBED_INFO;
+Atom _XA_UTF8_STRING;
 
 static void pc_handle_MOTIF_WM_INFO(XPropertyEvent *, Client *);
 static void pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent *, Client *);
@@ -563,6 +564,7 @@ struct atoms {
 	{ "WM_ZOOM_HINTS",			NULL,				&pc_handle_WM_ZOOM_HINTS,		NULL,					XA_WM_ZOOM_HINTS	},
 	{ "_XEMBED_INFO",			&_XA_XEMBED_INFO,		&pc_handle_XEMBED_INFO,			NULL,					None			},
 	{ "_XEMBED",				&_XA_XEMBED,			NULL,					&cm_handle_XEMBED,			None			},
+	{ "UTF8_STRING",			&_XA_UTF8_STRING,		NULL,					NULL,					None			},
 	{ NULL,					NULL,				NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
@@ -1879,6 +1881,66 @@ test_client(Client *c, Sequence *seq)
 	return False;
 }
 
+/** @brief assist some clients by adding information missing from window
+  *
+  * Some applications do not use a full toolkit and do not properly set all of
+  * the EWMH properties.  Once we have identified the startup sequence
+  * associated with a client, we can set infomration on the client from the
+  * startup notification sequence.
+  *
+  * Also do things like use /proc/[pid]/cmdline to set up WM_COMMAND if not
+  * present.
+  */
+void
+setup_client(Client *c)
+{
+	Sequence *seq;
+	long data;
+
+	if (!(seq = c->seq))
+		return;
+
+	/* set up _NET_STARTUP_ID */
+	if (!c->startup_id && seq->f.id) {
+		XChangeProperty(dpy, c->win, _XA_NET_STARTUP_ID, _XA_UTF8_STRING, 8,
+				PropModeReplace, (unsigned char *) seq->f.id,
+				strlen(seq->f.id));
+	}
+
+	/* set up _NET_WM_PID */
+	if (!c->pid && seq->n.pid) {
+		data = seq->n.pid;
+		XChangeProperty(dpy, c->win, _XA_NET_WM_PID, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+		c->pid = seq->n.pid;
+	}
+
+	/* set up WM_CLIENT_MACHINE */
+	if (!c->hostname && seq->f.hostname) {
+		XChangeProperty(dpy, c->win, XA_WM_CLIENT_MACHINE, XA_STRING, 8,
+				PropModeReplace, (unsigned char *) seq->f.hostname,
+				strlen(seq->f.hostname));
+	}
+
+	/* set up WM_COMMAND */
+	if (c->pid && !c->command) {
+		char *string;
+		char buf[65] = { 0, };
+		size_t size;
+
+		gethostname(buf, sizeof(buf) - 1);
+		if ((c->hostname && !strcmp(buf, c->hostname)) ||
+		    (seq->f.hostname && !strcmp(buf, seq->f.hostname))) {
+			if ((string = get_proc_file(c->pid, "cmdline", &size))) {
+				XChangeProperty(dpy, c->win, XA_WM_COMMAND,
+						XA_STRING, 8, PropModeReplace,
+						(unsigned char *) string, size);
+				free(string);
+			}
+		}
+	}
+}
+
 static Sequence *ref_sequence(Sequence *seq);
 
 /** @brief find the startup sequence for a client
@@ -2003,13 +2065,8 @@ find_startup_seq(Client *c)
       found_it:
 	seq->client = c;
 	c->seq = ref_sequence(seq);
+	setup_client(c);
 	return (seq);
-}
-
-void
-setup_client(Client *c)
-{
-	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
 /** @brief detect whether a client is a dockapp

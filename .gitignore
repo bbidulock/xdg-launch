@@ -32,3 +32,5 @@ xdg-assist
 dmenu_launch.man
 xdg-monitor.man
 xdg-monitor
+_install
+*.log
