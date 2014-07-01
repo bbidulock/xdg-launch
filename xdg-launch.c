@@ -141,11 +141,10 @@ struct params {
 	char *pointer;
 	char *action;
 	char *xsession;
+	char *autostart;
 };
 
-struct params options = {
-	.launcher = NAME,
-};
+struct params options = { NULL, };
 
 struct params defaults = {
 	.appid = "[APPID]",
@@ -169,6 +168,7 @@ struct params defaults = {
 	.pointer = "auto",
 	.action = "none",
 	.xsession = "false",
+	.autostart = "false",
 };
 
 static const char *StartupNotifyFields[] = {
@@ -1989,23 +1989,42 @@ lookup_file(char *name)
 	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
 		strncat(appid, ".desktop", 1024);
 	if ((*appid != '/') && (*appid != '.')) {
-		/* need to look in applications subdirectory of XDG_DATA_HOME and then
-		   each of the subdirectories in XDG_DATA_DIRS */
-		char *home, *copy, *dirs;
+		char *home, *copy, *dirs, *env;
 
-		if (getenv("XDG_DATA_DIRS") && *getenv("XDG_DATA_DIRS") != '\0')
-			dirs = getenv("XDG_DATA_DIRS");
-		else
-			dirs = "/usr/local/share:/usr/share";
-		home = calloc(PATH_MAX, sizeof(*home));
-		if (getenv("XDG_DATA_HOME") && *getenv("XDG_DATA_HOME") != '\0')
-			strcpy(home, getenv("XDG_DATA_HOME"));
-		else {
-			if (getenv("HOME"))
-				strcpy(home, getenv("HOME"));
+		if (!options.autostart) {
+			/* need to look in autostart subdirectory of XDG_CONFIG_HOME and then
+			   each of the subdirectories in XDG_CONFIG_DIRS */
+			if ((env = getenv("XDG_CONFIG_DIRS")) && *env)
+				dirs = env;
 			else
-				strcpy(home, "~");
-			strcat(home, "/.local/share");
+				dirs = "/etc/xdg";
+			home = calloc(PATH_MAX, sizeof(*home));
+			if ((env = getenv("XDG_CONFIG_HOME")) && *env)
+				strcpy(home, env);
+			else {
+				if ((env = getenv("HOME")))
+					strcpy(home, env);
+				else
+					strcpy(home, ".");
+				strcat(home, "/.config");
+			}
+		} else {
+			/* need to look in applications subdirectory of XDG_DATA_HOME and then
+			   each of the subdirectories in XDG_DATA_DIRS */
+			if ((env = getenv("XDG_DATA_DIRS")) && *env)
+				dirs = env;
+			else
+				dirs = "/usr/local/share:/usr/share";
+			home = calloc(PATH_MAX, sizeof(*home));
+			if ((env = getenv("XDG_DATA_HOME")) && *env)
+				strcpy(home, env);
+			else {
+				if ((env = getenv("HOME")))
+					strcpy(home, env);
+				else
+					strcpy(home, ".");
+				strcat(home, "/.local/share");
+			}
 		}
 		strcat(home, ":");
 		strcat(home, dirs);
@@ -2022,7 +2041,9 @@ lookup_file(char *name)
 				*dirs = '\0';
 			}
 			path = realloc(path, 4096);
-                        if (options.xsession)
+			if (options.autostart)
+				strcat(path, "/autostart/");
+			else if (options.xsession)
                                 strcat(path, "/xsessions/");
                         else
                                 strcat(path, "/applications/");
@@ -2038,8 +2059,14 @@ lookup_file(char *name)
 			return (path);
 		}
 		free(copy);
+                /* only look in autostart for autostart entries */
+		if (options.autostart) {
+			free(home);
+			free(appid);
+			return (NULL);
+		}
                 /* only look in xsessions for xsession entries */
-                if (options.xsession) {
+		else if (options.xsession) {
                         free(home);
                         free(appid);
                         return (NULL);
@@ -2074,17 +2101,17 @@ lookup_file(char *name)
 		free(copy);
 		/* next look in autostart subdirectory of XDG_CONFIG_HOME and then each
 		   of the subdirectories in XDG_CONFIG_DIRS */
-		if (getenv("XDG_CONFIG_DIRS") && *getenv("XDG_CONFIG_DIRS") != '\0')
-			dirs = getenv("XDG_CONFIG_DIRS");
+		if ((env = getenv("XDG_CONFIG_DIRS")) && *env)
+			dirs = env;
 		else
 			dirs = "/etc/xdg";
-		if (getenv("XDG_CONFIG_HOME") && *getenv("XDG_CONFIG_HOME") != '\0')
-			strcpy(home, getenv("XDG_CONFIG_HOME"));
+		if ((env = getenv("XDG_CONFIG_HOME")) && *env)
+			strcpy(home, env);
 		else {
-			if (getenv("HOME"))
-				strcpy(home, getenv("HOME"));
+			if ((env = getenv("HOME")))
+				strcpy(home, env);
 			else
-				strcpy(home, "~");
+				strcpy(home, ".");
 			strcat(home, "/.config");
 		}
 		strcat(home, ":");
@@ -3654,6 +3681,8 @@ Options:\n\
         specify a desktop action other than the default, default: '%17$s'\n\
     -X, --xsession\n\
         interpret entry as xsession instead of application, default: '%18$s'\n\
+    -U, --autostart\n\
+        interpret entry as autostart instead of application, default: '%19$s'\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -3665,26 +3694,45 @@ Options:\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession);
+", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession, defaults.autostart);
 }
+
+static void
+set_defaults(int argc, char *argv[])
+{
+	char *buf, *disp, *p;
+
+	free(options.launcher);
+	buf = (p = strrchr(argv[0], '/')) ? p+1 : argv[0];
+	defaults.launcher = options.launcher = strdup(buf);
+	if (!strcmp(buf, "xdg-xsession"))
+		defaults.xsession = options.xsession = strdup("true");
+	else if (!strcmp(buf, "xdg-autostart"))
+		defaults.autostart = options.autostart = strdup("true");
+
+	free(options.hostname);
+	buf = defaults.hostname = options.hostname = calloc(64, sizeof(*buf));
+	gethostname(buf, 64);
+
+	buf = defaults.pid = options.pid = calloc(64, sizeof(*buf));
+	snprintf(buf, 64, "%d", getpid());
+
+	if ((disp = getenv("DISPLAY")))
+		if ((p = strrchr(disp, '.')) &&
+		    strspn(p + 1, "0123456789") == strlen(p + 1))
+			defaults.screen = options.screen = strdup(p + 1);
+}
+
 
 int
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
 
+	set_defaults(argc, argv);
+
 	while (1) {
 		int c, val;
-		char *buf, *disp, *p;
-
-		buf = defaults.hostname = options.hostname = calloc(64, sizeof(*buf));
-		gethostname(buf, 64);
-		defaults.pid = options.pid = calloc(64, sizeof(*buf));
-		sprintf(defaults.pid, "%d", getpid());
-		if ((disp = getenv("DISPLAY")))
-			if ((p = strrchr(disp, '.')) &&
-			    strspn(p + 1, "0123456789") == strlen(p + 1))
-				options.screen = strdup(p + 1);
 #ifdef _GNU_SOURCE
 		int option_index = 0;
 		/* *INDENT-OFF* */
@@ -3712,6 +3760,7 @@ main(int argc, char *argv[])
 			{"pointer",	no_argument,		NULL, 'P'},
 			{"action",	required_argument,	NULL, 'A'},
 			{"xsession",	no_argument,		NULL, 'X'},
+			{"autostart",	no_argument,		NULL, 'U'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -3724,11 +3773,11 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XD::v::hVCH?",
+				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
 		c = getopt(argc, argv,
-			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XDvhVC?");
+			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUDvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -3739,88 +3788,113 @@ main(int argc, char *argv[])
 		case 0:
 			goto bad_usage;
 		case 'L':	/* -L, --lancher LAUNCHER */
+			free(options.launcher);
 			defaults.launcher = options.launcher = strdup(optarg);
 			break;
 		case 'l':	/* -l, --launchee LAUNCHEE */
+			free(options.launchee);
 			defaults.launchee = options.launchee = strdup(optarg);
 			break;
 		case 'S':	/* -S, --sequence SEQUENCE */
+			free(options.sequence);
 			defaults.sequence = options.sequence = strdup(optarg);
 			break;
 		case 'n':	/* -n, --hostname HOSTNAME */
+			free(options.hostname);
 			defaults.hostname = options.hostname = strdup(optarg);
 			break;
 		case 'm':	/* -m, --monitor MONITOR */
+			free(options.monitor);
 			defaults.monitor = options.monitor = strdup(optarg);
 			monitor = strtoul(optarg, NULL, 0);
 			break;
 		case 's':	/* -s, --screen SCREEN */
+			free(options.screen);
 			defaults.screen = options.screen = strdup(optarg);
 			screen = strtoul(optarg, NULL, 0);
 			break;
 		case 'p':	/* -p, --pid PID */
+			free(options.pid);
 			defaults.pid = options.pid = strdup(optarg);
 			break;
 		case 'w':	/* -w, --workspace WORKSPACE */
+			free(options.desktop);
 			defaults.desktop = options.desktop = strdup(optarg);
 			break;
 		case 't':	/* -t, --timestamp TIMESTAMP */
+			free(options.timestamp);
 			defaults.timestamp = options.timestamp = strdup(optarg);
 			break;
 		case 'N':	/* -N, --name NAME */
+			free(options.name);
 			defaults.name = options.name = strdup(optarg);
 			break;
 		case 'i':	/* -i, --icon ICON */
+			free(options.icon);
 			defaults.icon = options.icon = strdup(optarg);
 			break;
 		case 'b':	/* -b, --binary BINARY */
+			free(options.binary);
 			defaults.binary = options.binary = strdup(optarg);
 			break;
 		case 'd':	/* -d, --description DESCRIPTION */
+			free(options.description);
 			defaults.description = options.description = strdup(optarg);
 			break;
 		case 'W':	/* -W, --wmclass WMCLASS */
+			free(options.wmclass);
 			defaults.wmclass = options.wmclass = strdup(optarg);
 			break;
 		case 'q':	/* -q, --silent SILENT */
+			free(options.silent);
 			defaults.silent = options.silent = strdup(optarg);
 			break;
 		case 'a':	/* -a, --appid APPID */
+			free(options.appid);
 			defaults.appid = options.appid = strdup(optarg);
 			break;
 		case 'x':	/* -x, --exec EXEC */
+			free(options.exec);
 			defaults.exec = options.exec = strdup(optarg);
 			break;
 		case 'e':	/* -e command and options */
 			exec_mode = 1;
 			break;
 		case 'f':	/* -f, --file FILE */
+			free(options.file);
 			defaults.file = options.file = strdup(optarg);
 			break;
 		case 'u':	/* -u, --url URL */
+			free(options.url);
 			defaults.url = options.url = strdup(optarg);
 			break;
 		case 'K':	/* -K, --keyboard */
+			if (options.pointer)
+				goto bad_option;
+			free(options.keyboard);
 			defaults.keyboard = options.keyboard = strdup("true");
-			if (options.pointer) {
-				free(options.pointer);
-				options.pointer = NULL;
-				defaults.pointer = "inactive";
-			}
 			break;
 		case 'P':	/* -P, --pointer */
+			if (options.keyboard)
+				goto bad_option;
+			free(options.pointer);
 			defaults.pointer = options.pointer = strdup("true");
-			if (options.keyboard) {
-				free(options.keyboard);
-				options.keyboard = NULL;
-				defaults.keyboard = "inactive";
-			}
 			break;
 		case 'A':	/* -A, --action ACTION */
+			free(options.action);
 			defaults.action = options.action = strdup(optarg);
 			break;
 		case 'X':	/* -X, --xsession */
+			if (options.autostart)
+				goto bad_option;
+			free(options.xsession);
 			defaults.xsession = options.xsession = strdup("true");
+			break;
+		case 'U':	/* -S, --autostart */
+			if (options.xsession)
+				goto bad_option;
+			free(options.autostart);
+			defaults.autostart = options.autostart = strdup("true");
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)

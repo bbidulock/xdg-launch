@@ -134,11 +134,11 @@ C<new> message that is sent for launch:
 
 Specifies the string that will be used as the launcher when generating a
 startup notification identifier.  The default is the name of this
-program (i.e. C<xdg-launch>).
+program (e.g. C<xdg-launch>).
 
 =item B<-l>, B<--launchee> I<LAUNCHEE>
 
-Specifies the string that will be used as the launcher when generating a
+Specifies the string that will be used as the launchee when generating a
 startup notification identifier.  The default is the application
 identifier.
 
@@ -301,6 +301,8 @@ B<DISPLAY> environment variable or the B<--screen> option.  This option
 has no effect on the monitor when the B<--monitor> option is also
 specified.
 
+Only one of B<--pointer> or B<--keyboard> can be specified.
+
 =item B<-K>, B<--keyboard>
 
 When specified, B<xdg-launch> will determine the screen or monitor from
@@ -310,6 +312,8 @@ keyboard binding.  This option has no effect on the screen when the
 screen was specified using either the B<DISPLAY> environment variable
 or the B<--screen> option.  This option has no effect on the monitor
 when the B<--monitor> option is also specified.
+
+Only one of B<--pointer> or B<--keyboard> can be specified.
 
 =item B<-A>, B<--action> I<ACTION>
 
@@ -321,9 +325,24 @@ key-value entry in the startup notification "new" message.
 =item B<-X>, B<--xsession>
 
 Interpret and search for the desktop entry file as an C<XSession>
-desktop entry instead of an C<Application> desktop entry.  Aside from
-this difference, the launcher operates in the same fashion.  This option
-is intended for launching window managers.
+desktop entry instead of an C<Application> desktop entry.  This is the
+default when invoked as B<xdg-xsession>.  The C<LAUNCHER> will default
+to B<xdg-session> instead of B<xdg-launch>.  Aside from these
+differences, the launcher operates in the same fashion.  This option is
+intended for launching window managers.
+
+Only one of B<--xsession> or B<--autostart> can be specified.
+
+=item B<-U>, B<--autostart>
+
+Interpret and search for the desktop entry file as an C<AutoStart>
+desktop entry instead of an C<Application> desktop entry.  This is the
+default when invoked as B<xdg-autostart>.  The C<LAUNCHER> will default
+to B<xdg-autostart> instead of B<xdg-launch>.  Aside from these
+differences, the launcher operates in the same fashion.  This option is
+intended for launching autostart entries.
+
+Only one of B<--xsession> or B<--autostart> can be specified.
 
 =head1 BEHAVIOUR
 

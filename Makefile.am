@@ -19,11 +19,11 @@ xdg_monitor_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(SN_LIBS) $(XINERAMA_LIBS) $(XR
 xdg_monitor_CPPFLAGS = -include autoconf.h -DNAME='"xdg-monitor"'
 xdg_monitor_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS) $(NOTIFY_CFLAGS) $(GTK2_CFLAGS)
 
-dist_bin_SCRIPTS = dmenu_apps dmenu_launch
+dist_bin_SCRIPTS = dmenu_apps dmenu_launch xdg-xsession xdg-autostart
 
 AM_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
 
-dist_app_DATA = dmenu_launch.desktop
+dist_app_DATA = dmenu_launch.desktop xdg-launch.desktop
 
 dist_auto_DATA = xdg-monitor.desktop
 
@@ -31,13 +31,17 @@ xdg_man_files = \
 	     xdg-launch.man \
 	     xdg-assist.man \
 	     xdg-monitor.man \
-	     dmenu_launch.man
+	     dmenu_launch.man \
+	     xdg-xsession.man \
+	     xdg-autostart.man
 
 xdg_pod_files = \
 	     xdg-launch.pod \
 	     xdg-assist.pod \
 	     xdg-monitor.pod \
-	     dmenu_launch.pod
+	     dmenu_launch.pod \
+	     xdg-xsession.pod \
+	     xdg-autostart.pod
 
 nodist_man1_MANS = $(xdg_man_files)
 CLEANFILES = $(xdg_man_files)
@@ -54,6 +58,12 @@ xdg-monitor.man: xdg-monitor.pod
 
 dmenu_launch.man: MANNAME = DMENU_LAUNCH
 dmenu_launch.man: dmenu_launch.pod
+
+xdg-xsession.man: MANNAME = XDG-XSESSION
+xdg-xsession.man: xdg-xsession.pod
+
+xdg-autostart.man: MANNAME = XDG-AUTOSTART
+xdg-autostart.man: xdg-autostart.pod
 
 SUFFIXES = .man .pod
 

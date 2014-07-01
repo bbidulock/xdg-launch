@@ -1,0 +1,28 @@
+=pod
+
+=head1 NAME
+
+xdg-autostart - an XDG compliant autostart startup notification launcher
+
+=head1 SYNOPSIS
+
+B<xdg-autostart> [I<OPTIONS>] [I<APPID> [I<FILE>|I<URL>]]
+
+B<xdg-autostart> [I<OPTIONS>] -c I<command and arguments>
+
+=head1 DESCRIPTION
+
+B<xdg-autostart> is a script that simply executes L<xdg-launch(1)> with
+the appropriate arguments (B<--autostart>).
+
+=head1 SEE ALSO
+
+L<xdg-launch(1)>.
+
+=head1 AUTHOR
+
+Brian Bidulock E<lt>bidulock@openss7.orgE<gt>
+
+=cut
+
+# vim: sw=4 tw=72 nocin

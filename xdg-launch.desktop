@@ -1,0 +1,13 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=XDG Launch
+Comment=Launch a Desktop Entry
+Icon=system-run
+TryExec=/usr/bin/xdg-launch
+Exec=/usr/bin/xdg-launch
+Terminal=false
+Categories=XDG;System;
+MimeType=application/x-desktop
+NoDisplay=true
+StartupNotify=true

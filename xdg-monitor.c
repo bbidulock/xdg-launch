@@ -871,13 +871,12 @@ check_recursive(Atom atom, Atom type)
 	unsigned long *data = NULL;
 	Window check;
 
-	if (XGetWindowProperty
-	    (dpy, scr->root, atom, 0L, 1L, False, type, &real, &format, &nitems, &after,
-	     (unsigned char **) &data) == Success && format != 0) {
+	if (XGetWindowProperty(dpy, scr->root, atom, 0L, 1L, False, type, &real, &format,
+			       &nitems, &after, (unsigned char **) &data)
+	    == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]) && check != scr->root)
-				XSelectInput(dpy, check,
-					     PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 			XFree(data);
 			data = NULL;
 		} else {
@@ -922,13 +921,12 @@ check_nonrecursive(Atom atom, Atom type)
 
 	OPRINTF("non-recursive check for atom 0x%lx\n", atom);
 
-	if (XGetWindowProperty
-	    (dpy, scr->root, atom, 0L, 1L, False, type, &real, &format, &nitems, &after,
-	     (unsigned char **) &data) == Success && format != 0) {
+	if (XGetWindowProperty(dpy, scr->root, atom, 0L, 1L, False, type, &real, &format,
+			       &nitems, &after, (unsigned char **) &data)
+	    == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]) && check != scr->root)
-				XSelectInput(dpy, check,
-					     PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 		}
 		if (data)
 			XFree(data);
@@ -953,37 +951,37 @@ check_supported(Atom protocols, Atom supported)
 	OPRINTF("check for non-compliant NetWM\n");
 
       try_harder:
-	if (XGetWindowProperty
-	    (dpy, scr->root, protocols, 0L, num, False, XA_ATOM, &real, &format, &nitems,
-	     &after, (unsigned char **) &data)
-	    == Success && format != 0) {
+	if (XGetWindowProperty(dpy, scr->root, protocols, 0L, num, False, XA_ATOM, &real, &format,
+			       &nitems, &after, (unsigned char **) &data) == Success && format) {
 		if (after) {
 			num += ((after + 1) >> 2);
 			XFree(data);
+			data = NULL;
 			goto try_harder;
 		}
 		if (nitems > 0) {
 			unsigned long i;
 			Atom *atoms;
 
-			result = True;
 			atoms = (Atom *) data;
 			for (i = 0; i < nitems; i++) {
 				if (atoms[i] == supported) {
-					result = False;
+					result = True;
 					break;
 				}
 			}
 		}
-		if (data)
-			XFree(data);
+	}
+	if (data) {
+		XFree(data);
+		data = NULL;
 	}
 	return result;
 }
 
 /** @brief Check for a non-compliant EWMH/NetWM window manager.
   *
-  * There are quite a few window managers that implement part of hte EWMH/NetWM
+  * There are quite a few window managers that implement part of the EWMH/NetWM
   * specification but do not fill out _NET_SUPPORTING_WM_CHECK.  This is a big
   * annoyance.  One way to test this is whether there is a _NET_SUPPORTED on the
   * root window that does not include _NET_SUPPORTING_WM_CHECK in its atom list.
