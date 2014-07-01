@@ -3501,25 +3501,23 @@ launch()
 	strcat(disp, fields.screen);
 	setenv("DISPLAY", disp, 1);
 
-	if (fields.wmclass) {
-		OPRINTF("WMCLASS: needs assistance\n");
+	if (options.xsession) {
+		DPRINTF("XSession: always needs asistance\n");
 		need_assist = True;
-	}
-	if (fields.silent && atoi(fields.silent)) {
-		OPRINTF("SILENT: needs assistance\n");
+	} else if (options.assist) {
+		DPRINTF("AutoStart: always needs assistance\n");
 		need_assist = True;
-	}
-	if (!need_assistance())
-		need_assist = False;
-	else {
+	} else if (need_assistance()) {
 		OPRINTF("WindowManager: needs assistance\n");
+		if (fields.wmclass) {
+			OPRINTF("WMCLASS: requires assistance\n");
+			need_assist = True;
+		}
+		if (fields.silent && atoi(fields.silent)) {
+			OPRINTF("SILENT: requires assistance\n");
+			need_assist = True;
+		}
 	}
-#if 0
-	if (options.assist) {
-		need_assist = True;
-	}
-#endif
-
 	/* make the call... */
 	if (change_only)
 		send_change();
@@ -3527,12 +3525,12 @@ launch()
 		send_new();
 
 	if (need_assist) {
-		OPRINTF("window manager assistance is needed\n");
+		OPRINTF("Assistance is needed\n");
 #if 0
 		assist();
 #endif
 	} else {
-		OPRINTF("window manager assistance is NOT needed\n");
+		OPRINTF("Assistance is NOT needed\n");
 	}
 	XCloseDisplay(dpy);
 
