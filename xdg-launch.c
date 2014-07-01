@@ -270,6 +270,7 @@ struct Notify {
 #endif
 
 struct entry {
+	char *Type;
 	char *Name;
 	char *Comment;
 	char *Icon;
@@ -1895,7 +1896,17 @@ parse_file(char *path)
 		for (q = q - 1; q >= key && isspace(*q); *q = '\0', q--) ;
 		for (q = val; *q && isspace(*q); q++) ;
 
-		if (strstr(key, "Name") == key) {
+		if (strstr(key, "Type") == key) {
+			if (strcmp(key, "Type") == 0) {
+				free(entry.Type);
+				entry.Type = strdup(val);
+				/* autodetect XSession */
+				if (!strcmp(val, "XSession") && !options.xsession)
+					options.xsession = strdup("true");
+				ok = 1;
+				continue;
+			}
+		} else if (strstr(key, "Name") == key) {
 			if (strcmp(key, "Name") == 0) {
 				free(entry.Name);
 				entry.Name = strdup(val);
