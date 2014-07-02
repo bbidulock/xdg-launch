@@ -3504,7 +3504,7 @@ launch()
 	if (options.xsession) {
 		DPRINTF("XSession: always needs asistance\n");
 		need_assist = True;
-	} else if (options.assist) {
+	} else if (options.autostart) {
 		DPRINTF("AutoStart: always needs assistance\n");
 		need_assist = True;
 	} else if (need_assistance()) {
