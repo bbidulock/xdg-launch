@@ -2002,7 +2002,7 @@ lookup_file(char *name)
 	if ((*appid != '/') && (*appid != '.')) {
 		char *home, *copy, *dirs, *env;
 
-		if (!options.autostart) {
+		if (options.autostart) {
 			/* need to look in autostart subdirectory of XDG_CONFIG_HOME and then
 			   each of the subdirectories in XDG_CONFIG_DIRS */
 			if ((env = getenv("XDG_CONFIG_DIRS")) && *env)
