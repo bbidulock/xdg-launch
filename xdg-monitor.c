@@ -1524,19 +1524,14 @@ send_msg(char *msg)
 {
 	XEvent xev;
 	int l;
-	Window from;
 	char *p;
 
 	DPRINTF("Message to 0x%lx is: '%s'\n", scr->root, msg);
 
-	from =
-	    XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative,
-				ParentRelative);
-
 	xev.type = ClientMessage;
 	xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
 	xev.xclient.display = dpy;
-	xev.xclient.window = from;
+	xev.xclient.window = scr->selwin;
 	xev.xclient.format = 8;
 
 	l = strlen((p = msg)) + 1;
@@ -1552,8 +1547,6 @@ send_msg(char *msg)
 			EPRINTF("XSendEvent: failed!\n");
 		xev.xclient.message_type = _XA_NET_STARTUP_INFO;
 	}
-
-	XDestroyWindow(dpy, from);
 }
 
 struct {
