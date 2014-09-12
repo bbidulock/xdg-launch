@@ -1,0 +1,156 @@
+=pod
+
+=head1 NAME
+
+xdg-whereis - locate desktop entry files for an application id
+
+=head1 SYNOPSIS
+
+B<xdg-whereis> [I<options>] [--] I<APPID> [...]
+
+=head1 DESCRIPTION
+
+B<xdg-whereis> locates the desktop entry, binary, source and manual
+files for the specified application identifiers.  The supplied names are
+first stripped of leading path-name components and any (single) trailing
+extension of the form F<.ext> (for example: F<.c>).  B<xdg-whereis> then
+attempts to locate the desired entry in the standard Linux places, and
+in the places specified by C<XDG_CONFIG_DIRS>, C<XDG_DATA_DIRS>,
+C<XDG_CONFIG_HOME>, C<XDG_DATA_HOME>, C<PATH> and C<MANPATH>.
+
+=head1 ARGUMENTS
+
+The program accepts the following arguments:
+
+=item I<APPID>
+
+Specifies the application identifier of an XDG desktop application to
+locate.  The application identifier, I<APPID>, can be one of the
+following:
+
+=over
+
+=item 1.
+
+the name of a desktop entry file without the F<.desktop> suffix (e.g.
+C<gvim>); the name may contain a C</> if it is specified relative to a
+user or system application directory, in which case it must not start
+with a C</> or C<.>.
+
+=item 2.
+
+the name of a desktop entry file with the F<.desktop> suffix (e.g.
+C<gvim.desktop>); the same restrictions as (1), above, apply; or,
+
+=item 3.
+
+the full path (absolute or relative) and filename of a desktop entry
+file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
+contain at least one C</> and start with either a C</> or a C<.>.
+
+=back
+
+Providing a non-option application identifier argument is mandatory
+unless the B<--exec> or B<--appid> options are specified.
+
+=back
+
+=head1 OPTIONS
+
+The options that are detailed below are recognized by B<xdg-whereis>.
+B<xdg-whereis> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+of long options and long options with a single dash are also supported.
+
+=head2 COMMAND OPTIONS
+
+The default is to match the I<APPID> and provide output.  When any of
+the following options are specified, the command mode changes:
+
+=over
+
+=item B<-l>, B<--list>
+
+Output list of effective lookup paths that B<xdg-whereis> is using.
+
+=item B<-h>, B<--help>
+
+Prints usage information to standard output and exits.
+
+=item B<-V>, B<--version>
+
+Prints detailed version information and exits.
+
+=item B<-C>, B<--copying>
+
+Prints detailed copying permissions and exits.
+
+=back
+
+=head2 GENERAL OPTIONS
+
+The following general options are recognized:
+
+=over
+
+=item B<-X>, B<--xsession>
+
+Treat I<APPID> as an C<XSession> identifier instead of an C<Application>
+identifier.
+
+=item B<-U>, B<--autostart>
+
+Treat I<APPID> as an C<Autostart> identifier instead of an
+C<Application> identifier.
+
+=back
+
+=head1 ENVIRONMENT
+
+The following environment variables are examined by B<xdg-whereis>:
+
+=over
+
+=item B<HOME>
+
+Used by B<xdg-whereis> to determine the user's home directory.
+
+=item B<XDG_DATA_HOME>
+
+Used by B<xdg-whereis> to determine the user's XDG data directory.  This
+defaults to F<$HOME/.local/share>.  The F<applications> subdirectory
+under this directory is the first searched to locate desktop entry
+files.  See the XDG Desktop Entry file specification for more
+information.
+
+=item B<XDG_DATA_DIRS>
+
+Used by B<xdg-whereis> to determine the system XDG data directories.
+This defaults to F</usr/local/share:/usr/share>.  The F<applications>
+subdirectory under these directories are searched in order to locate
+desktop entry files.  See the XDG Desktop Entry file specification for
+more information.
+
+=item B<XDG_CONFIG_HOME>
+
+Used by B<xdg-whereis> to determin the user's XDG configuration directory.
+This defaults to F<$HOME/.config>.  The F<autostart> subdirectory under
+this directory is the first searched to locate desktop entry files.  See
+the XDG Desktop Entry file specification for more information.
+
+=item B<XDG_CONFIG_DIRS>
+
+Used by B<xdg-whereis> to determine the system XDG configuration
+directories.  This defaults to F</etc/xdg>.  The F<autostart>
+subdirectory under these directories are searched in order to locate
+desktop entry files.  See the XDG Desktop Entry file specification for
+more information.
+
+=back
+
+=head1 AUTHOR
+
+Brian Bidulock E<lt>bidulock@openss7.orgE<gt>
+
+=cut
+
+# vim: sw=4 tw=72 nocin

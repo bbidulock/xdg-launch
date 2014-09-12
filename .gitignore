@@ -34,5 +34,9 @@ xdg-assist
 dmenu_launch.man
 xdg-monitor.man
 xdg-monitor
+xdg-which.man
+xdg-which
+xdg-whereis.man
+xdg-whereis
 _install
 *.log

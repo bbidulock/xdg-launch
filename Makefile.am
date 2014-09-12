@@ -1,7 +1,7 @@
 
 EXTRA_DIST = TODO
 
-bin_PROGRAMS = xdg-launch xdg-assist xdg-monitor
+bin_PROGRAMS = xdg-launch xdg-assist xdg-monitor xdg-which
 EXTRA_PROGRAMS =
 
 xdg_launch_SOURCES = xdg-launch.c
@@ -19,6 +19,9 @@ xdg_monitor_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(SN_LIBS) $(XINERAMA_LIBS) $(XR
 xdg_monitor_CPPFLAGS = -include autoconf.h -DNAME='"xdg-monitor"'
 xdg_monitor_CFLAGS = $(X11_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(SN_CFLAGS) $(NOTIFY_CFLAGS) $(GTK2_CFLAGS)
 
+xdg_which_SOURCES = xdg-which.c
+xdg_which_CPPFLAGS = -include autoconf.h -DNAME='"xdg-which"'
+
 dist_bin_SCRIPTS = dmenu_apps dmenu_launch xdg-xsession xdg-autostart
 
 AM_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
@@ -33,7 +36,9 @@ xdg_man_files = \
 	     xdg-monitor.man \
 	     dmenu_launch.man \
 	     xdg-xsession.man \
-	     xdg-autostart.man
+	     xdg-autostart.man \
+	     xdg-whereis.man \
+	     xdg-which.man
 
 xdg_pod_files = \
 	     xdg-launch.pod \
@@ -41,29 +46,13 @@ xdg_pod_files = \
 	     xdg-monitor.pod \
 	     dmenu_launch.pod \
 	     xdg-xsession.pod \
-	     xdg-autostart.pod
+	     xdg-autostart.pod \
+	     xdg-whereis.pod \
+	     xdg-which.pod
 
 nodist_man1_MANS = $(xdg_man_files)
 CLEANFILES = $(xdg_man_files)
 EXTRA_DIST += $(xdg_pod_files)
-
-xdg-launch.man: MANNAME = XDG-LAUNCH
-xdg-launch.man: xdg-launch.pod
-
-xdg-assist.man: MANNAME = XDG-ASSIST
-xdg-assist.man: xdg-assist.pod
-
-xdg-monitor.man: MANNAME = XDG-MONITOR
-xdg-monitor.man: xdg-monitor.pod
-
-dmenu_launch.man: MANNAME = DMENU_LAUNCH
-dmenu_launch.man: dmenu_launch.pod
-
-xdg-xsession.man: MANNAME = XDG-XSESSION
-xdg-xsession.man: xdg-xsession.pod
-
-xdg-autostart.man: MANNAME = XDG-AUTOSTART
-xdg-autostart.man: xdg-autostart.pod
 
 SUFFIXES = .man .pod
 
@@ -75,7 +64,6 @@ SUFFIXES = .man .pod
 		--fixedbold="CB" \
 		--fixeditalic="CI" \
 		--fixedbolditalic="CX" \
-		--name="$(MANNAME)" \
 		--nourls \
 		--release="$(PACKAGE) $(VERSION)" \
 		--section="1" \
