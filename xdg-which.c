@@ -264,6 +264,48 @@ lookup_file(char *name)
 			free(appid);
 			return;
 		}
+#if 1
+		/* next look in fallback subdirectory */
+		dirs = getenv("XDG_DATA_DIRS") ? : "/usr/local/share:/usr/share";
+		if ((env = getenv("XDG_DATA_HOME")) && *env)
+			strncpy(list, env, PATH_MAX);
+		else {
+			strncpy(list, home, PATH_MAX);
+			strncat(list, "/.local/share", PATH_MAX);
+		}
+		if (options.skiptilde) {
+			strncpy(list, dirs, PATH_MAX);
+		} else {
+			strncpy(list, ":", PATH_MAX);
+			strncat(list, dirs, PATH_MAX);
+		}
+		for (dirs = list; !path && *dirs;) {
+			char *p;
+
+			if ((p = strchr(dirs, ':'))) {
+				*p = '\0';
+				path = strdup(dirs);
+				dirs = p + 1;
+			} else {
+				path = strdup(dirs);
+				*dirs = '\0';
+			}
+			path = realloc(path, PATH_MAX + 1);
+			strncat(path, "/fallback/", PATH_MAX);
+			strncat(path, appid, PATH_MAX);
+			DPRINTF("%s: checking '%s'\n", NAME, path);
+			if (!stat(path, &st)) {
+				if (output_path(home, path) && !options.all) {
+					free(list);
+					free(appid);
+					free(path);
+					return;
+				}
+			}
+			free(path);
+			path = NULL;
+		}
+#endif
 		/* next look in autostart subdirectory */
 		dirs = getenv("XDG_CONFIG_DIRS") ? : "/etc/xdg";
 		if ((env = getenv("XDG_CONFIG_HOME")) && *env)
@@ -318,7 +360,6 @@ lookup_file(char *name)
 			strncpy(list, ":", PATH_MAX);
 			strncat(list, dirs, PATH_MAX);
 		}
-		list = strdup(list);
 		for (dirs = list; !path && *dirs;) {
 			char *p;
 
@@ -434,6 +475,39 @@ list_paths(void)
 		free(list);
 		return;
 	}
+	/* next look in fallback subdirectory */
+	dirs = getenv("XDG_DATA_DIRS") ? : "/usr/local/share:/usr/share";
+	if ((env = getenv("XDG_DATA_HOME")) && *env)
+		strncpy(list, env, PATH_MAX);
+	else {
+		strncpy(list, home, PATH_MAX);
+		strncat(list, "/.local/share", PATH_MAX);
+	}
+	if (options.skiptilde) {
+		strncpy(list, dirs, PATH_MAX);
+	} else {
+		strncpy(list, ":", PATH_MAX);
+		strncat(list, dirs, PATH_MAX);
+	}
+	for (dirs = list; !path && *dirs;) {
+		char *p;
+
+		if ((p = strchr(dirs, ':'))) {
+			*p = '\0';
+			path = strdup(dirs);
+			dirs = p + 1;
+		} else {
+			path = strdup(dirs);
+			*dirs = '\0';
+		}
+		path = realloc(path, PATH_MAX + 1);
+		strncat(path, "/fallback", PATH_MAX);
+		DPRINTF("%s: checking '%s'\n", NAME, path);
+		if (!stat(path, &st))
+			output_path(home, path);
+		free(path);
+		path = NULL;
+	}
 	/* next look in autostart subdirectory */
 	dirs = getenv("XDG_CONFIG_DIRS") ? : "/etc/xdg";
 	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
@@ -481,7 +555,6 @@ list_paths(void)
 		strncpy(list, ":", PATH_MAX);
 		strncat(list, dirs, PATH_MAX);
 	}
-	list = strdup(list);
 	for (dirs = list; !path && *dirs;) {
 		char *p;
 
