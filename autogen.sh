@@ -33,6 +33,8 @@ subst="s:@PACKAGE@:$PACKAGE:g
 sed -r -e "$subst" README.in >README
 sed -r -e "$subst" NEWS.in >NEWS
 sed -r -e "$subst" AUTHORS.in >AUTHORS
+sed -r -e "$subst" THANKS.in >THANKS
+sed -r -e "$subst" TODO.in >TODO
 
 mkdir m4 2>/dev/null
 

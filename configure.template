@@ -2,9 +2,9 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xdg-launch],[0.1.6],[https://github.com/bbidulock/xdg-launch/issues])
-AC_REVISION([0.1.6])
-AC_CONFIG_SRCDIR([xdg-launch.c])
+AC_INIT([xdg-launch],[0.3],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
+AC_REVISION([0.3])
+AC_CONFIG_SRCDIR([src/xdg-launch.c])
 AC_CONFIG_HEADERS([autoconf.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([scripts])
@@ -14,15 +14,18 @@ DATE=`date -uI`
 AC_SUBST([DATE])
 
 # Initialize Automake
-AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
+AM_INIT_AUTOMAKE([gnits 1.14 dist-xz no-dist-gzip std-options -Wall color-tests silent-rules tar-pax])
 AM_MAINTAINER_MODE
 
 # Checks for programs.
+AC_PROG_AWK
 AC_PROG_CC
+AC_PROG_CPP
+AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
+AM_PROG_AR
 AC_PROG_MKDIR_P
-AC_PROG_INSTALL
 AC_ARG_VAR([LD], [Linker loader command])
 
 PKG_PROG_PKG_CONFIG
@@ -108,12 +111,38 @@ fi
 AC_MSG_CHECKING([for debug support])
 AC_MSG_RESULT([${enable_debug:-no}])
 
-appdir='${datadir}/applications'
-autodir='${sysconfdir}/xdg/autostart'
+test "x$prefix" = xNONE && prefix="$ac_default_prefix"
 
-AC_SUBST([appdir])
-AC_SUBST([autodir])
+sharedir="$datadir"
+eval "sharedir=\"$sharedir\""
+eval "sharedir=\"$sharedir\""
+eval "sharedir=\"$sharedir\""
+AC_SUBST([sharedir])
 
-AC_OUTPUT([Makefile])
+xdgconfdir="$sysconfdir"
+eval "xdgconfdir=\"$xdgconfdir\""
+eval "xdgconfdir=\"$xdgconfdir\""
+eval "xdgconfdir=\"$xdgconfdir\""
+AC_SUBST([xdgconfdir])
+
+xdgdatadir="$prefix"
+eval "xdgdatadir=\"$xdgdatadir\""
+eval "xdgdatadir=\"$xdgdatadir\""
+eval "xdgdatadir=\"$xdgdatadir\""
+AC_SUBST([xdgdatadir])
+
+autostartdir='$(xdgconfdir)/xdg/autostart'
+AC_SUBST([autostartdir])
+
+applicationsdir='$(xdgdatadir)/share/applications'
+AC_SUBST([applicationsdir])
+
+AC_CONFIG_FILES([Makefile
+		 src/Makefile
+		 man/Makefile
+		 data/Makefile
+		 ])
+
+AC_OUTPUT
 
 # vim: set ft=config:

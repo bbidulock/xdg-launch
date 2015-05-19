@@ -6,4 +6,4 @@ rm -f cscope.*
 make clean
 make cscope
 cscope -b
-make all
+make clean all
