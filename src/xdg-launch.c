@@ -146,6 +146,10 @@ struct params {
 	char *action;
 	char *xsession;
 	char *autostart;
+	char *runhist;
+	char *recapps;
+	char *recent;
+	char *keep;
 };
 
 struct params options = { NULL, };
@@ -173,6 +177,10 @@ struct params defaults = {
 	.action = "none",
 	.xsession = "false",
 	.autostart = "false",
+	.runhist = "~/.config/xde/run-history",
+	.recapps = "~/.config/xde/recent-applications",
+	.recent = NULL,
+	.keep = "10",
 };
 
 static const char *StartupNotifyFields[] = {
@@ -3696,6 +3704,10 @@ Options:\n\
         interpret entry as xsession instead of application, default: '%18$s'\n\
     -U, --autostart\n\
         interpret entry as autostart instead of application, default: '%19$s'\n\
+    -k, --keep NUMBER\n\
+        specify NUMBER of recent applications to keep, default: '%20$s'\n\
+    -r, --recent FILENAME\n\
+        specify FILENAME of recent apps file, default: '%21$s'\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -3707,7 +3719,27 @@ Options:\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession, defaults.autostart);
+", argv[0],
+	defaults.launcher,
+	defaults.hostname,
+	defaults.monitor,
+	defaults.screen,
+	defaults.desktop,
+	defaults.timestamp,
+	defaults.name,
+	defaults.icon,
+	defaults.binary,
+	defaults.description,
+	defaults.wmclass,
+	defaults.silent,
+	defaults.pid,
+	defaults.keyboard,
+	defaults.pointer,
+	defaults.action,
+	defaults.xsession,
+	defaults.autostart,
+	defaults.keep,
+	defaults.recapps);
 }
 
 static void
@@ -3774,6 +3806,8 @@ main(int argc, char *argv[])
 			{"action",	required_argument,	NULL, 'A'},
 			{"xsession",	no_argument,		NULL, 'X'},
 			{"autostart",	no_argument,		NULL, 'U'},
+			{"keep",	required_argument,	NULL, 'k'},
+			{"recent",	required_argument,	NULL, 'r'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -3786,11 +3820,11 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUD::v::hVCH?",
+				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
 		c = getopt(argc, argv,
-			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUDvhVC?");
+			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -3909,6 +3943,18 @@ main(int argc, char *argv[])
 			free(options.autostart);
 			defaults.autostart = options.autostart = strdup("true");
 			break;
+		case 'k':	/* -k, --keep NUMBER */
+			if ((val = strtoul(optarg, NULL, 0)) < 0)
+				goto bad_option;
+			if (val < 1 || val > 100)
+				goto bad_option;
+			free(options.keep);
+			defaults.keep = options.keep = strdup(optarg);
+			break;
+		case 'r':	/* -r, --recent FILENAME */
+			free(options.recent);
+			defaults.recent = options.recent = strdup(optarg);
+			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)
 				fprintf(stderr, "%s: increasing debug verbosity\n",
@@ -3978,6 +4024,12 @@ main(int argc, char *argv[])
 	if (debug) {
 		fprintf(stderr, "%s: option index = %d\n", argv[0], optind);
 		fprintf(stderr, "%s: option count = %d\n", argv[0], argc);
+	}
+	if (!options.recent) {
+		char *recent = exec_mode ? defaults.runhist : defaults.recapps;
+
+		free(options.recent);
+		defaults.recent = options.recent = strdup(recent);
 	}
 	if (exec_mode) {
 		int i;

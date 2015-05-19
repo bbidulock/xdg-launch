@@ -4,3 +4,10 @@
 - [ ] handle applications desktop entry file id's correctly
 - [X] handle Desktop Action and provide option to launch specified action
 - [ ] handle DBusName and DBusPath for dbus launching
+- [ ] make xdg-launch register with .recently-used and .recently-used.xbel
+- [ ] make xdg-launch use GtkRecentManager object
+- [ ] make xdg-launch also use ~/.config/xde/run-history
+- [ ] make xdg-launch also use ~/.config/xde/recent-applications
+- [ ] maybe xdg-launch should just use XML Simple from glib instead of gtk2
+
+# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:

@@ -344,6 +344,24 @@ intended for launching autostart entries.
 
 Only one of B<--xsession> or B<--autostart> can be specified.
 
+=item B<-k>, B<--keep> I<NUMBER>
+
+Specify the maximum number, I<NUMBER>, of commands or application
+invocations that are kept in the recent history file.  The minimum value
+is one, and the maximum value is 100.  The default value when
+unspecified is 10.
+
+=item B<-r>, B<--recent> I<FILENAME>
+
+Specify the filename of the recent history file.  When in exec mode,
+store recent history of the executable in the file, I<FILENAME>.  In
+exec mode, the default is F<$XDG_CONFIG_HOME/xde/run-history>.  When in
+application mode, store recent history of the application in the file,
+I<FILENAME>.  In application mode, the default is
+F<$XDG_CONFIG_HOME/xde/recent-applications>.
+
+=back
+
 =head1 BEHAVIOUR
 
 B<xdg-launch> exhibits the following behaviour:
@@ -614,6 +632,33 @@ directories.  This defaults to F</etc/xdg>.  The F<autostart>
 subdirectory under these directories are searched in order to locate
 desktop entry files.  See the XDG Desktop Entry file specification for
 more information.
+
+=back
+
+=head1 FILES
+
+B<xdg-launch> uses the following files:
+
+=over
+
+=item F<$XDG_CONFIG_HOME/xde/run-history>
+
+The default location of the F<run-history> file.  This is a simple text
+file with the commands that were last run using the dialog, one per
+line, with the oldest entries lower in the file.
+
+=item F<$XDG_CONFIG_HOME/xde/recent-applications>
+
+The default location of the F<recent-applications> file.  This is a
+simple text file with the application ids that were last run using the
+dialog, one per line, with the oldest entries lower in the file.
+
+=item F<$HOME/.gtkrc-2.0.xde>
+
+The location of the XDE theme file that will be used for the GTK theme
+when it exists.  The program will also respect the C<_XDE_THEME_NAME>
+property on the root window of the screen for which the program was
+launched.
 
 =back
 
