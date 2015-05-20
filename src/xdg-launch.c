@@ -96,6 +96,9 @@
 #define SN_API_NOT_YET_FROZEN
 #include <libsn/sn.h>
 #endif
+#ifdef RECENTLY_USED
+#include <glib.h>
+#endif
 
 #define DPRINTF(_args...) do { if (debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
@@ -148,6 +151,7 @@ struct params {
 	char *autostart;
 	char *runhist;
 	char *recapps;
+	char *recently;
 	char *recent;
 	char *keep;
 };
@@ -179,6 +183,7 @@ struct params defaults = {
 	.autostart = "false",
 	.runhist = "~/.config/xde/run-history",
 	.recapps = "~/.config/xde/recent-applications",
+	.recently = "~/.local/share/recently-used",
 	.recent = NULL,
 	.keep = "10",
 };
@@ -3743,6 +3748,73 @@ Options:\n\
 }
 
 static void
+set_default_files()
+{
+	static const char *rsuffix = "/xde/run-history";
+	static const char *asuffix = "/xde/recent-applications";
+	static const char *xsuffix = "/recently-used";
+	static const char *hsuffix = "/.recently-used";
+	int len;
+	char *env;
+
+	if ((env = getenv("XDG_CONFIG_HOME"))) {
+		len = strlen(env) + strlen(rsuffix) + 1;
+		free(options.runhist);
+		defaults.runhist = options.runhist = calloc(len, sizeof(*options.runhist));
+		strcpy(options.runhist, env);
+		strcat(options.runhist, rsuffix);
+
+		len = strlen(env) + strlen(asuffix) + 1;
+		free(options.recapps);
+		defaults.recapps = options.recapps = calloc(len, sizeof(*options.recapps));
+		strcpy(options.recapps, env);
+		strcat(options.recapps, asuffix);
+
+		len = strlen(env) + strlen(xsuffix) + 1;
+		free(options.recently);
+		defaults.recently = options.recently = calloc(len, sizeof(*options.recently));
+		strcpy(options.recently, env);
+		strcat(options.recently, xsuffix);
+	} else {
+		static const char *cfgdir = "/.config";
+		static const char *datdir = "/.local/share";
+
+		env = getenv("HOME") ? : ".";
+
+		len = strlen(env) + strlen(cfgdir) + strlen(rsuffix) + 1;
+		free(options.runhist);
+		defaults.runhist = options.runhist = calloc(len, sizeof(*options.runhist));
+		strcpy(options.runhist, env);
+		strcat(options.runhist, cfgdir);
+		strcat(options.runhist, rsuffix);
+
+		len = strlen(env) + strlen(cfgdir) + strlen(asuffix) + 1;
+		free(options.recapps);
+		defaults.recapps = options.recapps = calloc(len, sizeof(*options.recapps));
+		strcpy(options.recapps, env);
+		strcat(options.recapps, cfgdir);
+		strcat(options.recapps, asuffix);
+
+		len = strlen(env) + strlen(datdir) + strlen(xsuffix) + 1;
+		free(options.recently);
+		defaults.recently = options.recently = calloc(len, sizeof(*options.recently));
+		strcpy(options.recently, env);
+		strcat(options.recently, datdir);
+		strcat(options.recently, xsuffix);
+	}
+	if (access(options.recently, R_OK | W_OK)) {
+		env = getenv("HOME") ? : ".";
+
+		len = strlen(env) + strlen(hsuffix) + 1;
+		free(options.recently);
+		defaults.recently = options.recently = calloc(len, sizeof(*options.recently));
+		strcpy(options.recently, env);
+		strcat(options.recently, hsuffix);
+	}
+	return;
+}
+
+static void
 set_defaults(int argc, char *argv[])
 {
 	char *buf, *disp, *p;
@@ -3766,8 +3838,9 @@ set_defaults(int argc, char *argv[])
 		if ((p = strrchr(disp, '.')) &&
 		    strspn(p + 1, "0123456789") == strlen(p + 1))
 			defaults.screen = options.screen = strdup(p + 1);
-}
 
+	set_default_files();
+}
 
 int
 main(int argc, char *argv[])

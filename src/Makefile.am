@@ -13,6 +13,8 @@ EXTRA_PROGRAMS = \
 
 xdg_launch_CPPFLAGS = -DNAME=\"xde-launch\"
 xdg_launch_SOURCES = xdg-launch.c
+xdg_launch_LDADD = $(RU_LIBS) $(AM_LDFLAGS)
+xdg_launch_CFLAGS = $(AM_CFLAGS) $(RU_CFLAGS)
 
 xdg_assist_CPPFLAGS = -DNAME=\"xde-assist\"
 xdg_assist_SOURCES = xdg-assist.c
