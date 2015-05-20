@@ -99,6 +99,9 @@
 #ifdef RECENTLY_USED
 #include <glib.h>
 #endif
+#ifdef RECENTLY_USED_XBEL
+#include <gtk/gtk.h>
+#endif
 
 #define DPRINTF(_args...) do { if (debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
