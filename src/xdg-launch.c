@@ -3574,12 +3574,271 @@ put_recently_used_xbel()
 
 #endif				/* RECENTLY_USED_XBEL */
 
+GList *recent = NULL;
+
+typedef struct {
+	gchar *uri;
+	gchar *mime;
+	time_t stamp;
+	gboolean private;
+	GSList *groups;
+} RecentItem;
+
+RecentItem *cur;
+
 static void
-put_recently_used()
+ru_xml_start_element(GMarkupParseContext * ctx, const gchar * name, const gchar ** attrs,
+		     const gchar ** values, gpointer user, GError ** err)
 {
+	if (!strcmp(name, "RecentItem")) {
+		if (!cur && !(cur = calloc(1, sizeof(RecentItem)))) {
+			EPRINTF("could not allocate element\n");
+			exit(1);
+		}
+	} else if (!strcmp(name, "Private")) {
+		cur->private = TRUE;
+	}
+}
+
+static void
+ru_xml_end_element(GMarkupParseContext * ctx, const gchar * name, gpointer user, GError ** err)
+{
+	if (!strcmp(name, "RecentItem")) {
+		recent = g_list_prepend(recent, cur);
+		cur = NULL;
+	}
+}
+
+static void
+ru_xml_text(GMarkupParseContext * ctx, const gchar * text, gsize len, gpointer user, GError ** err)
+{
+	const gchar *name;
+	char *buf, *end = NULL;
+	unsigned long int val;
+
+	name = g_markup_parse_context_get_element(ctx);
+	if (!strcmp(name, "URI")) {
+		free(cur->uri);
+		cur->uri = strndup(text, len);
+	} else if (!strcmp(name, "Mime-Type")) {
+		free(cur->mime);
+		cur->mime = strndup(text, len);
+	} else if (!strcmp(name, "Timestamp")) {
+		cur->stamp = 0;
+		buf = strndup(text, len);
+		val = strtoul(buf, &end, 0);
+		if (end && *end == '\0')
+			cur->stamp = val;
+		free(buf);
+	} else if (!strcmp(name, "Group")) {
+		buf = strndup(text, len);
+		cur->groups = g_slist_append(cur->groups, buf);
+	}
+}
+
+static void
+ru_xml_error(GMarkupParseContext * ctx, GError * err, gpointer user)
+{
+	EPRINTF("got an error during parsing\n");
+
+	if (cur) {
+		free(cur);
+		cur = NULL;
+	}
+}
+
+gint
+recent_sort(gconstpointer a, gconstpointer b)
+{
+	const RecentItem *A = a;
+	const RecentItem *B = b;
+
+	if (A->stamp > B->stamp)
+		return (-1);
+	if (A->stamp < B->stamp)
+		return (1);
+	return (0);
+}
+
+unsigned int linecount = 0;
+
+static void
+groups_write(gpointer data, gpointer user)
+{
+	char *g = (typeof(g)) data;
+	FILE *f = (typeof(f)) user;
+	gchar *s;
+
+	s = g_markup_printf_escaped("<Group>%s</Group>", g);
+	fprintf(f, "      %s\n", s);
+	linecount++;
+	g_free(s);
+}
+
+unsigned int itemcount = 0;
+
+static void
+recent_write(gpointer data, gpointer user)
+{
+	RecentItem *r = (typeof(r)) data;
+	FILE *f = (typeof(f)) user;
+	gchar *s;
+
+	/* not really supposed to be bigger than 500 lines */
+	if (linecount >= 5000)
+		return;
+	/* or was it 500 items? */
+	if (itemcount >= 500)
+		return;
+	fprintf(f, "  %s\n", "<RecentItem>");
+	linecount++;
+
+	s = g_markup_printf_escaped("<URI>%s</URI>", r->uri);
+	fprintf(f, "    %s\n", s);
+	linecount++;
+	g_free(s);
+	s = g_markup_printf_escaped("<Mime-Type>%s</Mime-Type>", r->mime);
+	fprintf(f, "    %s\n", s);
+	linecount++;
+	g_free(s);
+	fprintf(f, "    <Timestamp>%lu</Timestamp>\n", r->stamp);
+	linecount++;
+	if (r->private) {
+		fprintf(f, "    %s\n", "<Private/>");
+		linecount++;
+	}
+	if (r->groups) {
+		fprintf(f, "    %s\n", "<Groups>");
+		linecount++;
+		g_slist_foreach(r->groups, groups_write, f);
+		fprintf(f, "    %s\n", "</Groups>");
+		linecount++;
+	}
+
+	fprintf(f, "  %s\n", "</RecentItem>");
+	linecount++;
+	itemcount++;
+}
+
+static gint
+uri_match(gconstpointer data, gconstpointer user)
+{
+	const RecentItem *r = data;
+
+	DPRINTF("matching '%s' and '%s'\n", r->uri, (char *) user);
+	return (strcmp(r->uri, user));
+}
+
+static void
+group_free(gpointer data)
+{
+	free(data);
+}
+
+static void
+put_recently_used(char *file, char *path)
+{
+	GMarkupParseContext *ctx;
+
+	GMarkupParser parser = {
+		.start_element = ru_xml_start_element,
+		.end_element = ru_xml_end_element,
+		.text = ru_xml_text,
+		.passthrough = NULL,
+		.error = ru_xml_error,
+	};
+	GError *err = NULL;
+	gchar buf[BUFSIZ];
+	gsize got;
+	FILE *f;
+	int dummy, len;
+	struct timeval tv = { 0, 0 };
+	GList *item;
+	char *uri;
+
+	if (!file) {
+		EPRINTF("cannot record recently-used without a file\n");
+		return;
+	}
+	if (!path) {
+		EPRINTF("cannot record recently-used without a path\n");
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		return;
+	}
+
 	/* 1) read in the recently-used file (path only) */
+	if (!(f = fopen(file, "a+"))) {
+		EPRINTF("cannot open recently-used file: '%s'\n", file);
+		return;
+	}
+	dummy = lockf(fileno(f), F_LOCK, 0);
+	if (!(ctx = g_markup_parse_context_new(&parser,
+					       G_MARKUP_TREAT_CDATA_AS_TEXT |
+					       G_MARKUP_PREFIX_ERROR_POSITION |
+					       G_MARKUP_IGNORE_QUALIFIED, NULL, NULL))) {
+		EPRINTF("cannot create XML parser\n");
+		fclose(f);
+		return;
+	}
+	while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
+		if (!g_markup_parse_context_parse(ctx, buf, got, &err)) {
+			EPRINTF("could not parse buffer contents\n");
+			g_markup_parse_context_unref(ctx);
+			fclose(f);
+			return;
+		}
+	}
+	if (!g_markup_parse_context_end_parse(ctx, &err)) {
+		EPRINTF("could not end parsing\n");
+		g_markup_parse_context_unref(ctx);
+		fclose(f);
+		return;
+	}
+	g_markup_parse_context_unref(ctx);
+
 	/* 2) append new information (path only) */
+	len = strlen("file://") + strlen(path) + 1;
+	uri = calloc(len, sizeof(*uri));
+	strcpy(uri, "file://");
+	strcat(uri, path);
+	if ((item = g_list_find_custom(recent, uri, uri_match)))
+		cur = item->data;
+	else
+		cur = calloc(1, sizeof(*cur));
+
+	free(cur->uri);
+	cur->uri = uri;
+	free(cur->mime);
+	cur->mime = strdup("application/x-desktop");
+	gettimeofday(&tv, NULL);
+	cur->stamp = tv.tv_sec;
+	cur->private = TRUE;
+	g_slist_free_full(cur->groups, group_free);
+	cur->groups = NULL;
+	cur->groups = g_slist_append(cur->groups, strdup("recently-used-apps"));
+	cur->groups = g_slist_append(cur->groups, strdup(NAME));
+	if (!item)
+		recent = g_list_prepend(recent, cur);
+	cur = NULL;
+
 	/* 3) write out the recently-used file (path only) */
+	dummy = ftruncate(fileno(f), 0);
+	fseek(f, SEEK_SET, 0);
+
+	recent = g_list_sort(recent, recent_sort);
+	fprintf(f, "%s\n", "<?xml version=\"1.0\"?>");
+	fprintf(f, "%s\n", "<RecentFiles>");
+	linecount = 2;
+	itemcount = 0;
+	g_list_foreach(recent, recent_write, f);
+	fprintf(f, "%s\n", "</RecentFiles>");
+	fflush(f);
+	dummy = lockf(fileno(f), F_ULOCK, 0);
+	fclose(f);
+	(void) dummy;
 }
 
 #endif				/* RECENTLY_USED */
@@ -3667,10 +3926,10 @@ put_line_history(char *file, char *line)
 
 	/* 2) append new information */
 	history = g_list_prepend(history, strdup(line));
-	dummy = ftruncate(fileno(f), 0);
-	fseek(f, SEEK_SET, 0);
 
 	/* 3) write out the history file */
+	dummy = ftruncate(fileno(f), 0);
+	fseek(f, SEEK_SET, 0);
 	g_list_foreach(history, line_write, f);
 	fflush(f);
 	dummy = lockf(fileno(f), F_ULOCK, 0);
@@ -3681,24 +3940,12 @@ put_line_history(char *file, char *line)
 }
 
 static void
-put_recent_apps()
-{
-	put_line_history(options.recapps, fields.application_id);
-}
-
-static void
-put_run_history()
-{
-	put_line_history(options.runhist, fields.command);
-}
-
-static void
 put_history()
 {
-	put_run_history();
-	put_recent_apps();
+	put_line_history(options.runhist, fields.command);
+	put_line_history(options.recapps, fields.application_id);
 #ifdef RECENTLY_USED
-	put_recently_used();
+	put_recently_used(options.recently, options.path);
 	put_recently_used_xbel();
 #endif				/* RECENTLY_USED */
 }
