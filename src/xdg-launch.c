@@ -212,7 +212,7 @@ static const char *StartupNotifyFields[] = {
 	"PID",
 	"HOSTNAME",
 	"COMMAND",
-        "ACTION",
+	"ACTION",
 	"FILE",
 	"URL",
 	NULL
@@ -237,7 +237,7 @@ struct fields {
 	char *pid;
 	char *hostname;
 	char *command;
-        char *action;
+	char *action;
 	char *file;
 	char *url;
 };
@@ -259,7 +259,7 @@ typedef struct _Sequence {
 	Client *client;
 	Bool changed;
 	union {
-		char *fields[sizeof(struct fields)/sizeof(char *)];
+		char *fields[sizeof(struct fields) / sizeof(char *)];
 		struct fields f;
 	};
 	struct {
@@ -276,9 +276,9 @@ typedef struct _Sequence {
 Sequence *sequences;
 
 typedef struct {
-	Window origin;	    /* origin of message sequence */
-	char *data;	    /* message bytes */
-	int len;	    /* number of message bytes */
+	Window origin;			/* origin of message sequence */
+	char *data;			/* message bytes */
+	int len;			/* number of message bytes */
 } Message;
 
 #ifdef STARTUP_NOTIFICATION
@@ -301,7 +301,7 @@ struct entry {
 	char *Terminal;
 	char *StartupNotify;
 	char *StartupWMClass;
-        char *SessionSetup;
+	char *SessionSetup;
 };
 
 struct entry entry = { NULL, };
@@ -487,11 +487,11 @@ handler(Display *display, XErrorEvent *xev)
 			msg[0] = '\0';
 		fprintf(stderr, "X error %s(0x%lx): %s\n", req, xev->resourceid, msg);
 	}
-	return(0);
+	return (0);
 }
 
-XContext ClientContext;	/* window to client context */
-XContext MessageContext; /* window to message context */
+XContext ClientContext;			/* window to client context */
+XContext MessageContext;		/* window to message context */
 
 Bool
 get_display()
@@ -594,7 +594,7 @@ get_times(Window win, Atom prop, Atom type, long *n)
 }
 
 static Bool
-get_time(Window win, Atom prop, Atom type, Time * time_ret)
+get_time(Window win, Atom prop, Atom type, Time *time_ret)
 {
 	return get_cardinal(win, prop, type, (long *) time_ret);
 }
@@ -630,8 +630,7 @@ check_recursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check,
-					     PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 			XFree(data);
 			data = NULL;
 		} else {
@@ -641,8 +640,7 @@ check_recursive(Atom atom, Atom type)
 		}
 		if (XGetWindowProperty(dpy, check, atom, 0L, 1L, False, type, &real,
 				       &format, &nitems, &after,
-				       (unsigned char **) &data) == Success
-		    && format != 0) {
+				       (unsigned char **) &data) == Success && format != 0) {
 			if (nitems > 0) {
 				if (check != (Window) data[0]) {
 					XFree(data);
@@ -682,8 +680,7 @@ check_nonrecursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check,
-					     PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 		}
 		if (data)
 			XFree(data);
@@ -709,8 +706,7 @@ check_supported(Atom protocols, Atom supported)
 
       try_harder:
 	if (XGetWindowProperty(dpy, root, protocols, 0L, num, False,
-			       XA_ATOM, &real, &format, &nitems, &after,
-			       (unsigned char **) &data)
+			       XA_ATOM, &real, &format, &nitems, &after, (unsigned char **) &data)
 	    == Success && format != 0) {
 		if (after) {
 			num += ((after + 1) >> 2);
@@ -1124,8 +1120,7 @@ segm_overlap(int min1, int max1, int min2, int max2)
 }
 
 static int
-area_overlap(int xmin1, int ymin1, int xmax1, int ymax1, int xmin2, int ymin2, int xmax2,
-	     int ymax2)
+area_overlap(int xmin1, int ymin1, int xmax1, int ymax1, int xmin2, int ymin2, int xmax2, int ymax2)
 {
 	int w = 0, h = 0;
 
@@ -1196,8 +1191,7 @@ find_focus_monitor()
 			if ((a = area_overlap(xmin, ymin, xmax, ymax,
 					      ci->x,
 					      ci->y,
-					      ci->x + ci->width,
-					      ci->y + ci->height)) > area) {
+					      ci->x + ci->width, ci->y + ci->height)) > area) {
 				area = a;
 				best = i;
 			}
@@ -1385,8 +1379,7 @@ set_name()
 	else if (entry.Name)
 		fields.name = strdup(entry.Name);
 	else if (eargv)
-		fields.name = (pos =
-			       strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
+		fields.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else
 		fields.name = strdup("");	/* must be included in new: message */
 }
@@ -1436,12 +1429,12 @@ set_icon()
 void
 set_action()
 {
-        PTRACE();
-        free(fields.action);
-        if (options.action)
-                fields.action = strdup(options.action);
-        else
-                fields.action = NULL;
+	PTRACE();
+	free(fields.action);
+	if (options.action)
+		fields.action = strdup(options.action);
+	else
+		fields.action = NULL;
 }
 
 char *
@@ -1473,8 +1466,7 @@ set_pid()
 	if (options.pid)
 		fields.pid = strdup(options.pid);
 	else if ((p = fields.id) &&
-		 (p = strchr(p, '/')) && p++ &&
-		 (p = strchr(p, '/')) && p++ && (q = strchr(p, '-'))
+		 (p = strchr(p, '/')) && p++ && (p = strchr(p, '/')) && p++ && (q = strchr(p, '-'))
 		 && strtoul(p, NULL, 0))
 		fields.pid = strndup(p, q - p);
 	else {
@@ -1560,8 +1552,8 @@ do_subst(char *cmd, char *chars, char *str)
 void
 subst_command(char *cmd)
 {
-        int len;
-        char *p;
+	int len;
+	char *p;
 
 	do_subst(cmd, "i", fields.icon);
 	do_subst(cmd, "c", fields.name);
@@ -1636,7 +1628,7 @@ set_command()
 		   (p = strstr(options.url, "file://")) == options.url) {
 		options.file = strdup(options.url + 7);
 	}
-        subst_command(cmd);
+	subst_command(cmd);
 	return (fields.command = cmd);
 }
 
@@ -1671,8 +1663,7 @@ set_bin()
 		fields.bin = strdup(options.binary);
 	else if (eargv)
 		fields.bin = strdup(eargv[0]);
-	else if (fields.id && (p = strrchr(fields.id, '/')) && p++
-		 && (q = strchr(p, '-')))
+	else if (fields.id && (p = strrchr(fields.id, '/')) && p++ && (q = strchr(p, '-')))
 		fields.bin = strndup(p, q - p);
 	else if (options.exec)
 		fields.bin = first_word(options.exec);
@@ -1774,8 +1765,7 @@ set_id()
 
 	fields.id = calloc(512, sizeof(*fields.id));
 	snprintf(fields.id, 512, "%s/%s/%s-%s-%s_TIME%s",
-		 launcher, launchee, fields.pid, fields.monitor,
-		 fields.hostname, fields.timestamp);
+		 launcher, launchee, fields.pid, fields.monitor, fields.hostname, fields.timestamp);
 	free(launcher);
 	free(launchee);
 }
@@ -1816,8 +1806,8 @@ set_all()
 		set_command();
 	if (!fields.id)
 		set_id();
-        if (!fields.action)
-                set_action();
+	if (!fields.action)
+		set_action();
 }
 
 Client *
@@ -2024,8 +2014,8 @@ lookup_file(char *name)
 		char *home, *copy, *dirs, *env;
 
 		if (options.autostart) {
-			/* need to look in autostart subdirectory of XDG_CONFIG_HOME and then
-			   each of the subdirectories in XDG_CONFIG_DIRS */
+			/* need to look in autostart subdirectory of XDG_CONFIG_HOME and
+			   then each of the subdirectories in XDG_CONFIG_DIRS */
 			if ((env = getenv("XDG_CONFIG_DIRS")) && *env)
 				dirs = env;
 			else
@@ -2041,8 +2031,8 @@ lookup_file(char *name)
 				strcat(home, "/.config");
 			}
 		} else {
-			/* need to look in applications subdirectory of XDG_DATA_HOME and then
-			   each of the subdirectories in XDG_DATA_DIRS */
+			/* need to look in applications subdirectory of XDG_DATA_HOME and 
+			   then each of the subdirectories in XDG_DATA_DIRS */
 			if ((env = getenv("XDG_DATA_DIRS")) && *env)
 				dirs = env;
 			else
@@ -2076,9 +2066,9 @@ lookup_file(char *name)
 			if (options.autostart)
 				strcat(path, "/autostart/");
 			else if (options.xsession)
-                                strcat(path, "/xsessions/");
-                        else
-                                strcat(path, "/applications/");
+				strcat(path, "/xsessions/");
+			else
+				strcat(path, "/applications/");
 			strcat(path, appid);
 			if (access(path, R_OK)) {
 				free(path);
@@ -2091,20 +2081,20 @@ lookup_file(char *name)
 			return (path);
 		}
 		free(copy);
-                /* only look in autostart for autostart entries */
+		/* only look in autostart for autostart entries */
 		if (options.autostart) {
 			free(home);
 			free(appid);
 			return (NULL);
 		}
-                /* only look in xsessions for xsession entries */
+		/* only look in xsessions for xsession entries */
 		else if (options.xsession) {
-                        free(home);
-                        free(appid);
-                        return (NULL);
-                }
-		/* next look in fallback subdirectory of XDG_DATA_HOME and then
-		   each of the subdirectories in XDG_DATA_DIRS */
+			free(home);
+			free(appid);
+			return (NULL);
+		}
+		/* next look in fallback subdirectory of XDG_DATA_HOME and then each of
+		   the subdirectories in XDG_DATA_DIRS */
 		copy = strdup(home);
 		for (dirs = copy; !path && strlen(dirs);) {
 			char *p;
@@ -2213,8 +2203,7 @@ send_msg(char *msg)
 
 	DPRINTF("Message to 0x%lx is: '%s'\n", root, msg);
 
-	from =
-	    XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
+	from = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
 
 	xev.type = ClientMessage;
 	xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
@@ -2321,7 +2310,7 @@ send_remove()
 }
 
 static void
-push_time(Time * accum, Time now)
+push_time(Time *accum, Time now)
 {
 	if (now == CurrentTime)
 		return;
@@ -2605,8 +2594,7 @@ is_dockapp(Client *c)
 		return False;
 	if ((c->wmh->flags & StateHint) && c->wmh->initial_state == WithdrawnState)
 		return True;
-	if ((c->wmh->flags & ~IconPositionHint) ==
-	    (StateHint | IconWindowHint | WindowGroupHint))
+	if ((c->wmh->flags & ~IconPositionHint) == (StateHint | IconWindowHint | WindowGroupHint))
 		return True;
 	if (!c->ch.res_class)
 		return False;
@@ -2706,8 +2694,7 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 static void
 handle_NET_WM_USER_TIME(XEvent *e, Client *c)
 {
-	if (c
-	    && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
+	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
 		push_time(&last_user_time, c->user_time);
 }
 
@@ -2721,8 +2708,7 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 	if ((list = get_windows(root, atom, type, &n))) {
 		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
 		for (i = 0, c = NULL; i < n; c = NULL, i++) {
-			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) !=
-			    Success)
+			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) != Success)
 				c = add_client(list[i]);
 			c->breadcrumb = True;
 		}
@@ -2766,8 +2752,7 @@ handle_MANAGER(XEvent *e, Client *c)
 			XSelectInput(dpy, win,
 				     StructureNotifyMask | SubstructureNotifyMask |
 				     PropertyChangeMask);
-			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n",
-				tray, win);
+			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", tray, win);
 			tray = win;
 		}
 	} else if (tray) {
@@ -3007,12 +2992,11 @@ add_sequence(Sequence *seq)
 }
 
 static Sequence *
-remove_sequence(Sequence * del)
+remove_sequence(Sequence *del)
 {
 	Sequence *seq, **prev;
 
-	for (prev = &sequences, seq = *prev; seq && seq != del;
-	     prev = &seq->next, seq = *prev) ;
+	for (prev = &sequences, seq = *prev; seq && seq != del; prev = &seq->next, seq = *prev) ;
 	if (seq) {
 		*prev = seq->next;
 		seq->next = NULL;
@@ -3098,8 +3082,7 @@ process_startup_msg(Message *m)
 		return;
 	}
 	/* get timestamp from ID if necessary */
-	if (cmd.f.timestamp == NULL
-		&& (p = strstr(cmd.f.id, "_TIME")) != NULL)
+	if (cmd.f.timestamp == NULL && (p = strstr(cmd.f.id, "_TIME")) != NULL)
 		cmd.f.timestamp = strdup(p + 5);
 	convert_sequence_fields(&cmd);
 	if ((seq = find_seq_by_id(cmd.f.id)) == NULL) {
@@ -3197,14 +3180,14 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	if (!e || e->type != ClientMessage)
 		return;
 	from = e->xclient.window;
-	if (XFindContext(dpy, from, MessageContext, (XPointer *)&m) || !m) {
+	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
 		m = calloc(1, sizeof(*m));
-		XSaveContext(dpy, from, MessageContext, (XPointer)m);
+		XSaveContext(dpy, from, MessageContext, (XPointer) m);
 	}
 	free(m->data);
 	m->origin = from;
 	m->data = calloc(21, sizeof(*m->data));
-	m->len  = 0;
+	m->len = 0;
 	/* unpack data */
 	len = strnlen(e->xclient.data.b, 20);
 	strncat(m->data, e->xclient.data.b, 20);
@@ -3225,7 +3208,7 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 	if (!e || e->type != ClientMessage)
 		return;
 	from = e->xclient.window;
-	if (XFindContext(dpy, from, MessageContext, (XPointer *)&m) || !m)
+	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
 		return;
 	m->data = realloc(m->data, m->len + 21);
 	/* unpack data */
@@ -3253,7 +3236,7 @@ clean_msgs(Window w)
 
 #ifdef STARTUP_NOTIFICATION
 static void
-sn_handler(SnMonitorEvent *event, void *dummy)
+sn_handler(SnMonitorEvent * event, void *dummy)
 {
 	Notify *n, **np;
 	SnStartupSequence *seq;
@@ -3567,6 +3550,10 @@ launch()
 	exit(127);
 }
 
+#ifdef RECENTLY_USED
+
+#ifdef RECENTLY_USED_XBEL
+
 static void
 put_recently_used_xbel()
 {
@@ -3575,6 +3562,18 @@ put_recently_used_xbel()
 	/* 3) write out the recently-used.xbel file (path only) */
 }
 
+#else				/* RECENTLY_USED_XBEL */
+
+static void
+put_recently_used_xbel()
+{
+	/* 1) read in the recently-used.xbel file (path only) */
+	/* 2) append new information (path only) */
+	/* 3) write out the recently-used.xbel file (path only) */
+}
+
+#endif				/* RECENTLY_USED_XBEL */
+
 static void
 put_recently_used()
 {
@@ -3582,6 +3581,8 @@ put_recently_used()
 	/* 2) append new information (path only) */
 	/* 3) write out the recently-used file (path only) */
 }
+
+#endif				/* RECENTLY_USED */
 
 static void
 line_free(gpointer data)
@@ -3621,7 +3622,7 @@ put_line_history(char *file, char *line)
 	DPRINTF("maximum history entries '%d'\n", keep);
 
 	if (!file) {
-		EPRINTF("cannot record history without a file\n"); 
+		EPRINTF("cannot record history without a file\n");
 		return;
 	}
 	if (!line) {
@@ -3696,8 +3697,10 @@ put_history()
 {
 	put_run_history();
 	put_recent_apps();
+#ifdef RECENTLY_USED
 	put_recently_used();
 	put_recently_used_xbel();
+#endif				/* RECENTLY_USED */
 }
 
 static void
@@ -3860,27 +3863,7 @@ Options:\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0],
-	defaults.launcher,
-	defaults.hostname,
-	defaults.monitor,
-	defaults.screen,
-	defaults.desktop,
-	defaults.timestamp,
-	defaults.name,
-	defaults.icon,
-	defaults.binary,
-	defaults.description,
-	defaults.wmclass,
-	defaults.silent,
-	defaults.pid,
-	defaults.keyboard,
-	defaults.pointer,
-	defaults.action,
-	defaults.xsession,
-	defaults.autostart,
-	defaults.keep,
-	defaults.recapps);
+", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession, defaults.autostart, defaults.keep, defaults.recapps);
 }
 
 static void
@@ -3956,7 +3939,7 @@ set_defaults(int argc, char *argv[])
 	char *buf, *disp, *p;
 
 	free(options.launcher);
-	buf = (p = strrchr(argv[0], '/')) ? p+1 : argv[0];
+	buf = (p = strrchr(argv[0], '/')) ? p + 1 : argv[0];
 	defaults.launcher = options.launcher = strdup(buf);
 	if (!strcmp(buf, "xdg-xsession"))
 		defaults.xsession = options.xsession = strdup("true");
@@ -3971,8 +3954,7 @@ set_defaults(int argc, char *argv[])
 	snprintf(buf, 64, "%d", getpid());
 
 	if ((disp = getenv("DISPLAY")))
-		if ((p = strrchr(disp, '.')) &&
-		    strspn(p + 1, "0123456789") == strlen(p + 1))
+		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
 			defaults.screen = options.screen = strdup(p + 1);
 
 	set_default_files();
@@ -3987,6 +3969,7 @@ main(int argc, char *argv[])
 
 	while (1) {
 		int c, val;
+
 #ifdef _GNU_SOURCE
 		int option_index = 0;
 		/* *INDENT-OFF* */
@@ -4032,8 +4015,7 @@ main(int argc, char *argv[])
 				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv,
-			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:DvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -4166,8 +4148,7 @@ main(int argc, char *argv[])
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)
-				fprintf(stderr, "%s: increasing debug verbosity\n",
-					argv[0]);
+				fprintf(stderr, "%s: increasing debug verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				debug++;
 			} else {
@@ -4178,8 +4159,7 @@ main(int argc, char *argv[])
 			break;
 		case 'v':	/* -v, --verbose [level] */
 			if (debug)
-				fprintf(stderr, "%s: increasing output verbosity\n",
-					argv[0]);
+				fprintf(stderr, "%s: increasing output verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				output++;
 				break;
@@ -4196,14 +4176,12 @@ main(int argc, char *argv[])
 			exit(EXIT_SUCCESS);
 		case 'V':	/* -V, --version */
 			if (debug)
-				fprintf(stderr, "%s: printing version message\n",
-					argv[0]);
+				fprintf(stderr, "%s: printing version message\n", argv[0]);
 			version(argc, argv);
 			exit(EXIT_SUCCESS);
 		case 'C':	/* -C, --copying */
 			if (debug)
-				fprintf(stderr, "%s: printing copying message\n",
-					argv[0]);
+				fprintf(stderr, "%s: printing copying message\n", argv[0]);
 			copying(argc, argv);
 			exit(EXIT_SUCCESS);
 		case '?':
@@ -4213,14 +4191,12 @@ main(int argc, char *argv[])
 		      bad_nonopt:
 			if (output || debug) {
 				if (optind < argc) {
-					fprintf(stderr, "%s: syntax error near '",
-						argv[0]);
+					fprintf(stderr, "%s: syntax error near '", argv[0]);
 					while (optind < argc)
 						fprintf(stderr, "%s ", argv[optind++]);
 					fprintf(stderr, "'\n");
 				} else {
-					fprintf(stderr, "%s: missing option or argument",
-						argv[0]);
+					fprintf(stderr, "%s: missing option or argument", argv[0]);
 					fprintf(stderr, "\n");
 				}
 				fflush(stderr);
@@ -4315,8 +4291,8 @@ main(int argc, char *argv[])
 			OPRINTF("%-30s = %s\n", "StartupNotify", entry.StartupNotify);
 		if (entry.StartupWMClass)
 			OPRINTF("%-30s = %s\n", "StartupWMClass", entry.StartupWMClass);
-                if (entry.SessionSetup)
-                        OPRINTF("%-30s = %s\n", "SessionSetup", entry.SessionSetup);
+		if (entry.SessionSetup)
+			OPRINTF("%-30s = %s\n", "SessionSetup", entry.SessionSetup);
 	}
 	if (!eargv && !options.exec && !entry.Exec) {
 		EPRINTF("no exec command\n");
@@ -4362,11 +4338,11 @@ main(int argc, char *argv[])
 			OPRINTF("%-30s = %s\n", "HOSTNAME", fields.hostname);
 		if (fields.command)
 			OPRINTF("%-30s = %s\n", "COMMAND", fields.command);
-                if (fields.action)
-                        OPRINTF("%-30s = %s\n", "ACTION", fields.action);
+		if (fields.action)
+			OPRINTF("%-30s = %s\n", "ACTION", fields.action);
 	}
 	put_history();
-        setup();
+	setup();
 	launch();
 	exit(EXIT_SUCCESS);
 }
