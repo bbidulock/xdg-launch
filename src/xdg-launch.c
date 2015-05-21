@@ -3568,7 +3568,7 @@ launch()
 }
 
 static void
-put_recently_used_xbel(char *appid, char *path)
+put_recently_used_xbel()
 {
 	/* 1) read in the recently-used.xbel file (path only) */
 	/* 2) append new information (path only) */
@@ -3576,7 +3576,7 @@ put_recently_used_xbel(char *appid, char *path)
 }
 
 static void
-put_recently_used(char *appid, char *path)
+put_recently_used()
 {
 	/* 1) read in the recently-used file (path only) */
 	/* 2) append new information (path only) */
@@ -3584,19 +3584,120 @@ put_recently_used(char *appid, char *path)
 }
 
 static void
-put_run_history(char *appid, char *path)
+line_free(gpointer data)
 {
-	/* 1) read in the history file (appid only) */
-	/* 2) append new information (appid only) */
-	/* 3) write out the history file (appid only) */
+	free(data);
+}
+
+static gint
+line_sort(gconstpointer a, gconstpointer b)
+{
+	return strcmp(a, b);
 }
 
 static void
-put_history(char *appid, char *path)
+line_write(gpointer data, gpointer user)
 {
-	put_run_history(appid, path);
-	put_recently_used(appid, path);
-	put_recently_used_xbel(appid, path);
+	FILE *f = user;
+
+	fputs(data, f);
+	fputc('\n', f);
+}
+
+static void
+put_line_history(char *file, char *line)
+{
+	FILE *f;
+	int dummy;
+	char *buf, *p;
+	int discarding = 0, n = 0, keep = 10;
+	GList *history = NULL;
+
+	if (defaults.keep)
+		keep = strtol(defaults.keep, NULL, 0);
+	if (options.keep)
+		keep = strtol(options.keep, NULL, 0);
+
+	DPRINTF("maximum history entries '%d'\n", keep);
+
+	if (!file) {
+		EPRINTF("cannot record history without a file\n"); 
+		return;
+	}
+	if (!line) {
+		EPRINTF("cannot record history without a line\n");
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		return;
+	}
+	/* 1) read in the history file */
+	if (!(f = fopen(file, "a+"))) {
+		EPRINTF("cannot open history file: '%s'\n", file);
+		return;
+	}
+	dummy = lockf(fileno(f), F_LOCK, 0);
+	buf = calloc(PATH_MAX + 2, sizeof(*buf));
+	while (fgets(buf, PATH_MAX, f)) {
+		if ((p = strrchr(buf, '\n'))) {
+			if (!discarding)
+				*p = '\0';
+			else {
+				discarding = 0;
+				continue;
+			}
+		} else {
+			discarding = 1;
+			continue;
+		}
+		p = buf + strspn(buf, " \t");
+		if (!*p)
+			continue;
+		DPRINTF("read line from %s: '%s'\n", file, p);
+		if (line_sort(p, line) == 0)
+			continue;
+		if (g_list_find_custom(history, p, line_sort))
+			continue;
+		history = g_list_append(history, strdup(p));
+		if (++n >= keep)
+			break;
+	}
+
+	/* 2) append new information */
+	history = g_list_prepend(history, strdup(line));
+	dummy = ftruncate(fileno(f), 0);
+	fseek(f, SEEK_SET, 0);
+
+	/* 3) write out the history file */
+	g_list_foreach(history, line_write, f);
+	fflush(f);
+	dummy = lockf(fileno(f), F_ULOCK, 0);
+	fclose(f);
+	g_list_free_full(history, line_free);
+	history = NULL;
+	(void) dummy;
+}
+
+static void
+put_recent_apps()
+{
+	put_line_history(options.recapps, fields.application_id);
+}
+
+static void
+put_run_history()
+{
+	put_line_history(options.runhist, fields.command);
+}
+
+static void
+put_history()
+{
+	put_run_history();
+	put_recent_apps();
+	put_recently_used();
+	put_recently_used_xbel();
 }
 
 static void
@@ -4175,12 +4276,10 @@ main(int argc, char *argv[])
 	} else if (eargv) {
 		char *p;
 
-		free(options.appid);
 		p = strrchr(eargv[0], '/');
 		p = p ? p + 1 : eargv[0];
-		options.appid = strdup(p);
 		free(options.path);
-		if ((options.path = lookup_file(options.appid))) {
+		if ((options.path = lookup_file(p))) {
 			if (!parse_file(options.path)) {
 				free(options.path);
 				options.path = NULL;
@@ -4266,7 +4365,7 @@ main(int argc, char *argv[])
                 if (fields.action)
                         OPRINTF("%-30s = %s\n", "ACTION", fields.action);
 	}
-	put_history(options.appid, options.path);
+	put_history();
         setup();
 	launch();
 	exit(EXIT_SUCCESS);
