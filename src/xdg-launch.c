@@ -152,6 +152,7 @@ struct params {
 	char *action;
 	char *xsession;
 	char *autostart;
+	char *path;
 	char *runhist;
 	char *recapps;
 	char *recently;
@@ -184,6 +185,7 @@ struct params defaults = {
 	.action = "none",
 	.xsession = "false",
 	.autostart = "false",
+	.path = NULL,
 	.runhist = "~/.config/xde/run-history",
 	.recapps = "~/.config/xde/recent-applications",
 	.recently = "~/.local/share/recently-used",
@@ -1698,7 +1700,7 @@ set_application_id()
 			p++;
 		else
 			p = options.appid;
-		if ((q = strstr(options.appid, ".desktop")) && !*(q + 8))
+		if ((q = strstr(options.appid, ".desktop")) && !q[8])
 			fields.application_id = strndup(p, q - p);
 		else
 			fields.application_id = strdup(p);
@@ -2012,7 +2014,6 @@ char *
 lookup_file(char *name)
 {
 	char *path = NULL, *appid;
-	struct stat st;
 
 	appid = calloc(1024, sizeof(*appid));
 	strncat(appid, name, 1023);
@@ -2079,7 +2080,7 @@ lookup_file(char *name)
                         else
                                 strcat(path, "/applications/");
 			strcat(path, appid);
-			if (stat(path, &st)) {
+			if (access(path, R_OK)) {
 				free(path);
 				path = NULL;
 				continue;
@@ -2119,7 +2120,7 @@ lookup_file(char *name)
 			path = realloc(path, 4096);
 			strcat(path, "/fallback/");
 			strcat(path, appid);
-			if (stat(path, &st)) {
+			if (access(path, R_OK)) {
 				free(path);
 				path = NULL;
 				continue;
@@ -2162,7 +2163,7 @@ lookup_file(char *name)
 			path = realloc(path, 4096);
 			strcat(path, "/autostart/");
 			strcat(path, appid);
-			if (stat(path, &st)) {
+			if (access(path, R_OK)) {
 				free(path);
 				path = NULL;
 				continue;
@@ -2176,7 +2177,7 @@ lookup_file(char *name)
 		free(home);
 	} else {
 		path = strdup(appid);
-		if (stat(path, &st)) {
+		if (access(path, R_OK)) {
 			free(path);
 			path = NULL;
 		}
@@ -2401,13 +2402,12 @@ get_proc_comm(pid_t pid)
 char *
 get_proc_exec(pid_t pid)
 {
-	struct stat st;
 	char *file, *buf;
 	ssize_t size;
 
 	file = calloc(64, sizeof(*file));
 	snprintf(file, 64, "/proc/%d/exe", pid);
-	if (stat(file, &st)) {
+	if (access(file, R_OK)) {
 		free(file);
 		return NULL;
 	}
@@ -3568,6 +3568,38 @@ launch()
 }
 
 static void
+put_recently_used_xbel(char *appid, char *path)
+{
+	/* 1) read in the recently-used.xbel file (path only) */
+	/* 2) append new information (path only) */
+	/* 3) write out the recently-used.xbel file (path only) */
+}
+
+static void
+put_recently_used(char *appid, char *path)
+{
+	/* 1) read in the recently-used file (path only) */
+	/* 2) append new information (path only) */
+	/* 3) write out the recently-used file (path only) */
+}
+
+static void
+put_run_history(char *appid, char *path)
+{
+	/* 1) read in the history file (appid only) */
+	/* 2) append new information (appid only) */
+	/* 3) write out the history file (appid only) */
+}
+
+static void
+put_history(char *appid, char *path)
+{
+	put_run_history(appid, path);
+	put_recently_used(appid, path);
+	put_recently_used_xbel(appid, path);
+}
+
+static void
 copying(int argc, char *argv[])
 {
 	if (!output && !debug)
@@ -4141,22 +4173,28 @@ main(int argc, char *argv[])
 		EPRINTF("APPID or EXEC must be specified\n");
 		goto bad_usage;
 	} else if (eargv) {
-		char *path, *pos;
+		char *p;
 
-		if (!(pos = strrchr(eargv[0], '/')))
-			pos = eargv[0];
-		if ((path = lookup_file(pos)))
-			if (!parse_file(path))
+		free(options.appid);
+		p = strrchr(eargv[0], '/');
+		p = p ? p + 1 : eargv[0];
+		options.appid = strdup(p);
+		free(options.path);
+		if ((options.path = lookup_file(options.appid))) {
+			if (!parse_file(options.path)) {
+				free(options.path);
+				options.path = NULL;
 				entry.TryExec = strdup(eargv[0]);
+			}
+		}
 	} else if (options.appid) {
-		char *path;
-
-		if (!(path = lookup_file(options.appid))) {
+		free(options.path);
+		if (!(options.path = lookup_file(options.appid))) {
 			EPRINTF("could not find file '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
-		if (!parse_file(path)) {
-			EPRINTF("could not parse file '%s'\n", path);
+		if (!parse_file(options.path)) {
+			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -4228,6 +4266,7 @@ main(int argc, char *argv[])
                 if (fields.action)
                         OPRINTF("%-30s = %s\n", "ACTION", fields.action);
 	}
+	put_history(options.appid, options.path);
         setup();
 	launch();
 	exit(EXIT_SUCCESS);
