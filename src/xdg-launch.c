@@ -3632,16 +3632,19 @@ typedef struct {
 	gboolean private;
 } XbelBookmark;
 
-XbelBookmark *mark = NULL;
-
 static void
 xbel_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar
 		   **attrs, const gchar **values, gpointer user, GError **err)
 {
+	GList **list = user;
+	GList *item = g_list_last(*list);
+	XbelBookmark *mark = item ? item->data : NULL;
+
 	if (!strcmp(name, "xbel")) {
 	} else if (!strcmp(name, "bookmark")) {
 		struct tm tm = { 0, };
-		if (!mark && !(mark = calloc(1, sizeof(*mark)))) {
+
+		if (!(mark = calloc(1, sizeof(*mark)))) {
 			EPRINTF("could not allocate bookmark\n");
 			exit(1);
 		}
@@ -3662,6 +3665,7 @@ xbel_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar
 				DPRINTF("unrecognized attribute of bookmark: '%s'\n", *attrs);
 			}
 		}
+		*list = g_list_append(*list, mark);
 	} else if (!strcmp(name, "title")) {
 	} else if (!strcmp(name, "desc")) {
 	} else if (!strcmp(name, "info")) {
@@ -3690,10 +3694,14 @@ xbel_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar
 	} else if (!strcmp(name, "bookmark:group")) {
 	} else if (!strcmp(name, "bookmark:applications")) {
 	} else if (!strcmp(name, "bookmark:application")) {
-		XbelApplication *appl;
-		struct tm tm = { 0, };
+		if (mark) {
+			XbelApplication *appl;
+			struct tm tm = { 0, };
 
-		if (mark && (appl = calloc(1, sizeof(*appl)))) {
+			if (!(appl = calloc(1, sizeof(*appl)))) {
+				EPRINTF("could not allocate application\n");
+				exit(1);
+			}
 			for (; *attrs; attrs++, values++) {
 				if (!strcmp(*attrs, "name")) {
 					free(appl->name);
@@ -3723,33 +3731,11 @@ xbel_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar
 }
 
 static void
-xbel_end_element(GMarkupParseContext *ctx, const gchar *name, gpointer user, GError **err)
-{
-	if (!strcmp(name, "xbel")) {
-	} else if (!strcmp(name, "bookmark")) {
-		if (mark) {
-			GList **list = user;
-			*list = g_list_append(*list, mark);
-			mark = NULL;
-		}
-	} else if (!strcmp(name, "title")) {
-	} else if (!strcmp(name, "desc")) {
-	} else if (!strcmp(name, "info")) {
-	} else if (!strcmp(name, "metadata")) {
-	} else if (!strcmp(name, "mime:mime-type")) {
-	} else if (!strcmp(name, "bookmark:groups")) {
-	} else if (!strcmp(name, "bookmark:group")) {
-	} else if (!strcmp(name, "bookmark:applications")) {
-	} else if (!strcmp(name, "bookmark:application")) {
-	} else if (!strcmp(name, "bookmark:private")) {
-	} else {
-		DPRINTF("unrecognized end tag: '%s'\n", name);
-	}
-}
-
-static void
 xbel_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer user, GError **err)
 {
+	GList **list = user;
+	GList *item = g_list_last(*list);
+	XbelBookmark *mark = item ? item->data : NULL;
 	const gchar *name;
 
 	name = g_markup_parse_context_get_element(ctx);
@@ -3822,16 +3808,6 @@ xbel_free(gpointer data)
 	g_list_free_full(book->groups, text_free);
 	g_list_free_full(book->applications, appl_free);
 	free(book);
-}
-
-static void
-xbel_error(GMarkupParseContext *ctx, GError *err, gpointer user)
-{
-	EPRINTF("got an error during parsing\n");
-	if (mark) {
-		xbel_free(mark);
-		mark = NULL;
-	}
 }
 
 static void
@@ -4039,10 +4015,10 @@ put_recently_used_xbel(char *filename, char *uri)
 		GMarkupParseContext *ctx;
 		GMarkupParser parser = {
 			.start_element = xbel_start_element,
-			.end_element = xbel_end_element,
+			.end_element = NULL,
 			.text = xbel_text,
 			.passthrough = NULL,
-			.error = xbel_error,
+			.error = NULL,
 		};
 		gchar buf[BUFSIZ];
 		gsize got;
@@ -4131,35 +4107,32 @@ typedef struct {
 	GList *groups;
 } RecentItem;
 
-RecentItem *cur;
-
 static void
 ru_xml_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar **attrs,
 		     const gchar **values, gpointer user, GError **err)
 {
+	GList **list = user;
+	GList *item = g_list_first(*list);
+	RecentItem *cur = item ? item->data : NULL;
+
 	if (!strcmp(name, "RecentItem")) {
-		if (!cur && !(cur = calloc(1, sizeof(RecentItem)))) {
+		if (!(cur = calloc(1, sizeof(RecentItem)))) {
 			EPRINTF("could not allocate element\n");
 			exit(1);
 		}
-	} else if (!strcmp(name, "Private")) {
-		cur->private = TRUE;
-	}
-}
-
-static void
-ru_xml_end_element(GMarkupParseContext *ctx, const gchar *name, gpointer user, GError **err)
-{
-	if (!strcmp(name, "RecentItem")) {
-		GList **list = user;
 		*list = g_list_prepend(*list, cur);
-		cur = NULL;
+	} else if (!strcmp(name, "Private")) {
+		if (cur)
+			cur->private = TRUE;
 	}
 }
 
 static void
 ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer user, GError **err)
 {
+	GList **list = user;
+	GList *item = g_list_first(*list);
+	RecentItem *cur = item ? item->data : NULL;
 	const gchar *name;
 	char *buf, *end = NULL;
 	unsigned long int val;
@@ -4181,17 +4154,6 @@ ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer use
 	} else if (!strcmp(name, "Group")) {
 		buf = strndup(text, len);
 		cur->groups = g_list_append(cur->groups, buf);
-	}
-}
-
-static void
-ru_xml_error(GMarkupParseContext *ctx, GError *err, gpointer user)
-{
-	EPRINTF("got an error during parsing\n");
-
-	if (cur) {
-		free(cur);
-		cur = NULL;
 	}
 }
 
@@ -4309,6 +4271,7 @@ put_recently_used(char *filename, char *uri)
 	struct stat st;
 	char *file;
 	GList *list = NULL;
+	RecentItem *cur;
 
 
 	file = g_build_filename(g_get_home_dir(), filename, NULL);
@@ -4347,10 +4310,10 @@ put_recently_used(char *filename, char *uri)
 
 		GMarkupParser parser = {
 			.start_element = ru_xml_start_element,
-			.end_element = ru_xml_end_element,
+			.end_element = NULL,
 			.text = ru_xml_text,
 			.passthrough = NULL,
-			.error = ru_xml_error,
+			.error = NULL,
 		};
 		gchar buf[BUFSIZ];
 		gsize got;
