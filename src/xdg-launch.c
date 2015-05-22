@@ -99,7 +99,7 @@
 #ifdef RECENTLY_USED
 #include <glib.h>
 #endif
-// #undef RECENTLY_USED_XBEL    /* FIXME */
+// #undef RECENTLY_USED_XBEL	/* FIXME */
 #ifdef RECENTLY_USED_XBEL
 #include <gtk/gtk.h>
 #endif
@@ -155,6 +155,7 @@ struct params {
 	char *autostart;
 	char *path;
 	char *uri;
+	char *rawcmd;
 	char *runhist;
 	char *recapps;
 	char *recently;
@@ -305,6 +306,8 @@ struct entry {
 	char *StartupNotify;
 	char *StartupWMClass;
 	char *SessionSetup;
+	char *Categories;
+	char *MimeType;
 };
 
 struct entry entry = { NULL, };
@@ -1621,6 +1624,8 @@ set_command()
 		EPRINTF("cannot launch anything without a command\n");
 		exit(EXIT_FAILURE);
 	}
+	free(options.rawcmd);
+	options.rawcmd = strdup(cmd);
 	subst_command(cmd);
 	return (fields.command = cmd);
 }
@@ -1980,6 +1985,14 @@ parse_file(char *path)
 					entry.SessionSetup = strdup(val);
 				ok = 1;
 			}
+		} else if (strcmp(key, "Categories") == 0) {
+			if (!entry.Categories)
+				entry.Categories = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "MimeType") == 0) {
+			if (!entry.MimeType)
+				entry.MimeType = strdup(val);
+			ok = 1;
 		}
 	}
 	fclose(file);
@@ -3549,7 +3562,7 @@ launch()
 #ifdef RECENTLY_USED_XBEL
 
 static void
-put_recently_used_xbel(char *filename)
+put_recent_applications_xbel(char *filename)
 {
 	GtkRecentManager *mgr;
 	GtkRecentData data = { NULL, };
@@ -3592,6 +3605,82 @@ put_recently_used_xbel(char *filename)
 	}
 
 	/* 3) write out the recently-used.xbel file (uri only) */
+	g_object_unref(mgr);
+	do {
+		gtk_main_iteration_do(FALSE);
+	}
+	while (gtk_events_pending());
+}
+
+static void
+put_recently_used_xbel(char *filename)
+{
+	GtkRecentManager *mgr;
+	GtkRecentData data = { NULL, };
+	gchar *groups[2] = { NULL, NULL };
+	char *file, *p, *mime = NULL, *group = NULL;
+
+	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
+	if (!file) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		return;
+	}
+	if (!options.url) {
+		EPRINTF("cannot record %s without a url\n", filename);
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		return;
+	}
+
+	/* 1) read in the recently-used.xbel file (url only) */
+	if (!(mgr = g_object_new(GTK_TYPE_RECENT_MANAGER, "filename", file, NULL))) {
+		EPRINTF("could not get recent manager instance\n");
+		g_free(file);
+		return;
+	}
+	g_free(file);
+
+	/* 2) append new information (url only) */
+	data.display_name = NULL;
+	data.description = NULL;
+	if (entry.MimeType) {
+		mime = strdup(entry.MimeType);
+		if ((p = strchr(mime, ';')))
+			*p = '\0';
+	}
+	data.mime_type = mime;
+	data.app_name = fields.bin ? : entry.Name;
+	data.app_exec = options.rawcmd;
+
+	/* FIXME: why not do multiple groups? */
+	if (entry.Categories) {
+		group = strdup(entry.Categories);
+		if ((p = strchr(group, ';')))
+			*p = '\0';
+		/* reserved for application launching */
+		if (!strcmp(group, "Application")) {
+			free(group);
+			group = NULL;
+		}
+	}
+	if (group) {
+		groups[0] = group;
+		data.groups = groups;
+	} else
+		data.groups = NULL;
+	data.is_private = TRUE;
+	if (!gtk_recent_manager_add_full(mgr, options.url, &data)) {
+		EPRINTF("could not add recent data info\n");
+		free(mime);
+		free(group);
+		return;
+	}
+	free(mime);
+	free(group);
+
+	/* 3) write out the recently-used.xbel file (url only) */
 	g_object_unref(mgr);
 	do {
 		gtk_main_iteration_do(FALSE);
@@ -3957,7 +4046,7 @@ app_match(gconstpointer data, gconstpointer user)
 }
 
 static void
-put_recently_used_xbel(char *filename)
+put_recent_applications_xbel(char *filename)
 {
 	FILE *f;
 	int dummy;
@@ -4069,6 +4158,156 @@ put_recently_used_xbel(char *filename)
 	appl->count++;
 
 	/* 3) write out the recently-used.xbel file (uri only) */
+	dummy = ftruncate(fileno(f), 0);
+	fseek(f, 0L, SEEK_SET);
+
+	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", f);
+	fputs("<xbel version=\"1.0\"\n", f);
+	fputs("      xmlns:bookmark=\"http://www.freedesktop.org/standards/desktop-bookmarks\"\n",
+	      f);
+	fputs("      xmlns:mime=\"http://www.freedesktop.org/standards/shared-mime-info\"\n", f);
+	fputs(">\n", f);
+	g_list_foreach(list, xbel_write, f);
+	fputs("</xbel>\n", f);
+	fflush(f);
+	dummy = lockf(fileno(f), F_ULOCK, 0);
+	fclose(f);
+	g_list_free_full(list, xbel_free);
+	list = NULL;
+	(void) dummy;
+}
+
+static void
+put_recently_used_xbel(char *filename)
+{
+	FILE *f;
+	int dummy;
+	struct timeval tv = { 0, };
+	GList *item;
+	struct stat st;
+	char *file;
+	XbelApplication *appl;
+	GList *list = NULL;
+	XbelBookmark *book = NULL;
+	char *temp = NULL;
+
+	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
+
+	if (!file) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		g_free(file);
+		return;
+	}
+	if (!options.url) {
+		EPRINTF("cannot record %s without a url\n", filename);
+		g_free(file);
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		g_free(file);
+		return;
+	}
+
+	/* 1) read in the recently-used.xbel file (url only) */
+	if (!(f = fopen(file, "a+"))) {
+		EPRINTF("cannot open %s file: '%s'\n", filename, file);
+		g_free(file);
+		return;
+	}
+	dummy = lockf(fileno(f), F_LOCK, 0);
+	if (fstat(fileno(f), &st)) {
+		EPRINTF("cannot state open file: '%s'\n", file);
+		fclose(f);
+		g_free(file);
+		return;
+	}
+	g_free(file);
+	if (st.st_size > 0) {
+		GMarkupParseContext *ctx;
+
+		GMarkupParser parser = {
+			.start_element = xbel_start_element,
+			.end_element = NULL,
+			.text = xbel_text,
+			.passthrough = NULL,
+			.error = NULL,
+		};
+		gchar buf[BUFSIZ];
+		gsize got;
+
+		if (!(ctx = g_markup_parse_context_new(&parser,
+						       G_MARKUP_TREAT_CDATA_AS_TEXT |
+						       G_MARKUP_PREFIX_ERROR_POSITION,
+						       &list, NULL))) {
+			EPRINTF("cannot create XML parser\n");
+			fclose(f);
+			return;
+		}
+		while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
+			if (!g_markup_parse_context_parse(ctx, buf, got, NULL)) {
+				EPRINTF("could not parse buffer contents\n");
+				g_markup_parse_context_unref(ctx);
+				fclose(f);
+				return;
+			}
+		}
+		if (!g_markup_parse_context_end_parse(ctx, NULL)) {
+			EPRINTF("could not end parsing\n");
+			g_markup_parse_context_unref(ctx);
+			fclose(f);
+			return;
+		}
+		g_markup_parse_context_unref(ctx);
+	}
+
+	/* 2) append new information (url only) */
+	gettimeofday(&tv, NULL);
+	if (!(item = g_list_find_custom(list, options.url, href_match))) {
+		book = calloc(1, sizeof(*book));
+		book->href = strdup(options.url);
+		if (entry.MimeType) {
+			char *p;
+
+			book->mime = strdup(entry.MimeType);
+			if ((p = strchr(book->mime, ';')))
+				*p = '\0';
+		} else
+			book->mime = strdup("unknown/unknown");	/* FIXME */
+		book->added = tv.tv_sec;
+		book->private = TRUE;
+		list = g_list_append(list, book);
+	} else
+		book = item->data;
+	book->modified = tv.tv_sec;
+	book->visited = tv.tv_sec;
+	if (entry.Categories) {
+		char *p;
+
+		temp = strdup(entry.Categories);
+		if ((p = strchr(temp, ';')))
+			*p = '\0';
+		/* reserved for application launching */
+		if (!strcmp(temp, "Application")) {
+			free(temp);
+			temp = NULL;
+		}
+	}
+	if (temp && !(item = g_list_find_custom(book->groups, temp, grp_match)))
+		book->groups = g_list_append(book->groups, strdup(temp));
+	free(temp);
+	temp = fields.bin ? : entry.Name;
+	if (!(item = g_list_find_custom(book->applications, temp, app_match))) {
+		appl = calloc(1, sizeof(*appl));
+		appl->name = strdup(temp);
+		appl->exec = strdup(options.rawcmd);
+		book->applications = g_list_append(book->applications, appl);
+	} else
+		appl = item->data;
+	appl->modified = tv.tv_sec;
+	appl->count++;
+
+	/* 3) write out the recently-used.xbel file (url only) */
 	dummy = ftruncate(fileno(f), 0);
 	fseek(f, 0L, SEEK_SET);
 
@@ -4259,7 +4498,7 @@ recent_free(gpointer data)
 }
 
 static void
-put_recently_used(char *filename)
+put_recent_applications(char *filename)
 {
 	FILE *f;
 	int dummy;
@@ -4382,6 +4621,138 @@ put_recently_used(char *filename)
 	(void) dummy;
 }
 
+static void
+put_recently_used(char *filename)
+{
+	FILE *f;
+	int dummy;
+	struct timeval tv = { 0, 0 };
+	GList *item;
+	struct stat st;
+	char *file;
+	GList *list = NULL;
+	RecentItem *used;
+
+	file = g_build_filename(g_get_home_dir(), filename, NULL);
+	if (!file) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		g_free(file);
+		return;
+	}
+	if (!options.url) {
+		EPRINTF("cannot record %s without a url\n", filename);
+		g_free(file);
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		g_free(file);
+		return;
+	}
+
+	/* 1) read in the recently-used file (url only) */
+	if (!(f = fopen(file, "a+"))) {
+		EPRINTF("cannot open %s file: '%s'\n", filename, file);
+		g_free(file);
+		return;
+	}
+	dummy = lockf(fileno(f), F_LOCK, 0);
+	if (fstat(fileno(f), &st)) {
+		EPRINTF("cannot state open file: '%s'\n", file);
+		fclose(f);
+		g_free(file);
+		return;
+	}
+	g_free(file);
+	if (st.st_size > 0) {
+		GMarkupParseContext *ctx;
+
+		GMarkupParser parser = {
+			.start_element = ru_xml_start_element,
+			.end_element = NULL,
+			.text = ru_xml_text,
+			.passthrough = NULL,
+			.error = NULL,
+		};
+		gchar buf[BUFSIZ];
+		gsize got;
+
+		if (!(ctx = g_markup_parse_context_new(&parser,
+						       G_MARKUP_TREAT_CDATA_AS_TEXT |
+						       G_MARKUP_PREFIX_ERROR_POSITION,
+						       &list, NULL))) {
+			EPRINTF("cannot create XML parser\n");
+			fclose(f);
+			return;
+		}
+		while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
+			if (!g_markup_parse_context_parse(ctx, buf, got, NULL)) {
+				EPRINTF("could not parse buffer contents\n");
+				g_markup_parse_context_unref(ctx);
+				fclose(f);
+				return;
+			}
+		}
+		if (!g_markup_parse_context_end_parse(ctx, NULL)) {
+			EPRINTF("could not end parsing\n");
+			g_markup_parse_context_unref(ctx);
+			fclose(f);
+			return;
+		}
+		g_markup_parse_context_unref(ctx);
+	}
+
+	/* 2) append new information (url only) */
+	gettimeofday(&tv, NULL);
+	if (!(item = g_list_find_custom(list, options.url, uri_match))) {
+		char *p;
+
+		used = calloc(1, sizeof(*used));
+		used->uri = strdup(options.url);
+		used->private = TRUE;
+		if (entry.MimeType) {
+			used->mime = strdup(entry.MimeType);
+			if ((p = strchr(used->mime, ';')))
+				*p = '\0';
+		} else {
+			used->mime = strdup("unknown/unknown");	/* FIXME */
+		}
+		list = g_list_prepend(list, used);
+	} else
+		used = item->data;
+
+	if (entry.Categories) {
+		char *grp, *p;
+
+		grp = strdup(entry.Categories);
+		if ((p = strchr(grp, ';')))
+			*p = '\0';
+		if (!(item = g_list_find_custom(used->groups, grp, grps_match)))
+			used->groups = g_list_append(used->groups, grp);
+		else
+			free(grp);
+	}
+	used->stamp = tv.tv_sec;
+
+	/* 3) write out the recently-used file (url only) */
+	dummy = ftruncate(fileno(f), 0);
+	fseek(f, 0L, SEEK_SET);
+
+	list = g_list_sort(list, recent_sort);
+	fprintf(f, "%s\n", "<?xml version=\"1.0\"?>");
+	fprintf(f, "%s\n", "<RecentFiles>");
+	linecount = 2;
+	itemcount = 0;
+	g_list_foreach(list, recent_write, f);
+	fprintf(f, "%s\n", "</RecentFiles>");
+	fflush(f);
+	dummy = lockf(fileno(f), F_ULOCK, 0);
+	fclose(f);
+	g_list_free_full(list, recent_free);
+	list = NULL;
+	(void) dummy;
+}
+
 #endif				/* RECENTLY_USED */
 
 static void
@@ -4486,10 +4857,16 @@ put_history()
 	put_line_history(options.runhist, fields.command);
 	put_line_history(options.recapps, fields.application_id);
 #ifdef RECENTLY_USED
-	put_recently_used(".recently-used");
-	put_recently_used(".recent-applications");
-	put_recently_used_xbel("recently-used.xbel");
-	put_recently_used_xbel("recent-applications.xbel");
+	if (options.uri) {
+		if (options.url) {
+			put_recently_used(".recently-used");
+			put_recently_used_xbel("recently-used.xbel");
+		}
+		put_recent_applications(".recently-used");
+		put_recent_applications(".recent-applications");
+		put_recent_applications_xbel("recently-used.xbel");
+		put_recent_applications_xbel("recent-applications.xbel");
+	}
 #endif				/* RECENTLY_USED */
 }
 
@@ -5104,6 +5481,10 @@ main(int argc, char *argv[])
 			OPRINTF("%-30s = %s\n", "StartupWMClass", entry.StartupWMClass);
 		if (entry.SessionSetup)
 			OPRINTF("%-30s = %s\n", "SessionSetup", entry.SessionSetup);
+		if (entry.Categories)
+			OPRINTF("%-30s = %s\n", "Categories", entry.Categories);
+		if (entry.MimeType)
+			OPRINTF("%-30s = %s\n", "MimeType", entry.MimeType);
 	}
 	if (!eargv && !options.exec && !entry.Exec) {
 		EPRINTF("no exec command\n");
