@@ -99,7 +99,7 @@
 #ifdef RECENTLY_USED
 #include <glib.h>
 #endif
-// #undef RECENTLY_USED_XBEL	/* FIXME */
+// #undef RECENTLY_USED_XBEL    /* FIXME */
 #ifdef RECENTLY_USED_XBEL
 #include <gtk/gtk.h>
 #endif
@@ -3559,6 +3559,9 @@ launch()
 
 #ifdef RECENTLY_USED
 
+time_t now;
+int age = 30;
+
 #ifdef RECENTLY_USED_XBEL
 
 static void
@@ -3944,6 +3947,17 @@ xbel_write(gpointer data, gpointer user)
 	FILE *f = user;
 	char *s;
 
+	/* XXX: we should be trimming bookmarks that are beyond a maximum age factor. We
+	   could get the value from GSettings, but we don't have it available if we are
+	   here.  We could use some other value or look for an XSettings daemon on the
+	   primary screen.
+
+	   The age is in gtk-recent-files-max-age (GtkRecentFilesMaxAge) and has a
+	   default value of 30 (days, I suppose).  */
+
+	if ((int) ((now - b->modified) / (60 * 60 * 24)) > age)
+		return;
+
 	fputs("  <bookmark", f);
 	if (b->href) {
 		s = g_markup_printf_escaped(" href=\"%s\"", b->href);
@@ -4050,7 +4064,6 @@ put_recent_applications_xbel(char *filename)
 {
 	FILE *f;
 	int dummy;
-	struct timeval tv = { 0, };
 	GList *item;
 	struct stat st;
 	char *file;
@@ -4129,18 +4142,17 @@ put_recent_applications_xbel(char *filename)
 	}
 
 	/* 2) append new information (uri only) */
-	gettimeofday(&tv, NULL);
 	if (!(item = g_list_find_custom(list, options.uri, href_match))) {
 		book = calloc(1, sizeof(*book));
 		book->href = strdup(options.uri);
 		book->mime = strdup("application/x-desktop");
-		book->added = tv.tv_sec;
+		book->added = now;
 		book->private = TRUE;
 		list = g_list_append(list, book);
 	} else
 		book = item->data;
-	book->modified = tv.tv_sec;
-	book->visited = tv.tv_sec;
+	book->modified = now;
+	book->visited = now;
 	if (!book->title && fields.name)
 		book->title = strdup(fields.name);
 	if (!book->desc && fields.description)
@@ -4154,7 +4166,7 @@ put_recent_applications_xbel(char *filename)
 		book->applications = g_list_append(book->applications, appl);
 	} else
 		appl = item->data;
-	appl->modified = tv.tv_sec;
+	appl->modified = now;
 	appl->count++;
 
 	/* 3) write out the recently-used.xbel file (uri only) */
@@ -4182,7 +4194,6 @@ put_recently_used_xbel(char *filename)
 {
 	FILE *f;
 	int dummy;
-	struct timeval tv = { 0, };
 	GList *item;
 	struct stat st;
 	char *file;
@@ -4262,7 +4273,6 @@ put_recently_used_xbel(char *filename)
 	}
 
 	/* 2) append new information (url only) */
-	gettimeofday(&tv, NULL);
 	if (!(item = g_list_find_custom(list, options.url, href_match))) {
 		book = calloc(1, sizeof(*book));
 		book->href = strdup(options.url);
@@ -4274,13 +4284,13 @@ put_recently_used_xbel(char *filename)
 				*p = '\0';
 		} else
 			book->mime = strdup("unknown/unknown");	/* FIXME */
-		book->added = tv.tv_sec;
+		book->added = now;
 		book->private = TRUE;
 		list = g_list_append(list, book);
 	} else
 		book = item->data;
-	book->modified = tv.tv_sec;
-	book->visited = tv.tv_sec;
+	book->modified = now;
+	book->visited = now;
 	if (entry.Categories) {
 		char *p;
 
@@ -4304,7 +4314,7 @@ put_recently_used_xbel(char *filename)
 		book->applications = g_list_append(book->applications, appl);
 	} else
 		appl = item->data;
-	appl->modified = tv.tv_sec;
+	appl->modified = now;
 	appl->count++;
 
 	/* 3) write out the recently-used.xbel file (url only) */
@@ -4400,8 +4410,6 @@ recent_sort(gconstpointer a, gconstpointer b)
 	return (0);
 }
 
-unsigned int linecount = 0;
-
 static void
 groups_write(gpointer data, gpointer user)
 {
@@ -4411,7 +4419,6 @@ groups_write(gpointer data, gpointer user)
 
 	s = g_markup_printf_escaped("<Group>%s</Group>", g);
 	fprintf(f, "      %s\n", s);
-	linecount++;
 	g_free(s);
 }
 
@@ -4424,39 +4431,28 @@ recent_write(gpointer data, gpointer user)
 	FILE *f = (typeof(f)) user;
 	gchar *s;
 
-	/* not really supposed to be bigger than 500 lines */
-	if (linecount >= 5000)
-		return;
-	/* or was it 500 items? */
+	/* not really supposed to be bigger than 500 items */
 	if (itemcount >= 500)
 		return;
 	fprintf(f, "  %s\n", "<RecentItem>");
-	linecount++;
 
 	s = g_markup_printf_escaped("<URI>%s</URI>", r->uri);
 	fprintf(f, "    %s\n", s);
-	linecount++;
 	g_free(s);
 	s = g_markup_printf_escaped("<Mime-Type>%s</Mime-Type>", r->mime);
 	fprintf(f, "    %s\n", s);
-	linecount++;
 	g_free(s);
 	fprintf(f, "    <Timestamp>%lu</Timestamp>\n", r->stamp);
-	linecount++;
 	if (r->private) {
 		fprintf(f, "    %s\n", "<Private/>");
-		linecount++;
 	}
 	if (r->groups) {
 		fprintf(f, "    %s\n", "<Groups>");
-		linecount++;
 		g_list_foreach(r->groups, groups_write, f);
 		fprintf(f, "    %s\n", "</Groups>");
-		linecount++;
 	}
 
 	fprintf(f, "  %s\n", "</RecentItem>");
-	linecount++;
 	itemcount++;
 }
 
@@ -4502,7 +4498,6 @@ put_recent_applications(char *filename)
 {
 	FILE *f;
 	int dummy;
-	struct timeval tv = { 0, 0 };
 	GList *item;
 	struct stat st;
 	char *file;
@@ -4579,7 +4574,6 @@ put_recent_applications(char *filename)
 	}
 
 	/* 2) append new information (uri only) */
-	gettimeofday(&tv, NULL);
 	if (!(item = g_list_find_custom(list, options.uri, uri_match))) {
 		used = calloc(1, sizeof(*used));
 		used->uri = strdup(options.uri);
@@ -4600,7 +4594,7 @@ put_recent_applications(char *filename)
 		used->groups = g_list_append(used->groups, strdup("recently-used-apps"));
 	if (!(item = g_list_find_custom(used->groups, NAME, grps_match)))
 		used->groups = g_list_append(used->groups, strdup(NAME));
-	used->stamp = tv.tv_sec;
+	used->stamp = now;
 
 	/* 3) write out the recently-used file (uri only) */
 	dummy = ftruncate(fileno(f), 0);
@@ -4609,7 +4603,6 @@ put_recent_applications(char *filename)
 	list = g_list_sort(list, recent_sort);
 	fprintf(f, "%s\n", "<?xml version=\"1.0\"?>");
 	fprintf(f, "%s\n", "<RecentFiles>");
-	linecount = 2;
 	itemcount = 0;
 	g_list_foreach(list, recent_write, f);
 	fprintf(f, "%s\n", "</RecentFiles>");
@@ -4626,7 +4619,6 @@ put_recently_used(char *filename)
 {
 	FILE *f;
 	int dummy;
-	struct timeval tv = { 0, 0 };
 	GList *item;
 	struct stat st;
 	char *file;
@@ -4703,7 +4695,6 @@ put_recently_used(char *filename)
 	}
 
 	/* 2) append new information (url only) */
-	gettimeofday(&tv, NULL);
 	if (!(item = g_list_find_custom(list, options.url, uri_match))) {
 		char *p;
 
@@ -4732,7 +4723,7 @@ put_recently_used(char *filename)
 		else
 			free(grp);
 	}
-	used->stamp = tv.tv_sec;
+	used->stamp = now;
 
 	/* 3) write out the recently-used file (url only) */
 	dummy = ftruncate(fileno(f), 0);
@@ -4741,7 +4732,6 @@ put_recently_used(char *filename)
 	list = g_list_sort(list, recent_sort);
 	fprintf(f, "%s\n", "<?xml version=\"1.0\"?>");
 	fprintf(f, "%s\n", "<RecentFiles>");
-	linecount = 2;
 	itemcount = 0;
 	g_list_foreach(list, recent_write, f);
 	fprintf(f, "%s\n", "</RecentFiles>");
@@ -5133,8 +5123,11 @@ main(int argc, char *argv[])
 	int exec_mode = 0;		/* application mode is default */
 	char *p;
 
+#ifdef RECENTLY_USED
+	now = time(NULL);
 #ifdef RECENTLY_USED_XBEL
 	gtk_init(NULL, NULL);
+#endif
 #endif
 
 	set_defaults(argc, argv);
