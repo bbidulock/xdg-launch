@@ -3549,7 +3549,7 @@ launch()
 #ifdef RECENTLY_USED_XBEL
 
 static void
-put_recently_used_xbel(char *filename, char *uri)
+put_recently_used_xbel(char *filename)
 {
 	GtkRecentManager *mgr;
 	GtkRecentData data = { NULL, };
@@ -3561,7 +3561,7 @@ put_recently_used_xbel(char *filename, char *uri)
 		EPRINTF("cannot record %s without a file\n", filename);
 		return;
 	}
-	if (!uri) {
+	if (!options.uri) {
 		EPRINTF("cannot record %s without a uri\n", filename);
 		return;
 	}
@@ -3586,7 +3586,7 @@ put_recently_used_xbel(char *filename, char *uri)
 	data.app_exec = "xdg-launch %f";
 	data.groups = groups;
 	data.is_private = TRUE;
-	if (!gtk_recent_manager_add_full(mgr, uri, &data)) {
+	if (!gtk_recent_manager_add_full(mgr, options.uri, &data)) {
 		EPRINTF("could not add recent data info\n");
 		return;
 	}
@@ -3957,7 +3957,7 @@ app_match(gconstpointer data, gconstpointer user)
 }
 
 static void
-put_recently_used_xbel(char *filename, char *uri)
+put_recently_used_xbel(char *filename)
 {
 	FILE *f;
 	int dummy;
@@ -3976,7 +3976,7 @@ put_recently_used_xbel(char *filename, char *uri)
 		g_free(file);
 		return;
 	}
-	if (!uri) {
+	if (!options.uri) {
 		EPRINTF("cannot record %s without a uri\n", filename);
 		g_free(file);
 		return;
@@ -4041,13 +4041,13 @@ put_recently_used_xbel(char *filename, char *uri)
 
 	/* 2) append new information (uri only) */
 	gettimeofday(&tv, NULL);
-	if (!(item = g_list_find_custom(list, uri, href_match))) {
+	if (!(item = g_list_find_custom(list, options.uri, href_match))) {
 		book = calloc(1, sizeof(*book));
-		book->href = strdup(uri);
+		book->href = strdup(options.uri);
 		book->mime = strdup("application/x-desktop");
 		book->added = tv.tv_sec;
-		list = g_list_append(list, book);
 		book->private = TRUE;
+		list = g_list_append(list, book);
 	} else
 		book = item->data;
 	book->modified = tv.tv_sec;
@@ -4230,6 +4230,12 @@ uri_match(gconstpointer data, gconstpointer user)
 	return (strcmp(r->uri, user));
 }
 
+static gint
+grps_match(gconstpointer a, gconstpointer b)
+{
+	return strcmp(a, b);
+}
+
 static void
 group_free(gpointer data)
 {
@@ -4253,7 +4259,7 @@ recent_free(gpointer data)
 }
 
 static void
-put_recently_used(char *filename, char *uri)
+put_recently_used(char *filename)
 {
 	FILE *f;
 	int dummy;
@@ -4262,7 +4268,7 @@ put_recently_used(char *filename, char *uri)
 	struct stat st;
 	char *file;
 	GList *list = NULL;
-	RecentItem *cur;
+	RecentItem *used;
 
 	file = g_build_filename(g_get_home_dir(), filename, NULL);
 	if (!file) {
@@ -4270,7 +4276,7 @@ put_recently_used(char *filename, char *uri)
 		g_free(file);
 		return;
 	}
-	if (!uri) {
+	if (!options.uri) {
 		EPRINTF("cannot record %s without a uri\n", filename);
 		g_free(file);
 		return;
@@ -4334,25 +4340,28 @@ put_recently_used(char *filename, char *uri)
 	}
 
 	/* 2) append new information (uri only) */
-	if ((item = g_list_find_custom(list, uri, uri_match)))
-		cur = item->data;
-	else
-		cur = calloc(1, sizeof(*cur));
-
-	free(cur->uri);
-	cur->uri = strdup(uri);
-	free(cur->mime);
-	cur->mime = strdup("application/x-desktop");
 	gettimeofday(&tv, NULL);
-	cur->stamp = tv.tv_sec;
-	cur->private = TRUE;
-	g_list_free_full(cur->groups, group_free);
-	cur->groups = NULL;
-	cur->groups = g_list_append(cur->groups, strdup("recently-used-apps"));
-	cur->groups = g_list_append(cur->groups, strdup(NAME));
-	if (!item)
-		list = g_list_prepend(list, cur);
-	cur = NULL;
+	if (!(item = g_list_find_custom(list, options.uri, uri_match))) {
+		used = calloc(1, sizeof(*used));
+		used->uri = strdup(options.uri);
+		used->private = TRUE;
+		list = g_list_prepend(list, used);
+	} else
+		used = item->data;
+
+	if (used->mime && strcmp(used->mime, "application/x-desktop")) {
+		free(used->mime);
+		used->mime = strdup("application/x-desktop");
+		used->private = TRUE;
+		g_list_free_full(used->groups, group_free);
+	} else if (!used->mime) {
+		used->mime = strdup("application/x-desktop");
+	}
+	if (!(item = g_list_find_custom(used->groups, "recently-used-apps", grps_match)))
+		used->groups = g_list_append(used->groups, strdup("recently-used-apps"));
+	if (!(item = g_list_find_custom(used->groups, NAME, grps_match)))
+		used->groups = g_list_append(used->groups, strdup(NAME));
+	used->stamp = tv.tv_sec;
 
 	/* 3) write out the recently-used file (uri only) */
 	dummy = ftruncate(fileno(f), 0);
@@ -4477,10 +4486,10 @@ put_history()
 	put_line_history(options.runhist, fields.command);
 	put_line_history(options.recapps, fields.application_id);
 #ifdef RECENTLY_USED
-	put_recently_used(".recently-used", options.uri);
-	put_recently_used(".recent-applications", options.uri);
-	put_recently_used_xbel("recently-used.xbel", options.uri);
-	put_recently_used_xbel("recent-applications.xbel", options.uri);
+	put_recently_used(".recently-used");
+	put_recently_used(".recent-applications");
+	put_recently_used_xbel("recently-used.xbel");
+	put_recently_used_xbel("recent-applications.xbel");
 #endif				/* RECENTLY_USED */
 }
 
