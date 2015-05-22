@@ -99,6 +99,7 @@
 #ifdef RECENTLY_USED
 #include <glib.h>
 #endif
+// #undef RECENTLY_USED_XBEL	/* FIXME */
 #ifdef RECENTLY_USED_XBEL
 #include <gtk/gtk.h>
 #endif
@@ -153,6 +154,7 @@ struct params {
 	char *xsession;
 	char *autostart;
 	char *path;
+	char *uri;
 	char *runhist;
 	char *recapps;
 	char *recently;
@@ -186,6 +188,7 @@ struct params defaults = {
 	.xsession = "false",
 	.autostart = "false",
 	.path = NULL,
+	.uri = NULL,
 	.runhist = "~/.config/xde/run-history",
 	.recapps = "~/.config/xde/recent-applications",
 	.recently = "~/.local/share/recently-used",
@@ -3099,6 +3102,7 @@ process_startup_msg(Message *m)
 		*seq = cmd;
 		add_sequence(seq);
 		seq->client = NULL;
+
 		seq->changed = False;
 		return;
 	}
@@ -3555,21 +3559,562 @@ launch()
 #ifdef RECENTLY_USED_XBEL
 
 static void
-put_recently_used_xbel()
+put_recently_used_xbel(char *filename, char *uri)
 {
-	/* 1) read in the recently-used.xbel file (path only) */
-	/* 2) append new information (path only) */
-	/* 3) write out the recently-used.xbel file (path only) */
+	GtkRecentManager *mgr;
+	GtkRecentData data = { NULL, };
+	gchar *groups[2] = { "Application", NULL };
+	char *file;
+
+	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
+	if (!file) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		return;
+	}
+	if (!uri) {
+		EPRINTF("cannot record %s without a uri\n", filename);
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		return;
+	}
+
+	/* 1) read in the recently-used.xbel file (uri only) */
+	if (!(mgr = g_object_new(GTK_TYPE_RECENT_MANAGER, "filename", file, NULL))) {
+		EPRINTF("could not get recent manager instance\n");
+		g_free(file);
+		return;
+	}
+	g_free(file);
+
+	/* 2) append new information (uri only) */
+	data.display_name = fields.name;
+	data.description = fields.description;
+	data.mime_type = "application/x-desktop";
+	data.app_name = "XDG Launcher";
+	data.app_exec = "xdg-launch %f";
+	data.groups = groups;
+	data.is_private = TRUE;
+	if (!gtk_recent_manager_add_full(mgr, uri, &data)) {
+		EPRINTF("could not add recent data info\n");
+		return;
+	}
+
+	/* 3) write out the recently-used.xbel file (uri only) */
+	g_object_unref(mgr);
+	do {
+		gtk_main_iteration_do(FALSE);
+	}
+	while (gtk_events_pending());
 }
 
 #else				/* RECENTLY_USED_XBEL */
 
+GList *xbel = NULL;
+
+typedef struct {
+	gchar *name;
+	gchar *exec;
+	time_t modified;
+	guint count;
+} XbelApplication;
+
+typedef struct {
+	gchar *href;
+	time_t added;
+	time_t modified;
+	time_t visited;
+	gchar *title;
+	gchar *desc;
+	gchar *owner;
+	gchar *mime;
+	GList *groups;
+	GList *applications;
+	gboolean private;
+} XbelBookmark;
+
+XbelBookmark *mark;
+
 static void
-put_recently_used_xbel()
+xbel_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar
+		   **attrs, const gchar **values, gpointer user, GError **err)
 {
-	/* 1) read in the recently-used.xbel file (path only) */
-	/* 2) append new information (path only) */
-	/* 3) write out the recently-used.xbel file (path only) */
+	if (!strcmp(name, "xbel")) {
+	} else if (!strcmp(name, "bookmark")) {
+		struct tm tm = { 0, };
+		if (!mark && !(mark = calloc(1, sizeof(*mark)))) {
+			EPRINTF("could not allocate bookmark\n");
+			exit(1);
+		}
+		for (; *attrs; attrs++, values++) {
+			if (!strcmp(*attrs, "href")) {
+				free(mark->href);
+				mark->href = strdup(*values);
+			} else if (!strcmp(*attrs, "added")) {
+				if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
+					mark->added = timegm(&tm);
+			} else if (!strcmp(*attrs, "modified")) {
+				if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
+					mark->modified = timegm(&tm);
+			} else if (!strcmp(*attrs, "visited")) {
+				if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
+					mark->visited = timegm(&tm);
+			} else {
+				DPRINTF("unrecognized attribute of bookmark: '%s'\n", *attrs);
+			}
+		}
+	} else if (!strcmp(name, "title")) {
+	} else if (!strcmp(name, "desc")) {
+	} else if (!strcmp(name, "info")) {
+	} else if (!strcmp(name, "metadata")) {
+		if (mark) {
+			for (; *attrs; attrs++, values++) {
+				if (!strcmp(*attrs, "owner")) {
+					free(mark->owner);
+					mark->owner = strdup(*values);
+				}
+			}
+		}
+	} else if (!strcmp(name, "mime:mime-type")) {
+		if (mark) {
+			for (; *attrs; attrs++, values++) {
+				if (!strcmp(*attrs, "type")) {
+					free(mark->mime);
+					mark->mime = strdup(*values);
+				} else {
+					DPRINTF("unrecognized attribute of mime:mime-type: '%s'\n",
+						*attrs);
+				}
+			}
+		}
+	} else if (!strcmp(name, "bookmark:groups")) {
+	} else if (!strcmp(name, "bookmark:group")) {
+	} else if (!strcmp(name, "bookmark:applications")) {
+	} else if (!strcmp(name, "bookmark:application")) {
+		XbelApplication *appl;
+		struct tm tm = { 0, };
+
+		if (mark && (appl = calloc(1, sizeof(*appl)))) {
+			for (; *attrs; attrs++, values++) {
+				if (!strcmp(*attrs, "name")) {
+					free(appl->name);
+					appl->name = strdup(*values);
+				} else if (!strcmp(*attrs, "exec")) {
+					free(appl->exec);
+					appl->exec = strdup(*values);
+				} else if (!strcmp(*attrs, "modified")) {
+					if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
+						appl->modified = timegm(&tm);
+				} else if (!strcmp(*attrs, "count")) {
+					appl->count = strtoul(*values, NULL, 0);
+				} else {
+					DPRINTF
+					    ("unrecognized attribute of bookmark:application: '%s'\n",
+					     *attrs);
+				}
+			}
+			mark->applications = g_list_append(mark->applications, appl);
+		}
+	} else if (!strcmp(name, "bookmark:private")) {
+		if (mark)
+			mark->private = TRUE;
+	} else {
+		DPRINTF("unrecognized start tag: '%s'\n", name);
+	}
+}
+
+static void
+xbel_end_element(GMarkupParseContext *ctx, const gchar *name, gpointer user, GError **err)
+{
+	if (!strcmp(name, "xbel")) {
+	} else if (!strcmp(name, "bookmark")) {
+		if (mark) {
+			xbel = g_list_append(xbel, mark);
+			mark = NULL;
+		}
+	} else if (!strcmp(name, "title")) {
+	} else if (!strcmp(name, "desc")) {
+	} else if (!strcmp(name, "info")) {
+	} else if (!strcmp(name, "metadata")) {
+	} else if (!strcmp(name, "mime:mime-type")) {
+	} else if (!strcmp(name, "bookmark:groups")) {
+	} else if (!strcmp(name, "bookmark:group")) {
+	} else if (!strcmp(name, "bookmark:applications")) {
+	} else if (!strcmp(name, "bookmark:application")) {
+	} else if (!strcmp(name, "bookmark:private")) {
+	} else {
+		DPRINTF("unrecognized end tag: '%s'\n", name);
+	}
+}
+
+static void
+xbel_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer user, GError **err)
+{
+	const gchar *name;
+
+	name = g_markup_parse_context_get_element(ctx);
+
+	if (!strcmp(name, "xbel")) {
+	} else if (!strcmp(name, "bookmark")) {
+	} else if (!strcmp(name, "title")) {
+		if (mark) {
+			free(mark->title);
+			mark->title = strndup(text, len);
+		}
+	} else if (!strcmp(name, "desc")) {
+		if (mark) {
+			free(mark->desc);
+			mark->desc = strndup(text, len);
+		}
+	} else if (!strcmp(name, "info")) {
+	} else if (!strcmp(name, "metadata")) {
+	} else if (!strcmp(name, "mime:mime-type")) {
+	} else if (!strcmp(name, "bookmark:groups")) {
+	} else if (!strcmp(name, "bookmark:group")) {
+		if (mark)
+			mark->groups = g_list_append(mark->groups, strndup(text, len));
+	} else if (!strcmp(name, "bookmark:applications")) {
+	} else if (!strcmp(name, "bookmark:application")) {
+	} else if (!strcmp(name, "bookmark:private")) {
+	} else {
+		DPRINTF("unrecognized cdata tag: '%s'\n", name);
+	}
+}
+
+static void
+text_free(gpointer data)
+{
+	free(data);
+}
+
+static void
+appl_free(gpointer data)
+{
+	XbelApplication *appl = data;
+
+	free(appl->name);
+	appl->name = NULL;
+	free(appl->exec);
+	appl->exec = NULL;
+	appl->modified = 0;
+	appl->count = 0;
+	free(appl);
+}
+
+static void
+xbel_free(gpointer data)
+{
+	XbelBookmark *book = data;
+
+	free(book->href);
+	book->href = NULL;
+	book->added = 0;
+	book->modified = 0;
+	book->visited = 0;
+	free(book->title);
+	book->title = NULL;
+	free(book->desc);
+	book->desc = NULL;
+	free(book->owner);
+	book->owner = NULL;
+	free(book->mime);
+	book->mime = NULL;
+	g_list_free_full(book->groups, text_free);
+	g_list_free_full(book->applications, appl_free);
+}
+
+static void
+xbel_error(GMarkupParseContext *ctx, GError *err, gpointer user)
+{
+	EPRINTF("got an error during parsing\n");
+	if (mark) {
+		xbel_free(mark);
+		mark = NULL;
+	}
+}
+
+static void
+xbel_grp_write(gpointer data, gpointer user)
+{
+	gchar *grp = data;
+	FILE *f = user;
+	char *s;
+
+	s = g_markup_printf_escaped("          <bookmark:group>%s</bookmark:group>\n", grp);
+	fputs(s, f);
+	g_free(s);
+}
+
+static void
+xbel_app_write(gpointer data, gpointer user)
+{
+	XbelApplication *a = data;
+	FILE *f = user;
+	char *s;
+
+	fputs("          <bookmark:application", f);
+	if (a->name) {
+		s = g_markup_printf_escaped(" name=\"%s\"", a->name);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (a->exec) {
+		s = g_markup_printf_escaped(" exec=\"%s\"", a->exec);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (a->modified) {
+		struct tm tm = { 0, };
+		char t[32] = { 0, };
+
+		gmtime_r(&a->modified, &tm);
+		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
+		s = g_markup_printf_escaped(" modified=\"%s\"", t);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (a->count) {
+		s = g_markup_printf_escaped(" count=\"%d\"", a->count);
+		fputs(s, f);
+		g_free(s);
+	}
+	fputs("/>\n", f);
+}
+
+static void
+xbel_write(gpointer data, gpointer user)
+{
+	XbelBookmark *b = data;
+	FILE *f = user;
+	char *s;
+
+	fputs("          <bookmark", f);
+	if (b->href) {
+		s = g_markup_printf_escaped(" href=\"%s\"", b->href);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (b->added) {
+		struct tm tm = { 0, };
+		char t[32] = { 0, };
+
+		gmtime_r(&b->added, &tm);
+		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
+		s = g_markup_printf_escaped(" added=\"%s\"", t);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (b->modified) {
+		struct tm tm = { 0, };
+		char t[32] = { 0, };
+
+		gmtime_r(&b->modified, &tm);
+		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
+		s = g_markup_printf_escaped(" modified=\"%s\"", t);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (b->visited) {
+		struct tm tm = { 0, };
+		char t[32] = { 0, };
+
+		gmtime_r(&b->visited, &tm);
+		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
+		s = g_markup_printf_escaped(" visited=\"%s\"", t);
+		fputs(s, f);
+		g_free(s);
+	}
+	fputs(">\n", f);
+	if (b->title) {
+		s = g_markup_printf_escaped("    <title>%s</title>\n", b->title);
+		fputs(s, f);
+		g_free(s);
+	}
+	if (b->desc) {
+		s = g_markup_printf_escaped("    <desc>%s</desc>\n", b->desc);
+		fputs(s, f);
+		g_free(s);
+	}
+	fputs("    <info>\n", f);
+	fputs("      <metadata", f);
+	if (b->owner) {
+		s = g_markup_printf_escaped(" owner=\"%s\"", b->owner);
+		fputs(s, f);
+		g_free(s);
+	}
+	fputs(">\n", f);
+	fputs("      <mime:mime-type", f);
+	if (b->mime) {
+		s = g_markup_printf_escaped(" mime=\"%s\"", b->mime);
+		fputs(s, f);
+		g_free(s);
+	}
+	fputs("/>\n", f);
+	if (b->groups) {
+		fputs("        <bookmark:groups>\n", f);
+		g_list_foreach(b->groups, xbel_grp_write, f);
+		fputs("        </bookmark:groups>\n", f);
+	}
+	if (b->applications) {
+		fputs("        <bookmark:applications>\n", f);
+		g_list_foreach(b->applications, xbel_app_write, f);
+		fputs("        </bookmark:applications>\n", f);
+	}
+	if (b->private)
+		fputs("        <bookmark:private/>\n", f);
+	fputs("      </metadata>\n", f);
+	fputs("    </info>\n", f);
+	fputs("  </bookmark>\n", f);
+}
+
+static gint
+href_match(gconstpointer data, gconstpointer user)
+{
+	const XbelBookmark *b = data;
+
+	return (strcmp(b->href, user));
+}
+
+static gint
+grp_match(gconstpointer data, gconstpointer user)
+{
+	return (strcmp(data, user));
+}
+
+static gint
+app_match(gconstpointer data, gconstpointer user)
+{
+	const XbelApplication *a = data;
+
+	return (strcmp(a->name, user));
+}
+
+static void
+put_recently_used_xbel(char *filename, char *uri)
+{
+	FILE *f;
+	int dummy;
+	struct timeval tv = { 0, };
+	GList *item;
+	struct stat st;
+	char *file;
+	XbelApplication *appl;
+	
+	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
+
+	if (!file) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		g_free(file);
+		return;
+	}
+	if (!uri) {
+		EPRINTF("cannot record %s without a uri\n", filename);
+		g_free(file);
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF("do not record autostart or xsession invocations\n");
+		g_free(file);
+		return;
+	}
+
+	/* 1) read in the recently-used.xbel file (uri only) */
+	if (!(f = fopen(file, "a+"))) {
+		EPRINTF("cannot open %s file: '%s'\n", filename, file);
+		g_free(file);
+		return;
+	}
+	dummy = lockf(fileno(f), F_LOCK, 0);
+	if (fstat(fileno(f), &st)) {
+		EPRINTF("cannot state open file: '%s'\n", file);
+		fclose(f);
+		g_free(file);
+		return;
+	}
+	g_free(file);
+	if (st.st_size > 0) {
+		GMarkupParseContext *ctx;
+		GMarkupParser parser = {
+			.start_element = xbel_start_element,
+			.end_element = xbel_end_element,
+			.text = xbel_text,
+			.passthrough = NULL,
+			.error = xbel_error,
+		};
+		gchar buf[BUFSIZ];
+		gsize got;
+
+		if (!(ctx = g_markup_parse_context_new(&parser,
+						       G_MARKUP_TREAT_CDATA_AS_TEXT |
+						       G_MARKUP_PREFIX_ERROR_POSITION,
+						       NULL, NULL))) {
+			EPRINTF("cannot create XML parser\n");
+			fclose(f);
+			return;
+		}
+		while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
+			if (!g_markup_parse_context_parse(ctx, buf, got, NULL)) {
+				EPRINTF("could not parse buffer contents\n");
+				g_markup_parse_context_unref(ctx);
+				fclose(f);
+				return;
+			}
+		}
+		if (!g_markup_parse_context_end_parse(ctx, NULL)) {
+			EPRINTF("could not end parsing\n");
+			g_markup_parse_context_unref(ctx);
+			fclose(f);
+			return;
+		}
+		g_markup_parse_context_unref(ctx);
+	}
+
+	/* 2) append new information (uri only) */
+	gettimeofday(&tv, NULL);
+	if (!(item = g_list_find_custom(xbel, uri, href_match))) {
+		mark = calloc(1, sizeof(*mark));
+		mark->href = strdup(uri);
+		mark->mime = strdup("application/x-desktop");
+		mark->added = tv.tv_sec;
+		xbel = g_list_append(xbel, mark);
+		mark->private = TRUE;
+	} else
+		mark = item->data;
+	mark->modified = tv.tv_sec;
+	mark->visited = tv.tv_sec;
+	if (!mark->title && fields.name)
+		mark->title = strdup(fields.name);
+	if (!mark->desc && fields.description)
+		mark->desc = strdup(fields.description);
+	if (!(item = g_list_find_custom(mark->groups, "Application", grp_match)))
+		mark->groups = g_list_append(mark->groups, strdup("Application"));
+	if (!(item = g_list_find_custom(mark->applications, "XDG Launcher", app_match))) {
+		appl = calloc(1, sizeof(*appl));
+		appl->name = strdup("XDG Launcher");
+		appl->exec = strdup("'xdg-launch %f'");
+		mark->applications = g_list_append(mark->applications, appl);
+	} else
+		appl = item->data;
+	appl->modified = tv.tv_sec;
+	appl->count++;
+
+	/* 3) write out the recently-used.xbel file (uri only) */
+	dummy = ftruncate(fileno(f), 0);
+	fseek(f, SEEK_SET, 0);
+
+	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", f);
+	fputs("<xbel version=\"1.0\"\n", f);
+	fputs("      xmlns:bookmark=\"http://www.freedesktop.org/standards/desktop-bookmarks\"\n",
+	      f);
+	fputs("      xmlns:mime=\"http://www.freedesktop.org/standards/shared-mime-info\"\n", f);
+	fputs(">\n", f);
+	g_list_foreach(xbel, xbel_write, f);
+	fputs("</xbel>\n", f);
+	fflush(f);
+	dummy = lockf(fileno(f), F_ULOCK, 0);
+	fclose(f);
+	(void) dummy;
 }
 
 #endif				/* RECENTLY_USED_XBEL */
@@ -3587,8 +4132,8 @@ typedef struct {
 RecentItem *cur;
 
 static void
-ru_xml_start_element(GMarkupParseContext * ctx, const gchar * name, const gchar ** attrs,
-		     const gchar ** values, gpointer user, GError ** err)
+ru_xml_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar **attrs,
+		     const gchar **values, gpointer user, GError **err)
 {
 	if (!strcmp(name, "RecentItem")) {
 		if (!cur && !(cur = calloc(1, sizeof(RecentItem)))) {
@@ -3601,7 +4146,7 @@ ru_xml_start_element(GMarkupParseContext * ctx, const gchar * name, const gchar 
 }
 
 static void
-ru_xml_end_element(GMarkupParseContext * ctx, const gchar * name, gpointer user, GError ** err)
+ru_xml_end_element(GMarkupParseContext *ctx, const gchar *name, gpointer user, GError **err)
 {
 	if (!strcmp(name, "RecentItem")) {
 		recent = g_list_prepend(recent, cur);
@@ -3610,7 +4155,7 @@ ru_xml_end_element(GMarkupParseContext * ctx, const gchar * name, gpointer user,
 }
 
 static void
-ru_xml_text(GMarkupParseContext * ctx, const gchar * text, gsize len, gpointer user, GError ** err)
+ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer user, GError **err)
 {
 	const gchar *name;
 	char *buf, *end = NULL;
@@ -3637,7 +4182,7 @@ ru_xml_text(GMarkupParseContext * ctx, const gchar * text, gsize len, gpointer u
 }
 
 static void
-ru_xml_error(GMarkupParseContext * ctx, GError * err, gpointer user)
+ru_xml_error(GMarkupParseContext *ctx, GError *err, gpointer user)
 {
 	EPRINTF("got an error during parsing\n");
 
@@ -3736,81 +4281,92 @@ group_free(gpointer data)
 }
 
 static void
-put_recently_used(char *file, char *path)
+put_recently_used(char *filename, char *uri)
 {
-	GMarkupParseContext *ctx;
-
-	GMarkupParser parser = {
-		.start_element = ru_xml_start_element,
-		.end_element = ru_xml_end_element,
-		.text = ru_xml_text,
-		.passthrough = NULL,
-		.error = ru_xml_error,
-	};
-	GError *err = NULL;
-	gchar buf[BUFSIZ];
-	gsize got;
 	FILE *f;
-	int dummy, len;
+	int dummy;
 	struct timeval tv = { 0, 0 };
 	GList *item;
-	char *uri;
+	struct stat st;
+	char *file;
 
+	file = g_build_filename(g_get_home_dir(), filename, NULL);
 	if (!file) {
-		EPRINTF("cannot record recently-used without a file\n");
+		EPRINTF("cannot record %s without a file\n", filename);
+		g_free(file);
 		return;
 	}
-	if (!path) {
-		EPRINTF("cannot record recently-used without a path\n");
+	if (!uri) {
+		EPRINTF("cannot record %s without a uri\n", filename);
+		g_free(file);
 		return;
 	}
 	if (options.autostart || options.xsession) {
 		DPRINTF("do not record autostart or xsession invocations\n");
+		g_free(file);
 		return;
 	}
 
-	/* 1) read in the recently-used file (path only) */
+	/* 1) read in the recently-used file (uri only) */
 	if (!(f = fopen(file, "a+"))) {
-		EPRINTF("cannot open recently-used file: '%s'\n", file);
+		EPRINTF("cannot open %s file: '%s'\n", filename, file);
+		g_free(file);
 		return;
 	}
 	dummy = lockf(fileno(f), F_LOCK, 0);
-	if (!(ctx = g_markup_parse_context_new(&parser,
-					       G_MARKUP_TREAT_CDATA_AS_TEXT |
-					       G_MARKUP_PREFIX_ERROR_POSITION |
-					       G_MARKUP_IGNORE_QUALIFIED, NULL, NULL))) {
-		EPRINTF("cannot create XML parser\n");
+	if (fstat(fileno(f), &st)) {
+		EPRINTF("cannot state open file: '%s'\n", file);
 		fclose(f);
+		g_free(file);
 		return;
 	}
-	while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
-		if (!g_markup_parse_context_parse(ctx, buf, got, &err)) {
-			EPRINTF("could not parse buffer contents\n");
+	g_free(file);
+	if (st.st_size > 0) {
+		GMarkupParseContext *ctx;
+
+		GMarkupParser parser = {
+			.start_element = ru_xml_start_element,
+			.end_element = ru_xml_end_element,
+			.text = ru_xml_text,
+			.passthrough = NULL,
+			.error = ru_xml_error,
+		};
+		gchar buf[BUFSIZ];
+		gsize got;
+
+		if (!(ctx = g_markup_parse_context_new(&parser,
+						       G_MARKUP_TREAT_CDATA_AS_TEXT |
+						       G_MARKUP_PREFIX_ERROR_POSITION,
+						       NULL, NULL))) {
+			EPRINTF("cannot create XML parser\n");
+			fclose(f);
+			return;
+		}
+		while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
+			if (!g_markup_parse_context_parse(ctx, buf, got, NULL)) {
+				EPRINTF("could not parse buffer contents\n");
+				g_markup_parse_context_unref(ctx);
+				fclose(f);
+				return;
+			}
+		}
+		if (!g_markup_parse_context_end_parse(ctx, NULL)) {
+			EPRINTF("could not end parsing\n");
 			g_markup_parse_context_unref(ctx);
 			fclose(f);
 			return;
 		}
-	}
-	if (!g_markup_parse_context_end_parse(ctx, &err)) {
-		EPRINTF("could not end parsing\n");
 		g_markup_parse_context_unref(ctx);
-		fclose(f);
-		return;
 	}
-	g_markup_parse_context_unref(ctx);
 
-	/* 2) append new information (path only) */
-	len = strlen("file://") + strlen(path) + 1;
-	uri = calloc(len, sizeof(*uri));
-	strcpy(uri, "file://");
-	strcat(uri, path);
+	/* 2) append new information (uri only) */
 	if ((item = g_list_find_custom(recent, uri, uri_match)))
 		cur = item->data;
 	else
 		cur = calloc(1, sizeof(*cur));
 
 	free(cur->uri);
-	cur->uri = uri;
+	cur->uri = strdup(uri);
 	free(cur->mime);
 	cur->mime = strdup("application/x-desktop");
 	gettimeofday(&tv, NULL);
@@ -3824,7 +4380,7 @@ put_recently_used(char *file, char *path)
 		recent = g_list_prepend(recent, cur);
 	cur = NULL;
 
-	/* 3) write out the recently-used file (path only) */
+	/* 3) write out the recently-used file (uri only) */
 	dummy = ftruncate(fileno(f), 0);
 	fseek(f, SEEK_SET, 0);
 
@@ -3945,8 +4501,10 @@ put_history()
 	put_line_history(options.runhist, fields.command);
 	put_line_history(options.recapps, fields.application_id);
 #ifdef RECENTLY_USED
-	put_recently_used(options.recently, options.path);
-	put_recently_used_xbel();
+	put_recently_used(".recently-used", options.uri);
+	put_recently_used(".recent-applications", options.uri);
+	put_recently_used_xbel("recently-used.xbel", options.uri);
+	put_recently_used_xbel("recent-applications.xbel", options.uri);
 #endif				/* RECENTLY_USED */
 }
 
@@ -4211,6 +4769,10 @@ int
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
+
+#ifdef RECENTLY_USED_XBEL
+	gtk_init(NULL, NULL);
+#endif
 
 	set_defaults(argc, argv);
 
@@ -4518,6 +5080,14 @@ main(int argc, char *argv[])
 		if (!parse_file(options.path)) {
 			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
+		}
+	}
+	if (options.path) {
+		free(options.uri);
+		if ((options.uri =
+		     calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
+			strcpy(options.uri, "file://");
+			strcat(options.uri, options.path);
 		}
 	}
 	if (output > 1) {
