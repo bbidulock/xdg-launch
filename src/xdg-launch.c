@@ -99,7 +99,7 @@
 #ifdef RECENTLY_USED
 #include <glib.h>
 #endif
-// #undef RECENTLY_USED_XBEL	/* FIXME */
+// #undef RECENTLY_USED_XBEL    /* FIXME */
 #ifdef RECENTLY_USED_XBEL
 #include <gtk/gtk.h>
 #endif
@@ -1595,7 +1595,7 @@ truth_value(char *p)
 char *
 set_command()
 {
-	char *cmd, *p;
+	char *cmd;
 
 	PTRACE();
 	free(fields.command);
@@ -1620,16 +1620,6 @@ set_command()
 	else if (!eargv) {
 		EPRINTF("cannot launch anything without a command\n");
 		exit(EXIT_FAILURE);
-	}
-	if (options.file && !options.url) {
-		int size = strlen("file://") + strlen(options.file) + 1;
-
-		options.url = calloc(size, sizeof(*options.url));
-		strcat(options.url, "file://");
-		strcat(options.url, options.file);
-	} else if (options.url && !options.file &&
-		   (p = strstr(options.url, "file://")) == options.url) {
-		options.file = strdup(options.url + 7);
 	}
 	subst_command(cmd);
 	return (fields.command = cmd);
@@ -3978,7 +3968,7 @@ put_recently_used_xbel(char *filename, char *uri)
 	XbelApplication *appl;
 	GList *list = NULL;
 	XbelBookmark *book = NULL;
-	
+
 	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
 
 	if (!file) {
@@ -4013,6 +4003,7 @@ put_recently_used_xbel(char *filename, char *uri)
 	g_free(file);
 	if (st.st_size > 0) {
 		GMarkupParseContext *ctx;
+
 		GMarkupParser parser = {
 			.start_element = xbel_start_element,
 			.end_element = NULL,
@@ -4272,7 +4263,6 @@ put_recently_used(char *filename, char *uri)
 	char *file;
 	GList *list = NULL;
 	RecentItem *cur;
-
 
 	file = g_build_filename(g_get_home_dir(), filename, NULL);
 	if (!file) {
@@ -4755,6 +4745,7 @@ int
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
+	char *p;
 
 #ifdef RECENTLY_USED_XBEL
 	gtk_init(NULL, NULL);
@@ -5045,8 +5036,6 @@ main(int argc, char *argv[])
 		EPRINTF("APPID or EXEC must be specified\n");
 		goto bad_usage;
 	} else if (eargv) {
-		char *p;
-
 		p = strrchr(eargv[0], '/');
 		p = p ? p + 1 : eargv[0];
 		free(options.path);
@@ -5067,6 +5056,16 @@ main(int argc, char *argv[])
 			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
+	}
+	if (options.file && !options.url) {
+		int size = strlen("file://") + strlen(options.file) + 1;
+
+		options.url = calloc(size, sizeof(*options.url));
+		strcat(options.url, "file://");
+		strcat(options.url, options.file);
+	} else if (options.url && !options.file &&
+		   (p = strstr(options.url, "file://")) == options.url) {
+		options.file = strdup(options.url + 7);
 	}
 	if (options.path) {
 		free(options.uri);
