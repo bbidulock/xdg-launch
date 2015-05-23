@@ -3733,6 +3733,14 @@ put_recently_used_xbel(char *filename)
 
 #else				/* RECENTLY_USED_XBEL */
 
+/*
+ * XXX: Without gtk2 present (or desired for dependencies), I wrote this
+ * implementation for parsing the desktop bookmark specification XBEL file
+ * parser using the glib XML parser.  There is also a gio parser specifically
+ * for the desktop-bookmark XBEL file format, but I didn't know about it when I
+ * wrote this... :(
+ */
+
 typedef struct {
 	gchar *name;
 	gchar *exec;
