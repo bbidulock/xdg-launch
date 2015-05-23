@@ -3621,7 +3621,8 @@ put_recently_used_xbel(char *filename)
 	GtkRecentManager *mgr;
 	GtkRecentData data = { NULL, };
 	gchar *groups[2] = { NULL, NULL };
-	char *file, *p, *mime = NULL, *group = NULL;
+	char *file, *p, *mime = NULL, *group = NULL, *exec = NULL;
+	int len;
 
 	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
 	if (!file) {
@@ -3654,8 +3655,17 @@ put_recently_used_xbel(char *filename)
 			*p = '\0';
 	}
 	data.mime_type = mime;
-	data.app_name = fields.bin ? : entry.Name;
-	data.app_exec = options.rawcmd;
+	if (fields.application_id) {
+		len = strlen(NAME) + 1 + strlen(fields.application_id) + 1 + strlen("%u") + 1;
+		exec = calloc(len, sizeof(*exec));
+		snprintf(exec, len, "%s %s %%u", NAME, fields.application_id);
+
+		data.app_name = NAME;
+		data.app_exec = exec;
+	} else {
+		data.app_name = fields.bin ? : entry.Name;
+		data.app_exec = options.rawcmd;
+	}
 
 	/* FIXME: why not do multiple groups? */
 	if (entry.Categories) {
@@ -3677,10 +3687,12 @@ put_recently_used_xbel(char *filename)
 	if (!gtk_recent_manager_add_full(mgr, options.url, &data)) {
 		EPRINTF("could not add recent data info\n");
 		free(mime);
+		free(exec);
 		free(group);
 		return;
 	}
 	free(mime);
+	free(exec);
 	free(group);
 
 	/* 3) write out the recently-used.xbel file (url only) */
@@ -3955,7 +3967,7 @@ xbel_write(gpointer data, gpointer user)
 	   The age is in gtk-recent-files-max-age (GtkRecentFilesMaxAge) and has a
 	   default value of 30 (days, I suppose).  */
 
-	if ((int) ((now - b->modified) / (60 * 60 * 24)) > age)
+	if (((int) ((now - b->modified) / (60 * 60 * 24))) > age)
 		return;
 
 	fputs("  <bookmark", f);
@@ -4200,7 +4212,8 @@ put_recently_used_xbel(char *filename)
 	XbelApplication *appl;
 	GList *list = NULL;
 	XbelBookmark *book = NULL;
-	char *temp = NULL;
+	char *temp = NULL, *exec = NULL;
+	int len;
 
 	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
 
@@ -4306,14 +4319,23 @@ put_recently_used_xbel(char *filename)
 	if (temp && !(item = g_list_find_custom(book->groups, temp, grp_match)))
 		book->groups = g_list_append(book->groups, strdup(temp));
 	free(temp);
-	temp = fields.bin ? : entry.Name;
+	if (fields.application_id) {
+		len = strlen(NAME) + 1 + strlen(fields.application_id) + 1 + strlen("%u") + 1;
+		exec = calloc(len, sizeof(*exec));
+		snprintf(exec, len, "%s %s %%u", NAME, fields.application_id);
+		temp = NAME;
+	} else {
+		exec = strdup(options.rawcmd);
+		temp = fields.bin ? : entry.Name;
+	}
 	if (!(item = g_list_find_custom(book->applications, temp, app_match))) {
 		appl = calloc(1, sizeof(*appl));
 		appl->name = strdup(temp);
-		appl->exec = strdup(options.rawcmd);
+		appl->exec = exec; exec = NULL;
 		book->applications = g_list_append(book->applications, appl);
 	} else
 		appl = item->data;
+	free(exec);
 	appl->modified = now;
 	appl->count++;
 
