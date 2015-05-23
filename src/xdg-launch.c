@@ -98,6 +98,7 @@
 #endif
 #ifdef RECENTLY_USED
 #include <glib.h>
+#include <gio/gio.h>
 #endif
 // #undef RECENTLY_USED_XBEL    /* FIXME */
 #ifdef RECENTLY_USED_XBEL
@@ -3562,6 +3563,31 @@ launch()
 time_t now;
 int age = 30;
 
+char *
+get_mime_type(const char *uri)
+{
+	GFile *file;
+	GFileInfo *info;
+	char *mime = NULL;
+
+	if (!(file = g_file_new_for_uri(uri))) {
+		EPRINTF("could not get GFile for %s\n", uri);
+	} else
+	    if (!(info = g_file_query_info(file, G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE,
+					   G_PRIORITY_DEFAULT, NULL, NULL))) {
+		EPRINTF("could not get GFileInfo for %s\n", uri);
+		g_object_unref(file);
+	} else
+	    if (!(mime = g_file_info_get_attribute_as_string(info,
+							     G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE)))
+	{
+		EPRINTF("could not get content-type for %s\n", uri);
+		g_object_unref(info);
+		g_object_unref(file);
+	}
+	return (mime);
+}
+
 #ifdef RECENTLY_USED_XBEL
 
 static void
@@ -3649,10 +3675,12 @@ put_recently_used_xbel(char *filename)
 	/* 2) append new information (url only) */
 	data.display_name = NULL;
 	data.description = NULL;
-	if (entry.MimeType) {
-		mime = strdup(entry.MimeType);
-		if ((p = strchr(mime, ';')))
-			*p = '\0';
+	if (!(mime = get_mime_type(options.url))) {
+		if (entry.MimeType) {
+			mime = strdup(entry.MimeType);
+			if ((p = strchr(mime, ';')))
+				*p = '\0';
+		}
 	}
 	data.mime_type = mime;
 	if (fields.application_id) {
@@ -4289,14 +4317,17 @@ put_recently_used_xbel(char *filename)
 	if (!(item = g_list_find_custom(list, options.url, href_match))) {
 		book = calloc(1, sizeof(*book));
 		book->href = strdup(options.url);
-		if (entry.MimeType) {
-			char *p;
+		if (!(book->mime = get_mime_type(options.url))) {
+			EPRINTF("could not get mime type for %s\n", options.url);
+			if (entry.MimeType) {
+				char *p;
 
-			book->mime = strdup(entry.MimeType);
-			if ((p = strchr(book->mime, ';')))
-				*p = '\0';
-		} else
-			book->mime = strdup("unknown/unknown");	/* FIXME */
+				book->mime = strdup(entry.MimeType);
+				if ((p = strchr(book->mime, ';')))
+					*p = '\0';
+			} else
+				book->mime = strdup("application/octet-stream");
+		}
 		book->added = now;
 		book->private = TRUE;
 		list = g_list_append(list, book);
@@ -4331,7 +4362,8 @@ put_recently_used_xbel(char *filename)
 	if (!(item = g_list_find_custom(book->applications, temp, app_match))) {
 		appl = calloc(1, sizeof(*appl));
 		appl->name = strdup(temp);
-		appl->exec = exec; exec = NULL;
+		appl->exec = exec;
+		exec = NULL;
 		book->applications = g_list_append(book->applications, appl);
 	} else
 		appl = item->data;
@@ -4723,12 +4755,14 @@ put_recently_used(char *filename)
 		used = calloc(1, sizeof(*used));
 		used->uri = strdup(options.url);
 		used->private = TRUE;
-		if (entry.MimeType) {
-			used->mime = strdup(entry.MimeType);
-			if ((p = strchr(used->mime, ';')))
-				*p = '\0';
-		} else {
-			used->mime = strdup("unknown/unknown");	/* FIXME */
+		if (!(used->mime = get_mime_type(options.url))) {
+			EPRINTF("could not get mime type for %s\n", options.url);
+			if (entry.MimeType) {
+				used->mime = strdup(entry.MimeType);
+				if ((p = strchr(used->mime, ';')))
+					*p = '\0';
+			} else
+				used->mime = strdup("application/octet-stream");
 		}
 		list = g_list_prepend(list, used);
 	} else
