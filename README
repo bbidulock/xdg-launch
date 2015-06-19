@@ -9,7 +9,8 @@ This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
 assistance from the command line.  The source is hosted on GitHub at
 (http://github.com/bbidulock/xdg-launch).  What it includes is just
-the xdg-launch program and manual page.
+the xdg-launch program and manual page, as well as a handfull of wrapper
+scripts.
 
 Release
 -------

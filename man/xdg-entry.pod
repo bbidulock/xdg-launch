@@ -1,0 +1,28 @@
+=pod
+
+=head1 NAME
+
+xdg-entry - an XDG compliant desktop entry inspection tool
+
+=head1 SYNOPSIS
+
+B<xdg-entry> [I<OPTIONS>] [I<APPID> [I<FILE>|I<URL>]]
+
+B<xdg-entry> [I<OPTIONS>] -c I<command and arguments>
+
+=head1 DESCRIPTION
+
+B<xdg-entry> is a script that simply executes L<xdg-launch(1)>
+with the appropriate arguments (B<--info>).
+
+=head1 SEE ALSO
+
+L<xdg-launch(1)>.
+
+=head1 AUTHOR
+
+Brian Bidulock E<lt>bidulock@openss7.orgE<gt>
+
+=cut
+
+# vim: sw=4 tw=72 nocin

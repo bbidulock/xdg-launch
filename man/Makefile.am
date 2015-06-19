@@ -7,7 +7,8 @@ xdg_man_files = \
 	     xdg-xsession.man \
 	     xdg-autostart.man \
 	     xdg-whereis.man \
-	     xdg-which.man
+	     xdg-which.man \
+	     xdg-entry.man
 
 nodist_man1_MANS = $(xdg_man_files)
 CLEANFILES = $(xdg_man_files)
@@ -20,7 +21,8 @@ EXTRA_DIST = \
 	     xdg-xsession.pod \
 	     xdg-autostart.pod \
 	     xdg-whereis.pod \
-	     xdg-which.pod
+	     xdg-which.pod \
+	     xdg-entry.pod
 
 SUFFIXES = .man .pod
 

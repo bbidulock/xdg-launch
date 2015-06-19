@@ -89,6 +89,13 @@ are considered to be the command and the command arguments to execute.
 B<xdg-launch> will L<execve(3)> the arguments under startup notification
 control in a similar fashion to C<sh -c>.
 
+=item B<-I>, B<--info>
+
+When specified, instead of launching the application selected, print
+information about the final desktop file selected to launch the the
+actions that would have been taken to launch the desktop entry if this
+option had not been specified.  This is equivalent to a dry run.
+
 =item B<-h>, B<--help>
 
 Prints usage information to standard output and exits.

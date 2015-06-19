@@ -34,7 +34,7 @@ xdg_whereis_SOURCES = xdg-whereis.c
 xdg_whereis_LDADD = 
 xdg_whereis_CFLAGS =
 
-dist_bin_SCRIPTS = dmenu_apps dmenu_launch xdg-xsession xdg-autostart
+dist_bin_SCRIPTS = dmenu_apps dmenu_launch xdg-xsession xdg-autostart xdg-entry
 
 AM_INSTALLCHECK_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
 

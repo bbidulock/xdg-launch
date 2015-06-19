@@ -162,6 +162,7 @@ struct params {
 	char *recently;
 	char *recent;
 	char *keep;
+	char *info;
 };
 
 struct params options = { NULL, };
@@ -196,6 +197,7 @@ struct params defaults = {
 	.recently = "~/.local/share/recently-used",
 	.recent = NULL,
 	.keep = "10",
+	.info = "false",
 };
 
 static const char *StartupNotifyFields[] = {
@@ -295,6 +297,22 @@ struct Notify {
 	Bool assigned;
 };
 #endif
+
+static const char *DesktopEntryFields[] = {
+	"Type",
+	"Name",
+	"Comment",
+	"Icon",
+	"TryExec",
+	"Exec",
+	"Terminal",
+	"StartupNotify",
+	"StartupWMClass",
+	"SessionSetup",
+	"Categories",
+	"MimeType",
+	NULL
+};
 
 struct entry {
 	char *Type;
@@ -2210,6 +2228,12 @@ send_msg(char *msg)
 
 	DPRINTF("Message to 0x%lx is: '%s'\n", root, msg);
 
+	if (options.info) {
+		fputs("Would send the following startup notification message:\n\n", stdout);
+		fprintf(stdout, "%s\n\n", msg);
+		return;
+	}
+
 	from = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
 
 	xev.type = ClientMessage;
@@ -3469,8 +3493,8 @@ assist()
 void
 setup()
 {
-	int status;
 	char *pre;
+	int status;
 
 	if (!entry.SessionSetup)
 		return;
@@ -3478,6 +3502,14 @@ setup()
 	pre = calloc(2048, sizeof(*pre));
 	strncat(pre, entry.SessionSetup, 1024);
 	subst_command(pre);
+
+	if (options.info) {
+		fputs("Would execute SessionSetup command as follows:\n\n", stdout);
+		fprintf(stdout, "%s\n\n", pre);
+		free(pre);
+		return;
+	}
+
 	status = system(pre);
 	free(pre);
 	if (status == -1)
@@ -3515,18 +3547,29 @@ launch()
 	if (options.xsession) {
 		DPRINTF("XSession: always needs asistance\n");
 		need_assist = True;
+		if (options.info)
+			fputs("Launching XSession entry always requires assistance.\n", stdout);
 	} else if (options.autostart) {
 		DPRINTF("AutoStart: always needs assistance\n");
 		need_assist = True;
+		if (options.info)
+			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
 	} else if (need_assistance()) {
 		OPRINTF("WindowManager: needs assistance\n");
 		if (fields.wmclass) {
 			OPRINTF("WMCLASS: requires assistance\n");
 			need_assist = True;
+			if (options.info)
+				fputs
+				    ("Launching StartupWMClass entry always requires assistance.\n",
+				     stdout);
 		}
 		if (fields.silent && atoi(fields.silent)) {
 			OPRINTF("SILENT: requires assistance\n");
 			need_assist = True;
+			if (options.info)
+				fputs("Launching SILENT entry always requires assistance.\n",
+				      stdout);
 		}
 	}
 	/* make the call... */
@@ -3546,11 +3589,26 @@ launch()
 	XCloseDisplay(dpy);
 
 	if (eargv) {
+		if (options.info) {
+			char **p;
+
+			fputs("Command would be:\n\n", stdout);
+			for (p = &eargv[0]; p && *p; p++)
+				fprintf(stdout, "'%s' ", *p);
+			fputs("\n\n", stdout);
+			return;
+		}
 		execvp(eargv[0], eargv);
 	} else {
 		cmd = calloc(strlen(fields.command) + 32, sizeof(cmd));
 		strcat(cmd, "exec ");
 		strcat(cmd, fields.command);
+		if (options.info) {
+			fputs("Command would be:\n\n", stdout);
+			fprintf(stdout, "%s\n\n", cmd);
+			free(cmd);
+			return;
+		}
 		OPRINTF("Command is: '%s'\n", cmd);
 		execlp("/bin/sh", "sh", "-c", cmd, NULL);
 	}
@@ -5073,6 +5131,8 @@ Options:\n\
         specify NUMBER of recent applications to keep, default: '%20$s'\n\
     -r, --recent FILENAME\n\
         specify FILENAME of recent apps file, default: '%21$s'\n\
+    -I, --info\n\
+        print information about entry instead of launching, default: '%22$s'\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -5084,7 +5144,7 @@ Options:\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession, defaults.autostart, defaults.keep, defaults.recapps);
+", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession, defaults.autostart, defaults.keep, defaults.recapps, defaults.info);
 }
 
 static void
@@ -5229,6 +5289,7 @@ main(int argc, char *argv[])
 			{"autostart",	no_argument,		NULL, 'U'},
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
+			{"info",	no_argument,		NULL, 'I'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -5241,10 +5302,10 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:D::v::hVCH?",
+				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ID::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:DvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:IDvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -5374,6 +5435,10 @@ main(int argc, char *argv[])
 		case 'r':	/* -r, --recent FILENAME */
 			free(options.recent);
 			defaults.recent = options.recent = strdup(optarg);
+			break;
+		case 'I':	/* -I, --info */
+			free(options.info);
+			defaults.info = options.info = strdup("true");
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)
@@ -5519,29 +5584,23 @@ main(int argc, char *argv[])
 		}
 	}
 	if (output > 1) {
+		const char **lp;
+		char **ep;
+
 		OPRINTF("Entries from file:\n");
-		if (entry.Name)
-			OPRINTF("%-30s = %s\n", "Name", entry.Name);
-		if (entry.Comment)
-			OPRINTF("%-30s = %s\n", "Comment", entry.Comment);
-		if (entry.Icon)
-			OPRINTF("%-30s = %s\n", "Icon", entry.Icon);
-		if (entry.TryExec)
-			OPRINTF("%-30s = %s\n", "TryExec", entry.TryExec);
-		if (entry.Exec)
-			OPRINTF("%-30s = %s\n", "Exec", entry.Exec);
-		if (entry.Terminal)
-			OPRINTF("%-30s = %s\n", "Terminal", entry.Terminal);
-		if (entry.StartupNotify)
-			OPRINTF("%-30s = %s\n", "StartupNotify", entry.StartupNotify);
-		if (entry.StartupWMClass)
-			OPRINTF("%-30s = %s\n", "StartupWMClass", entry.StartupWMClass);
-		if (entry.SessionSetup)
-			OPRINTF("%-30s = %s\n", "SessionSetup", entry.SessionSetup);
-		if (entry.Categories)
-			OPRINTF("%-30s = %s\n", "Categories", entry.Categories);
-		if (entry.MimeType)
-			OPRINTF("%-30s = %s\n", "MimeType", entry.MimeType);
+		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
+			if (*ep)
+				OPRINTF("%-30s = %s\n", *lp, *ep);
+	}
+	if (options.info) {
+		const char **lp;
+		char **ep;
+
+		fputs("Entries from file:\n\n", stdout);
+		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
+			if (*ep)
+				fprintf(stdout, "%-30s = %s\n", *lp, *ep);
+		fputs("\n", stdout);
 	}
 	if (!eargv && !options.exec && !entry.Exec) {
 		EPRINTF("no exec command\n");
@@ -5556,41 +5615,26 @@ main(int argc, char *argv[])
 	/* fill out all fields */
 	set_all();
 	if (output > 1) {
+		const char **lp;
+		char **fp;
+
 		OPRINTF("Final notify fields:\n");
-		if (fields.id)
-			OPRINTF("%-30s = %s\n", "ID", fields.id);
-		if (fields.name)
-			OPRINTF("%-30s = %s\n", "NAME", fields.name);
-		if (fields.icon)
-			OPRINTF("%-30s = %s\n", "ICON", fields.icon);
-		if (fields.bin)
-			OPRINTF("%-30s = %s\n", "BIN", fields.bin);
-		if (fields.description)
-			OPRINTF("%-30s = %s\n", "DESCRIPTION", fields.description);
-		if (fields.wmclass)
-			OPRINTF("%-30s = %s\n", "WMCLASS", fields.wmclass);
-		if (fields.silent)
-			OPRINTF("%-30s = %s\n", "SILENT", fields.silent);
-		if (fields.application_id)
-			OPRINTF("%-30s = %s\n", "APPLICATION_ID", fields.application_id);
-		if (fields.desktop)
-			OPRINTF("%-30s = %s\n", "DESKTOP", fields.desktop);
-		if (fields.screen)
-			OPRINTF("%-30s = %s\n", "SCREEN", fields.screen);
-		if (fields.monitor)
-			OPRINTF("%-30s = %s\n", "MONITOR", fields.monitor);
-		if (fields.timestamp)
-			OPRINTF("%-30s = %s\n", "TIMESTAMP", fields.timestamp);
-		if (fields.pid)
-			OPRINTF("%-30s = %s\n", "PID", fields.pid);
-		if (fields.hostname)
-			OPRINTF("%-30s = %s\n", "HOSTNAME", fields.hostname);
-		if (fields.command)
-			OPRINTF("%-30s = %s\n", "COMMAND", fields.command);
-		if (fields.action)
-			OPRINTF("%-30s = %s\n", "ACTION", fields.action);
+		for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
+			if (*fp)
+				OPRINTF("%-30s = %s\n", *lp, *fp);
 	}
-	put_history();
+	if (options.info) {
+		const char **lp;
+		char **fp;
+
+		fputs("Final notify fields:\n\n", stdout);
+		for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
+			if (*fp)
+				fprintf(stdout, "%-30s = %s\n", *lp, *fp);
+		fputs("\n", stdout);
+	}
+	if (!options.info)
+		put_history();
 	setup();
 	launch();
 	exit(EXIT_SUCCESS);
