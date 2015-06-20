@@ -4335,7 +4335,7 @@ put_recently_used_xbel(char *filename)
 	}
 	dummy = lockf(fileno(f), F_LOCK, 0);
 	if (fstat(fileno(f), &st)) {
-		EPRINTF("cannot state open file: '%s'\n", file);
+		EPRINTF("cannot stat open file: '%s'\n", file);
 		fclose(f);
 		g_free(file);
 		return;
