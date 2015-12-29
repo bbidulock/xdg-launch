@@ -79,6 +79,7 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <execinfo.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -130,6 +131,19 @@
 #define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
 		fflush(stderr); } } while (0)
+
+void
+dumpstack(const char *file, const int line, const char *func)
+{
+	void *buffer[32];
+	int nptr;
+	char **strings;
+	int i;
+
+	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
+		for (i = 0; i < nptr; i++)
+			fprintf(stderr, "E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+}
 
 typedef enum {
 	EXEC_MODE_DEFAULT = 0,
@@ -1216,7 +1230,7 @@ set_screen_of_root(Window sroot)
 			return True;
 		}
 	}
-	EPRINTF("Could not find screen for root 0x%lx!\n", sroot);
+	EPRINTF("could not find screen for root 0x%lx!\n", sroot);
 	return False;
 }
 
@@ -1228,7 +1242,7 @@ set_screen_of_root(Window sroot)
 Window
 get_frame(Window win)
 {
-	Window frame = win, fparent, froot = None, *fchildren, *vroots, vroot = None;
+	Window frame = win, fparent, froot = None, *fchildren = NULL, *vroots, vroot = None;
 	unsigned int du;
 	long i, n = 0;
 
@@ -1300,11 +1314,13 @@ find_pointer_screen()
 Bool
 find_window_screen(Window w)
 {
-	Window wroot, dw, *dwp;
+	Window wroot, dw, *dwp = NULL;
 	unsigned int du;
 
-	if (!XQueryTree(dpy, w, &wroot, &dw, &dwp, &du))
+	if (!XQueryTree(dpy, w, &wroot, &dw, &dwp, &du)) {
+		DPRINTF("could not query tree for window 0x%lx\n", w);
 		return False;
+	}
 	if (dwp)
 		XFree(dwp);
 
@@ -1323,6 +1339,16 @@ find_screen(Window w)
 		return True;
 	}
 	return find_window_screen(w);
+}
+
+Client *
+find_client_noscreen(Window w)
+{
+	Client *c = NULL;
+
+	if (!XFindContext(dpy, w, ClientContext, (XPointer *) &c))
+		scr = screens + c->screen;
+	return (c);
 }
 
 Client *
@@ -2348,7 +2374,7 @@ show_sequence(Sequence *seq)
 {
 	char **label, **field;
 
-	if (options.debug <= 0)
+	if (options.debug < 1 && options.output < 2)
 		return;
 	for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
 		if (*field)
@@ -2370,7 +2396,7 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 		}
 	}
 	convert_sequence_fields(old);
-	DPRINTF("Updated sequence fields:\n");
+	OPRINTF("Updated sequence fields:\n");
 	show_sequence(old);
 }
 
@@ -2449,7 +2475,7 @@ remove_sequence(Sequence *del)
 {
 	Sequence *seq, **prev;
 
-	DPRINTF("Removing sequence:\n");
+	OPRINTF("Removing sequence:\n");
 	show_sequence(del);
 	for (prev = &scr->sequences, seq = *prev; seq && seq != del;
 	     prev = &seq->next, seq = *prev) ;
@@ -2538,7 +2564,7 @@ add_sequence(Sequence *seq)
 #else
 	(void) sequence_timeout_callback;
 #endif
-	DPRINTF("Added sequence:\n");
+	OPRINTF("Added sequence:\n");
 	show_sequence(seq);
 }
 
@@ -3832,6 +3858,192 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 		DPRINTF("no ClientMessage handler for %s\n", XGetAtomName(dpy, e->message_type));
 }
 
+void
+handle_property_event(XPropertyEvent *e)
+{
+	Client *c = NULL;
+
+	pushtime(&current_time, e->time);
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)))
+		pushtime(&c->last_time, e->time);
+	pc_handle_atom(e, c);
+}
+
+void
+handle_focus_change_event(XFocusChangeEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* We missed a management event, so treat the window as managed
+		   now... */
+		managed_client(c, CurrentTime);
+}
+
+void
+handle_expose_event(XExposeEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* We missed a management event, so treat the window as managed
+		   now... */
+		managed_client(c, CurrentTime);
+}
+
+void
+handle_visibility_event(XVisibilityEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* We missed a management event, so treat the window as managed
+		   now. */
+		managed_client(c, CurrentTime);
+}
+
+void
+handle_create_window_event(XCreateWindowEvent *e)
+{
+	Client *c = NULL;
+
+	/* only interested in top-level windows that are not override redirect */
+	if (e->override_redirect)
+		return;
+	if (!find_screen(e->window)) {
+		EPRINTF("could not find screen for window 0x%lx\n", e->window);
+		return;
+	}
+	if (!(c = find_client(e->window)))
+		if (e->parent == scr->root)
+			c = add_client(e->window);
+}
+
+void
+handle_destroy_window_event(XDestroyWindowEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)))
+		del_client(c);
+	clean_msgs(e->window);
+}
+
+void
+handle_map_event(XMapEvent *e)
+{
+	Client *c = NULL;
+
+	if (e->override_redirect)
+		return;
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* Not sure we should do this for anything but dockapps here...
+		   Window managers may map normal windows before setting the
+		   WM_STATE property, and system trays invariably map window
+		   before sending the _XEMBED message. */
+		if ((c->dockapp = is_dockapp(c)))
+			/* We missed a management event, so treat the window as
+			   managed now */
+			managed_client(c, CurrentTime);
+}
+
+void
+handle_unmap_event(XUnmapEvent *e)
+{
+	/* we can't tell much from a simple unmap event */
+}
+
+void
+handle_reparent_event(XReparentEvent *e)
+{
+	Client *c = NULL;
+
+	/* any top-level window that is reparented by the window manager should
+	   have WM_STATE set eventually (either before or after the reparenting), 
+	   or receive an _XEMBED client message it they are a status icon.  The
+	   exception is dock apps: some window managers reparent the dock app and 
+	   never set WM_STATE on it (even though WindowMaker does). */
+	if (e->override_redirect)
+		return;
+	if (!find_screen(e->window)) {
+		EPRINTF("could not find screen for window 0x%lx\n", e->window);
+		return;
+	}
+	if ((c = find_client(e->window)) && !c->managed) {
+		if (e->parent == scr->root)
+			/* reparented the wrong way */
+			return;
+		if ((c->statusicon = is_statusicon(c))) {
+			/* This is a status icon. */
+			if (scr->stray)
+				/* Status icons will receive an _XEMBED message
+				   from the system tray when managed. */
+				return;
+			/* It is questionable whether status icons will be
+			   reparented at all when there is no system tray... */
+			EPRINTF("status icon 0x%lx reparented to 0x%lx\n",
+				e->window, e->parent);
+			return;
+		} else if (!(c->dockapp = is_dockapp(c))) {
+			/* This is a normal window. */
+			if (scr->redir_check)
+				/* We will receive WM_STATE property change when
+				   managed (if there is a window manager
+				   present). */
+				return;
+			/* It is questionable whether regular windows will be
+			   reparented at all when there is no window manager... */
+			EPRINTF("normal window 0x%lx reparented to 0x%lx\n",
+				e->window, e->parent);
+			return;
+		} else {
+			/* This is a dock app. */
+			if (scr->maker_check)
+				/* We will receive a WM_STATE property change
+				   when managed when a WindowMaker work-alike is
+				   present. */
+				return;
+			/* Non-WindowMaker window managers reparent dock apps
+			   without any further indication that the dock app has
+			   been managed. */
+			managed_client(c, CurrentTime);
+		}
+	}
+}
+
+void
+handle_configure_event(XConfigureEvent *e)
+{
+}
+
+void
+handle_client_message_event(XClientMessageEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF("could not find screen for window 0x%lx\n", e->window);
+	c = find_client(e->window);
+	cm_handle_atom(e, c);
+}
+
+void
+handle_mapping_event(XMappingEvent *e)
+{
+}
+
 /** @brief handle monitoring events
   * @param e - X event to handle
   *
@@ -3846,166 +4058,56 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 void
 handle_event(XEvent *e)
 {
-	Client *c;
-
 	switch (e->type) {
 	case PropertyNotify:
 		XPRINTF("got PropertyNotify event\n");
-		pushtime(&current_time, e->xproperty.time);
-		if (!find_screen(e->xproperty.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xproperty.window);
-			break;
-		}
-		if ((c = find_client(e->xproperty.window)))
-			pushtime(&c->last_time, e->xproperty.time);
-		pc_handle_atom(&e->xproperty, c);
+		handle_property_event(&e->xproperty);
 		break;
 	case FocusIn:
 	case FocusOut:
 		XPRINTF("got FocusIn/FocusOut event\n");
-		if (!find_screen(e->xfocus.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xfocus.window);
-			break;
-		}
-		if ((c = find_client(e->xfocus.window)) && !c->managed)
-			/* We missed a management event, so treat the window as managed
-			   now... */
-			managed_client(c, CurrentTime);
+		handle_focus_change_event(&e->xfocus);
 		break;
 	case Expose:
 		XPRINTF("got Expose event\n");
-		if (!find_screen(e->xexpose.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xexpose.window);
-			break;
-		}
-		if ((c = find_client(e->xexpose.window)) && !c->managed)
-			/* We missed a management event, so treat the window as managed
-			   now... */
-			managed_client(c, CurrentTime);
+		handle_expose_event(&e->xexpose);
 		break;
 	case VisibilityNotify:
 		XPRINTF("got VisibilityNotify event\n");
-		if (!find_screen(e->xvisibility.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xvisibility.window);
-			break;
-		}
-		if ((c = find_client(e->xvisibility.window)) && !c->managed)
-			/* We missed a management event, so treat the window as managed
-			   now. */
-			managed_client(c, CurrentTime);
+		handle_visibility_event(&e->xvisibility);
 		break;
 	case CreateNotify:
 		XPRINTF("got CreateNotify event\n");
-		/* only interested in top-level windows that are not override redirect */
-		if (e->xcreatewindow.override_redirect)
-			break;
-		if (!find_screen(e->xcreatewindow.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xcreatewindow.window);
-			break;
-		}
-		if (!(c = find_client(e->xcreatewindow.window)))
-			if (e->xcreatewindow.parent == scr->root)
-				c = add_client(e->xcreatewindow.window);
+		handle_create_window_event(&e->xcreatewindow);
 		break;
 	case DestroyNotify:
 		XPRINTF("got DestroyNotify event\n");
-		if (!find_screen(e->xdestroywindow.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xdestroywindow.window);
-			break;
-		}
-		if ((c = find_client(e->xdestroywindow.window)))
-			del_client(c);
-		clean_msgs(e->xdestroywindow.window);
+		handle_destroy_window_event(&e->xdestroywindow);
 		break;
 	case MapNotify:
 		XPRINTF("got MapNotify event\n");
-		if (e->xmap.override_redirect)
-			break;
-		if (!find_screen(e->xmap.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xmap.window);
-			break;
-		}
-		if ((c = find_client(e->xmap.window)) && !c->managed)
-			/* Not sure we should do this for anything but dockapps here...
-			   Window managers may map normal windows before setting the
-			   WM_STATE property, and system trays invariably map window
-			   before sending the _XEMBED message. */
-			if ((c->dockapp = is_dockapp(c)))
-				/* We missed a management event, so treat the window as
-				   managed now */
-				managed_client(c, CurrentTime);
+		handle_map_event(&e->xmap);
 		break;
 	case UnmapNotify:
 		XPRINTF("got UnmapNotify event\n");
-		/* we can't tell much from a simple unmap event */
+		handle_unmap_event(&e->xunmap);
 		break;
 	case ReparentNotify:
 		XPRINTF("got ReparentNotify event\n");
-		/* any top-level window that is reparented by the window manager should
-		   have WM_STATE set eventually (either before or after the reparenting), 
-		   or receive an _XEMBED client message it they are a status icon.  The
-		   exception is dock apps: some window managers reparent the dock app and 
-		   never set WM_STATE on it (even though WindowMaker does). */
-		if (e->xreparent.override_redirect)
-			break;
-		if (!find_screen(e->xreparent.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xreparent.window);
-			break;
-		}
-		if ((c = find_client(e->xreparent.window)) && !c->managed) {
-			if (e->xreparent.parent == scr->root)
-				/* reparented the wrong way */
-				break;
-			if ((c->statusicon = is_statusicon(c))) {
-				/* This is a status icon. */
-				if (scr->stray)
-					/* Status icons will receive an _XEMBED message
-					   from the system tray when managed. */
-					break;
-				/* It is questionable whether status icons will be
-				   reparented at all when there is no system tray... */
-				EPRINTF("status icon 0x%lx reparented to 0x%lx\n",
-					e->xreparent.window, e->xreparent.parent);
-				break;
-			} else if (!(c->dockapp = is_dockapp(c))) {
-				/* This is a normal window. */
-				if (scr->redir_check)
-					/* We will receive WM_STATE property change when
-					   managed (if there is a window manager
-					   present). */
-					break;
-				/* It is questionable whether regular windows will be
-				   reparented at all when there is no window manager... */
-				EPRINTF("normal window 0x%lx reparented to 0x%lx\n",
-					e->xreparent.window, e->xreparent.parent);
-				break;
-			} else {
-				/* This is a dock app. */
-				if (scr->maker_check)
-					/* We will receive a WM_STATE property change
-					   when managed when a WindowMaker work-alike is
-					   present. */
-					break;
-				/* Non-WindowMaker window managers reparent dock apps
-				   without any further indication that the dock app has
-				   been managed. */
-				managed_client(c, CurrentTime);
-			}
-		}
+		handle_reparent_event(&e->xreparent);
 		break;
 	case ConfigureNotify:
 		XPRINTF("got ConfigureNotify event\n");
+		handle_configure_event(&e->xconfigure);
 		break;
 	case ClientMessage:
 		XPRINTF("got ClientMessage event\n");
-		if (!find_screen(e->xclient.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xclient.window);
-		}
-		c = find_client(e->xclient.window);
-		cm_handle_atom(&e->xclient, c);
+		handle_client_message_event(&e->xclient);
 		break;
 	case MappingNotify:
 		XPRINTF("got MappingNotify event\n");
+		handle_mapping_event(&e->xmapping);
+		break;
 	default:
 		EPRINTF("unexpected xevent %d\n", (int) e->type);
 		break;
@@ -4474,6 +4576,7 @@ do_monitor(int argc, char *argv[])
 		/* clear file creation mask */
 		umask(0);
 	}
+	handle_wmchange();
 	/* continue on monitoring */
 	main_loop(argc, argv);
 }
