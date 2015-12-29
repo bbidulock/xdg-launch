@@ -132,7 +132,8 @@
 		fflush(stderr); } } while (0)
 
 typedef enum {
-	EXEC_MODE_MONITOR = 0,
+	EXEC_MODE_DEFAULT = 0,
+	EXEC_MODE_MONITOR,
 	EXEC_MODE_REPLACE,
 	EXEC_MODE_QUIT,
 	EXEC_MODE_HELP,
@@ -153,7 +154,7 @@ Options options = {
 	.output = 1,
 	.foreground = 0,
 	.guardtime = 15000,
-	.exec_mode = EXEC_MODE_MONITOR,
+	.exec_mode = EXEC_MODE_DEFAULT,
 };
 
 static const char *StartupNotifyFields[] = {
@@ -284,6 +285,9 @@ struct entry {
 	char *StartupNotify;
 	char *StartupWMClass;
 	char *SessionSetup;
+	char *Categories;
+	char *MimeType;
+	char *AsRoot;
 };
 
 struct entry entry = { NULL, };
@@ -4777,6 +4781,8 @@ General Options:\n\
 int
 main(int argc, char *argv[])
 {
+	ExecMode exec_mode = EXEC_MODE_DEFAULT;
+
 	while (1) {
 		int c, val;
 
@@ -4814,21 +4820,25 @@ main(int argc, char *argv[])
 		case 0:
 			goto bad_usage;
 		case 'm':	/* -m, --monitor */
-			if (options.exec_mode != EXEC_MODE_MONITOR)
+			if (options.exec_mode != EXEC_MODE_DEFAULT)
 				goto bad_command;
 			options.exec_mode = EXEC_MODE_MONITOR;
+			if (exec_mode == EXEC_MODE_DEFAULT)
+				exec_mode = EXEC_MODE_MONITOR;
 			break;
 		case 'r':	/* -r, --replace */
-			if (options.exec_mode != EXEC_MODE_MONITOR
-			    && options.exec_mode != EXEC_MODE_REPLACE)
+			if (options.exec_mode != EXEC_MODE_DEFAULT)
 				goto bad_command;
 			options.exec_mode = EXEC_MODE_REPLACE;
+			if (exec_mode == EXEC_MODE_DEFAULT)
+				exec_mode = EXEC_MODE_REPLACE;
 			break;
 		case 'q':	/* -q, --quit */
-			if (options.exec_mode != EXEC_MODE_MONITOR
-			    && options.exec_mode != EXEC_MODE_QUIT)
+			if (options.exec_mode != EXEC_MODE_DEFAULT)
 				goto bad_command;
 			options.exec_mode = EXEC_MODE_QUIT;
+			if (exec_mode == EXEC_MODE_DEFAULT)
+				exec_mode = EXEC_MODE_QUIT;
 			break;
 		case 'f':	/* -f, --foreground */
 			options.foreground = 1;
@@ -4867,17 +4877,14 @@ main(int argc, char *argv[])
 			break;
 		case 'h':	/* -h, --help */
 		case 'H':	/* -H, --? */
-			DPRINTF("%s: printing help message\n", argv[0]);
-			help(argc, argv);
-			exit(EXIT_SUCCESS);
+			exec_mode = EXEC_MODE_HELP;
+			break;
 		case 'V':	/* -V, --version */
-			DPRINTF("%s: printing version message\n", argv[0]);
-			version(argc, argv);
-			exit(EXIT_SUCCESS);
+			exec_mode = EXEC_MODE_VERSION;
+			break;
 		case 'C':	/* -C, --copying */
-			DPRINTF("%s: printing copying message\n", argv[0]);
-			copying(argc, argv);
-			exit(EXIT_SUCCESS);
+			exec_mode = EXEC_MODE_COPYING;
+			break;
 		case '?':
 		default:
 		      bad_option:
@@ -4911,7 +4918,8 @@ main(int argc, char *argv[])
 	}
 	if (optind < argc)
 		goto bad_nonopt;
-	switch (options.exec_mode) {
+	switch (exec_mode) {
+	case EXEC_MODE_DEFAULT:
 	case EXEC_MODE_MONITOR:
 		if (!init_display())
 			exit(EXIT_FAILURE);
@@ -4928,12 +4936,15 @@ main(int argc, char *argv[])
 		do_quit(argc, argv);
 		break;
 	case EXEC_MODE_HELP:
+		DPRINTF("%s: printing help message\n", argv[0]);
 		help(argc, argv);
 		break;
 	case EXEC_MODE_VERSION:
+		DPRINTF("%s: printing version message\n", argv[0]);
 		version(argc, argv);
 		break;
 	case EXEC_MODE_COPYING:
+		DPRINTF("%s: printing copying message\n", argv[0]);
 		copying(argc, argv);
 		break;
 	default:

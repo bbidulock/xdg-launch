@@ -132,25 +132,27 @@
 		fflush(stderr); } } while (0)
 
 typedef enum {
-	CommandDefault = 0,
-	CommandMonitor,
-	CommandHelp,
-	CommandVersion,
-	CommandCopying
-} Command;
+	EXEC_MODE_DEFAULT = 0,
+	EXEC_MODE_MONITOR,
+	EXEC_MODE_HELP,
+	EXEC_MODE_VERSION,
+	EXEC_MODE_COPYING
+} ExecMode;
 
 typedef struct {
 	int debug;
 	int output;
+	int foreground;
 	long guardtime;
-	Command command;
+	ExecMode exec_mode;
 } Options;
 
 Options options = {
 	.debug = 0,
 	.output = 1,
+	.foreground = 1,
 	.guardtime = 15000,
-	.command = CommandDefault,
+	.exec_mode = EXEC_MODE_DEFAULT,
 };
 
 static const char *StartupNotifyFields[] = {
@@ -291,7 +293,6 @@ struct entry entry = { NULL, };
 typedef struct {
 	int screen;			/* screen number */
 	Window root;			/* root window of screen */
-	Window owner;			/* _XDG_MONITOR_S%d selection owner (theirs) */
 	Window selwin;			/* _XDG_MONITOR_S%d selection window (ours) */
 	Window netwm_check;		/* _NET_SUPPORTING_WM_CHECK or None */
 	Window winwm_check;		/* _WIN_SUPPORTING_WM_CHECK or None */
@@ -302,7 +303,6 @@ typedef struct {
 	Window stray;			/* _NET_SYSTEM_TRAY_S%d owner */
 	Atom icccm_atom;		/* WM_S%d atom for this screen */
 	Atom stray_atom;		/* _NET_SYSTEM_TRAY_S%d atom this screen */
-	Atom slctn_atom;		/* _XDG_MONITOR_S%d atom this screen */
 	Client *clients;		/* clients for this screen */
 	Sequence *sequences;		/* sequences for this screen */
 } XdgScreen;
@@ -693,8 +693,6 @@ init_display()
 			scr->icccm_atom = XInternAtom(dpy, sel, False);
 			snprintf(sel, sizeof(sel), "_NET_SYSTEM_TRAY_S%d", s);
 			scr->stray_atom = XInternAtom(dpy, sel, False);
-			snprintf(sel, sizeof(sel), "_XDG_MONITOR_S%d", s);
-			scr->slctn_atom = XInternAtom(dpy, sel, False);
 		}
 		s = DefaultScreen(dpy);
 		scr = screens + s;
@@ -4011,31 +4009,6 @@ handle_event(XEvent *e)
 	default:
 		EPRINTF("unexpected xevent %d\n", (int) e->type);
 		break;
-	case SelectionClear:
-		XPRINTF("got SelectionClear event\n");
-#if 0
-		int s;
-#endif
-
-		if (!find_screen(e->xselectionclear.window)) {
-			EPRINTF("could not find screen for window 0x%lx\n", e->xselectionclear.window);
-			break;
-		}
-		if (e->xselectionclear.selection != scr->slctn_atom)
-			break;
-		if (e->xselectionclear.window != scr->selwin)
-			break;
-		XDestroyWindow(dpy, scr->selwin);
-		scr->selwin = None;
-#if 0
-		for (s = 0; s < nscr; s++)
-			if (screens[s].selwin)
-				break;
-		if (s < nscr)
-			break;
-#endif
-		DPRINTF("lost _XDG_MONITOR_S%d selection: exiting\n", scr->screen);
-		exit(EXIT_SUCCESS);
 	}
 }
 
@@ -4472,8 +4445,61 @@ main_loop(int argc, char *argv[])
 static void
 do_monitor(int argc, char *argv[])
 {
+	if (!options.foreground) {
+		pid_t pid;
+
+		if ((pid = fork()) < 0) {
+			EPRINTF("%s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		} else if (pid != 0) {
+			/* parent exits */
+			exit(EXIT_SUCCESS);
+		}
+		setsid();	/* become a session leader */
+		/* close files */
+		fclose(stdin);
+		/* fork once more for SVR4 */
+		if ((pid = fork()) < 0) {
+			EPRINTF("%s\n", strerror(errno));
+			exit(EXIT_SUCCESS);
+		} else if (pid != 0) {
+			/* parent exits */
+			exit(EXIT_SUCCESS);
+		}
+		/* release current directory */
+		if (chdir("/") < 0) {
+			EPRINTF("chdir: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		/* clear file creation mask */
+		umask(0);
+	}
 	/* continue on monitoring */
 	main_loop(argc, argv);
+}
+
+/** @brief run without replacing a running instance
+  *
+  * This is performed by detecting owners of the _XDG_MONITOR_S%d selection for
+  * any screen and aborting when one exists.
+  */
+static void
+do_run(int argc, char *argv[])
+{
+	int s;
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		scr->selwin =
+		    XCreateSimpleWindow(dpy, scr->root, DisplayWidth(dpy, s),
+					DisplayHeight(dpy, s), 1, 1, 0, BlackPixel(dpy,
+										   s),
+					BlackPixel(dpy, s));
+		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
+
+	}
+	do_monitor(argc, argv);
 }
 
 static void
@@ -4578,6 +4604,9 @@ Command Options:\n\
     -C, --copying\n\
         print copying permission and exit\n\
 General Options:\n\
+    -b, --background\n\
+        run in the background (so that standard error\n\
+	goes to the log file)\n\
     -g, --guard-time TIMEOUT\n\
         amount of time, TIMEOUT, in milliseconds to wait for a\n\
         desktop application to launch [default: 15000]\n\
@@ -4592,6 +4621,8 @@ General Options:\n\
 int
 main(int argc, char *argv[])
 {
+	ExecMode exec_mode = EXEC_MODE_DEFAULT;
+
 	while (1) {
 		int c, val;
 
@@ -4600,6 +4631,7 @@ main(int argc, char *argv[])
 		/* *INDENT-OFF* */
 		static struct option long_options[] = {
 			{"monitor",	no_argument,		NULL, 'm'},
+			{"background",	no_argument,		NULL, 'b'},
 			{"guard-time",	required_argument,	NULL, 'g'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
@@ -4626,9 +4658,16 @@ main(int argc, char *argv[])
 		case 0:
 			goto bad_usage;
 		case 'm':	/* -m, --monitor */
-			if (options.command != CommandDefault)
+			if (options.exec_mode != EXEC_MODE_DEFAULT)
 				goto bad_command;
-			options.command = CommandMonitor;
+			options.exec_mode = EXEC_MODE_MONITOR;
+			if (exec_mode == EXEC_MODE_DEFAULT)
+				exec_mode = EXEC_MODE_MONITOR;
+			break;
+		case 'f':	/* -b, --background */
+			options.foreground = 0;
+			if (options.debug)
+				options.debug = 0;
 			break;
 		case 'g':	/* -g, --guard-time TIMEOUT */
 			if (!optarg)
@@ -4662,17 +4701,14 @@ main(int argc, char *argv[])
 			break;
 		case 'h':	/* -h, --help */
 		case 'H':	/* -H, --? */
-			DPRINTF("%s: printing help message\n", argv[0]);
-			help(argc, argv);
-			exit(EXIT_SUCCESS);
+			exec_mode = EXEC_MODE_HELP;
+			break;
 		case 'V':	/* -V, --version */
-			DPRINTF("%s: printing version message\n", argv[0]);
-			version(argc, argv);
-			exit(EXIT_SUCCESS);
+			exec_mode = EXEC_MODE_VERSION;
+			break;
 		case 'C':	/* -C, --copying */
-			DPRINTF("%s: printing copying message\n", argv[0]);
-			copying(argc, argv);
-			exit(EXIT_SUCCESS);
+			exec_mode = EXEC_MODE_COPYING;
+			break;
 		case '?':
 		default:
 		      bad_option:
@@ -4706,20 +4742,23 @@ main(int argc, char *argv[])
 	}
 	if (optind < argc)
 		goto bad_nonopt;
-	switch (options.command) {
-	case CommandDefault:
-	case CommandMonitor:
+	switch (exec_mode) {
+	case EXEC_MODE_DEFAULT:
+	case EXEC_MODE_MONITOR:
 		if (!init_display())
 			exit(EXIT_FAILURE);
-		do_monitor(argc, argv);
+		do_run(argc, argv);
 		break;
-	case CommandHelp:
+	case EXEC_MODE_HELP:
+		DPRINTF("%s: printing help message\n", argv[0]);
 		help(argc, argv);
 		break;
-	case CommandVersion:
+	case EXEC_MODE_VERSION:
+		DPRINTF("%s: printing version message\n", argv[0]);
 		version(argc, argv);
 		break;
-	case CommandCopying:
+	case EXEC_MODE_COPYING:
+		DPRINTF("%s: printing copying message\n", argv[0]);
 		copying(argc, argv);
 		break;
 	default:
@@ -4730,9 +4769,3 @@ main(int argc, char *argv[])
 }
 
 // vim: set sw=8 tw=80 com=srO\:/**,mb\:*,ex\:*/,srO\:/*,mb\:*,ex\:*/,b\:TRANS foldmarker=@{,@} foldmethod=marker:
-
-
-
-
-
-
