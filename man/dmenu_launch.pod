@@ -10,9 +10,10 @@ dmenu_launch [dmenu options]
 
 =head1 DESCRIPTION
 
-B<dmenu_launch> is a script that can be used by L<dwm(1)> which lists
-desktop applications in XDG directories and runs the result using
-L<xdg-launch(1)>.
+B<dmenu_launch> is a script that can be used by L<dwm(1)> (or other
+tiling window manager that use L<dmenu(1)>) which lists desktop
+applications in XDG directories as input to L<dmenu(1)> and runs the
+result using L<xdg-launch(1)>.
 
 =head1 OPTIONS
 
