@@ -311,6 +311,7 @@ static const char *DesktopEntryFields[] = {
 	"SessionSetup",
 	"Categories",
 	"MimeType",
+	"AsRoot",
 	NULL
 };
 
@@ -327,6 +328,7 @@ struct entry {
 	char *SessionSetup;
 	char *Categories;
 	char *MimeType;
+	char *AsRoot;
 };
 
 struct entry entry = { NULL, };
@@ -2011,6 +2013,18 @@ parse_file(char *path)
 		} else if (strcmp(key, "MimeType") == 0) {
 			if (!entry.MimeType)
 				entry.MimeType = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "AsRoot") == 0) {
+			if (!entry.AsRoot)
+				entry.AsRoot = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "X-KDE-RootOnly") == 0) {
+			if (!entry.AsRoot)
+				entry.AsRoot = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "X-SuSE-YaST-RootOnly") == 0) {
+			if (!entry.AsRoot)
+				entry.AsRoot = strdup(val);
 			ok = 1;
 		}
 	}
