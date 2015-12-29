@@ -1,13 +1,24 @@
 @PACKAGE@ -- todo file.  @DATE@
 
 - [X] handle XDG_CURRENT_DESKTOP that has multiple fields separated by ':'
-- [ ] handle applications desktop entry file id's correctly
+- [X] handle applications desktop entry file id's correctly
 - [X] handle Desktop Action and provide option to launch specified action
 - [ ] handle DBusName and DBusPath for dbus launching
-- [ ] make xdg-launch register with .recently-used and .recently-used.xbel
-- [ ] make xdg-launch use GtkRecentManager object
-- [ ] make xdg-launch also use ~/.config/xde/run-history
-- [ ] make xdg-launch also use ~/.config/xde/recent-applications
+- [X] make xdg-launch register with .recently-used and .recently-used.xbel
+- [X] make xdg-launch use GtkRecentManager object
+- [X] make xdg-launch also use ~/.config/xde/run-history
+- [X] make xdg-launch also use ~/.config/xde/recent-applications
 - [ ] maybe xdg-launch should just use XML Simple from glib instead of gtk2
+
+- [ ] there should be a way to specify the terminal to use in a
+      configuration file instead of just using xterm
+- [ ] terminal applications should set the WMCLASS instance to that of
+      the application instead of, for example, "xterm".
+- [ ] should observe the informal "AsRoot=true" keyword: perhaps
+      behavior can be somewhat different based on "Terminal=" (i.e.
+      sudo in command vs. gksu or equivalent).
+- [ ] should add a wait-for-window-manager option that waits for a
+      window manager whenever a WMCLASS would be used
+- [ ] similarly, could add a wait-for-systray and wait-for-pager option
 
 # vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:
