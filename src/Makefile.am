@@ -6,7 +6,8 @@ bin_PROGRAMS = \
 	xdg-launch \
 	xdg-assist \
 	xdg-monitor \
-	xdg-which
+	xdg-which \
+	xdg-show
 
 EXTRA_PROGRAMS = \
 	xdg-whereis
@@ -33,6 +34,11 @@ xdg_whereis_CPPFLAGS = -DNAME=\"xde-whereis\"
 xdg_whereis_SOURCES = xdg-whereis.c
 xdg_whereis_LDADD = 
 xdg_whereis_CFLAGS =
+
+xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
+xdg_show_SOURCES = xdg-show.c
+xdg_show_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(AM_LDFLAGS)
+xdg_show_CFLAGS = $(AM_CFLAGS) $(NOTIFY_CFLAGS) $(GTK2_CFLAGS)
 
 dist_bin_SCRIPTS = dmenu_apps dmenu_launch xdg-xsession xdg-autostart xdg-entry
 
