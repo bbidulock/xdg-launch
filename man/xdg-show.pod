@@ -110,7 +110,23 @@ more information.
 
 B<xdg-show> has no known bugs.
 Please report bugs to the source code repository at
-L<http://github.com/bbidulock/xdg-launch/issues>.
+L<https://github.com/bbidulock/xdg-launch/issues>.
+
+=head1 HISTORY
+
+My primary purpose in writing B<xdg-show> was to display startup
+notification and related launch events in real-time to assist with
+debugging of the L<xdg-launch(1)>, L<xdg-monitor(1)> and
+L<xdg-assist(1)> programs.  It is included in the package to assist with
+investigation and reporting of bugs.
+
+=head1 SEE ALSO
+
+L<xdg-launch(1)>,
+L<xdg-monitor(1)>,
+L<xdg-assist(1)>,
+Startup Notification
+L<http://standards.freedesktop.org/startup-notification-spec/startup-notification-0.1.txt>.
 
 =head1 AUTHOR
 
