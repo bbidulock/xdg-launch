@@ -452,6 +452,26 @@ invocation.  Therefore, when the launcher is B<xdg-launch>, the
 application (or window manager) can use the I<sequence> field as the
 monitor index.
 
+=head2 TERMINAL PROGRAMS
+
+For desktop entries that set C<Terminal=true>, when they also set
+C<StartupWMClass> to a class name specific to the program being
+executed.  Most terminal programs (and L<xterm(1)> specifically) can set
+the C<WMCLASS> name and class to something other than that of the
+terminal program (i.e. instead of C<xterm.XTerm>).  When the desktop
+entries do so, B<xdg-launch> will set the name attribute on the terminal
+to the name specified when the terminal is launched.  This also permits,
+for L<xterm(1)>, the ability to set special terminal resources by
+application.  Because not many desktop entry files do this, when no
+C<StartupWMClass> is specified, the C<APPID> or C<BINARY> will be used
+instead and C<StartupWMClass> will be automatically populated.
+
+This procedure provides additional assistance to window managers when
+terminal programs do not properly observe startup notification.  (Note
+that L<xterm(1)> does not properly observe startup notification, even
+though it properly observes X11 Session Management, whereas many other
+terminal emulators support both.)
+
 =head2 WINDOW MANAGERS
 
 B<xdg-launch> interacts with window managers in the following ways:

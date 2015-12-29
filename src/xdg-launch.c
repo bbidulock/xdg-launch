@@ -1625,16 +1625,30 @@ set_command()
 	free(fields.command);
 	cmd = calloc(2048, sizeof(*cmd));
 	if (truth_value(entry.Terminal)) {
-		if (fields.wmclass) {
-			snprintf(cmd, 1024, "xterm -name \"%s\" -T \"%%c\" -e ", fields.wmclass);
-		} else {
-			/* A little more to be done here: we should set WMCLASS to xterm
-			   to assist the DE. SILENT should be set to zero. */
-			strncat(cmd, "xterm -T \"%c\" -e ", 1024);
+		/* More to do here: if there is no wmclass set, and there is a
+		   application id, use that; otherwise, if there is a binary, use the
+		   binary name, and set the wmclass. */
+		if (!fields.wmclass && fields.application_id) {
+			free(fields.wmclass);
+			fields.wmclass = strdup(fields.application_id);
+		}
+		if (!fields.wmclass && fields.bin) {
+			char *p;
+
+			free(fields.wmclass);
+			fields.wmclass = (p = strrchr(fields.bin, '/')) ?
+			    strdup(p) : strdup(fields.bin);
+		}
+		if (!fields.wmclass) {
 			free(fields.wmclass);
 			fields.wmclass = strdup("xterm");
+		}
+		if (fields.wmclass) {
+			snprintf(cmd, 1024, "xterm -name \"%s\" -T \"%%c\" -e ", fields.wmclass);
 			free(fields.silent);
 			fields.silent = NULL;
+		} else {
+			strncat(cmd, "xterm -T \"%c\" -e ", 1024);
 		}
 	}
 	if (options.exec)
