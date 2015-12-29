@@ -62,6 +62,36 @@ Running xdg-launch
 
 Read the manual page after installation: man xdg-launch.
 
+The following programs are included in xdg-launch:
+
+- xdg-launch(1) -- This is the primary program.
+
+- dmenu_launch(1) -- This is a little script that uses xdg-launch(1) and
+  dmenu(1) to provide an application menu.
+
+- xdg-autostart(1) -- This is a little script that invokes xdg-launch(1)
+  as a launcher for autostart programs instead of applications.
+
+- xdg-xsession(1) -- This is a little script that invokes xdg-launch(1)
+  as a launcher for X Sessions programs (window managers) instead of
+  applications.
+
+- xdg-entry(1) -- This is a little script that invokdes xdg-launch(1)
+  with the --info option and lists which information would be used for
+  startup notification and launching of the resulting application.
+
+- xdg-which(1), xdg-whereis(1) -- Two little programs what parallel
+  which(1) and whereis(1) for desktop entry files instead of binaries.
+
+- xdg-monitor(1) -- A program to monitor startup notification and
+  provide notification as programs start up and performs startup
+  notification completion of applications that do not complete.  This
+  program is also a system tray application.
+
+- xdg-assist(1) -- A program that assists window managers with
+  supporting startup notification and other EWMH/NetWM features.
+
+
 Issues
 ------
 
