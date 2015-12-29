@@ -12,7 +12,7 @@ xdg-launch -- todo file.  2015-06-20
 
 - [ ] there should be a way to specify the terminal to use in a
       configuration file instead of just using xterm
-- [ ] terminal applications should set the WMCLASS instance to that of
+- [X] terminal applications should set the WMCLASS instance to that of
       the application instead of, for example, "xterm".
 - [ ] should observe the informal "AsRoot=true" keyword: perhaps
       behavior can be somewhat different based on "Terminal=" (i.e.
