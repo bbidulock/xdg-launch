@@ -27,12 +27,10 @@ xdg_monitor_CFLAGS = $(AM_CFLAGS)
 
 xdg_which_CPPFLAGS = -DNAME=\"xde-which\"
 xdg_which_SOURCES = xdg-which.c
-xdg_which_LDADD = -lc
 xdg_which_CFLAGS = $(AM_CFLAGS)
 
 xdg_whereis_CPPFLAGS = -DNAME=\"xde-whereis\"
 xdg_whereis_SOURCES = xdg-whereis.c
-xdg_whereis_LDADD =  -lc
 xdg_whereis_CFLAGS = $(AM_CFLAGS)
 
 xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
