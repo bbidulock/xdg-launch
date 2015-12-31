@@ -128,9 +128,13 @@
 		fprintf(stderr, "I: "); \
 		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
-#define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
+#define PTRACE() do { if (options.debug > 0 || options.output > 3) { \
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
 		fflush(stderr); } } while (0)
+
+#define CPRINTF(c, _args...) do { if (options.output > 0) { \
+		fprintf(stdout, "C: window 0x%lx ", c->win); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0);
 
 void
 dumpstack(const char *file, const int line, const char *func)
@@ -365,6 +369,7 @@ struct _Client {
 	char *startup_id;		/* startup id (property) */
 	char **command;			/* command */
 	char *name;			/* window name */
+	char *icon_name;		/* icon name */
 	char *hostname;			/* client machine */
 	char *client_id;		/* session management id */
 	char *role;			/* session management role */
@@ -608,6 +613,7 @@ struct atoms wmprops[] = {
 	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
 	{ "_NET_WM_NAME",			&_XA_NET_WM_NAME,		&pc_handle_NET_WM_NAME,			NULL,					None			},
 	{ "_NET_WM_ICON_NAME",			&_XA_NET_WM_ICON_NAME,		&pc_handle_NET_WM_ICON_NAME,		NULL,					None			},
+	{ "WM_CLASS",				NULL,				&pc_handle_WM_CLASS,			NULL,					XA_WM_CLASS		},
 	{ NULL,					NULL,				NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
@@ -3053,6 +3059,8 @@ pc_handle_NET_STARTUP_ID(XPropertyEvent *e, Client *c)
 		return;
 	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && c->group)
 		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
+	if (c->startup_id)
+		CPRINTF(c, "_NET_WM_STARTUP_ID %s\n", c->startup_id);
 }
 
 static void
@@ -3103,6 +3111,22 @@ static void
 pc_handle_NET_WM_ICON_NAME(XPropertyEvent *e, Client *c)
 {
 	PTRACE();
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->icon_name) {
+		XFree(c->icon_name);
+		c->icon_name = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!c->icon_name && c->win)
+		c->icon_name = get_text(c->win, _XA_NET_WM_ICON_NAME);
+	if (!c->icon_name && c->leader)
+		c->icon_name = get_text(c->leader, _XA_NET_WM_ICON_NAME);
+	if (!c->icon_name && c->group)
+		c->icon_name = get_text(c->group, _XA_NET_WM_ICON_NAME);
+	if (c->icon_name)
+		CPRINTF(c, "_NET_WM_ICON_NAME %s\n", c->icon_name);
 }
 
 static void
@@ -3119,12 +3143,44 @@ static void
 pc_handle_NET_WM_NAME(XPropertyEvent *e, Client *c)
 {
 	PTRACE();
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->name) {
+		XFree(c->name);
+		c->name = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!c->name && c->win)
+		c->name = get_text(c->win, XA_WM_NAME);
+	if (!c->name && c->leader)
+		c->name = get_text(c->leader, XA_WM_NAME);
+	if (!c->name && c->group)
+		c->name = get_text(c->group, XA_WM_NAME);
+	if (c->name)
+		CPRINTF(c, "_NET_WM_NAME %s\n", c->name);
 }
 
 static void
 pc_handle_NET_WM_PID(XPropertyEvent *e, Client *c)
 {
+	long pid = 0;
+
 	PTRACE();
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	c->pid = 0;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!pid && c->win)
+		get_cardinal(c->win, _XA_NET_WM_PID, AnyPropertyType, &pid);
+	if (!pid && c->leader)
+		get_cardinal(c->leader, _XA_NET_WM_PID, AnyPropertyType, &pid);
+	if (!pid && c->group)
+		get_cardinal(c->leader, _XA_NET_WM_PID, AnyPropertyType, &pid);
+	if (pid)
+		CPRINTF(c, "_NET_WM_PID %ld\n", pid);
+	c->pid = pid;
 }
 
 /** @brief handle _NET_WM_STATE property change
@@ -3156,13 +3212,16 @@ pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 		unmanaged_client(c);
 		return;
 	}
+	CPRINTF(c, "_NET_WM_STATE ");
 	if ((atoms = get_atoms(c->win, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
 		for (i = 0; i < n; i++) {
 			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+				fprintf(stdout, " %s", "_NET_WM_STATE_FOCUSED");
 				pushtime(&c->focus_time, e->time);
 				if (!c->managed)
 					managed_client(c, e->time);
 			} else if (atoms[i] == _XA_NET_WM_STATE_HIDDEN) {
+				fprintf(stdout, " %s", "_NET_WM_STATE_HIDDEN");
 				if (!c->managed)
 					managed_client(c, e->time);
 			}
@@ -3171,6 +3230,7 @@ pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 		if (!c->managed)
 			managed_client(c, e->time);
 	}
+	fprintf(stdout, "\n");
 }
 
 /** @brief handle _NET_WM_STATE client message
@@ -3215,6 +3275,7 @@ pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *e, Client *c)
 			pushtime(&last_user_time, time);
 			pushtime(&current_time, time);
 		}
+		CPRINTF(c, "_NET_WM_USER_TIME_WINDOW 0x%lx\n", c->time_win);
 	}
 
 }
@@ -3231,6 +3292,7 @@ pc_handle_NET_WM_USER_TIME(XPropertyEvent *e, Client *c)
 		pushtime(&c->user_time, time);
 		pushtime(&last_user_time, time);
 		pushtime(&current_time, time);
+		CPRINTF(c, "_NET_WM_USER_TIME %ld\n", time);
 	}
 }
 
@@ -3403,6 +3465,8 @@ pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
 	if (!XGetClassHint(dpy, c->win, &c->ch) && c->group)
 		XGetClassHint(dpy, c->group, &c->ch);
 	c->dockapp = is_dockapp(c);
+	if (c->ch.res_name || c->ch.res_class)
+		CPRINTF(c, "WM_CLASS '%s','%s'\n", c->ch.res_name, c->ch.res_class);
 }
 
 static void
@@ -3421,6 +3485,8 @@ pc_handle_WM_CLIENT_LEADER(XPropertyEvent *e, Client *c)
 	if (e && e->state == PropertyDelete)
 		return;
 	get_window(c->win, _XA_WM_CLIENT_LEADER, AnyPropertyType, &c->leader);
+	if (c->leader)
+		CPRINTF(c, "WM_CLIENT_LEADER 0x%lx\n", c->leader);
 }
 
 static void
@@ -3441,13 +3507,15 @@ pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
 		c->hostname = get_text(c->leader, XA_WM_CLIENT_MACHINE);
 	if (!c->hostname && c->transient_for)
 		c->hostname = get_text(c->transient_for, XA_WM_CLIENT_MACHINE);
+	if (c->hostname)
+		CPRINTF(c, "WM_CLIENT_MACHINE %s\n", c->hostname);
 }
 
 static void
 pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 {
 	PTRACE();
-	int count = 0;
+	int count = 0, i;
 
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3463,6 +3531,14 @@ pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 		XGetCommand(dpy, c->leader, &c->command, &count);
 	if (!c->command && c->transient_for)
 		XGetCommand(dpy, c->transient_for, &c->command, &count);
+	if (c->command) {
+		if (options.output > 0) {
+			CPRINTF(c, "WM_COMMAND");
+			for (i = 0; i < count; i++)
+				fprintf(stdout, " '%s'", c->command[i]);
+			fprintf(stdout, "\n");
+		}
+	}
 
 }
 
@@ -3491,7 +3567,10 @@ pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 				     StructureNotifyMask | FocusChangeMask |
 				     PropertyChangeMask);
 		}
-		c->dockapp = is_dockapp(c);
+		if (c->group)
+			CPRINTF(c, "WM_HINTS group 0x%lx\n", c->group);
+		if ((c->dockapp = is_dockapp(c)))
+			CPRINTF(c, "WM_HINTS is dock app\n");
 	}
 }
 
@@ -3517,6 +3596,20 @@ pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
 	PTRACE();
 	if (!c || (e && e->type != PropertyNotify))
 		return;
+	if (c->name) {
+		XFree(c->name);
+		c->name = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!c->name && c->win)
+		c->name = get_text(c->win, XA_WM_NAME);
+	if (!c->name && c->leader)
+		c->name = get_text(c->leader, XA_WM_NAME);
+	if (!c->name && c->group)
+		c->name = get_text(c->group, XA_WM_NAME);
+	if (c->name)
+		CPRINTF(c, "WM_NAME %s\n", c->name);
 }
 
 static void
@@ -3558,6 +3651,8 @@ cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
 static void
 pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 {
+	const char *state;
+
 	PTRACE();
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3575,6 +3670,27 @@ pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 		   DestroyNotify soon anyway. */
 		return;
 	}
+	switch (c->wms->state) {
+	case WithdrawnState:
+		state = "WithdrawnState";
+		break;
+	case NormalState:
+		state = "NormalState";
+		break;
+	case IconicState:
+		state = "IconicState";
+		break;
+	case ZoomState:
+		state = "ZoomState";
+		break;
+	case InactiveState:
+		state = "InactiveState";
+		break;
+	default:
+		state = "UnknownState";
+		break;
+	}
+	CPRINTF(c, "WM_STATE is %s\n", state);
 	if (c->managed) {
 		switch (c->wms->state) {
 		case WithdrawnState:
@@ -3596,10 +3712,11 @@ pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 			   just managed, but only for WindowMaker work-alikes. Otherwise, 
 			   per ICCCM, placing withdrawn state on the window means that it 
 			   is unmanaged. */
-			if ((c->dockapp = is_dockapp(c)) && scr->maker_check)
+			if ((c->dockapp = is_dockapp(c)) && scr->maker_check) {
 				managed_client(c, e ? e->time : CurrentTime);
-			else
-				unmanaged_client(c);
+				break;
+			}
+			unmanaged_client(c);
 			break;
 		case NormalState:
 		case IconicState:
@@ -3646,6 +3763,8 @@ pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
 	if (e && e->state == PropertyDelete)
 		return;
 	c->role = get_text(c->win, _XA_WM_WINDOW_ROLE);
+	if (c->role)
+		CPRINTF(c, "WM_WINDOW_ROLE %s\n", c->role);
 }
 
 static void
