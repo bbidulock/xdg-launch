@@ -695,6 +695,14 @@ B<xdg-launch> has no known bugs.
 Please report bugs to the source code repository at
 L<https://github.com/bbidulock/xdg-launch/issues>.
 
+=head1 SEE ALSO
+
+L<xdg-show(1)>,
+L<xdg-assist(1)>,
+L<xdg-monitor(1)>,
+Startup Notification
+L<http://standards.freedesktop.org/startup-notification-spec/startup-notification-0.1.txt>.
+
 =head1 AUTHOR
 
 Brian Bidulock L<mailto:bidulock@openss7.org>

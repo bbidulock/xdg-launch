@@ -179,6 +179,11 @@ B<xdg-which> has no known bugs.
 Please report bugs to the source code repository at
 L<https://github.com/bbidulock/xdg-launch/issues>.
 
+=head1 SEE ALSO
+
+L<which(1)>,
+L<xdg-whereis(1)>.
+
 =head1 AUTHOR
 
 Brian Bidulock L<mailto:bidulock@openss7.org>
