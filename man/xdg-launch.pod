@@ -689,6 +689,12 @@ launched.
 
 =back
 
+=head1 BUGS
+
+B<xdg-launch> has no known bugs.
+Please report bugs to the source code repository at
+L<https://github.com/bbidulock/xdg-launch/issues>.
+
 =head1 AUTHOR
 
 Brian Bidulock L<mailto:bidulock@openss7.org>

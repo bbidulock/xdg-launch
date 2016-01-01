@@ -249,6 +249,11 @@ it.
 
 =back
 
+=head1 BUGS
+
+B<xdg-assist> has no known bugs.
+Please report bugs to the source code repository at
+L<https://github.com/bbidulock/xdg-launch/issues>.
 
 =head1 AUTHOR
 

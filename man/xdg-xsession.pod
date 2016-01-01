@@ -15,6 +15,12 @@ B<xdg-xsession> [I<OPTIONS>] -c I<command and arguments>
 B<xdg-xsession> is a script that simply executes L<xdg-launch(1)> with
 the appropriate arguments (B<--xsession>).
 
+=head1 BUGS
+
+B<xdg-xsession> has no known bugs.
+Please report bugs to the source code repository at
+L<https://github.com/bbidulock/xdg-launch/issues>.
+
 =head1 SEE ALSO
 
 L<xdg-launch(1)>.

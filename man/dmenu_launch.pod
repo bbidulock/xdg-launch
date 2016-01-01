@@ -19,6 +19,12 @@ result using L<xdg-launch(1)>.
 
 Takes the same options as L<dmenu(1)>.
 
+=head1 BUGS
+
+B<dmenu_launch> has no known bugs.
+Please report bugs to the source code repository at
+L<https://github.com/bbidulock/xdg-launch/issues>.
+
 =head1 SEE ALSO
 
 L<dmenu(1)>,
