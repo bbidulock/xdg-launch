@@ -3583,7 +3583,7 @@ setup_to_assist()
 		push_time(&launch_time, (Time) strtoul(fields.timestamp, NULL, 0));
 }
 
-int signum;
+volatile int signum = 0;
 
 void
 sighandler(int sig)
@@ -3634,6 +3634,7 @@ assist()
 		int xfd;
 		XEvent ev;
 
+		signum = 0;
 		signal(SIGHUP, sighandler);
 		signal(SIGINT, sighandler);
 		signal(SIGTERM, sighandler);
@@ -3766,6 +3767,7 @@ wait_for_condition(Window (*until) (void))
 	signal(SIGINT, sighandler);
 	signal(SIGTERM, sighandler);
 	signal(SIGQUIT, sighandler);
+	signal(SIGALRM, sighandler);
 
 #ifdef STARTUP_NOTIFICATION
 	sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
@@ -3777,9 +3779,11 @@ wait_for_condition(Window (*until) (void))
 	while (running) {
 		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 
-		if (signum)
+		if (signum) {
+			if (signum == SIGALRM)
+				return True;
 			exit(EXIT_SUCCESS);
-
+		}
 		if (poll(&pfd, 1, -1) == -1) {
 			switch (errno) {
 			case EINTR:
@@ -3890,6 +3894,7 @@ wait_for_desktop_pager()
 			fprintf(stdout, "%-24s = 0x%08lx\n", "Desktop pager window", wm.pager_owner);
 			fputs("\n", stdout);
 		}
+		return;
 	} else {
 		if (options.info) {
 			fputs("Would wait for desktop pager\n", stdout);
@@ -3902,13 +3907,13 @@ wait_for_desktop_pager()
 void
 wait_for_composite_manager()
 {
-	/* TODO: need to wait for composite manager to appear */
 	if (check_compm()) {
 		if (options.info) {
-			fputs("Have a desktop pager:\n\n", stdout);
+			fputs("Have a composite manager:\n\n", stdout);
 			fprintf(stdout, "%-24s = 0x%08lx\n", "Composite manager window", wm.compm_owner);
 			fputs("\n", stdout);
 		}
+		return;
 	} else {
 		if (options.info) {
 			fputs("Would wait for composite manager\n", stdout);
@@ -3944,6 +3949,8 @@ launch()
 
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
+	if (options.manager || options.tray || options.pager || options.composite)
+		alarm(120);
 	if (options.manager)
 		wait_for_window_manager();
 	if (options.tray)
