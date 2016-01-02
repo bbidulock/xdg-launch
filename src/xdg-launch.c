@@ -5319,6 +5319,17 @@ main(int argc, char *argv[])
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
 
+			{"toolwait",	no_argument,		NULL, 'T'},
+			{"timeout",	required_argument,	NULL,  1 },
+			{"mappings",	required_argument,	NULL,  2 },
+			{"withdrawn",	no_argument,		NULL,  3 },
+			{"wid",		no_argument,		NULL,  4 },
+			{"noprop",	no_argument,		NULL,  5 },
+
+			{"manager",	no_argument,		NULL, 'M'},
+			{"tray",	no_argument,		NULL, 'Y'},
+			{"pager",	no_argument,		NULL, 'G'},
+
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
 			{"help",	no_argument,		NULL, 'h'},
@@ -5330,10 +5341,10 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ID::v::hVCH?",
+				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:IDvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGDvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -5467,6 +5478,24 @@ main(int argc, char *argv[])
 		case 'I':	/* -I, --info */
 			free(options.info);
 			defaults.info = options.info = strdup("true");
+			break;
+		case 'T':	/* -T, --toolwait */
+			break;
+		case 1:		/* --timeout TIMEOUT */
+			break;
+		case 2:		/* --mappings MAPPINGS */
+			break;
+		case 3:		/* --withdrawn */
+			break;
+		case 4:		/* --wid */
+			break;
+		case 5:		/* --noprop */
+			break;
+		case 'M':	/* -M, --manager */
+			break;
+		case 'Y':	/* -Y, --tray */
+			break;
+		case 'G':	/* -G, --pager */
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)
