@@ -2899,6 +2899,8 @@ handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
 static void
 handle_MANAGER(XEvent *e, Client *c)
 {
+	check_compm();
+	check_pager();
 	check_stray();
 	check_icccm();
 }
