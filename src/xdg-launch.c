@@ -3615,19 +3615,67 @@ setup()
 		exit(status);
 }
 
+static Bool
+check_for_window_manager()
+{
+	Bool have_wm = False;
+
+	OPRINTF("checking wm compliance for screen %d\n", screen);
+
+	OPRINTF("checking NetWM/EWMH compliance\n");
+	if (check_netwm()) {
+		have_wm = True;
+		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
+	}
+	OPRINTF("checking GNOME/WMH compliance\n");
+	if (check_winwm()) {
+		have_wm = True;
+		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
+	}
+	OPRINTF("checking WindowMaker compliance\n");
+	if (check_maker()) {
+		have_wm = True;
+		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
+	}
+	OPRINTF("checking OSF/Motif compliance\n");
+	if (check_motif()) {
+		have_wm = True;
+		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
+	}
+	OPRINTF("checking ICCCM 2.0 compliance\n");
+	if (check_icccm()) {
+		have_wm = True;
+		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
+	}
+	OPRINTF("checking redirection\n");
+	if (check_redir()) {
+		have_wm = True;
+		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
+	}
+	return have_wm;
+}
+
 void
 wait_for_window_manager()
 {
+	if (check_for_window_manager()) {
+		if (options.info)
+			fputs("Have a window manager\n", stdout);
+		return;
+	}
+	/* TODO: need to wait for window manager to appear */
 }
 
 void
 wait_for_system_tray()
 {
+	/* TODO: need to wait for system tray to appear */
 }
 
 void
 wait_for_desktop_pager()
 {
+	/* TODO: need to wait for desktop pager to appear */
 }
 
 void
