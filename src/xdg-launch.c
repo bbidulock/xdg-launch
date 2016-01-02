@@ -163,6 +163,16 @@ struct params {
 	char *recent;
 	char *keep;
 	char *info;
+	char *toolwait;
+	char *timeout;
+	char *mappings;
+	char *withdrawn;
+	char *printpid;
+	char *printwid;
+	char *noprop;
+	char *manager;
+	char *tray;
+	char *pager;
 };
 
 struct params options = { NULL, };
@@ -198,6 +208,16 @@ struct params defaults = {
 	.recent = NULL,
 	.keep = "10",
 	.info = "false",
+	.toolwait = "false",
+	.timeout = "15",
+	.mappings = "1",
+	.withdrawn = "false",
+	.printpid = "false",
+	.printwid = "false",
+	.noprop = "false",
+	.manager = "false",
+	.tray = "false",
+	.pager = "false",
 };
 
 static const char *StartupNotifyFields[] = {
