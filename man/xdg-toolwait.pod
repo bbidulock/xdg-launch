@@ -1,0 +1,119 @@
+=pod
+
+=head1 NAME
+
+xdg-toolwait - an XDG compliant xtoolwait utility
+
+=head1 SYNOPSIS
+
+B<xdg-toolwait> [I<OPTIONS>] [I<APPID> [I<FILE>|I<URL>]]
+
+B<xdg-toolwait> [I<OPTIONS>] -c I<command and arguments>
+
+=head1 DESCRIPTION
+
+B<xdg-toolwait> is a script that simply executes L<xdg-launch(1)> with
+the appropriate arguments (B<--toolwait>).  It provides a similar
+behaviour to the L<xtoolwait(1)> utility, but also supports XDG
+desktop applications.
+
+B<xdg-toolwait> notably decreases the startup time of a desktop session
+by reducing the load on the X server and the operating system.
+B<xdg-toolwait> launches the desktop application or command in the
+background.
+
+When startup notification is supported by the application, it waits
+until startup notification completes and exits.  When  startup
+notification is not supported by the application, it waits until a
+window is mapped on the root window and exits.  B<xdg-toolwait> also
+exits if a time-out occurs (by default after 15 seconds), or if the
+application or command exits.
+
+=head1 OPTIONS
+
+The options that are detailed below are recognized by B<xdg-toolwait>.
+B<xdg-toolwait> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+of long options and long options with a single dash are also supported.
+
+All options supported by L<xdg-launch(1)> are supported; however, the
+options also supported by L<xtoolwait(1)> are of interest here.  See
+L<xdg-launch(1)> for full documentation of other options.
+
+=over
+
+=item B<-display> I<DISPLAY>
+
+Monitor the X display, I<DISPLAY>, for window mapping events.  If this
+optiopn is not used, the X display defaults to the value of the
+C<DISPLAY> environment variable.
+
+=item B<-timeout> I<NSECONDS>
+
+Use a time-out period of I<NSECONDS> seconds.  If this option is not
+used, the time-out period defaults to 15 seconds.
+
+=item B<-mappings> I<NWINDOWS>
+
+Exit after I<NWINDOWS> windows have been mapped, instead of the default
+of one window.  Use this option only if you are absolutely sure that the
+application or command will map I<NWINDOWS> top-level windows, in which
+case it will slightly increase the performance.
+
+=item B<-withdrawn>
+
+Consider windows in the C<WithdrawnState> as mapped.  This causes the
+expected behaviour when starting Window Maker dockapps.
+
+=item B<-pid>
+
+Print the process id (pid) of the application or command to standard
+output.  This option is useful for shell scripts that want to wait for
+(or send a signal to) the application or command.  To support shell
+command substitution (`command`), B<xdg-toolwait> redirects the standard
+output of the application or command to standard error.
+
+=item B<-wid>
+
+Print the id of the found X window to standard output, for use with
+tools like L<wmctrl(1)> or L<xdotool(1)>.  To support shell command
+substitution (`command`), B<xdg-toolwait> redirects the standard output
+of the application or command to standard error.
+
+=item B<-noprop>
+
+Workaround for non-compliant window managers.  Try this if
+B<xdg-toolwait> fails to detect when its child process creates a window.
+Normally, B<xdg-toolwait> waits for the window manager to send at least
+one C<PropertyNotify> event for each new window so that it doesn't react
+until the window has been mapped and positioned (at which an ICCCM 2.0
+compliant window manager usually sets the C<WM_STATE> property on the
+window).  This flag causes B<xdg-toolwait> to consider a window to have
+been fully created as soon as it receives a C<CreateNotify> event.
+
+=item B<-help>
+
+Print out the usage command syntax summary.
+
+=item B<-version>
+
+Print out the version number.
+
+=back
+
+=head1 BUGS
+
+B<xdg-toolwait> has no known bugs.
+Please report bugs to the source code repository at
+L<https://github.com/bbidulock/xdg-launch/issues>.
+
+=head1 SEE ALSO
+
+L<xdg-launch(1)>.
+
+=head1 AUTHOR
+
+Brian Bidulock L<mailto:bidulock@openss7.org>
+
+=cut
+
+# vim: set sw=4 tw=72 nocin spell spelllang=en_ca:
