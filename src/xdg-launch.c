@@ -790,11 +790,22 @@ check_supported(Atom protocols, Atom supported)
 	return result;
 }
 
-static Bool
+static Window
 check_anywm()
 {
-	return (wm.netwm_check || wm.winwm_check || wm.maker_check || wm.motif_check
-		|| wm.icccm_check || wm.redir_check) ? True : False;
+	if (wm.netwm_check)
+		return wm.netwm_check;
+	if (wm.winwm_check)
+		return wm.winwm_check;
+	if (wm.maker_check)
+		return wm.maker_check;
+	if (wm.motif_check)
+		return wm.motif_check;
+	if (wm.icccm_check)
+		return wm.icccm_check;
+	if (wm.redir_check)
+		return wm.redir_check;
+	return False;
 }
 
 /** @brief Check for a non-compliant EWMH/NetWM window manager.
@@ -3681,6 +3692,58 @@ setup()
 }
 
 static Bool
+wait_for_condition(Window (*until) (void))
+{
+	int xfd;
+	XEvent ev;
+
+	signal(SIGHUP, sighandler);
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+	signal(SIGQUIT, sighandler);
+
+#ifdef STARTUP_NOTIFICATION
+	sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
+#endif
+	/* main event loop */
+	running = True;
+	XSync(dpy, False);
+	xfd = ConnectionNumber(dpy);
+	while (running) {
+		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+
+		if (signum)
+			exit(EXIT_SUCCESS);
+
+		if (poll(&pfd, 1, -1) == -1) {
+			switch (errno) {
+			case EINTR:
+			case EAGAIN:
+			case ERESTART:
+				continue;
+			}
+			EPRINTF("poll: %s\n", strerror(errno));
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
+			EPRINTF("poll: error\n");
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (pfd.revents & (POLLIN)) {
+			while (XPending(dpy) && running) {
+				XNextEvent(dpy, &ev);
+				handle_event(&ev);
+				if (until())
+					return True;
+			}
+		}
+	}
+	return False;
+}
+
+static Bool
 check_for_window_manager()
 {
 	OPRINTF("checking NetWM/EWMH compliance\n");
@@ -3731,54 +3794,7 @@ wait_for_window_manager()
 			return;
 		}
 	}
-	{
-		int xfd;
-		XEvent ev;
-
-		signal(SIGHUP, sighandler);
-		signal(SIGINT, sighandler);
-		signal(SIGTERM, sighandler);
-		signal(SIGQUIT, sighandler);
-
-#ifdef STARTUP_NOTIFICATION
-		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
-#endif
-		/* main event loop */
-		running = True;
-		XSync(dpy, False);
-		xfd = ConnectionNumber(dpy);
-		while (running) {
-			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
-
-			if (signum)
-				exit(EXIT_SUCCESS);
-
-			if (poll(&pfd, 1, -1) == -1) {
-				switch (errno) {
-				case EINTR:
-				case EAGAIN:
-				case ERESTART:
-					continue;
-				}
-				EPRINTF("poll: %s\n", strerror(errno));
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-				EPRINTF("poll: error\n");
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-					if (check_anywm())
-						return;
-				}
-			}
-		}
-	}
+	wait_for_condition(&check_anywm);
 }
 
 void
@@ -3797,54 +3813,7 @@ wait_for_system_tray()
 			return;
 		}
 	}
-	{
-		int xfd;
-		XEvent ev;
-
-		signal(SIGHUP, sighandler);
-		signal(SIGINT, sighandler);
-		signal(SIGTERM, sighandler);
-		signal(SIGQUIT, sighandler);
-
-#ifdef STARTUP_NOTIFICATION
-		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
-#endif
-		/* main event loop */
-		running = True;
-		XSync(dpy, False);
-		xfd = ConnectionNumber(dpy);
-		while (running) {
-			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
-
-			if (signum)
-				exit(EXIT_SUCCESS);
-
-			if (poll(&pfd, 1, -1) == -1) {
-				switch (errno) {
-				case EINTR:
-				case EAGAIN:
-				case ERESTART:
-					continue;
-				}
-				EPRINTF("poll: %s\n", strerror(errno));
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-				EPRINTF("poll: error\n");
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-					if (check_stray())
-						return;
-				}
-			}
-		}
-	}
+	wait_for_condition(&check_stray);
 }
 
 void
@@ -3857,7 +3826,12 @@ wait_for_desktop_pager()
 			fputs("\n", stdout);
 		}
 	} else {
+		if (options.info) {
+			fputs("Would wait for desktop pager\n", stdout);
+			return;
+		}
 	}
+	wait_for_condition(&check_pager);
 }
 
 void
@@ -3865,8 +3839,18 @@ wait_for_composite_manager()
 {
 	/* TODO: need to wait for composite manager to appear */
 	if (check_compm()) {
+		if (options.info) {
+			fputs("Have a desktop pager:\n\n", stdout);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "Composite manager window", wm.compm_owner);
+			fputs("\n", stdout);
+		}
 	} else {
+		if (options.info) {
+			fputs("Would wait for composite manager\n", stdout);
+			return;
+		}
 	}
+	wait_for_condition(&check_compm);
 }
 
 void
