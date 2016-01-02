@@ -359,7 +359,6 @@ Display *dpy = NULL;
 int monitor;
 int screen;
 Window root;
-Window tray = None;	/* _NET_SYSTEM_TRAY_S%d owner */
 
 #ifdef STARTUP_NOTIFICATION
 SnDisplay *sn_dpy;
@@ -1060,18 +1059,18 @@ check_stray()
 	snprintf(buf, sizeof(buf), "_NET_SYSTEM_TRAY_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
 	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != tray) {
+		if (win != wm.stray_owner) {
 			XSelectInput(dpy, win,
 				     StructureNotifyMask | SubstructureNotifyMask |
 				     PropertyChangeMask);
-			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", tray, win);
-			tray = win;
+			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner, win);
+			wm.stray_owner = win;
 		}
-	} else if (tray) {
-		DPRINTF("system tray removed from 0x%08lx\n", tray);
-		tray = None;
+	} else if (wm.stray_owner) {
+		DPRINTF("system tray removed from 0x%08lx\n", wm.stray_owner);
+		wm.stray_owner = None;
 	}
-	return tray;
+	return wm.stray_owner;
 }
 
 static void
@@ -1087,12 +1086,48 @@ handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
 static Window
 check_pager()
 {
+	char buf[64];
+	Atom sel;
+	Window win;
+
+	snprintf(buf, sizeof(buf), "_NET_DESKTOP_LAYOUT_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.pager_owner) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner, win);
+			wm.pager_owner = win;
+		}
+	} else if (wm.pager_owner) {
+		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
+		wm.pager_owner = None;
+	}
 	return wm.pager_owner;
 }
 
 static Window
 check_compm()
 {
+	char buf[64];
+	Atom sel;
+	Window win;
+
+	snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.compm_owner) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
+			wm.compm_owner = win;
+		}
+	} else if (wm.compm_owner) {
+		DPRINTF("composite manager removed from 0x%08lx\n", wm.compm_owner);
+		wm.compm_owner = None;
+	}
 	return wm.compm_owner;
 }
 
