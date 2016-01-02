@@ -397,6 +397,9 @@ typedef struct {
 	Window maker_check;		/* _WINDOWMAKER_NOTICEBOARD or None */
 	Window icccm_check;		/* WM_S%d selection owner or root */
 	Window redir_check;
+	Window stray_owner;		/* _NET_WM_SYSTEM_TRAY_S%d owner */
+	Window pager_owner;		/* _NET_DESKTOP_LAYOUT_S%d owner */
+	Window compm_owner;		/* _NET_WM_CM_S%d owner */
 } WindowManager;
 
 WindowManager wm;
@@ -1069,6 +1072,19 @@ static void
 handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
 {
 }
+
+static Window
+check_pager()
+{
+	return wm.pager_owner;
+}
+
+static Window
+check_compm()
+{
+	return wm.compm_owner;
+}
+
 
 Bool
 set_screen_of_root(Window sroot)
@@ -3768,11 +3784,10 @@ wait_for_window_manager()
 void
 wait_for_system_tray()
 {
-	/* TODO: need to wait for system tray to appear */
 	if (check_stray()) {
 		if (options.info) {
 			fputs("Have a system tray:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "System Tray window", tray);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "System Tray window", wm.stray_owner);
 			fputs("\n", stdout);
 		}
 		return;
@@ -3835,13 +3850,23 @@ wait_for_system_tray()
 void
 wait_for_desktop_pager()
 {
-	/* TODO: need to wait for desktop pager to appear */
+	if (check_pager()) {
+		if (options.info) {
+			fputs("Have a desktop pager:\n\n", stdout);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "Desktop pager window", wm.pager_owner);
+			fputs("\n", stdout);
+		}
+	} else {
+	}
 }
 
 void
 wait_for_composite_manager()
 {
 	/* TODO: need to wait for composite manager to appear */
+	if (check_compm()) {
+	} else {
+	}
 }
 
 void
