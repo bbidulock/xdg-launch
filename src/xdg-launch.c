@@ -357,7 +357,7 @@ Display *dpy = NULL;
 int monitor;
 int screen;
 Window root;
-Window tray;
+Window tray = None;	/* _NET_SYSTEM_TRAY_S%d owner */
 
 #ifdef STARTUP_NOTIFICATION
 SnDisplay *sn_dpy;
@@ -395,7 +395,6 @@ typedef struct {
 	Window maker_check;		/* _WINDOWMAKER_NOTICEBOARD or None */
 	Window icccm_check;		/* WM_S%d selection owner or root */
 	Window redir_check;
-	Bool have_wm;
 } WindowManager;
 
 WindowManager wm;
@@ -430,6 +429,8 @@ Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
 Atom _XA_WM_STATE;
+Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
+Atom _XA_NET_SYSTEM_TRAY_VISUAL;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
@@ -452,6 +453,8 @@ static void handle_WM_CLIENT_MACHINE(XEvent *, Client *);
 static void handle_WM_COMMAND(XEvent *, Client *);
 static void handle_WM_HINTS(XEvent *, Client *);
 static void handle_WM_STATE(XEvent *, Client *);
+static void handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
+static void handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
 
 struct atoms {
 	char *name;
@@ -460,42 +463,44 @@ struct atoms {
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
-	/* name					global				handler					atom value		*/
-	/* ----					------				-------					----------		*/
-	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					None			},
-	{ "MANAGER",				&_XA_MANAGER,			&handle_MANAGER,			None			},
-	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&handle_MOTIF_WM_INFO,			None			},
-	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,		None			},
-	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,		None			},
-	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					None			},
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,					None			},
-	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	&handle_NET_STARTUP_INFO_BEGIN,		None			},
-	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		&handle_NET_STARTUP_INFO,		None			},
-	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&handle_NET_SUPPORTED,			None			},
-	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&handle_NET_SUPPORTING_WM_CHECK,	None			},
-	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					None			},
-	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					None			},
-	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,					None			},
-	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,					None			},
-	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					None			},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,			None			},
-	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,					None			},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,		None			},
-	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					None			},
-	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,					None			},
-	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,		None			},
-	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&handle_WINDOWMAKER_NOTICEBOARD,	None			},
-	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&handle_WIN_PROTOCOLS,			None			},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&handle_WIN_SUPPORTING_WM_CHECK,	None			},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,					None			},
-	{ "WM_CLIENT_MACHINE",			NULL,				&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
-	{ "WM_COMMAND",				NULL,				&handle_WM_COMMAND,			XA_WM_COMMAND		},
-	{ "WM_HINTS",				NULL,				&handle_WM_HINTS,			XA_WM_HINTS		},
-	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,			None			},
-	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					None			},
-	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					None			},
-	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					None			},
-	{ NULL,					NULL,				NULL,					None			}
+	/* name					global					handler					atom value		*/
+	/* ----					------					-------					----------		*/
+	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,		NULL,					None			},
+	{ "MANAGER",				&_XA_MANAGER,				&handle_MANAGER,			None			},
+	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,			&handle_MOTIF_WM_INFO,			None			},
+	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,			&handle_NET_ACTIVE_WINDOW,		None			},
+	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,			&handle_NET_CLIENT_LIST,		None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,		NULL,					None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,			NULL,					None			},
+	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,		&handle_NET_STARTUP_INFO_BEGIN,		None			},
+	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,			&handle_NET_STARTUP_INFO,		None			},
+	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,			&handle_NET_SUPPORTED,			None			},
+	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,		&handle_NET_SUPPORTING_WM_CHECK,	None			},
+	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,			NULL,					None			},
+	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,		NULL,					None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,		NULL,					None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,			NULL,					None			},
+	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,		NULL,					None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,			&handle_NET_WM_STATE,			None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,		NULL,					None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,			&handle_NET_WM_USER_TIME,		None			},
+	{ "__SWM_VROOT",			&_XA__SWM_VROOT,			NULL,					None			},
+	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,			NULL,					None			},
+	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,			&handle_WIN_CLIENT_LIST,		None			},
+	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,		&handle_WINDOWMAKER_NOTICEBOARD,	None			},
+	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,			&handle_WIN_PROTOCOLS,			None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			NULL,					None			},
+	{ "WM_CLIENT_MACHINE",			NULL,					&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
+	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
+	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
+	{ "WM_STATE",				&_XA_WM_STATE,				&handle_WM_STATE,			None			},
+	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
+	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
+	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,		NULL,					None			},
+	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,		NULL,					None			},
+	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,			NULL,					None			},
+	{ NULL,					NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
 
@@ -780,6 +785,13 @@ check_supported(Atom protocols, Atom supported)
 	return result;
 }
 
+static Bool
+check_anywm()
+{
+	return (wm.netwm_check || wm.winwm_check || wm.maker_check || wm.motif_check
+		|| wm.icccm_check || wm.redir_check) ? True : False;
+}
+
 /** @brief Check for a non-compliant EWMH/NetWM window manager.
   *
   * There are quite a few window managers that implement part of hte EWMH/NetWM
@@ -901,15 +913,24 @@ static Window
 check_icccm()
 {
 	char buf[32];
-	Atom atom;
+	Atom sel;
+	Window win;
 
-	snprintf(buf, 32, "WM_S%d", screen);
-	if ((atom = XInternAtom(dpy, buf, True)))
-		wm.icccm_check = XGetSelectionOwner(dpy, atom);
-
-	if (wm.icccm_check)
-		XSelectInput(dpy, wm.icccm_check, PropertyChangeMask | StructureNotifyMask);
-
+	snprintf(buf, sizeof(buf), "WM_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.icccm_check) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check,
+				win);
+			wm.icccm_check = win;
+		}
+	} else if (wm.icccm_check) {
+		DPRINTF("ICCCM 2.0 WM removed from 0x%08lx\n", wm.icccm_check);
+		wm.icccm_check = None;
+	}
 	return wm.icccm_check;
 }
 
@@ -926,9 +947,17 @@ check_redir()
 	OPRINTF("checking direction for screen %d\n", screen);
 
 	wm.redir_check = None;
-	if (XGetWindowAttributes(dpy, root, &wa))
-		if (wa.all_event_masks & SubstructureRedirectMask)
-			wm.redir_check = root;
+	if (XGetWindowAttributes(dpy, root, &wa)) {
+		if (wa.all_event_masks & SubstructureRedirectMask) {
+			if (wm.redir_check != root) {
+				DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, root);
+				wm.redir_check = root;
+			}
+		} else if (wm.redir_check) {
+			DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
+			wm.redir_check = None;
+		}
+	}
 	return wm.redir_check;
 }
 
@@ -937,42 +966,26 @@ check_redir()
 static Bool
 check_window_manager()
 {
-	wm.have_wm = False;
-
 	OPRINTF("checking wm compliance for screen %d\n", screen);
-
 	OPRINTF("checking redirection\n");
-	if (check_redir()) {
-		wm.have_wm = True;
+	if (check_redir())
 		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
-	}
 	OPRINTF("checking ICCCM 2.0 compliance\n");
-	if (check_icccm()) {
-		wm.have_wm = True;
+	if (check_icccm())
 		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
-	}
 	OPRINTF("checking OSF/Motif compliance\n");
-	if (check_motif()) {
-		wm.have_wm = True;
+	if (check_motif())
 		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
-	}
 	OPRINTF("checking WindowMaker compliance\n");
-	if (check_maker()) {
-		wm.have_wm = True;
+	if (check_maker())
 		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
-	}
 	OPRINTF("checking GNOME/WMH compliance\n");
-	if (check_winwm()) {
-		wm.have_wm = True;
+	if (check_winwm())
 		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
-	}
 	OPRINTF("checking NetWM/EWMH compliance\n");
-	if (check_netwm()) {
-		wm.have_wm = True;
+	if (check_netwm())
 		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
-	}
-
-	return wm.have_wm;
+	return check_anywm();
 }
 
 static void
@@ -1017,6 +1030,42 @@ static void
 handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 {
 	handle_wmchange(e, c);
+}
+
+/** @brief Check for a system tray.
+  */
+static Window
+check_stray()
+{
+	char buf[64];
+	Atom sel;
+	Window win;
+
+	snprintf(buf, sizeof(buf), "_NET_SYSTEM_TRAY_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != tray) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", tray, win);
+			tray = win;
+		}
+	} else if (tray) {
+		DPRINTF("system tray removed from 0x%08lx\n", tray);
+		tray = None;
+	}
+	return tray;
+}
+
+static void
+handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
+{
 }
 
 Bool
@@ -2821,24 +2870,8 @@ handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
 static void
 handle_MANAGER(XEvent *e, Client *c)
 {
-	char buf[64] = { 0, };
-	Atom sel;
-	Window win;
-
-	snprintf(buf, sizeof(buf), "_NET_SYSTEM_TRAY_S%d", screen);
-	sel = XInternAtom(dpy, buf, False);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if ((win != tray)) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
-			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", tray, win);
-			tray = win;
-		}
-	} else if (tray) {
-		DPRINTF("system tray removed from 0x%08lx\n", tray);
-		tray = None;
-	}
+	check_stray();
+	check_icccm();
 }
 
 static void
@@ -3407,6 +3440,19 @@ handle_event(XEvent *e)
 			del_client(c);
 		else
 			clean_msgs(e->xdestroywindow.window);
+
+		if (wm.netwm_check && e->xdestroywindow.window == wm.netwm_check)
+			check_netwm();
+		if (wm.winwm_check && e->xdestroywindow.window == wm.winwm_check)
+			check_winwm();
+		if (wm.maker_check && e->xdestroywindow.window == wm.maker_check)
+			check_maker();
+		if (wm.motif_check && e->xdestroywindow.window == wm.motif_check)
+			check_motif();
+		if (wm.icccm_check && e->xdestroywindow.window == wm.icccm_check)
+			check_icccm();
+		if (wm.redir_check && e->xdestroywindow.window == wm.redir_check)
+			check_redir();
 		break;
 	case UnmapNotify:
 		break;
@@ -3619,39 +3665,25 @@ setup()
 static Bool
 check_for_window_manager()
 {
-	wm.have_wm = False;
-
 	OPRINTF("checking NetWM/EWMH compliance\n");
-	if (check_netwm()) {
-		wm.have_wm = True;
+	if (check_netwm())
 		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
-	}
 	OPRINTF("checking GNOME/WMH compliance\n");
-	if (check_winwm()) {
-		wm.have_wm = True;
+	if (check_winwm())
 		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
-	}
 	OPRINTF("checking WindowMaker compliance\n");
-	if (check_maker()) {
-		wm.have_wm = True;
+	if (check_maker())
 		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
-	}
 	OPRINTF("checking OSF/Motif compliance\n");
-	if (check_motif()) {
-		wm.have_wm = True;
+	if (check_motif())
 		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
-	}
 	OPRINTF("checking ICCCM 2.0 compliance\n");
-	if (check_icccm()) {
-		wm.have_wm = True;
+	if (check_icccm())
 		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
-	}
 	OPRINTF("checking redirection\n");
-	if (check_redir()) {
-		wm.have_wm = True;
+	if (check_redir())
 		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
-	}
-	return wm.have_wm;
+	return check_anywm();
 }
 
 void
@@ -3723,7 +3755,7 @@ wait_for_window_manager()
 				while (XPending(dpy) && running) {
 					XNextEvent(dpy, &ev);
 					handle_event(&ev);
-					if (wm.have_wm)
+					if (check_anywm())
 						return;
 				}
 			}
