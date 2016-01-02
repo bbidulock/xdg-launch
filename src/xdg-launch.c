@@ -435,6 +435,7 @@ Atom _XA_WIN_WORKSPACE;
 Atom _XA_WM_STATE;
 Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
 Atom _XA_NET_SYSTEM_TRAY_VISUAL;
+Atom _XA_NET_DESKTOP_LAYOUT;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
@@ -459,6 +460,7 @@ static void handle_WM_HINTS(XEvent *, Client *);
 static void handle_WM_STATE(XEvent *, Client *);
 static void handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
 static void handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
+static void handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
 
 struct atoms {
 	char *name;
@@ -501,6 +503,7 @@ struct atoms {
 	{ "WM_STATE",				&_XA_WM_STATE,				&handle_WM_STATE,			None			},
 	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
 	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
+	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,		&handle_NET_DESKTOP_LAYOUT,		None			},
 	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,		NULL,					None			},
 	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,		NULL,					None			},
 	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,			NULL,					None			},
@@ -1089,6 +1092,7 @@ check_pager()
 	char buf[64];
 	Atom sel;
 	Window win;
+	long *cards, n = 0;
 
 	snprintf(buf, sizeof(buf), "_NET_DESKTOP_LAYOUT_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
@@ -1097,14 +1101,38 @@ check_pager()
 			XSelectInput(dpy, win,
 				     StructureNotifyMask | SubstructureNotifyMask |
 				     PropertyChangeMask);
-			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner, win);
+			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner,
+				win);
 			wm.pager_owner = win;
 		}
 	} else if (wm.pager_owner) {
 		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
 		wm.pager_owner = None;
+		/* selection only held while setting _NET_DESKTOP_LAYOUT */
+		if ((cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
+		    && n >= 4) {
+			XFree(cards);
+			wm.pager_owner = root;
+		}
 	}
 	return wm.pager_owner;
+}
+
+static void
+handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
+{
+	if (!e || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if (!wm.pager_owner)
+			wm.pager_owner = root;
+		break;
+	case PropertyDelete:
+		if (wm.pager_owner &&  wm.pager_owner == root)
+			wm.pager_owner = None;
+		break;
+	}
 }
 
 static Window
