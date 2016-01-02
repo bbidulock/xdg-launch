@@ -3760,7 +3760,6 @@ wait_for_window_manager()
 				}
 			}
 		}
-
 	}
 }
 
@@ -3768,6 +3767,67 @@ void
 wait_for_system_tray()
 {
 	/* TODO: need to wait for system tray to appear */
+	if (check_stray()) {
+		if (options.info) {
+			fputs("Have a system tray:\n\n", stdout);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "System Tray window", tray);
+			fputs("\n", stdout);
+		}
+		return;
+	} else {
+		if (options.info) {
+			fputs("Would wait for system tray\n", stdout);
+			return;
+		}
+	}
+	{
+		int xfd;
+		XEvent ev;
+
+		signal(SIGHUP, sighandler);
+		signal(SIGINT, sighandler);
+		signal(SIGTERM, sighandler);
+		signal(SIGQUIT, sighandler);
+
+#ifdef STARTUP_NOTIFICATION
+		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
+#endif
+		/* main event loop */
+		running = True;
+		XSync(dpy, False);
+		xfd = ConnectionNumber(dpy);
+		while (running) {
+			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+
+			if (signum)
+				exit(EXIT_SUCCESS);
+
+			if (poll(&pfd, 1, -1) == -1) {
+				switch (errno) {
+				case EINTR:
+				case EAGAIN:
+				case ERESTART:
+					continue;
+				}
+				EPRINTF("poll: %s\n", strerror(errno));
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
+				EPRINTF("poll: error\n");
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+			if (pfd.revents & (POLLIN)) {
+				while (XPending(dpy) && running) {
+					XNextEvent(dpy, &ev);
+					handle_event(&ev);
+					if (check_stray())
+						return;
+				}
+			}
+		}
+	}
 }
 
 void
