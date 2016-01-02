@@ -32,7 +32,13 @@ xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
 xdg_show_SOURCES = xdg-show.c
 xdg_show_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
 
-dist_bin_SCRIPTS = dmenu_apps dmenu_launch xdg-xsession xdg-autostart xdg-entry
+dist_bin_SCRIPTS = \
+	dmenu_apps \
+	dmenu_launch \
+	xdg-xsession \
+	xdg-autostart \
+	xdg-entry \
+	xdg-toolwait
 
 AM_INSTALLCHECK_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
 
