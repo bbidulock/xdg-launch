@@ -3658,9 +3658,28 @@ void
 wait_for_window_manager()
 {
 	if (check_for_window_manager()) {
-		if (options.info)
-			fputs("Have a window manager\n", stdout);
+		if (options.info) {
+			fputs("Have a window manager:\n\n", stdout);
+			if (wm.netwm_check)
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window NetWM/EWMH", wm.netwm_check);
+			if (wm.winwm_check)
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WinWM/GNOME", wm.winwm_check);
+			if (wm.maker_check)
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WindowMaker", wm.maker_check);
+			if (wm.motif_check)
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window OSF/MOTIF", wm.motif_check);
+			if (wm.icccm_check)
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window ICCCM 2.0", wm.icccm_check);
+			if (wm.redir_check)
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window redirection", wm.redir_check);
+			fputs("\n", stdout);
+		}
 		return;
+	} else {
+		if (options.info) {
+			fputs("Would wait for window manager\n", stdout);
+			return;
+		}
 	}
 	{
 		int xfd;
@@ -3749,6 +3768,23 @@ launch()
 	strcat(disp, fields.screen);
 	setenv("DISPLAY", disp, 1);
 
+	/* Be sure to wait for window manager before checking whether assistance is
+	   needed. */
+	if (options.manager)
+		wait_for_window_manager();
+	if (options.tray) {
+		if (options.info) {
+			fputs("Would wait for system tray\n", stdout);
+		}
+		wait_for_system_tray();
+	}
+	if (options.pager) {
+		if (options.info) {
+			fputs("Would wait for desktop pager\n", stdout);
+		}
+		wait_for_desktop_pager();
+	}
+
 	if (options.xsession) {
 		DPRINTF("XSession: always needs asistance\n");
 		need_assist = True;
@@ -3778,24 +3814,6 @@ launch()
 		}
 	}
 	/* make the call... */
-	if (options.manager) {
-		if (options.info) {
-			fputs("Would wait for window manager\n", stdout);
-		}
-		wait_for_window_manager();
-	}
-	if (options.tray) {
-		if (options.info) {
-			fputs("Would wait for system tray\n", stdout);
-		}
-		wait_for_system_tray();
-	}
-	if (options.pager) {
-		if (options.info) {
-			fputs("Would wait for desktop pager\n", stdout);
-		}
-		wait_for_desktop_pager();
-	}
 	if (change_only)
 		send_change();
 	else
@@ -5938,7 +5956,7 @@ main(int argc, char *argv[])
 		OPRINTF("Entries from file:\n");
 		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
 			if (*ep)
-				OPRINTF("%-30s = %s\n", *lp, *ep);
+				OPRINTF("%-24s = %s\n", *lp, *ep);
 	}
 	if (options.info) {
 		const char **lp;
@@ -5947,7 +5965,7 @@ main(int argc, char *argv[])
 		fputs("Entries from file:\n\n", stdout);
 		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
 			if (*ep)
-				fprintf(stdout, "%-30s = %s\n", *lp, *ep);
+				fprintf(stdout, "%-24s = %s\n", *lp, *ep);
 		fputs("\n", stdout);
 	}
 	if (!eargv && !options.exec && !entry.Exec) {
@@ -5969,7 +5987,7 @@ main(int argc, char *argv[])
 		OPRINTF("Final notify fields:\n");
 		for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
 			if (*fp)
-				OPRINTF("%-30s = %s\n", *lp, *fp);
+				OPRINTF("%-24s = %s\n", *lp, *fp);
 	}
 	if (options.info) {
 		const char **lp;
@@ -5978,7 +5996,7 @@ main(int argc, char *argv[])
 		fputs("Final notify fields:\n\n", stdout);
 		for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
 			if (*fp)
-				fprintf(stdout, "%-30s = %s\n", *lp, *fp);
+				fprintf(stdout, "%-24s = %s\n", *lp, *fp);
 		fputs("\n", stdout);
 	}
 	if (!options.info)
