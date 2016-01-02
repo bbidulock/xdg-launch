@@ -1993,16 +1993,16 @@ set_all()
 		set_desktop();
 	if (!fields.timestamp)
 		set_timestamp();
-	if (!fields.pid)
-		set_pid();
 	if (!fields.hostname)
 		set_hostname();
-	if (!fields.command)
-		set_command();
-	if (!fields.id)
-		set_id();
 	if (!fields.action)
 		set_action();
+	if (!fields.command)
+		set_command();
+	if (!fields.pid)
+		set_pid();
+	if (!fields.id)
+		set_id();
 }
 
 Client *
@@ -3961,7 +3961,7 @@ launch()
 		wait_for_composite_manager();
 
 	if (options.xsession) {
-		DPRINTF("XSession: always needs asistance\n");
+		DPRINTF("XSession: always needs assistance\n");
 		need_assist = True;
 		if (options.info)
 			fputs("Launching XSession entry always requires assistance.\n", stdout);
@@ -3970,22 +3970,24 @@ launch()
 		need_assist = True;
 		if (options.info)
 			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
+	} else if (options.toolwait) {
+		DPRINTF("ToolWait: always needs assistance\n");
+		need_assist = True;
+		if (options.info)
+			fputs("Launching ToolWait entry always requires assistance.\n", stdout);
 	} else if (need_assistance()) {
 		OPRINTF("WindowManager: needs assistance\n");
 		if (fields.wmclass) {
 			OPRINTF("WMCLASS: requires assistance\n");
 			need_assist = True;
 			if (options.info)
-				fputs
-				    ("Launching StartupWMClass entry always requires assistance.\n",
-				     stdout);
+				fputs("Launching StartupWMClass entry always requires assistance.\n", stdout);
 		}
 		if (fields.silent && atoi(fields.silent)) {
 			OPRINTF("SILENT: requires assistance\n");
 			need_assist = True;
 			if (options.info)
-				fputs("Launching SILENT entry always requires assistance.\n",
-				      stdout);
+				fputs("Launching SILENT entry always requires assistance.\n", stdout);
 		}
 	}
 	/* make the call... */
