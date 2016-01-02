@@ -3539,6 +3539,53 @@ assist()
 }
 
 void
+monitor_closure()
+{
+	exit(EXIT_SUCCESS);
+}
+
+/* This is a little different that assist().  The child continues to launching
+ * the application or command, and the parent monitors and exits once startup
+ * notification is complete.
+ */
+void
+await_completion()
+{
+	pid_t pid;
+
+	XSync(dpy, False);
+	if ((pid = fork()) < 0) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	} else if (pid != 0) {
+		/* parent monitors and exits when startup complete */
+		monitor_closure();
+		/* does not return */
+		exit(EXIT_FAILURE);
+	}
+	setsid();		/* become a session leader */
+	/* close files */
+	fclose(stdin);
+	/* fork once more for SVR4 */
+	if ((pid = fork()) < 0) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	} else if (pid != 0) {
+		/* parent exits */
+		exit(EXIT_SUCCESS);
+	}
+	/* release current directory */
+	if (chdir("/") < 0) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	umask(0);		/* clear file creation mask */
+	/* child returns with a new connection */
+	XCloseDisplay(dpy);
+	return;
+}
+
+void
 setup()
 {
 	char *pre;
@@ -3636,12 +3683,24 @@ launch()
 		}
 	}
 	/* make the call... */
-	if (options.manager)
+	if (options.manager) {
+		if (options.info) {
+			fputs("Would wait for window manager\n", stdout);
+		}
 		wait_for_window_manager();
-	if (options.tray)
+	}
+	if (options.tray) {
+		if (options.info) {
+			fputs("Would wait for system tray\n", stdout);
+		}
 		wait_for_system_tray();
-	if (options.pager)
+	}
+	if (options.pager) {
+		if (options.info) {
+			fputs("Would wait for desktop pager\n", stdout);
+		}
 		wait_for_desktop_pager();
+	}
 	if (change_only)
 		send_change();
 	else
