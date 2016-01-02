@@ -369,6 +369,106 @@ F<$XDG_CONFIG_HOME/xde/recent-applications>.
 
 =back
 
+=head1 JOB CONTROL OPTIONS
+
+The following job control options provide an equivalent functionality to
+that of L<xtoolwait(1)>.
+
+=over
+
+=item B<-T>, B<--toolwait>
+
+Normally, B<xdg-launch> will not exit, but will replace the foreground
+process with the application using L<execve(1)>.  When this option is
+specified, the behaviour changes: B<xdg-launch> will execute the
+application in a background process and exit once the application has
+started.  The criteria for when the application is considered as started
+depends on the other L</JOB CONTROL OPTIONS>.
+
+=item B<-timeout> I<SECONDS>
+
+Specifies the amount of time to await completion of startup before
+considering the application as launched.  The default is fifteen
+seconds.  This is the same default as L<xtoolwait(1)>.
+
+=item B<-mappings> I<NWINDOWS>
+
+Normally when expecting no startup notification completion message,
+B<xdg-launch(1)> will consider the application as launched once it maps
+the first client window.  When this option is specified, it will await
+I<NWINDOWS> mappings before it considers the application launched.  The
+default, when unspecified, is one window.
+
+=item B<-withdrawn>
+
+L<xtoolwait(1)> must be told when an application is a Window Maker
+dockapp so that it may detect windows mapped in the C<WithdrawnState>.
+B<xdg-launch> detects Window Make dockapps automatically and this option
+is only necessary when the automatic detection fails for some reason.
+This option is for compatibility with L<xtoolwait(1)> and, for the most
+part, does not change behaviour.
+
+=item B<-pid>
+
+For compatibility with L<xtoolwait(1)>, requests that B<xdg-launch>
+print the process id of the command to standard output.  B<xdg-launch>
+will redirect the standard output of the application to standard error
+when this option is specified.  Only one of B<-pid> or B<-wid> can be
+specified.
+
+(Note that this option conflicts with the usage of the B<--pid> option,
+above, however, this usage does not accept an argument.)
+
+=item B<-wid>
+
+Print the id of the X window that caused startup completion to be
+signalled to standard output for use with tools like L<wmctrl(1)> or
+L<xdotool(1)>.  B<xdg-launch> will redirect the standard output of the
+application to standard error when this option is specified.  Only one
+of B<-pid> or B<-wid> can be specified.
+
+=item B<-noprop>
+
+When using the mapping of a window to determine startup notification
+completion, simply use the creation of a top-level window as the
+criteria instead of expecting a C<WM_STATE> property change.
+
+=back
+
+=head2 SESSION OPTIONS
+
+The options that follow are for desktop session control.  They determine
+what conditions will be awaited before launching the application or
+command.  When no session option is specified, B<xdg-launch> will not
+await any desktop resource before launching.
+
+=over
+
+=item B<--manager>
+
+Awaits the appearance of a window manager before launching the
+application or command.  The default behaviour is to not wait for any
+desktop resource before launching.
+
+=item B<--tray>
+
+Awaits the appearance of a system tray before launching the application
+or command.  The default behaviour is to not wait for any desktop
+resource before launching.
+
+=item B<--pager>
+
+Awaits the appearance of a desktop pager (or desktop pager
+specification) before launching the application or command.  The default
+behaviour is to not wait for any desktop resource before launching.
+
+=back
+
+Note that some key fields in the F<.desktop> file of an application can
+specify the autostart phase (.e.g. C<AutostartPhase>).  When the
+B<--autostart> option is option is specified, the setting of these key
+fields may affect the default settings of the session options, above.
+
 =head1 BEHAVIOUR
 
 B<xdg-launch> exhibits the following behaviour:
@@ -385,7 +485,7 @@ of the invocation as follows:
 
 =item 1.
 
-When B<xdg-lanuch> is invoked directly (executed) from an application
+When B<xdg-launch> is invoked directly (executed) from an application
 that has access to the X server event that invoked the launch, it can
 supply the X server time stamp directly to B<xdg-launch> using the
 B<--timestamp> option (see L</OPTIONS>).  B<xdg-launch> will use this
@@ -471,6 +571,13 @@ terminal programs do not properly observe startup notification.  (Note
 that L<xterm(1)> does not properly observe startup notification, even
 though it properly observes X11 Session Management, whereas many other
 terminal emulators support both.)
+
+=head2 TOOL WAIT
+
+B<xdg-launch> can also be used to replace L<xtoolwait(1)> for XDG
+applications when invoked with the appropriate options.  A convenience
+script, L<xdg-toolwait(1)> is provided that mimics the options of
+L<xtoolwait(1)>.  See L<xdg-toolwait(1)> for more information.
 
 =head2 WINDOW MANAGERS
 
