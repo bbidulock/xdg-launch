@@ -9,7 +9,8 @@ xdg_man_files = \
 	     xdg-whereis.man \
 	     xdg-which.man \
 	     xdg-entry.man \
-	     xdg-show.man
+	     xdg-show.man \
+	     xdg-toolwait.man
 
 nodist_man1_MANS = $(xdg_man_files)
 CLEANFILES = $(xdg_man_files)
@@ -24,7 +25,8 @@ EXTRA_DIST = \
 	     xdg-whereis.pod \
 	     xdg-which.pod \
 	     xdg-entry.pod \
-	     xdg-show.pod
+	     xdg-show.pod \
+	     xdg-toolwait.pod
 
 SUFFIXES = .man .pod
 
