@@ -3569,6 +3569,21 @@ setup()
 }
 
 void
+wait_for_window_manager()
+{
+}
+
+void
+wait_for_system_tray()
+{
+}
+
+void
+wait_for_desktop_pager()
+{
+}
+
+void
 launch()
 {
 	size_t size;
@@ -3621,6 +3636,12 @@ launch()
 		}
 	}
 	/* make the call... */
+	if (options.manager)
+		wait_for_window_manager();
+	if (options.tray)
+		wait_for_system_tray();
+	if (options.pager)
+		wait_for_desktop_pager();
 	if (change_only)
 		send_change();
 	else
@@ -5130,33 +5151,33 @@ Arguments:\n\
         the URL with which to launch the application\n\
 Options:\n\
     -L, --launcher LAUNCHER\n\
-        name of launcher for startup id, default: '%2$s'\n\
+        name of launcher for startup id, [default: '%2$s']\n\
     -l, --launchee LAUNCHEE\n\
-        name of launchee for startup id, default: APPID\n\
+        name of launchee for startup id, [default: APPID]\n\
     -n, --hostname HOSTNAME\n\
-        hostname to use in startup id, default: '%3$s'\n\
+        hostname to use in startup id, [default: '%3$s']\n\
     -m, --monitor MONITOR\n\
-        Xinerama monitor to specify in SCREEN tag, default: %4$s\n\
+        Xinerama monitor to specify in SCREEN tag, [default: %4$s]\n\
     -s, --screen SCREEN\n\
-        screen to specify in SCREEN tag, default: %5$s\n\
+        screen to specify in SCREEN tag, [default: %5$s]\n\
     -w, --workspace DESKTOP\n\
-        workspace to specify in DESKTOP tag, default: %6$s\n\
+        workspace to specify in DESKTOP tag, [default: %6$s]\n\
     -t, --timestamp TIMESTAMP\n\
-        X server timestamp for startup id, default: %7$s\n\
+        X server timestamp for startup id, [default: %7$s]\n\
     -N, --name NAME\n\
-        name of XDG application, default: '%8$s'\n\
+        name of XDG application, [default: '%8$s']\n\
     -i, --icon ICON\n\
-        icon name of the XDG application, default: '%9$s'\n\
+        icon name of the XDG application, [default: '%9$s']\n\
     -b, --binary BINARY\n\
-        binary name of the XDG application, default: '%10$s'\n\
+        binary name of the XDG application, [default: '%10$s']\n\
     -D, --description DESCRIPTION\n\
-        description of the XDG application, default: '%11$s'\n\
+        description of the XDG application, [default: '%11$s']\n\
     -W, --wmclass WMCLASS\n\
-        resource name or class of the XDG application, default: '%12$s'\n\
+        resource name or class of the XDG application, [default: '%12$s']\n\
     -q, --silent SILENT\n\
-        whether startup notification is silent (0/1), default: '%13$s'\n\
+        whether startup notification is silent (0/1), [default: '%13$s']\n\
     -p, --pid PID\n\
-        process id of the XDG application, default '%14$s'\n\
+        process id of the XDG application, [default: '%14$s']\n\
     -a, --appid APPID\n\
         override application identifier\n\
     -x, --exec EXEC\n\
@@ -5166,21 +5187,41 @@ Options:\n\
     -u, --url URL\n\
         URL to use with application\n\
     -K, --keyboard\n\
-        determine screen (monitor) from keyboard focus, default: '%15$s'\n\
+        determine screen (monitor) from keyboard focus, [default: '%15$s']\n\
     -P, --pointer\n\
-        determine screen (monitor) from pointer location, default: '%16$s'\n\
+        determine screen (monitor) from pointer location, [default: '%16$s']\n\
     -A, --action ACTION\n\
-        specify a desktop action other than the default, default: '%17$s'\n\
+        specify a desktop action other than the default, [default: '%17$s']\n\
     -X, --xsession\n\
-        interpret entry as xsession instead of application, default: '%18$s'\n\
+        interpret entry as xsession instead of application, [default: '%18$s']\n\
     -U, --autostart\n\
-        interpret entry as autostart instead of application, default: '%19$s'\n\
+        interpret entry as autostart instead of application, [default: '%19$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, default: '%20$s'\n\
+        specify NUMBER of recent applications to keep, [default: '%20$s']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, default: '%21$s'\n\
+        specify FILENAME of recent apps file, [default: '%21$s']\n\
     -I, --info\n\
-        print information about entry instead of launching, default: '%22$s'\n\
+        print information about entry instead of launching, [default: '%22$s']\n\
+    -T, --toolwait\n\
+        wait for startup to complete and then exit, [default: '%23$s']\n\
+    -timeout SECONDS\n\
+        consider startup complete after SECONDS seconds, [default: '%24$s']\n\
+    -mappings MAPPINGS\n\
+        consider startup complete after MAPPINGS mappings, [default: '%25$s']\n\
+    -withdrawn\n\
+        consider withdrawn state mappings, [default: '%26$s']\n\
+    -pid\n\
+        print the pid of the process to standard out, [default: '%27$s']\n\
+    -wid\n\
+        print the window id to standard out, [default: '%28$s']\n\
+    -noprop\n\
+        use top-level creations instead of mappings, [default: '%29$s']\n\
+    -M, --manager\n\
+        wait for window manager before launching, [default: '%30$s']\n\
+    -Y, --tray\n\
+        wait for system tray before launching, [default: '%31$s']\n\
+    -G, --pager\n\
+        wait for desktop pager before launching, [default: '%32$s']\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -5192,7 +5233,41 @@ Options:\n\
         print version and exit\n\
     -C, --copying\n\
         print copying permission and exit\n\
-", argv[0], defaults.launcher, defaults.hostname, defaults.monitor, defaults.screen, defaults.desktop, defaults.timestamp, defaults.name, defaults.icon, defaults.binary, defaults.description, defaults.wmclass, defaults.silent, defaults.pid, defaults.keyboard, defaults.pointer, defaults.action, defaults.xsession, defaults.autostart, defaults.keep, defaults.recapps, defaults.info);
+", argv[0]
+	/* *INDENT-OFF* */
+	, defaults.launcher
+	, defaults.hostname
+	, defaults.monitor
+	, defaults.screen
+	, defaults.desktop
+	, defaults.timestamp
+	, defaults.name
+	, defaults.icon
+	, defaults.binary
+	, defaults.description
+	, defaults.wmclass
+	, defaults.silent
+	, defaults.pid
+	, defaults.keyboard
+	, defaults.pointer
+	, defaults.action
+	, defaults.xsession
+	, defaults.autostart
+	, defaults.keep
+	, defaults.recapps
+	, defaults.info
+	, defaults.toolwait
+	, defaults.timeout
+	, defaults.mappings
+	, defaults.withdrawn
+	, defaults.printpid
+	, defaults.printwid
+	, defaults.noprop
+	, defaults.manager
+	, defaults.tray
+	, defaults.pager
+	/* *INDENT-ON* */
+	);
 }
 
 static void
