@@ -395,6 +395,7 @@ typedef struct {
 	Window maker_check;		/* _WINDOWMAKER_NOTICEBOARD or None */
 	Window icccm_check;		/* WM_S%d selection owner or root */
 	Window redir_check;
+	Bool have_wm;
 } WindowManager;
 
 WindowManager wm;
@@ -936,42 +937,42 @@ check_redir()
 static Bool
 check_window_manager()
 {
-	Bool have_wm = False;
+	wm.have_wm = False;
 
 	OPRINTF("checking wm compliance for screen %d\n", screen);
 
 	OPRINTF("checking redirection\n");
 	if (check_redir()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
 	}
 	OPRINTF("checking ICCCM 2.0 compliance\n");
 	if (check_icccm()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
 	}
 	OPRINTF("checking OSF/Motif compliance\n");
 	if (check_motif()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
 	}
 	OPRINTF("checking WindowMaker compliance\n");
 	if (check_maker()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
 	}
 	OPRINTF("checking GNOME/WMH compliance\n");
 	if (check_winwm()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
 	}
 	OPRINTF("checking NetWM/EWMH compliance\n");
 	if (check_netwm()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
 	}
 
-	return have_wm;
+	return wm.have_wm;
 }
 
 static void
@@ -3618,41 +3619,39 @@ setup()
 static Bool
 check_for_window_manager()
 {
-	Bool have_wm = False;
-
-	OPRINTF("checking wm compliance for screen %d\n", screen);
+	wm.have_wm = False;
 
 	OPRINTF("checking NetWM/EWMH compliance\n");
 	if (check_netwm()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
 	}
 	OPRINTF("checking GNOME/WMH compliance\n");
 	if (check_winwm()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
 	}
 	OPRINTF("checking WindowMaker compliance\n");
 	if (check_maker()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
 	}
 	OPRINTF("checking OSF/Motif compliance\n");
 	if (check_motif()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
 	}
 	OPRINTF("checking ICCCM 2.0 compliance\n");
 	if (check_icccm()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
 	}
 	OPRINTF("checking redirection\n");
 	if (check_redir()) {
-		have_wm = True;
+		wm.have_wm = True;
 		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
 	}
-	return have_wm;
+	return wm.have_wm;
 }
 
 void
@@ -3663,7 +3662,55 @@ wait_for_window_manager()
 			fputs("Have a window manager\n", stdout);
 		return;
 	}
-	/* TODO: need to wait for window manager to appear */
+	{
+		int xfd;
+		XEvent ev;
+
+		signal(SIGHUP, sighandler);
+		signal(SIGINT, sighandler);
+		signal(SIGTERM, sighandler);
+		signal(SIGQUIT, sighandler);
+
+#ifdef STARTUP_NOTIFICATION
+		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
+#endif
+		/* main event loop */
+		running = True;
+		XSync(dpy, False);
+		xfd = ConnectionNumber(dpy);
+		while (running) {
+			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+
+			if (signum)
+				exit(EXIT_SUCCESS);
+
+			if (poll(&pfd, 1, -1) == -1) {
+				switch (errno) {
+				case EINTR:
+				case EAGAIN:
+				case ERESTART:
+					continue;
+				}
+				EPRINTF("poll: %s\n", strerror(errno));
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
+				EPRINTF("poll: error\n");
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+			if (pfd.revents & (POLLIN)) {
+				while (XPending(dpy) && running) {
+					XNextEvent(dpy, &ev);
+					handle_event(&ev);
+					if (wm.have_wm)
+						return;
+				}
+			}
+		}
+
+	}
 }
 
 void
