@@ -173,6 +173,7 @@ struct params {
 	char *manager;
 	char *tray;
 	char *pager;
+	char *composite;
 };
 
 struct params options = { NULL, };
@@ -218,6 +219,7 @@ struct params defaults = {
 	.manager = "false",
 	.tray = "false",
 	.pager = "false",
+	.composite = "false",
 };
 
 static const char *StartupNotifyFields[] = {
@@ -3837,6 +3839,12 @@ wait_for_desktop_pager()
 }
 
 void
+wait_for_composite_manager()
+{
+	/* TODO: need to wait for composite manager to appear */
+}
+
+void
 launch()
 {
 	size_t size;
@@ -3866,12 +3874,10 @@ launch()
 		wait_for_window_manager();
 	if (options.tray)
 		wait_for_system_tray();
-	if (options.pager) {
-		if (options.info) {
-			fputs("Would wait for desktop pager\n", stdout);
-		}
+	if (options.pager)
 		wait_for_desktop_pager();
-	}
+	if (options.composite)
+		wait_for_composite_manager();
 
 	if (options.xsession) {
 		DPRINTF("XSession: always needs asistance\n");
@@ -5482,6 +5488,8 @@ Options:\n\
         wait for system tray before launching, [default: '%31$s']\n\
     -G, --pager\n\
         wait for desktop pager before launching, [default: '%32$s']\n\
+    -O, --composite\n\
+        wait for composite manager before launching, [default: '%33$s']\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -5526,6 +5534,7 @@ Options:\n\
 	, defaults.manager
 	, defaults.tray
 	, defaults.pager
+	, defaults.composite
 	/* *INDENT-ON* */
 	);
 }
@@ -5685,6 +5694,7 @@ main(int argc, char *argv[])
 			{"manager",	no_argument,		NULL, 'M'},
 			{"tray",	no_argument,		NULL, 'Y'},
 			{"pager",	no_argument,		NULL, 'G'},
+			{"composite",	no_argument,		NULL, 'O'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -5697,10 +5707,10 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGD::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGOD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGDvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGODvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (debug)
@@ -5893,6 +5903,10 @@ main(int argc, char *argv[])
 		case 'G':	/* -G, --pager */
 			free(options.pager);
 			defaults.pager = options.pager = strdup("true");
+			break;
+		case 'O':	/* -O, --composite */
+			free(options.composite);
+			defaults.composite = options.composite = strdup("true");
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)

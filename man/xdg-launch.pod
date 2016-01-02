@@ -444,23 +444,29 @@ await any desktop resource before launching.
 
 =over
 
-=item B<--manager>
+=item B<-M>, B<--manager>
 
 Awaits the appearance of a window manager before launching the
 application or command.  The default behaviour is to not wait for any
 desktop resource before launching.
 
-=item B<--tray>
+=item B<-Y>, B<--tray>
 
 Awaits the appearance of a system tray before launching the application
 or command.  The default behaviour is to not wait for any desktop
 resource before launching.
 
-=item B<--pager>
+=item B<-G>, B<--pager>
 
 Awaits the appearance of a desktop pager (or desktop pager
 specification) before launching the application or command.  The default
 behaviour is to not wait for any desktop resource before launching.
+
+=item B<-O>, B<--composite>
+
+Awaits the appearance of a composite manager before launching the
+application or command.  The default behaviour is to not wait for any
+desktop resource before launching.
 
 =back
 
