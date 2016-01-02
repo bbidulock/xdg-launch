@@ -5306,6 +5306,7 @@ main(int argc, char *argv[])
 
 	while (1) {
 		int c, val;
+		char *endptr = NULL;
 
 #ifdef _GNU_SOURCE
 		int option_index = 0;
@@ -5325,7 +5326,7 @@ main(int argc, char *argv[])
 			{"description",	required_argument,	NULL, 'd'},
 			{"wmclass",	required_argument,	NULL, 'W'},
 			{"silent",	required_argument,	NULL, 'q'},
-			{"pid",		required_argument,	NULL, 'p'},
+			{"pid",		optional_argument,	NULL, 'p'},
 			{"appid",	required_argument,	NULL, 'a'},
 			{"exec",	required_argument,	NULL, 'x'},
 			{"file",	required_argument,	NULL, 'f'},
@@ -5361,7 +5362,7 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGD::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
 		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGDvhVC?");
@@ -5393,16 +5394,25 @@ main(int argc, char *argv[])
 		case 'm':	/* -m, --monitor MONITOR */
 			free(options.monitor);
 			defaults.monitor = options.monitor = strdup(optarg);
-			monitor = strtoul(optarg, NULL, 0);
+			monitor = strtoul(optarg, &endptr, 0);
+			if (endptr && *endptr)
+				goto bad_option;
 			break;
 		case 's':	/* -s, --screen SCREEN */
 			free(options.screen);
 			defaults.screen = options.screen = strdup(optarg);
-			screen = strtoul(optarg, NULL, 0);
+			screen = strtoul(optarg, &endptr, 0);
+			if (endptr && *endptr)
+				goto bad_option;
 			break;
 		case 'p':	/* -p, --pid PID */
-			free(options.pid);
-			defaults.pid = options.pid = strdup(optarg);
+			if (optarg) {
+				free(options.pid);
+				defaults.pid = options.pid = strdup(optarg);
+			} else {
+				free(options.printpid);
+				defaults.printpid = options.printpid = strdup("true");
+			}
 			break;
 		case 'w':	/* -w, --workspace WORKSPACE */
 			free(options.desktop);
@@ -5484,7 +5494,9 @@ main(int argc, char *argv[])
 			defaults.autostart = options.autostart = strdup("true");
 			break;
 		case 'k':	/* -k, --keep NUMBER */
-			if ((val = strtoul(optarg, NULL, 0)) < 0)
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
 				goto bad_option;
 			if (val < 1 || val > 100)
 				goto bad_option;
@@ -5500,22 +5512,52 @@ main(int argc, char *argv[])
 			defaults.info = options.info = strdup("true");
 			break;
 		case 'T':	/* -T, --toolwait */
+			free(options.toolwait);
+			defaults.toolwait = options.toolwait = strdup("true");
 			break;
 		case 1:		/* --timeout TIMEOUT */
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
+				goto bad_option;
+			if (val < 1 || val > 120)
+				goto bad_option;
+			free(options.timeout);
+			defaults.timeout = options.timeout = strdup(optarg);
 			break;
 		case 2:		/* --mappings MAPPINGS */
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
+				goto bad_option;
+			if (val < 1 || val > 10)
+				goto bad_option;
+			free(options.mappings);
+			defaults.mappings = options.mappings = strdup(optarg);
 			break;
 		case 3:		/* --withdrawn */
+			free(options.withdrawn);
+			defaults.withdrawn = options.withdrawn = strdup("true");
 			break;
 		case 4:		/* --wid */
+			free(options.printwid);
+			defaults.printwid = options.printwid = strdup("true");
 			break;
 		case 5:		/* --noprop */
+			free(options.noprop);
+			defaults.noprop = options.noprop = strdup("true");
 			break;
 		case 'M':	/* -M, --manager */
+			free(options.manager);
+			defaults.manager = options.manager = strdup("true");
 			break;
 		case 'Y':	/* -Y, --tray */
+			free(options.tray);
+			defaults.tray = options.tray = strdup("true");
 			break;
 		case 'G':	/* -G, --pager */
+			free(options.pager);
+			defaults.pager = options.pager = strdup("true");
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (debug)
