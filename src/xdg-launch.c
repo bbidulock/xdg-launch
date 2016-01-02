@@ -3864,12 +3864,8 @@ launch()
 	   needed. */
 	if (options.manager)
 		wait_for_window_manager();
-	if (options.tray) {
-		if (options.info) {
-			fputs("Would wait for system tray\n", stdout);
-		}
+	if (options.tray)
 		wait_for_system_tray();
-	}
 	if (options.pager) {
 		if (options.info) {
 			fputs("Would wait for desktop pager\n", stdout);
