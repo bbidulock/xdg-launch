@@ -164,7 +164,7 @@ struct params {
 	Bool info;
 	Bool toolwait;
 	int timeout;
-	char *mappings;
+	int mappings;
 	char *withdrawn;
 	char *printpid;
 	char *printwid;
@@ -213,7 +213,7 @@ struct params options = {
 	.info = False,
 	.toolwait = False,
 	.timeout = 0,
-	.mappings = NULL,
+	.mappings = 0,
 	.withdrawn = NULL,
 	.printpid = NULL,
 	.printwid = NULL,
@@ -258,7 +258,7 @@ struct params defaults = {
 	.info = False,
 	.toolwait = False,
 	.timeout = 15,
-	.mappings = "1",
+	.mappings = 1,
 	.withdrawn = "false",
 	.printpid = "false",
 	.printwid = "false",
@@ -5595,7 +5595,7 @@ Options:\n\
     -timeout SECONDS\n\
         consider startup complete after SECONDS seconds, [default: '%24$d']\n\
     -mappings MAPPINGS\n\
-        consider startup complete after MAPPINGS mappings, [default: '%25$s']\n\
+        consider startup complete after MAPPINGS mappings, [default: '%25$d']\n\
     -withdrawn\n\
         consider withdrawn state mappings, [default: '%26$s']\n\
     -pid\n\
@@ -5999,8 +5999,7 @@ main(int argc, char *argv[])
 				goto bad_option;
 			if (val < 1 || val > 10)
 				goto bad_option;
-			free(options.mappings);
-			defaults.mappings = options.mappings = strdup(optarg);
+			defaults.mappings = options.mappings = val;
 			break;
 		case 3:		/* --withdrawn */
 			free(options.withdrawn);
