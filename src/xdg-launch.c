@@ -166,13 +166,13 @@ struct params {
 	int timeout;
 	int mappings;
 	Bool withdrawn;
-	char *printpid;
-	char *printwid;
-	char *noprop;
-	char *manager;
-	char *tray;
-	char *pager;
-	char *composite;
+	Bool printpid;
+	Bool printwid;
+	Bool noprop;
+	Bool manager;
+	Bool tray;
+	Bool pager;
+	Bool composite;
 };
 
 struct params options = {
@@ -215,13 +215,13 @@ struct params options = {
 	.timeout = 0,
 	.mappings = 0,
 	.withdrawn = False,
-	.printpid = NULL,
-	.printwid = NULL,
-	.noprop = NULL,
-	.manager = NULL,
-	.tray = NULL,
-	.pager = NULL,
-	.composite = NULL,
+	.printpid = False,
+	.printwid = False,
+	.noprop = False,
+	.manager = False,
+	.tray = False,
+	.pager = False,
+	.composite = False,
 };
 
 struct params defaults = {
@@ -260,13 +260,13 @@ struct params defaults = {
 	.timeout = 15,
 	.mappings = 1,
 	.withdrawn = False,
-	.printpid = "false",
-	.printwid = "false",
-	.noprop = "false",
-	.manager = "false",
-	.tray = "false",
-	.pager = "false",
-	.composite = "false",
+	.printpid = False,
+	.printwid = False,
+	.noprop = False,
+	.manager = False,
+	.tray = False,
+	.pager = False,
+	.composite = False,
 };
 
 static const char *StartupNotifyFields[] = {
@@ -5650,13 +5650,13 @@ Options:\n\
 	, defaults.timeout
 	, defaults.mappings
 	, show_bool(defaults.withdrawn)
-	, defaults.printpid
-	, defaults.printwid
-	, defaults.noprop
-	, defaults.manager
-	, defaults.tray
-	, defaults.pager
-	, defaults.composite
+	, show_bool(defaults.printpid)
+	, show_bool(defaults.printwid)
+	, show_bool(defaults.noprop)
+	, show_bool(defaults.manager)
+	, show_bool(defaults.tray)
+	, show_bool(defaults.pager)
+	, show_bool(defaults.composite)
 	/* *INDENT-ON* */
 	);
 }
@@ -5879,8 +5879,7 @@ main(int argc, char *argv[])
 					goto bad_option;
 				defaults.pid = options.pid = val;
 			} else {
-				free(options.printpid);
-				defaults.printpid = options.printpid = strdup("true");
+				defaults.printpid = options.printpid = True;
 			}
 			break;
 		case 'w':	/* -w, --workspace WORKSPACE */
@@ -6005,28 +6004,22 @@ main(int argc, char *argv[])
 			defaults.withdrawn = options.withdrawn = True;
 			break;
 		case 4:		/* --wid */
-			free(options.printwid);
-			defaults.printwid = options.printwid = strdup("true");
+			defaults.printwid = options.printwid = True;
 			break;
 		case 5:		/* --noprop */
-			free(options.noprop);
-			defaults.noprop = options.noprop = strdup("true");
+			defaults.noprop = options.noprop = True;
 			break;
 		case 'M':	/* -M, --manager */
-			free(options.manager);
-			defaults.manager = options.manager = strdup("true");
+			defaults.manager = options.manager = True;
 			break;
 		case 'Y':	/* -Y, --tray */
-			free(options.tray);
-			defaults.tray = options.tray = strdup("true");
+			defaults.tray = options.tray = True;
 			break;
 		case 'G':	/* -G, --pager */
-			free(options.pager);
-			defaults.pager = options.pager = strdup("true");
+			defaults.pager = options.pager = True;
 			break;
 		case 'O':	/* -O, --composite */
-			free(options.composite);
-			defaults.composite = options.composite = strdup("true");
+			defaults.composite = options.composite = True;
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (options.debug)
