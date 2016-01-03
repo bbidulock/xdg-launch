@@ -151,8 +151,8 @@ struct params {
 	Bool keyboard;
 	Bool pointer;
 	char *action;
-	char *xsession;
-	char *autostart;
+	Bool xsession;
+	Bool autostart;
 	char *path;
 	char *uri;
 	char *rawcmd;
@@ -200,8 +200,8 @@ struct params options = {
 	.keyboard = False,
 	.pointer = False,
 	.action = NULL,
-	.xsession = NULL,
-	.autostart = NULL,
+	.xsession = False,
+	.autostart = False,
 	.path = NULL,
 	.uri = NULL,
 	.rawcmd = NULL,
@@ -246,8 +246,8 @@ struct params defaults = {
 	.keyboard = False,
 	.pointer = False,
 	.action = "none",
-	.xsession = "false",
-	.autostart = "false",
+	.xsession = False,
+	.autostart = False,
 	.path = NULL,
 	.uri = NULL,
 	.runhist = "~/.config/xde/run-history",
@@ -2147,7 +2147,7 @@ parse_file(char *path)
 				entry.Type = strdup(val);
 				/* autodetect XSession */
 				if (!strcmp(val, "XSession") && !options.xsession)
-					options.xsession = strdup("true");
+					options.xsession = True;
 				ok = 1;
 				continue;
 			}
@@ -5642,8 +5642,8 @@ Options:\n\
 	, show_bool(defaults.keyboard)
 	, show_bool(defaults.pointer)
 	, defaults.action
-	, defaults.xsession
-	, defaults.autostart
+	, show_bool(defaults.xsession)
+	, show_bool(defaults.autostart)
 	, defaults.keep
 	, defaults.recapps
 	, defaults.info
@@ -5738,9 +5738,9 @@ set_defaults(int argc, char *argv[])
 	buf = (p = strrchr(argv[0], '/')) ? p + 1 : argv[0];
 	defaults.launcher = options.launcher = strdup(buf);
 	if (!strcmp(buf, "xdg-xsession"))
-		defaults.xsession = options.xsession = strdup("true");
+		defaults.xsession = options.xsession = True;
 	else if (!strcmp(buf, "xdg-autostart"))
-		defaults.autostart = options.autostart = strdup("true");
+		defaults.autostart = options.autostart = True;
 
 	free(options.hostname);
 	buf = defaults.hostname = options.hostname = calloc(64, sizeof(*buf));
@@ -5958,14 +5958,12 @@ main(int argc, char *argv[])
 		case 'X':	/* -X, --xsession */
 			if (options.autostart)
 				goto bad_option;
-			free(options.xsession);
-			defaults.xsession = options.xsession = strdup("true");
+			defaults.xsession = options.xsession = True;
 			break;
 		case 'U':	/* -S, --autostart */
 			if (options.xsession)
 				goto bad_option;
-			free(options.autostart);
-			defaults.autostart = options.autostart = strdup("true");
+			defaults.autostart = options.autostart = True;
 			break;
 		case 'k':	/* -k, --keep NUMBER */
 			if ((val = strtoul(optarg, &endptr, 0)) < 0)
