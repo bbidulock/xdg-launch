@@ -165,7 +165,7 @@ struct params {
 	Bool toolwait;
 	int timeout;
 	int mappings;
-	char *withdrawn;
+	Bool withdrawn;
 	char *printpid;
 	char *printwid;
 	char *noprop;
@@ -214,7 +214,7 @@ struct params options = {
 	.toolwait = False,
 	.timeout = 0,
 	.mappings = 0,
-	.withdrawn = NULL,
+	.withdrawn = False,
 	.printpid = NULL,
 	.printwid = NULL,
 	.noprop = NULL,
@@ -259,7 +259,7 @@ struct params defaults = {
 	.toolwait = False,
 	.timeout = 15,
 	.mappings = 1,
-	.withdrawn = "false",
+	.withdrawn = False,
 	.printpid = "false",
 	.printwid = "false",
 	.noprop = "false",
@@ -5649,7 +5649,7 @@ Options:\n\
 	, show_bool(defaults.toolwait)
 	, defaults.timeout
 	, defaults.mappings
-	, defaults.withdrawn
+	, show_bool(defaults.withdrawn)
 	, defaults.printpid
 	, defaults.printwid
 	, defaults.noprop
@@ -6002,8 +6002,7 @@ main(int argc, char *argv[])
 			defaults.mappings = options.mappings = val;
 			break;
 		case 3:		/* --withdrawn */
-			free(options.withdrawn);
-			defaults.withdrawn = options.withdrawn = strdup("true");
+			defaults.withdrawn = options.withdrawn = True;
 			break;
 		case 4:		/* --wid */
 			free(options.printwid);
