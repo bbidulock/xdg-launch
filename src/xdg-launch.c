@@ -126,7 +126,7 @@ const char *program = NAME;
 char **eargv = NULL;
 int eargc = 0;
 
-struct params {
+typedef struct {
 	int debug;
 	int output;
 	char *appid;
@@ -173,9 +173,9 @@ struct params {
 	Bool tray;
 	Bool pager;
 	Bool composite;
-};
+} Options;
 
-struct params options = {
+Options options = {
 	.debug = 0,
 	.output = 1,
 	.appid = NULL,
@@ -224,7 +224,7 @@ struct params options = {
 	.composite = False,
 };
 
-struct params defaults = {
+Options defaults = {
 	.appid = "[APPID]",
 	.launcher = NAME,
 	.launchee = "[APPID]",
