@@ -162,7 +162,7 @@ struct params {
 	char *recent;
 	int keep;
 	Bool info;
-	char *toolwait;
+	Bool toolwait;
 	char *timeout;
 	char *mappings;
 	char *withdrawn;
@@ -211,7 +211,7 @@ struct params options = {
 	.recent = NULL,
 	.keep = 0,
 	.info = False,
-	.toolwait = NULL,
+	.toolwait = False,
 	.timeout = NULL,
 	.mappings = NULL,
 	.withdrawn = NULL,
@@ -256,7 +256,7 @@ struct params defaults = {
 	.recent = NULL,
 	.keep = 10,
 	.info = False,
-	.toolwait = "false",
+	.toolwait = False,
 	.timeout = "15",
 	.mappings = "1",
 	.withdrawn = "false",
@@ -5646,7 +5646,7 @@ Options:\n\
 	, defaults.keep
 	, defaults.recapps
 	, show_bool(defaults.info)
-	, defaults.toolwait
+	, show_bool(defaults.toolwait)
 	, defaults.timeout
 	, defaults.mappings
 	, defaults.withdrawn
@@ -5981,8 +5981,7 @@ main(int argc, char *argv[])
 			defaults.info = options.info = True;
 			break;
 		case 'T':	/* -T, --toolwait */
-			free(options.toolwait);
-			defaults.toolwait = options.toolwait = strdup("true");
+			defaults.toolwait = options.toolwait = True;
 			break;
 		case 1:		/* --timeout TIMEOUT */
 			if ((val = strtoul(optarg, &endptr, 0)) < 0)
