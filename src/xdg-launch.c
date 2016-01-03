@@ -160,7 +160,7 @@ struct params {
 	char *recapps;
 	char *recently;
 	char *recent;
-	char *keep;
+	int keep;
 	char *info;
 	char *toolwait;
 	char *timeout;
@@ -209,7 +209,7 @@ struct params options = {
 	.recapps = NULL,
 	.recently = NULL,
 	.recent = NULL,
-	.keep = NULL,
+	.keep = 0,
 	.info = NULL,
 	.toolwait = NULL,
 	.timeout = NULL,
@@ -254,7 +254,7 @@ struct params defaults = {
 	.recapps = "~/.config/xde/recent-applications",
 	.recently = "~/.local/share/recently-used",
 	.recent = NULL,
-	.keep = "10",
+	.keep = 10,
 	.info = "false",
 	.toolwait = "false",
 	.timeout = "15",
@@ -5344,13 +5344,12 @@ put_line_history(char *file, char *line)
 	FILE *f;
 	int dummy;
 	char *buf, *p;
-	int discarding = 0, n = 0, keep = 10;
+	int discarding = 0, n = 0, keep;
 	GList *history = NULL;
 
-	if (defaults.keep)
-		keep = strtol(defaults.keep, NULL, 0);
-	if (options.keep)
-		keep = strtol(options.keep, NULL, 0);
+	keep = defaults.keep;
+	if (options.keep > 0)
+		keep = options.keep;
 
 	DPRINTF("maximum history entries '%d'\n", keep);
 
@@ -5586,7 +5585,7 @@ Options:\n\
     -U, --autostart\n\
         interpret entry as autostart instead of application, [default: '%19$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%20$s']\n\
+        specify NUMBER of recent applications to keep, [default: '%20$d']\n\
     -r, --recent FILENAME\n\
         specify FILENAME of recent apps file, [default: '%21$s']\n\
     -I, --info\n\
@@ -5972,8 +5971,7 @@ main(int argc, char *argv[])
 				goto bad_option;
 			if (val < 1 || val > 100)
 				goto bad_option;
-			free(options.keep);
-			defaults.keep = options.keep = strdup(optarg);
+			defaults.keep = options.keep = val;
 			break;
 		case 'r':	/* -r, --recent FILENAME */
 			free(options.recent);
