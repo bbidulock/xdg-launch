@@ -148,8 +148,8 @@ struct params {
 	char *file;
 	char *url;
 	pid_t pid;
-	char *keyboard;
-	char *pointer;
+	Bool keyboard;
+	Bool pointer;
 	char *action;
 	char *xsession;
 	char *autostart;
@@ -197,8 +197,8 @@ struct params options = {
 	.file = NULL,
 	.url = NULL,
 	.pid = 0,
-	.keyboard = NULL,
-	.pointer = NULL,
+	.keyboard = False,
+	.pointer = False,
 	.action = NULL,
 	.xsession = NULL,
 	.autostart = NULL,
@@ -243,8 +243,8 @@ struct params defaults = {
 	.file = "",
 	.url = "",
 	.pid = 0,
-	.keyboard = "auto",
-	.pointer = "auto",
+	.keyboard = False,
+	.pointer = False,
 	.action = "none",
 	.xsession = "false",
 	.autostart = "false",
@@ -5512,6 +5512,14 @@ Usage:\n\
 ", argv[0]);
 }
 
+static const char *
+show_bool(Bool truth)
+{
+	if (truth)
+		return "true";
+	return "false";
+}
+
 static void
 help(int argc, char *argv[])
 {
@@ -5631,8 +5639,8 @@ Options:\n\
 	, defaults.wmclass
 	, defaults.silent
 	, defaults.pid
-	, defaults.keyboard
-	, defaults.pointer
+	, show_bool(defaults.keyboard)
+	, show_bool(defaults.pointer)
 	, defaults.action
 	, defaults.xsession
 	, defaults.autostart
@@ -5936,14 +5944,12 @@ main(int argc, char *argv[])
 		case 'K':	/* -K, --keyboard */
 			if (options.pointer)
 				goto bad_option;
-			free(options.keyboard);
-			defaults.keyboard = options.keyboard = strdup("true");
+			defaults.keyboard = options.keyboard = True;
 			break;
 		case 'P':	/* -P, --pointer */
 			if (options.keyboard)
 				goto bad_option;
-			free(options.pointer);
-			defaults.pointer = options.pointer = strdup("true");
+			defaults.keyboard = options.keyboard = True;
 			break;
 		case 'A':	/* -A, --action ACTION */
 			free(options.action);
