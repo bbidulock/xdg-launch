@@ -16,7 +16,7 @@ xdg_launch_LDADD = $(RU_LIBS) $(XBEL_LIBS) $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_
 
 xdg_assist_CPPFLAGS = -DNAME=\"xde-assist\"
 xdg_assist_SOURCES = xdg-assist.c
-xdg_assist_LDADD = $(GTK2_LIBS) $(X11_LIBS)
+xdg_assist_LDADD = $(GTK2_LIBS) $(SN_LIBS) $(X11_LIBS)
 
 xdg_monitor_CPPFLAGS = -DNAME=\"xde-monitor\"
 xdg_monitor_SOURCES = xdg-monitor.c
