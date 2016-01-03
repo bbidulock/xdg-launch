@@ -105,7 +105,7 @@
 #include <gtk/gtk.h>
 #endif
 
-#define DPRINTF(_args...) do { if (debug > 0) { \
+#define DPRINTF(_args...) do { if (options.debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); } } while (0)
 
@@ -113,29 +113,28 @@
 		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args);   } while (0)
 
-#define OPRINTF(_args...) do { if (debug > 0 || output > 1) { \
+#define OPRINTF(_args...) do { if (options.debug > 0 || options.output > 1) { \
 		fprintf(stderr, "I: "); \
 		fprintf(stderr, _args); } } while (0)
 
-#define PTRACE() do { if (debug > 0 || output > 2) { \
+#define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
 					} } while (0)
 
 const char *program = NAME;
 
-static int debug = 0;
-static int output = 1;
-
 char **eargv = NULL;
 int eargc = 0;
 
 struct params {
+	int debug;
+	int output;
 	char *appid;
 	char *launcher;
 	char *launchee;
 	char *sequence;
 	char *hostname;
-	char *monitor;
+	int monitor;
 	char *screen;
 	char *desktop;
 	char *timestamp;
@@ -177,12 +176,14 @@ struct params {
 };
 
 struct params options = {
+	.debug = 0,
+	.output = 1,
 	.appid = NULL,
 	.launcher = NULL,
 	.launchee = NULL,
 	.sequence = NULL,
 	.hostname = NULL,
-	.monitor = NULL,
+	.monitor = -1,
 	.screen = NULL,
 	.desktop = NULL,
 	.timestamp = NULL,
@@ -229,7 +230,7 @@ struct params defaults = {
 	.launchee = "[APPID]",
 	.sequence = "0",
 	.hostname = "gethostname()",
-	.monitor = "0",
+	.monitor = -1,
 	.screen = "0",
 	.desktop = "0",
 	.timestamp = "0",
@@ -401,7 +402,6 @@ struct entry {
 struct entry entry = { NULL, };
 
 Display *dpy = NULL;
-int monitor;
 int screen;
 Window root;
 Window tray;
@@ -583,7 +583,7 @@ intern_atoms()
 int
 handler(Display *display, XErrorEvent *xev)
 {
-	if (debug) {
+	if (options.debug) {
 		char msg[80], req[80], num[80], def[80];
 
 		snprintf(num, sizeof(num), "%d", xev->request_code);
@@ -1366,7 +1366,7 @@ area_overlap(int xmin1, int ymin1, int xmax1, int ymax1, int xmin2, int ymin2, i
 }
 
 Bool
-find_focus_monitor()
+find_focus_monitor(int *monitor)
 {
 #if defined XINERAMA || defined XRANDR
 	Window frame, froot;
@@ -1402,7 +1402,7 @@ find_focus_monitor()
 		}
 		XFree(si);
 		if (area) {
-			monitor = best;
+			*monitor = best;
 			return True;
 		}
 	}
@@ -1434,7 +1434,7 @@ find_focus_monitor()
 		}
 		XFree(sr);
 		if (area) {
-			monitor = best;
+			*monitor = best;
 			return True;
 		}
 	}
@@ -1445,7 +1445,7 @@ find_focus_monitor()
 }
 
 Bool
-find_pointer_monitor()
+find_pointer_monitor(int *monitor)
 {
 #if defined XINERAMA || defined XRANDR
 	int di, x, y;
@@ -1463,7 +1463,7 @@ find_pointer_monitor()
 		for (i = 0; i < n; i++)
 			if (x >= si[i].x_org && x <= si[i].x_org + si[i].width &&
 			    y >= si[i].y_org && y <= si[i].y_org + si[i].height) {
-				monitor = si[i].screen_number;
+				*monitor = si[i].screen_number;
 				XFree(si);
 				return True;
 			}
@@ -1488,7 +1488,7 @@ find_pointer_monitor()
 				continue;
 			if (x >= ci->x && x <= ci->x + ci->width &&
 			    y >= ci->y && y <= ci->y + ci->height) {
-				monitor = i;
+				*monitor = i;
 				XFree(ci);
 				XFree(sr);
 				return True;
@@ -1508,15 +1508,15 @@ set_monitor()
 {
 	free(fields.monitor);
 	fields.monitor = calloc(64, sizeof(*fields.monitor));
-	if (options.monitor)
-		strcat(fields.monitor, options.monitor);
-	else if (options.keyboard && find_focus_monitor())
-		snprintf(fields.monitor, 64, "%d", monitor);
-	else if (options.pointer && find_pointer_monitor())
-		snprintf(fields.monitor, 64, "%d", monitor);
+	if (options.monitor != -1)
+		snprintf(fields.monitor, 64, "%d", options.monitor);
+	else if (options.keyboard && find_focus_monitor(&options.monitor))
+		snprintf(fields.monitor, 64, "%d", options.monitor);
+	else if (options.pointer && find_pointer_monitor(&options.monitor))
+		snprintf(fields.monitor, 64, "%d", options.monitor);
 	else if (!options.keyboard && !options.pointer &&
-		 (find_focus_monitor() || find_pointer_monitor()))
-		snprintf(fields.monitor, 64, "%d", monitor);
+		 (find_focus_monitor(&options.monitor) || find_pointer_monitor(&options.monitor)))
+		snprintf(fields.monitor, 64, "%d", options.monitor);
 	else {
 		free(fields.monitor);
 		fields.monitor = NULL;
@@ -1527,13 +1527,15 @@ void
 set_desktop()
 {
 	Atom atom, real;
-	int format;
+	int format, monitor = 0;
 	unsigned long nitems, after;
 	unsigned long *data = NULL;
 
 	PTRACE();
 	if (!check_netwm())
 		goto no_netwm;
+	if (options.monitor != -1)
+		monitor = options.monitor;
 	atom = _XA_NET_CURRENT_DESKTOP;
 	if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
 			       AnyPropertyType, &real, &format,
@@ -1728,14 +1730,13 @@ set_sequence()
 {
 	PTRACE();
 	free(fields.sequence);
+	fields.sequence = calloc(64, sizeof(*fields.sequence));
 	if (options.sequence)
-		fields.sequence = strdup(options.sequence);
-	else if (options.monitor)
-		fields.sequence = strdup(options.monitor);
-	else {
-		fields.sequence = calloc(64, sizeof(*fields.sequence));
+		strncpy(fields.sequence, options.sequence, 63);
+	else if (options.monitor != -1)
+		snprintf(fields.sequence, 64, "%d", options.monitor);
+	else
 		snprintf(fields.sequence, 64, "%d", 0);
-	}
 }
 
 void
@@ -1771,7 +1772,7 @@ do_subst(char *cmd, char *chars, char *str)
 	int len = 0;
 	char *p;
 
-	if (output > 2)
+	if (options.output > 2)
 		fprintf(stderr, "starting %s at %s:%d (cmd %s, char %s, str %s)\n",
 			__FUNCTION__, __FILE__, __LINE__, cmd, chars, str);
 	len = str ? strlen(str) : 0;
@@ -5443,7 +5444,7 @@ put_history()
 static void
 copying(int argc, char *argv[])
 {
-	if (!output && !debug)
+	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
 --------------------------------------------------------------------------------\n\
@@ -5487,7 +5488,7 @@ regulations).\n\
 static void
 version(int argc, char *argv[])
 {
-	if (!output && !debug)
+	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
 %1$s (OpenSS7 %2$s) %3$s\n\
@@ -5509,7 +5510,7 @@ See `%1$s --copying' for copying permissions.\n\
 static void
 usage(int argc, char *argv[])
 {
-	if (!output && !debug)
+	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stderr, "\
 Usage:\n\
@@ -5523,7 +5524,7 @@ Usage:\n\
 static void
 help(int argc, char *argv[])
 {
-	if (!output && !debug)
+	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
 Usage:\n\
@@ -5546,7 +5547,7 @@ Options:\n\
     -n, --hostname HOSTNAME\n\
         hostname to use in startup id, [default: '%3$s']\n\
     -m, --monitor MONITOR\n\
-        Xinerama monitor to specify in SCREEN tag, [default: %4$s]\n\
+        Xinerama monitor to specify in SCREEN tag, [default: %4$d]\n\
     -s, --screen SCREEN\n\
         screen to specify in SCREEN tag, [default: %5$s]\n\
     -w, --workspace DESKTOP\n\
@@ -5836,7 +5837,7 @@ main(int argc, char *argv[])
 		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGODvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
-			if (debug)
+			if (options.debug)
 				fprintf(stderr, "%s: done options processing\n", argv[0]);
 			break;
 		}
@@ -5860,11 +5861,11 @@ main(int argc, char *argv[])
 			defaults.hostname = options.hostname = strdup(optarg);
 			break;
 		case 'm':	/* -m, --monitor MONITOR */
-			free(options.monitor);
-			defaults.monitor = options.monitor = strdup(optarg);
-			monitor = strtoul(optarg, &endptr, 0);
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
 			if (endptr && *endptr)
 				goto bad_option;
+			defaults.monitor = options.monitor = val;
 			break;
 		case 's':	/* -s, --screen SCREEN */
 			free(options.screen);
@@ -6032,40 +6033,40 @@ main(int argc, char *argv[])
 			defaults.composite = options.composite = strdup("true");
 			break;
 		case 'D':	/* -D, --debug [level] */
-			if (debug)
+			if (options.debug)
 				fprintf(stderr, "%s: increasing debug verbosity\n", argv[0]);
 			if (optarg == NULL) {
-				debug++;
+				options.debug++;
 			} else {
 				if ((val = strtol(optarg, NULL, 0)) < 0)
 					goto bad_option;
-				debug = val;
+				options.debug = val;
 			}
 			break;
 		case 'v':	/* -v, --verbose [level] */
-			if (debug)
+			if (options.debug)
 				fprintf(stderr, "%s: increasing output verbosity\n", argv[0]);
 			if (optarg == NULL) {
-				output++;
+				options.output++;
 				break;
 			}
 			if ((val = strtol(optarg, NULL, 0)) < 0)
 				goto bad_option;
-			output = val;
+			options.output = val;
 			break;
 		case 'h':	/* -h, --help */
 		case 'H':	/* -H, --? */
-			if (debug)
+			if (options.debug)
 				fprintf(stderr, "%s: printing help message\n", argv[0]);
 			help(argc, argv);
 			exit(EXIT_SUCCESS);
 		case 'V':	/* -V, --version */
-			if (debug)
+			if (options.debug)
 				fprintf(stderr, "%s: printing version message\n", argv[0]);
 			version(argc, argv);
 			exit(EXIT_SUCCESS);
 		case 'C':	/* -C, --copying */
-			if (debug)
+			if (options.debug)
 				fprintf(stderr, "%s: printing copying message\n", argv[0]);
 			copying(argc, argv);
 			exit(EXIT_SUCCESS);
@@ -6074,7 +6075,7 @@ main(int argc, char *argv[])
 		      bad_option:
 			optind--;
 		      bad_nonopt:
-			if (output || debug) {
+			if (options.output || options.debug) {
 				if (optind < argc) {
 					fprintf(stderr, "%s: syntax error near '", argv[0]);
 					while (optind < argc)
@@ -6091,7 +6092,7 @@ main(int argc, char *argv[])
 			exit(2);
 		}
 	}
-	if (debug) {
+	if (options.debug) {
 		fprintf(stderr, "%s: option index = %d\n", argv[0], optind);
 		fprintf(stderr, "%s: option count = %d\n", argv[0], argc);
 	}
@@ -6174,7 +6175,7 @@ main(int argc, char *argv[])
 			strcat(options.uri, options.path);
 		}
 	}
-	if (output > 1) {
+	if (options.output > 1) {
 		const char **lp;
 		char **ep;
 
@@ -6205,7 +6206,7 @@ main(int argc, char *argv[])
 	get_display();
 	/* fill out all fields */
 	set_all();
-	if (output > 1) {
+	if (options.output > 1) {
 		const char **lp;
 		char **fp;
 
