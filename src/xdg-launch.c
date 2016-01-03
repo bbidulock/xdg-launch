@@ -405,7 +405,6 @@ struct entry entry = { NULL, };
 Display *dpy = NULL;
 int screen;
 Window root;
-Window tray;
 
 #ifdef STARTUP_NOTIFICATION
 SnDisplay *sn_dpy;
