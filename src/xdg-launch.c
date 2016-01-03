@@ -135,8 +135,8 @@ struct params {
 	char *sequence;
 	char *hostname;
 	int monitor;
-	char *screen;
-	char *desktop;
+	int screen;
+	int desktop;
 	char *timestamp;
 	char *name;
 	char *icon;
@@ -184,8 +184,8 @@ struct params options = {
 	.sequence = NULL,
 	.hostname = NULL,
 	.monitor = -1,
-	.screen = NULL,
-	.desktop = NULL,
+	.screen = -1,
+	.desktop = -1,
 	.timestamp = NULL,
 	.name = NULL,
 	.icon = NULL,
@@ -231,8 +231,8 @@ struct params defaults = {
 	.sequence = "0",
 	.hostname = "gethostname()",
 	.monitor = -1,
-	.screen = "0",
-	.desktop = "0",
+	.screen = -1,
+	.desktop = -1,
 	.timestamp = "0",
 	.name = "[Name=]",
 	.icon = "[Icon=]",
@@ -1207,11 +1207,16 @@ check_compm()
 
 
 Bool
-set_screen_of_root(Window sroot)
+set_screen_of_root(Window sroot, int *screen)
 {
-	for (screen = 0; screen < ScreenCount(dpy); screen++)
-		if ((root = RootWindow(dpy, screen)) == sroot)
+	int s;
+
+	for (s = 0; s < ScreenCount(dpy); s++) {
+		if ((root = RootWindow(dpy, s)) == sroot) {
+			*screen = s;
 			return True;
+		}
+	}
 	EPRINTF("Could not find screen for root 0x%lx!\n", sroot);
 	return False;
 }
@@ -1266,7 +1271,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen()
+find_focus_screen(int *screen)
 {
 	Window frame, froot;
 	int di;
@@ -1278,11 +1283,11 @@ find_focus_screen()
 	if (!XGetGeometry(dpy, frame, &froot, &di, &di, &du, &du, &du, &du))
 		return False;
 
-	return set_screen_of_root(froot);
+	return set_screen_of_root(froot, screen);
 }
 
 Bool
-find_pointer_screen()
+find_pointer_screen(int *screen)
 {
 	Window proot = None, dw;
 	int di;
@@ -1290,11 +1295,11 @@ find_pointer_screen()
 
 	if (XQueryPointer(dpy, root, &proot, &dw, &di, &di, &di, &di, &du))
 		return True;
-	return set_screen_of_root(proot);
+	return set_screen_of_root(proot, screen);
 }
 
 Bool
-find_window_screen(Window w)
+find_window_screen(Window w, int *screen)
 {
 	Window wroot, dw, *dwp;
 	unsigned int du;
@@ -1304,7 +1309,7 @@ find_window_screen(Window w)
 	if (dwp)
 		XFree(dwp);
 
-	return set_screen_of_root(wroot);
+	return set_screen_of_root(wroot, screen);
 }
 
 void
@@ -1312,20 +1317,19 @@ set_screen()
 {
 	free(fields.screen);
 	fields.screen = calloc(64, sizeof(*fields.screen));
-	if (options.screen && 0 <= atoi(options.screen)
-	    && atoi(options.screen) < ScreenCount(dpy))
-		strcat(fields.screen, options.screen);
-	else if (options.keyboard && find_focus_screen())
-		snprintf(fields.screen, 64, "%d", screen);
-	else if (options.pointer && find_pointer_screen())
-		snprintf(fields.screen, 64, "%d", screen);
+	if (options.screen != -1 && 0 <= options.screen && options.screen < ScreenCount(dpy))
+		snprintf(fields.screen, 64, "%d", options.screen);
+	else if (options.keyboard && find_focus_screen(&options.screen))
+		snprintf(fields.screen, 64, "%d", options.screen);
+	else if (options.pointer && find_pointer_screen(&options.screen))
+		snprintf(fields.screen, 64, "%d", options.screen);
 	else if (!options.keyboard && !options.pointer &&
-		 (find_focus_screen() || find_pointer_screen()))
-		snprintf(fields.screen, 64, "%d", screen);
+		 (find_focus_screen(&options.screen) || find_pointer_screen(&options.screen)))
+		snprintf(fields.screen, 64, "%d", options.screen);
 	else {
-		screen = DefaultScreen(dpy);
+		options.screen = DefaultScreen(dpy);
 		root = DefaultRootWindow(dpy);
-		snprintf(fields.screen, 64, "%d", screen);
+		snprintf(fields.screen, 64, "%d", options.screen);
 	}
 }
 
@@ -1532,75 +1536,62 @@ set_desktop()
 	unsigned long *data = NULL;
 
 	PTRACE();
-	if (!check_netwm())
-		goto no_netwm;
 	if (options.monitor != -1)
 		monitor = options.monitor;
-	atom = _XA_NET_CURRENT_DESKTOP;
-	if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
-			       AnyPropertyType, &real, &format,
-			       &nitems, &after, (unsigned char **) &data) == Success
-	    && format != 0) {
-		if (monitor && nitems > monitor) {
-			free(fields.desktop);
-			fields.desktop = calloc(64, sizeof(*fields.desktop));
-			snprintf(fields.desktop, 64, "%lu", data[monitor]);
-		} else if (nitems > 0) {
-			free(fields.desktop);
-			fields.desktop = calloc(64, sizeof(*fields.desktop));
-			snprintf(fields.desktop, 64, "%lu", data[0]);
-		}
-	}
-	if (data) {
-		XFree(data);
-		data = NULL;
-	}
-	atom = _XA_NET_VISIBLE_DESKTOPS;
-	if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
-			       AnyPropertyType, &real, &format,
-			       &nitems, &after, (unsigned char **) &data) == Success
-	    && format != 0) {
-		if (monitor && nitems > monitor) {
-			free(fields.desktop);
-			fields.desktop = calloc(64, sizeof(*fields.desktop));
-			snprintf(fields.desktop, 64, "%lu", data[monitor]);
-		} else if (nitems > 0) {
-			free(fields.desktop);
-			fields.desktop = calloc(64, sizeof(*fields.desktop));
-			snprintf(fields.desktop, 64, "%lu", data[0]);
-		}
-	}
-	if (data) {
-		XFree(data);
-		data = NULL;
-	}
-	if (fields.desktop)
+	free(fields.desktop);
+	fields.desktop = calloc(64, sizeof(*fields.desktop));
+	if (options.desktop != -1) {
+		snprintf(fields.desktop, 64, "%d", options.desktop);
 		return;
-      no_netwm:
-	if (!check_winwm())
-		goto no_winwm;
-	atom = _XA_WIN_WORKSPACE;
-	if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
-			       AnyPropertyType, &real, &format,
-			       &nitems, &after, (unsigned char **) &data) == Success
-	    && format != 0) {
-		if (monitor && nitems > monitor) {
-			free(fields.desktop);
-			fields.desktop = calloc(64, sizeof(*fields.desktop));
-			snprintf(fields.desktop, 64, "%lu", data[monitor]);
-		} else if (nitems > 0) {
-			free(fields.desktop);
-			fields.desktop = calloc(64, sizeof(*fields.desktop));
-			snprintf(fields.desktop, 64, "%lu", data[0]);
+	}
+	if (check_netwm()) {
+		atom = _XA_NET_CURRENT_DESKTOP;
+		if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
+				       AnyPropertyType, &real, &format,
+				       &nitems, &after, (unsigned char **) &data) == Success
+		    && format != 0 && nitems > 0) {
+			snprintf(fields.desktop, 64, "%lu",
+				 nitems > monitor ? data[monitor] : data[0]);
+			XFree(data);
+			return;
+		}
+		if (data) {
+			XFree(data);
+			data = NULL;
+		}
+		atom = _XA_NET_VISIBLE_DESKTOPS;
+		if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
+				       AnyPropertyType, &real, &format,
+				       &nitems, &after, (unsigned char **) &data) == Success
+		    && format != 0 && nitems > 0) {
+			snprintf(fields.desktop, 64, "%lu",
+				 nitems > monitor ? data[monitor] : data[0]);
+			XFree(data);
+			return;
+		}
+		if (data) {
+			XFree(data);
+			data = NULL;
 		}
 	}
-	if (data) {
-		XFree(data);
-		data = NULL;
+	if (check_winwm()) {
+		atom = _XA_WIN_WORKSPACE;
+		if (XGetWindowProperty(dpy, root, atom, 0L, monitor + 1, False,
+				       AnyPropertyType, &real, &format,
+				       &nitems, &after, (unsigned char **) &data) == Success
+		    && format != 0 && nitems > 0) {
+			snprintf(fields.desktop, 64, "%lu",
+				 nitems > monitor ? data[monitor] : data[0]);
+			XFree(data);
+			return;
+		}
+		if (data) {
+			XFree(data);
+			data = NULL;
+		}
 	}
-	if (fields.desktop)
-		return;
-      no_winwm:
+	free(fields.desktop);
+	fields.desktop = NULL;
 	return;
 }
 
@@ -2058,7 +2049,7 @@ find_client(Window w)
 	Client *c = NULL;
 
 	if (XFindContext(dpy, w, ClientContext, (XPointer *) &c))
-		find_window_screen(w);
+		find_window_screen(w, &screen);
 	else {
 		screen = c->screen;
 		root = RootWindow(dpy, screen);
@@ -5549,9 +5540,9 @@ Options:\n\
     -m, --monitor MONITOR\n\
         Xinerama monitor to specify in SCREEN tag, [default: %4$d]\n\
     -s, --screen SCREEN\n\
-        screen to specify in SCREEN tag, [default: %5$s]\n\
+        screen to specify in SCREEN tag, [default: %5$d]\n\
     -w, --workspace DESKTOP\n\
-        workspace to specify in DESKTOP tag, [default: %6$s]\n\
+        workspace to specify in DESKTOP tag, [default: %6$d]\n\
     -t, --timestamp TIMESTAMP\n\
         X server timestamp for startup id, [default: %7$s]\n\
     -N, --name NAME\n\
@@ -5752,7 +5743,7 @@ set_defaults(int argc, char *argv[])
 
 	if ((disp = getenv("DISPLAY")))
 		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
-			defaults.screen = options.screen = strdup(p + 1);
+			defaults.screen = options.screen = atoi(p + 1);
 
 	set_default_files();
 }
@@ -5868,11 +5859,11 @@ main(int argc, char *argv[])
 			defaults.monitor = options.monitor = val;
 			break;
 		case 's':	/* -s, --screen SCREEN */
-			free(options.screen);
-			defaults.screen = options.screen = strdup(optarg);
-			screen = strtoul(optarg, &endptr, 0);
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
 			if (endptr && *endptr)
 				goto bad_option;
+			screen = defaults.screen = options.screen = val;
 			break;
 		case 'p':	/* -p, --pid PID */
 			if (optarg) {
@@ -5884,8 +5875,11 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'w':	/* -w, --workspace WORKSPACE */
-			free(options.desktop);
-			defaults.desktop = options.desktop = strdup(optarg);
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
+				goto bad_option;
+			defaults.desktop = options.desktop = val;
 			break;
 		case 't':	/* -t, --timestamp TIMESTAMP */
 			free(options.timestamp);
