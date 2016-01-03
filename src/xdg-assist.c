@@ -204,7 +204,7 @@ typedef struct _Sequence {
 	Client *client;
 	Bool changed;
 	union {
-		char *fields[sizeof(struct fields)/sizeof(char *)];
+		char *fields[sizeof(struct fields) / sizeof(char *)];
 		struct fields f;
 	};
 	struct {
@@ -226,7 +226,25 @@ typedef struct {
 	int len;	    /* number of message bytes */
 } Message;
 
+const char *DesktopEntryFields[] = {
+	"Type",
+	"Name",
+	"Comment",
+	"Icon",
+	"TryExec",
+	"Exec",
+	"Terminal",
+	"StartupNotify",
+	"StartupWMClass",
+	"SessionSetup",
+	"Categories",
+	"MimeType",
+	"AsRoot",
+	NULL
+};
+
 struct entry {
+	char *Type;
 	char *Name;
 	char *Comment;
 	char *Icon;
@@ -236,6 +254,9 @@ struct entry {
 	char *StartupNotify;
 	char *StartupWMClass;
         char *SessionSetup;
+	char *Categories;
+	char *MimeType;
+	char *AsRoot;
 };
 
 struct entry entry = { NULL, };
@@ -262,6 +283,7 @@ struct _Client {
 	char *name;
 	char *hostname;
 	XClassHint ch;
+	XWMHints *wmh;
 };
 
 Client *clients = NULL;
@@ -273,6 +295,9 @@ typedef struct {
 	Window maker_check;		/* _WINDOWMAKER_NOTICEBOARD or None */
 	Window icccm_check;		/* WM_S%d selection owner or root */
 	Window redir_check;
+	Window stray_owner;		/* _NET_WM_SYSTEM_TRAY_S%d owner */
+	Window pager_owner;		/* _NET_DESKTOP_LAYOUT_S%d owner */
+	Window compm_owner;		/* _NET_WM_CM_S%d owner */
 } WindowManager;
 
 WindowManager wm;
@@ -307,6 +332,9 @@ Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
 Atom _XA_WM_STATE;
+Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
+Atom _XA_NET_SYSTEM_TRAY_VISUAL;
+Atom _XA_NET_DESKTOP_LAYOUT;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
@@ -325,7 +353,13 @@ static void handle_WIN_CLIENT_LIST(XEvent *, Client *);
 static void handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
 static void handle_WIN_PROTOCOLS(XEvent *, Client *);
 static void handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static void handle_WM_CLIENT_MACHINE(XEvent *, Client *);
+static void handle_WM_COMMAND(XEvent *, Client *);
+static void handle_WM_HINTS(XEvent *, Client *);
 static void handle_WM_STATE(XEvent *, Client *);
+static void handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
+static void handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
+static void handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
 
 struct atoms {
 	char *name;
@@ -334,40 +368,45 @@ struct atoms {
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
-	/* name					global				handler					atom value	*/
-	/* ----					------				-------					----------	*/
-	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					None		},
-	{ "MANAGER",				&_XA_MANAGER,			&handle_MANAGER,			None		},
-	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&handle_MOTIF_WM_INFO,			None		},
-	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&handle_NET_ACTIVE_WINDOW,		None		},
-	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&handle_NET_CLIENT_LIST,		None		},
-	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					None		},
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		NULL,					None		},
-	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	&handle_NET_STARTUP_INFO_BEGIN,		None		},
-	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		&handle_NET_STARTUP_INFO,		None		},
-	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&handle_NET_SUPPORTED,			None		},
-	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&handle_NET_SUPPORTING_WM_CHECK,	None		},
-	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					None		},
-	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					None		},
-	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	NULL,					None		},
-	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		NULL,					None		},
-	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					None		},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&handle_NET_WM_STATE,			None		},
-	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	NULL,					None		},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&handle_NET_WM_USER_TIME,		None		},
-	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					None		},
-	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		NULL,					None		},
-	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&handle_WIN_CLIENT_LIST,		None		},
-	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&handle_WINDOWMAKER_NOTICEBOARD,	None		},
-	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&handle_WIN_PROTOCOLS,			None		},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&handle_WIN_SUPPORTING_WM_CHECK,	None		},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		NULL,					None		},
-	{ "WM_COMMAND",				NULL,				NULL,					XA_WM_COMMAND	},
-	{ "WM_STATE",				&_XA_WM_STATE,			&handle_WM_STATE,			None		},
-	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					None		},
-	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					None		},
-	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					None		},
-	{ NULL,					NULL,				NULL,					None		}
+	/* name					global					handler					atom value		*/
+	/* ----					------					-------					----------		*/
+	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,		NULL,					None			},
+	{ "MANAGER",				&_XA_MANAGER,				&handle_MANAGER,			None			},
+	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,			&handle_MOTIF_WM_INFO,			None			},
+	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,			&handle_NET_ACTIVE_WINDOW,		None			},
+	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,			&handle_NET_CLIENT_LIST,		None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,		NULL,					None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,			NULL,					None			},
+	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,		&handle_NET_STARTUP_INFO_BEGIN,		None			},
+	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,			&handle_NET_STARTUP_INFO,		None			},
+	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,			&handle_NET_SUPPORTED,			None			},
+	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,		&handle_NET_SUPPORTING_WM_CHECK,	None			},
+	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,			NULL,					None			},
+	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,		NULL,					None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,		NULL,					None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,			NULL,					None			},
+	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,		NULL,					None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,			&handle_NET_WM_STATE,			None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,		NULL,					None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,			&handle_NET_WM_USER_TIME,		None			},
+	{ "__SWM_VROOT",			&_XA__SWM_VROOT,			NULL,					None			},
+	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,			NULL,					None			},
+	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,			&handle_WIN_CLIENT_LIST,		None			},
+	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,		&handle_WINDOWMAKER_NOTICEBOARD,	None			},
+	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,			&handle_WIN_PROTOCOLS,			None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			NULL,					None			},
+	{ "WM_CLIENT_MACHINE",			NULL,					&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
+	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
+	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
+	{ "WM_STATE",				&_XA_WM_STATE,				&handle_WM_STATE,			None			},
+	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
+	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
+	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,		&handle_NET_DESKTOP_LAYOUT,		None			},
+	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,		NULL,					None			},
+	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,		NULL,					None			},
+	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,			NULL,					None			},
+	{ NULL,					NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
 
@@ -407,7 +446,7 @@ handler(Display *display, XErrorEvent *xev)
 			msg[0] = '\0';
 		fprintf(stderr, "X error %s(0x%lx): %s\n", req, xev->resourceid, msg);
 	}
-	return(0);
+	return (0);
 }
 
 XContext ClientContext;	/* window to client context */
@@ -511,7 +550,7 @@ get_times(Window win, Atom prop, Atom type, long *n)
 }
 
 static Bool
-get_time(Window win, Atom prop, Atom type, Time * time_ret)
+get_time(Window win, Atom prop, Atom type, Time *time_ret)
 {
 	return get_cardinal(win, prop, type, (long *) time_ret);
 }
@@ -547,8 +586,7 @@ check_recursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check,
-					     PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 			XFree(data);
 			data = NULL;
 		} else {
@@ -558,8 +596,7 @@ check_recursive(Atom atom, Atom type)
 		}
 		if (XGetWindowProperty(dpy, check, atom, 0L, 1L, False, type, &real,
 				       &format, &nitems, &after,
-				       (unsigned char **) &data) == Success
-		    && format != 0) {
+				       (unsigned char **) &data) == Success && format != 0) {
 			if (nitems > 0) {
 				if (check != (Window) data[0]) {
 					XFree(data);
@@ -599,8 +636,7 @@ check_nonrecursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check,
-					     PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 		}
 		if (data)
 			XFree(data);
@@ -626,8 +662,7 @@ check_supported(Atom protocols, Atom supported)
 
       try_harder:
 	if (XGetWindowProperty(dpy, root, protocols, 0L, num, False,
-			       XA_ATOM, &real, &format, &nitems, &after,
-			       (unsigned char **) &data)
+			       XA_ATOM, &real, &format, &nitems, &after, (unsigned char **) &data)
 	    == Success && format != 0) {
 		if (after) {
 			num += ((after + 1) >> 2);
@@ -651,6 +686,24 @@ check_supported(Atom protocols, Atom supported)
 			XFree(data);
 	}
 	return result;
+}
+
+static Window
+check_anywm()
+{
+	if (wm.netwm_check)
+		return wm.netwm_check;
+	if (wm.winwm_check)
+		return wm.winwm_check;
+	if (wm.maker_check)
+		return wm.maker_check;
+	if (wm.motif_check)
+		return wm.motif_check;
+	if (wm.icccm_check)
+		return wm.icccm_check;
+	if (wm.redir_check)
+		return wm.redir_check;
+	return False;
 }
 
 /** @brief Check for a non-compliant EWMH/NetWM window manager.
@@ -774,15 +827,24 @@ static Window
 check_icccm()
 {
 	char buf[32];
-	Atom atom;
+	Atom sel;
+	Window win;
 
-	snprintf(buf, 32, "WM_S%d", screen);
-	if ((atom = XInternAtom(dpy, buf, True)))
-		wm.icccm_check = XGetSelectionOwner(dpy, atom);
-
-	if (wm.icccm_check)
-		XSelectInput(dpy, wm.icccm_check, PropertyChangeMask | StructureNotifyMask);
-
+	snprintf(buf, sizeof(buf), "WM_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.icccm_check) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check,
+				win);
+			wm.icccm_check = win;
+		}
+	} else if (wm.icccm_check) {
+		DPRINTF("ICCCM 2.0 WM removed from 0x%08lx\n", wm.icccm_check);
+		wm.icccm_check = None;
+	}
 	return wm.icccm_check;
 }
 
@@ -799,9 +861,17 @@ check_redir()
 	OPRINTF("checking direction for screen %d\n", screen);
 
 	wm.redir_check = None;
-	if (XGetWindowAttributes(dpy, root, &wa))
-		if (wa.all_event_masks & SubstructureRedirectMask)
-			wm.redir_check = root;
+	if (XGetWindowAttributes(dpy, root, &wa)) {
+		if (wa.all_event_masks & SubstructureRedirectMask) {
+			if (wm.redir_check != root) {
+				DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, root);
+				wm.redir_check = root;
+			}
+		} else if (wm.redir_check) {
+			DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
+			wm.redir_check = None;
+		}
+	}
 	return wm.redir_check;
 }
 
@@ -810,42 +880,26 @@ check_redir()
 static Bool
 check_window_manager()
 {
-	Bool have_wm = False;
-
 	OPRINTF("checking wm compliance for screen %d\n", screen);
-
 	OPRINTF("checking redirection\n");
-	if (check_redir()) {
-		have_wm = True;
+	if (check_redir())
 		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
-	}
 	OPRINTF("checking ICCCM 2.0 compliance\n");
-	if (check_icccm()) {
-		have_wm = True;
+	if (check_icccm())
 		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
-	}
 	OPRINTF("checking OSF/Motif compliance\n");
-	if (check_motif()) {
-		have_wm = True;
+	if (check_motif())
 		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
-	}
 	OPRINTF("checking WindowMaker compliance\n");
-	if (check_maker()) {
-		have_wm = True;
+	if (check_maker())
 		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
-	}
 	OPRINTF("checking GNOME/WMH compliance\n");
-	if (check_winwm()) {
-		have_wm = True;
+	if (check_winwm())
 		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
-	}
 	OPRINTF("checking NetWM/EWMH compliance\n");
-	if (check_netwm()) {
-		have_wm = True;
+	if (check_netwm())
 		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
-	}
-
-	return have_wm;
+	return check_anywm();
 }
 
 static void
@@ -891,6 +945,116 @@ handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 {
 	handle_wmchange(e, c);
 }
+
+/** @brief Check for a system tray.
+  */
+Window
+check_stray()
+{
+	char buf[64];
+	Atom sel;
+	Window win;
+
+	snprintf(buf, sizeof(buf), "_NET_SYSTEM_TRAY_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.stray_owner) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner, win);
+			wm.stray_owner = win;
+		}
+	} else if (wm.stray_owner) {
+		DPRINTF("system tray removed from 0x%08lx\n", wm.stray_owner);
+		wm.stray_owner = None;
+	}
+	return wm.stray_owner;
+}
+
+static void
+handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *e, Client *c)
+{
+}
+
+static void
+handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
+{
+}
+
+Window
+check_pager()
+{
+	char buf[64];
+	Atom sel;
+	Window win;
+	long *cards, n = 0;
+
+	snprintf(buf, sizeof(buf), "_NET_DESKTOP_LAYOUT_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.pager_owner) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner,
+				win);
+			wm.pager_owner = win;
+		}
+	} else if (wm.pager_owner) {
+		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
+		wm.pager_owner = None;
+		/* selection only held while setting _NET_DESKTOP_LAYOUT */
+		if ((cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
+		    && n >= 4) {
+			XFree(cards);
+			wm.pager_owner = root;
+		}
+	}
+	return wm.pager_owner;
+}
+
+static void
+handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
+{
+	if (!e || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if (!wm.pager_owner)
+			wm.pager_owner = root;
+		break;
+	case PropertyDelete:
+		if (wm.pager_owner &&  wm.pager_owner == root)
+			wm.pager_owner = None;
+		break;
+	}
+}
+
+Window
+check_compm()
+{
+	char buf[64];
+	Atom sel;
+	Window win;
+
+	snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel))) {
+		if (win != wm.compm_owner) {
+			XSelectInput(dpy, win,
+				     StructureNotifyMask | SubstructureNotifyMask |
+				     PropertyChangeMask);
+			DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
+			wm.compm_owner = win;
+		}
+	} else if (wm.compm_owner) {
+		DPRINTF("composite manager removed from 0x%08lx\n", wm.compm_owner);
+		wm.compm_owner = None;
+	}
+	return wm.compm_owner;
+}
+
 
 Bool
 set_screen_of_root(Window sroot)
@@ -1546,6 +1710,61 @@ del_client(Client *r)
 	if (c == r)
 		*cp = c->next;
 	remove_client(r);
+}
+
+static void
+handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
+{
+	if (!c || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		break;
+	case PropertyDelete:
+		break;
+	}
+}
+
+static void
+handle_WM_COMMAND(XEvent *e, Client *c)
+{
+	if (!c || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		break;
+	case PropertyDelete:
+		break;
+	}
+}
+
+static void
+handle_WM_HINTS(XEvent *e, Client *c)
+{
+	Window grp = None;
+	Client *g = NULL;
+
+	if (!c || e->type != PropertyNotify)
+		return;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if (c->wmh)
+			XFree(c->wmh);
+		if ((c->wmh = XGetWMHints(dpy, c->win))) {
+			/* ensure that the group leader is also tracked */
+			if (c->wmh->flags & WindowGroupHint)
+				if ((grp = c->wmh->window_group) && grp != root)
+					if (XFindContext(dpy, grp, ClientContext, (XPointer *) &g))
+						add_client(grp);
+		}
+		break;
+	case PropertyDelete:
+		if (c->wmh) {
+			XFree(c->wmh);
+			c->wmh = NULL;
+		}
+		break;
+	}
 }
 
 static void
@@ -2344,8 +2563,7 @@ main(int argc, char *argv[])
 
 		case 'D':	/* -D, --debug [level] */
 			if (options.debug)
-				fprintf(stderr, "%s: increasing debug verbosity\n",
-					argv[0]);
+				fprintf(stderr, "%s: increasing debug verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				options.debug++;
 			} else {
@@ -2356,8 +2574,7 @@ main(int argc, char *argv[])
 			break;
 		case 'v':	/* -v, --verbose [level] */
 			if (options.debug)
-				fprintf(stderr, "%s: increasing output verbosity\n",
-					argv[0]);
+				fprintf(stderr, "%s: increasing output verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				options.output++;
 				break;
@@ -2391,14 +2608,12 @@ main(int argc, char *argv[])
 		      bad_nonopt:
 			if (options.output || options.debug) {
 				if (optind < argc) {
-					fprintf(stderr, "%s: syntax error near '",
-						argv[0]);
+					fprintf(stderr, "%s: syntax error near '", argv[0]);
 					while (optind < argc)
 						fprintf(stderr, "%s ", argv[optind++]);
 					fprintf(stderr, "'\n");
 				} else {
-					fprintf(stderr, "%s: missing option or argument",
-						argv[0]);
+					fprintf(stderr, "%s: missing option or argument", argv[0]);
 					fprintf(stderr, "\n");
 				}
 				fflush(stderr);

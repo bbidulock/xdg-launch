@@ -176,7 +176,52 @@ struct params {
 	char *composite;
 };
 
-struct params options = { NULL, };
+struct params options = {
+	.appid = NULL,
+	.launcher = NULL,
+	.launchee = NULL,
+	.sequence = NULL,
+	.hostname = NULL,
+	.monitor = NULL,
+	.screen = NULL,
+	.desktop = NULL,
+	.timestamp = NULL,
+	.name = NULL,
+	.icon = NULL,
+	.binary = NULL,
+	.description = NULL,
+	.wmclass = NULL,
+	.silent = NULL,
+	.exec = NULL,
+	.file = NULL,
+	.url = NULL,
+	.pid = NULL,
+	.keyboard = NULL,
+	.pointer = NULL,
+	.action = NULL,
+	.xsession = NULL,
+	.autostart = NULL,
+	.path = NULL,
+	.uri = NULL,
+	.rawcmd = NULL,
+	.runhist = NULL,
+	.recapps = NULL,
+	.recently = NULL,
+	.recent = NULL,
+	.keep = NULL,
+	.info = NULL,
+	.toolwait = NULL,
+	.timeout = NULL,
+	.mappings = NULL,
+	.withdrawn = NULL,
+	.printpid = NULL,
+	.printwid = NULL,
+	.noprop = NULL,
+	.manager = NULL,
+	.tray = NULL,
+	.pager = NULL,
+	.composite = NULL,
+};
 
 struct params defaults = {
 	.appid = "[APPID]",
@@ -359,6 +404,7 @@ Display *dpy = NULL;
 int monitor;
 int screen;
 Window root;
+Window tray;
 
 #ifdef STARTUP_NOTIFICATION
 SnDisplay *sn_dpy;
@@ -3518,11 +3564,8 @@ handle_event(XEvent *e)
 		handle_atom(e, c, e->xproperty.atom);
 		break;
 	case FocusIn:
-		break;
 	case FocusOut:
-		break;
 	case Expose:
-		break;
 	case VisibilityNotify:
 		break;
 	case CreateNotify:
@@ -3549,11 +3592,8 @@ handle_event(XEvent *e)
 			check_redir();
 		break;
 	case UnmapNotify:
-		break;
 	case MapNotify:
-		break;
 	case ReparentNotify:
-		break;
 	case ConfigureNotify:
 		break;
 	case ClientMessage:
