@@ -147,7 +147,7 @@ struct params {
 	char *exec;
 	char *file;
 	char *url;
-	char *pid;
+	pid_t pid;
 	char *keyboard;
 	char *pointer;
 	char *action;
@@ -196,7 +196,7 @@ struct params options = {
 	.exec = NULL,
 	.file = NULL,
 	.url = NULL,
-	.pid = NULL,
+	.pid = 0,
 	.keyboard = NULL,
 	.pointer = NULL,
 	.action = NULL,
@@ -242,6 +242,7 @@ struct params defaults = {
 	.silent = "0",
 	.file = "",
 	.url = "",
+	.pid = 0,
 	.keyboard = "auto",
 	.pointer = "auto",
 	.action = "none",
@@ -1691,16 +1692,15 @@ set_pid()
 
 	PTRACE();
 	free(fields.pid);
+	fields.pid = calloc(64, sizeof(*fields.pid));
 	if (options.pid)
-		fields.pid = strdup(options.pid);
+		snprintf(fields.pid, 64, "%d", options.pid);
 	else if ((p = fields.id) &&
 		 (p = strchr(p, '/')) && p++ && (p = strchr(p, '/')) && p++ && (q = strchr(p, '-'))
 		 && strtoul(p, NULL, 0))
-		fields.pid = strndup(p, q - p);
-	else {
-		fields.pid = calloc(64, sizeof(*fields.pid));
+		fields.pid = strncpy(fields.pid, p, q - p);
+	else
 		snprintf(fields.pid, 64, "%d", (int) getpid());
-	}
 }
 
 void
@@ -5558,7 +5558,7 @@ Options:\n\
     -q, --silent SILENT\n\
         whether startup notification is silent (0/1), [default: '%13$s']\n\
     -p, --pid PID\n\
-        process id of the XDG application, [default: '%14$s']\n\
+        process id of the XDG application, [default: '%14$d']\n\
     -a, --appid APPID\n\
         override application identifier\n\
     -x, --exec EXEC\n\
@@ -5738,8 +5738,7 @@ set_defaults(int argc, char *argv[])
 	buf = defaults.hostname = options.hostname = calloc(64, sizeof(*buf));
 	gethostname(buf, 64);
 
-	buf = defaults.pid = options.pid = calloc(64, sizeof(*buf));
-	snprintf(buf, 64, "%d", getpid());
+	defaults.pid = options.pid = getpid();
 
 	if ((disp = getenv("DISPLAY")))
 		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
@@ -5867,8 +5866,11 @@ main(int argc, char *argv[])
 			break;
 		case 'p':	/* -p, --pid PID */
 			if (optarg) {
-				free(options.pid);
-				defaults.pid = options.pid = strdup(optarg);
+				if ((val = strtoul(optarg, &endptr, 0)) < 0)
+					goto bad_option;
+				if (endptr && *endptr)
+					goto bad_option;
+				defaults.pid = options.pid = val;
 			} else {
 				free(options.printpid);
 				defaults.printpid = options.printpid = strdup("true");
