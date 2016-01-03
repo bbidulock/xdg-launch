@@ -113,6 +113,8 @@
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
 					} } while (0)
 
+const char *program = NAME;
+
 typedef enum {
 	EXEC_MODE_MONITOR = 0,
 	EXEC_MODE_REPLACE,
@@ -226,7 +228,17 @@ typedef struct {
 	int len;	    /* number of message bytes */
 } Message;
 
-const char *DesktopEntryFields[] = {
+#ifdef STARTUP_NOTIFICATION
+typedef struct Notify Notify;
+
+struct Notify {
+	Notify *next;
+	SnStartupSequence *seq;
+	Bool assigned;
+};
+#endif
+
+static const char *DesktopEntryFields[] = {
 	"Type",
 	"Name",
 	"Comment",
@@ -262,10 +274,13 @@ struct entry {
 struct entry entry = { NULL, };
 
 Display *dpy = NULL;
-int monitor;
 int screen;
 Window root;
-Window tray;
+
+#ifdef STARTUP_NOTIFICATION
+SnDisplay *sn_dpy;
+SnMonitorContext *sn_ctx;
+#endif
 
 struct _Client {
 	int screen;
@@ -284,6 +299,9 @@ struct _Client {
 	char *hostname;
 	XClassHint ch;
 	XWMHints *wmh;
+#ifdef STARTUP_NOTIFICATION
+	SnStartupSequence *seq;
+#endif
 };
 
 Client *clients = NULL;
@@ -467,6 +485,9 @@ get_display()
 				     VisibilityChangeMask | StructureNotifyMask |
 				     FocusChangeMask | PropertyChangeMask);
 		}
+#ifdef STARTUP_NOTIFICATION
+		sn_dpy = sn_display_new(dpy, NULL, NULL);
+#endif
 		screen = DefaultScreen(dpy);
 		root = RootWindow(dpy, screen);
 		intern_atoms();
@@ -948,7 +969,7 @@ handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 
 /** @brief Check for a system tray.
   */
-Window
+static Window
 check_stray()
 {
 	char buf[64];
@@ -982,7 +1003,7 @@ handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
 {
 }
 
-Window
+static Window
 check_pager()
 {
 	char buf[64];
@@ -1031,7 +1052,7 @@ handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
 	}
 }
 
-Window
+static Window
 check_compm()
 {
 	char buf[64];
@@ -1057,11 +1078,16 @@ check_compm()
 
 
 Bool
-set_screen_of_root(Window sroot)
+set_screen_of_root(Window sroot, int *screen)
 {
-	for (screen = 0; screen < ScreenCount(dpy); screen++)
-		if ((root = RootWindow(dpy, screen)) == sroot)
+	int s;
+
+	for (s = 0; s < ScreenCount(dpy); s++) {
+		if ((root = RootWindow(dpy, s)) == sroot) {
+			*screen = s;
 			return True;
+		}
+	}
 	EPRINTF("Could not find screen for root 0x%lx!\n", sroot);
 	return False;
 }
@@ -1116,7 +1142,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen()
+find_focus_screen(int *screen)
 {
 	Window frame, froot;
 	int di;
@@ -1128,11 +1154,11 @@ find_focus_screen()
 	if (!XGetGeometry(dpy, frame, &froot, &di, &di, &du, &du, &du, &du))
 		return False;
 
-	return set_screen_of_root(froot);
+	return set_screen_of_root(froot, screen);
 }
 
 Bool
-find_pointer_screen()
+find_pointer_screen(int *screen)
 {
 	Window proot = None, dw;
 	int di;
@@ -1140,11 +1166,11 @@ find_pointer_screen()
 
 	if (XQueryPointer(dpy, root, &proot, &dw, &di, &di, &di, &di, &du))
 		return True;
-	return set_screen_of_root(proot);
+	return set_screen_of_root(proot, screen);
 }
 
 Bool
-find_window_screen(Window w)
+find_window_screen(Window w, int *screen)
 {
 	Window wroot, dw, *dwp;
 	unsigned int du;
@@ -1154,7 +1180,7 @@ find_window_screen(Window w)
 	if (dwp)
 		XFree(dwp);
 
-	return set_screen_of_root(wroot);
+	return set_screen_of_root(wroot, screen);
 }
 
 
@@ -1164,7 +1190,7 @@ find_client(Window w)
 	Client *c = NULL;
 
 	if (XFindContext(dpy, w, ClientContext, (XPointer *) &c))
-		find_window_screen(w);
+		find_window_screen(w, &screen);
 	else {
 		screen = c->screen;
 		root = RootWindow(dpy, screen);
@@ -1868,25 +1894,10 @@ handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
 static void
 handle_MANAGER(XEvent *e, Client *c)
 {
-	char buf[64] = { 0, };
-	Atom sel;
-	Window win;
-
-	snprintf(buf, sizeof(buf), "_NET_SYSTEM_TRAY_S%d", screen);
-	sel = XInternAtom(dpy, buf, False);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if ((win != tray)) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
-			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n",
-				tray, win);
-			tray = win;
-		}
-	} else if (tray) {
-		DPRINTF("system tray removed from 0x%08lx\n", tray);
-		tray = None;
-	}
+	check_compm();
+	check_pager();
+	check_stray();
+	check_icccm();
 }
 
 static void
@@ -2591,14 +2602,12 @@ main(int argc, char *argv[])
 			exit(EXIT_SUCCESS);
 		case 'V':	/* -V, --version */
 			if (options.debug)
-				fprintf(stderr, "%s: printing version message\n",
-					argv[0]);
+				fprintf(stderr, "%s: printing version message\n", argv[0]);
 			version(argc, argv);
 			exit(EXIT_SUCCESS);
 		case 'C':	/* -C, --copying */
 			if (options.debug)
-				fprintf(stderr, "%s: printing copying message\n",
-					argv[0]);
+				fprintf(stderr, "%s: printing copying message\n", argv[0]);
 			copying(argc, argv);
 			exit(EXIT_SUCCESS);
 		case '?':
@@ -2632,6 +2641,15 @@ main(int argc, char *argv[])
 	}
 	if (optind < argc)
 		goto bad_nonopt;
+	if (options.output > 1) {
+		const char **lp;
+		char **ep;
+
+		OPRINTF("Entries from file:\n");
+		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
+			if (*ep)
+				OPRINTF("%-24s = %s\n", *lp, *ep);
+	}
 	get_display();
 	assist();
 	exit(EXIT_SUCCESS);
