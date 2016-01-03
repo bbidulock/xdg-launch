@@ -161,7 +161,7 @@ struct params {
 	char *recently;
 	char *recent;
 	int keep;
-	char *info;
+	Bool info;
 	char *toolwait;
 	char *timeout;
 	char *mappings;
@@ -210,7 +210,7 @@ struct params options = {
 	.recently = NULL,
 	.recent = NULL,
 	.keep = 0,
-	.info = NULL,
+	.info = False,
 	.toolwait = NULL,
 	.timeout = NULL,
 	.mappings = NULL,
@@ -255,7 +255,7 @@ struct params defaults = {
 	.recently = "~/.local/share/recently-used",
 	.recent = NULL,
 	.keep = 10,
-	.info = "false",
+	.info = False,
 	.toolwait = "false",
 	.timeout = "15",
 	.mappings = "1",
@@ -5645,7 +5645,7 @@ Options:\n\
 	, show_bool(defaults.autostart)
 	, defaults.keep
 	, defaults.recapps
-	, defaults.info
+	, show_bool(defaults.info)
 	, defaults.toolwait
 	, defaults.timeout
 	, defaults.mappings
@@ -5978,8 +5978,7 @@ main(int argc, char *argv[])
 			defaults.recent = options.recent = strdup(optarg);
 			break;
 		case 'I':	/* -I, --info */
-			free(options.info);
-			defaults.info = options.info = strdup("true");
+			defaults.info = options.info = True;
 			break;
 		case 'T':	/* -T, --toolwait */
 			free(options.toolwait);
