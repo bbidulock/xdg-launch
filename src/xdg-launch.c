@@ -377,7 +377,6 @@ static const char *DesktopEntryFields[] = {
 	"Terminal",
 	"StartupNotify",
 	"StartupWMClass",
-	"SessionSetup",
 	"Categories",
 	"MimeType",
 	"AsRoot",
@@ -394,7 +393,6 @@ struct entry {
 	char *Terminal;
 	char *StartupNotify;
 	char *StartupWMClass;
-	char *SessionSetup;
 	char *Categories;
 	char *MimeType;
 	char *AsRoot;
@@ -2213,12 +2211,6 @@ parse_file(char *path)
 			if (!entry.StartupWMClass)
 				entry.StartupWMClass = strdup(val);
 			ok = 1;
-		} else if (strcmp(key, "SessionSetup") == 0) {
-			if (options.xsession) {
-				if (!entry.SessionSetup)
-					entry.SessionSetup = strdup(val);
-				ok = 1;
-			}
 		} else if (strcmp(key, "Categories") == 0) {
 			if (!entry.Categories)
 				entry.Categories = strdup(val);
@@ -3756,36 +3748,6 @@ await_completion()
 	/* child returns with a new connection */
 	XCloseDisplay(dpy);
 	return;
-}
-
-void
-setup()
-{
-	char *pre;
-	int status;
-
-	if (!entry.SessionSetup)
-		return;
-
-	pre = calloc(2048, sizeof(*pre));
-	strncat(pre, entry.SessionSetup, 1024);
-	subst_command(pre);
-
-	if (options.info) {
-		fputs("Would execute SessionSetup command as follows:\n\n", stdout);
-		fprintf(stdout, "%s\n\n", pre);
-		free(pre);
-		return;
-	}
-
-	status = system(pre);
-	free(pre);
-	if (status == -1)
-		exit(EXIT_FAILURE);
-	if (WIFSIGNALED(status))
-		exit(WTERMSIG(status));
-	if (WIFEXITED(status) && (status = WEXITSTATUS(status)))
-		exit(status);
 }
 
 static Bool
@@ -6215,7 +6177,6 @@ main(int argc, char *argv[])
 	}
 	if (!options.info)
 		put_history();
-	setup();
 	launch();
 	exit(EXIT_SUCCESS);
 }
