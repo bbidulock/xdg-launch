@@ -137,7 +137,7 @@ struct params {
 	int monitor;
 	int screen;
 	int desktop;
-	char *timestamp;
+	Time timestamp;
 	char *name;
 	char *icon;
 	char *binary;
@@ -186,7 +186,7 @@ struct params options = {
 	.monitor = -1,
 	.screen = -1,
 	.desktop = -1,
-	.timestamp = NULL,
+	.timestamp = 0,
 	.name = NULL,
 	.icon = NULL,
 	.binary = NULL,
@@ -233,7 +233,7 @@ struct params defaults = {
 	.monitor = -1,
 	.screen = -1,
 	.desktop = -1,
-	.timestamp = "0",
+	.timestamp = 0,
 	.name = "[Name=]",
 	.icon = "[Icon=]",
 	.binary = "[TryExec=|Exec=]",
@@ -1737,10 +1737,11 @@ set_timestamp()
 
 	PTRACE();
 	free(fields.timestamp);
+	fields.timestamp = calloc(64, sizeof(*fields.timestamp));
 	if (options.timestamp)
-		fields.timestamp = strdup(options.timestamp);
+		snprintf(fields.timestamp, 64, "%lu", options.timestamp);
 	else if (fields.id && (p = strstr(fields.id, "_TIME")) && strtoul(p + 5, NULL, 0))
-		fields.timestamp = strdup(p + 5);
+		strncpy(fields.timestamp, p + 5, 63);
 	else {
 		XEvent ev;
 		Atom atom = _XA_TIMESTAMP_PROP;
@@ -1752,7 +1753,6 @@ set_timestamp()
 		XMaskEvent(dpy, PropertyChangeMask, &ev);
 		XSelectInput(dpy, root, NoEventMask);
 
-		fields.timestamp = calloc(64, sizeof(*fields.timestamp));
 		snprintf(fields.timestamp, 64, "%lu", ev.xproperty.time);
 	}
 }
@@ -5544,7 +5544,7 @@ Options:\n\
     -w, --workspace DESKTOP\n\
         workspace to specify in DESKTOP tag, [default: %6$d]\n\
     -t, --timestamp TIMESTAMP\n\
-        X server timestamp for startup id, [default: %7$s]\n\
+        X server timestamp for startup id, [default: %7$lu]\n\
     -N, --name NAME\n\
         name of XDG application, [default: '%8$s']\n\
     -i, --icon ICON\n\
@@ -5882,8 +5882,11 @@ main(int argc, char *argv[])
 			defaults.desktop = options.desktop = val;
 			break;
 		case 't':	/* -t, --timestamp TIMESTAMP */
-			free(options.timestamp);
-			defaults.timestamp = options.timestamp = strdup(optarg);
+			if ((val = strtoul(optarg, &endptr, 0)) <= 0)
+				goto bad_option;
+			if (endptr && *endptr)
+				goto bad_option;
+			defaults.timestamp = options.timestamp = val;
 			break;
 		case 'N':	/* -N, --name NAME */
 			free(options.name);
