@@ -252,6 +252,7 @@ static const char *DesktopEntryFields[] = {
 	"Categories",
 	"MimeType",
 	"AsRoot",
+	"AutostartPhase",
 	NULL
 };
 
@@ -269,6 +270,7 @@ struct entry {
 	char *Categories;
 	char *MimeType;
 	char *AsRoot;
+	char *AutostartPhase;
 };
 
 struct entry entry = { NULL, };
@@ -316,6 +318,7 @@ typedef struct {
 	Window stray_owner;		/* _NET_WM_SYSTEM_TRAY_S%d owner */
 	Window pager_owner;		/* _NET_DESKTOP_LAYOUT_S%d owner */
 	Window compm_owner;		/* _NET_WM_CM_S%d owner */
+	Window shelp_owner;		/* _XDG_ASSIST_S%d owner */
 } WindowManager;
 
 WindowManager wm;
@@ -357,32 +360,32 @@ Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
 
-static void handle_MANAGER(XEvent *, Client *);
-static void handle_MOTIF_WM_INFO(XEvent *, Client *);
-static void handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
-static void handle_NET_CLIENT_LIST(XEvent *, Client *);
-static void handle_NET_STARTUP_INFO_BEGIN(XEvent *, Client *);
-static void handle_NET_STARTUP_INFO(XEvent *, Client *);
-static void handle_NET_SUPPORTED(XEvent *, Client *);
-static void handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static void handle_NET_WM_STATE(XEvent *, Client *);
-static void handle_NET_WM_USER_TIME(XEvent *, Client *);
-static void handle_WIN_CLIENT_LIST(XEvent *, Client *);
-static void handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
-static void handle_WIN_PROTOCOLS(XEvent *, Client *);
-static void handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static void handle_WM_CLIENT_MACHINE(XEvent *, Client *);
-static void handle_WM_COMMAND(XEvent *, Client *);
-static void handle_WM_HINTS(XEvent *, Client *);
-static void handle_WM_STATE(XEvent *, Client *);
-static void handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
-static void handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
-static void handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
+static Bool handle_MANAGER(XEvent *, Client *);
+static Bool handle_MOTIF_WM_INFO(XEvent *, Client *);
+static Bool handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
+static Bool handle_NET_CLIENT_LIST(XEvent *, Client *);
+static Bool handle_NET_STARTUP_INFO_BEGIN(XEvent *, Client *);
+static Bool handle_NET_STARTUP_INFO(XEvent *, Client *);
+static Bool handle_NET_SUPPORTED(XEvent *, Client *);
+static Bool handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static Bool handle_NET_WM_STATE(XEvent *, Client *);
+static Bool handle_NET_WM_USER_TIME(XEvent *, Client *);
+static Bool handle_WIN_CLIENT_LIST(XEvent *, Client *);
+static Bool handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
+static Bool handle_WIN_PROTOCOLS(XEvent *, Client *);
+static Bool handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
+static Bool handle_WM_COMMAND(XEvent *, Client *);
+static Bool handle_WM_HINTS(XEvent *, Client *);
+static Bool handle_WM_STATE(XEvent *, Client *);
+static Bool handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
+static Bool handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
+static Bool handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
 
 struct atoms {
 	char *name;
 	Atom *atom;
-	void (*handler) (XEvent *, Client *);
+	Bool (*handler) (XEvent *, Client *);
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
@@ -483,7 +486,7 @@ get_display()
 			root = RootWindow(dpy, screen);
 			XSelectInput(dpy, root,
 				     VisibilityChangeMask | StructureNotifyMask |
-				     FocusChangeMask | PropertyChangeMask);
+				     SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask);
 		}
 #ifdef STARTUP_NOTIFICATION
 		sn_dpy = sn_display_new(dpy, NULL, NULL);
@@ -607,7 +610,7 @@ check_recursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
 			XFree(data);
 			data = NULL;
 		} else {
@@ -657,7 +660,7 @@ check_nonrecursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
 		}
 		if (data)
 			XFree(data);
@@ -688,17 +691,17 @@ check_supported(Atom protocols, Atom supported)
 		if (after) {
 			num += ((after + 1) >> 2);
 			XFree(data);
+			DPRINTF("trying harder with num = %lu\n", num);
 			goto try_harder;
 		}
 		if (nitems > 0) {
 			unsigned long i;
 			Atom *atoms;
 
-			result = True;
 			atoms = (Atom *) data;
 			for (i = 0; i < nitems; i++) {
 				if (atoms[i] == supported) {
-					result = False;
+					result = True;
 					break;
 				}
 			}
@@ -713,17 +716,17 @@ static Window
 check_anywm()
 {
 	if (wm.netwm_check)
-		return wm.netwm_check;
+		return True;
 	if (wm.winwm_check)
-		return wm.winwm_check;
+		return True;
 	if (wm.maker_check)
-		return wm.maker_check;
+		return True;
 	if (wm.motif_check)
-		return wm.motif_check;
+		return True;
 	if (wm.icccm_check)
-		return wm.icccm_check;
+		return True;
 	if (wm.redir_check)
-		return wm.redir_check;
+		return True;
 	return False;
 }
 
@@ -757,17 +760,18 @@ static Window
 check_netwm()
 {
 	int i = 0;
+	Window win;
 
 	do {
-		wm.netwm_check = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW);
-	} while (i++ < 2 && !wm.netwm_check);
-
-	if (wm.netwm_check)
-		XSelectInput(dpy, wm.netwm_check, PropertyChangeMask | StructureNotifyMask);
-	else
-		wm.netwm_check = check_netwm_supported();
-
-	return wm.netwm_check;
+		if ((win = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	} while (i++ < 2 && !win);
+	win = win ?: check_netwm_supported();
+	if (win && win != wm.netwm_check)
+		DPRINTF("NetWM/EWMH changed from 0x%08lx to 0x%08lx\n", wm.netwm_check, win);
+	if (!win && wm.netwm_check)
+		DPRINTF("NetWM/EWMH removed from 0x%08lx\n", wm.netwm_check);
+	return (wm.netwm_check = win);
 }
 
 /** @brief Check for a non-compliant GNOME/WinWM window manager.
@@ -792,17 +796,18 @@ static Window
 check_winwm()
 {
 	int i = 0;
+	Window win;
 
 	do {
-		wm.winwm_check = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL);
-	} while (i++ < 2 && !wm.winwm_check);
-
-	if (wm.winwm_check)
-		XSelectInput(dpy, wm.winwm_check, PropertyChangeMask | StructureNotifyMask);
-	else
-		wm.winwm_check = check_winwm_supported();
-
-	return wm.winwm_check;
+		if ((win = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	} while (i++ < 2 && !win);
+	win = win ?: check_winwm_supported();
+	if (win && win != wm.winwm_check)
+		DPRINTF("WinWM/WMH changed from 0x%08lx to 0x%08lx\n", wm.winwm_check, win);
+	if (!win && wm.winwm_check)
+		DPRINTF("WinWM/WMH removed from 0x%08lx\n", wm.winwm_check);
+	return (wm.winwm_check = win);
 }
 
 /** @brief Check for a WindowMaker compliant window manager.
@@ -811,15 +816,17 @@ static Window
 check_maker()
 {
 	int i = 0;
+	Window win;
 
 	do {
-		wm.maker_check = check_recursive(_XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW);
-	} while (i++ < 2 && !wm.maker_check);
-
-	if (wm.maker_check)
-		XSelectInput(dpy, wm.maker_check, PropertyChangeMask | StructureNotifyMask);
-
-	return wm.maker_check;
+		if ((win = check_recursive(_XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	} while (i++ < 2 && !win);
+	if (win && win != wm.maker_check)
+		DPRINTF("WindowMaker changed from 0x%08lx to 0x%08lx\n", wm.maker_check, win);
+	if (!win && wm.maker_check)
+		DPRINTF("WindowMaker removed from 0x%08lx\n", wm.maker_check);
+	return (wm.maker_check = win);
 }
 
 /** @brief Check for an OSF/Motif compliant window manager.
@@ -829,17 +836,20 @@ check_motif()
 {
 	int i = 0;
 	long *data, n = 0;
+	Window win = None;
 
 	do {
-		data = get_cardinals(root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n);
+		if ((data = get_cardinals(root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n))) {
+			if (n >= 2 && (win = data[1]))
+				XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+			XFree(data);
+		}
 	} while (i++ < 2 && !data);
-
-	if (data && n >= 2)
-		wm.motif_check = data[1];
-	if (wm.motif_check)
-		XSelectInput(dpy, wm.motif_check, PropertyChangeMask | StructureNotifyMask);
-
-	return wm.motif_check;
+	if (win && win != wm.motif_check)
+		DPRINTF("OSF/MOTIF changed from 0x%08lx to 0x%08lx\n", wm.motif_check, win);
+	if (!win && wm.motif_check)
+		DPRINTF("OSF/MOTIF removed from 0x%08lx\n", wm.motif_check);
+	return (wm.motif_check = win);
 }
 
 /** @brief Check for an ICCCM 2.0 compliant window manager.
@@ -853,20 +863,13 @@ check_icccm()
 
 	snprintf(buf, sizeof(buf), "WM_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.icccm_check) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
-			DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check,
-				win);
-			wm.icccm_check = win;
-		}
-	} else if (wm.icccm_check) {
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	if (win && win != wm.icccm_check)
+		DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check, win);
+	if (!win && wm.icccm_check)
 		DPRINTF("ICCCM 2.0 WM removed from 0x%08lx\n", wm.icccm_check);
-		wm.icccm_check = None;
-	}
-	return wm.icccm_check;
+	return (wm.icccm_check = win);
 }
 
 /** @brief Check whether an ICCCM window manager is present.
@@ -878,22 +881,17 @@ static Window
 check_redir()
 {
 	XWindowAttributes wa;
+	Window win = None;
 
-	OPRINTF("checking direction for screen %d\n", screen);
-
-	wm.redir_check = None;
-	if (XGetWindowAttributes(dpy, root, &wa)) {
-		if (wa.all_event_masks & SubstructureRedirectMask) {
-			if (wm.redir_check != root) {
-				DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, root);
-				wm.redir_check = root;
-			}
-		} else if (wm.redir_check) {
-			DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
-			wm.redir_check = None;
-		}
-	}
-	return wm.redir_check;
+	OPRINTF("checking redirection for screen %d\n", screen);
+	if (XGetWindowAttributes(dpy, root, &wa))
+		if (wa.all_event_masks & SubstructureRedirectMask)
+			win = root;
+	if (win && win != wm.redir_check)
+		DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, win);
+	if (!win && wm.redir_check)
+		DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
+	return (wm.redir_check = win);
 }
 
 /** @brief Find window manager and compliance for the current screen.
@@ -923,48 +921,49 @@ check_window_manager()
 	return check_anywm();
 }
 
-static void
+static Bool
 handle_wmchange(XEvent *e, Client *c)
 {
 	if (!e || e->type == PropertyNotify)
 		if (!check_window_manager())
 			check_window_manager();
+	return True;
 }
 
-static void
+static Bool
 handle_WINDOWMAKER_NOTICEBOARD(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_MOTIF_WM_INFO(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_NET_SUPPORTING_WM_CHECK(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_NET_SUPPORTED(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_WIN_SUPPORTING_WM_CHECK(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
 /** @brief Check for a system tray.
@@ -980,9 +979,7 @@ check_stray()
 	sel = XInternAtom(dpy, buf, True);
 	if ((win = XGetSelectionOwner(dpy, sel))) {
 		if (win != wm.stray_owner) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner, win);
 			wm.stray_owner = win;
 		}
@@ -993,14 +990,16 @@ check_stray()
 	return wm.stray_owner;
 }
 
-static void
+static Bool
 handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *e, Client *c)
 {
+	return False;
 }
 
-static void
+static Bool
 handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
 {
+	return False;
 }
 
 static Window
@@ -1013,33 +1012,26 @@ check_pager()
 
 	snprintf(buf, sizeof(buf), "_NET_DESKTOP_LAYOUT_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.pager_owner) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
-			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner,
-				win);
-			wm.pager_owner = win;
-		}
-	} else if (wm.pager_owner) {
-		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
-		wm.pager_owner = None;
-		/* selection only held while setting _NET_DESKTOP_LAYOUT */
-		if ((cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
-		    && n >= 4) {
-			XFree(cards);
-			wm.pager_owner = root;
-		}
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	/* selection only held while setting _NET_DESKTOP_LAYOUT */
+	if (!win && (cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
+	    && n >= 4) {
+		XFree(cards);
+		win = root;
 	}
-	return wm.pager_owner;
+	if (win && win != wm.pager_owner)
+		DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner, win);
+	if (!win && wm.pager_owner)
+		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
+	return (wm.pager_owner = win);
 }
 
-static void
+static Bool
 handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
 {
 	if (!e || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		if (!wm.pager_owner)
@@ -1050,6 +1042,7 @@ handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
 			wm.pager_owner = None;
 		break;
 	}
+	return True;
 }
 
 static Window
@@ -1061,21 +1054,14 @@ check_compm()
 
 	snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.compm_owner) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
-			DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
-			wm.compm_owner = win;
-		}
-	} else if (wm.compm_owner) {
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	if (win && win != wm.compm_owner)
+		DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
+	if (!win && wm.compm_owner)
 		DPRINTF("composite manager removed from 0x%08lx\n", wm.compm_owner);
-		wm.compm_owner = None;
-	}
-	return wm.compm_owner;
+	return (wm.compm_owner = win);
 }
-
 
 Bool
 set_screen_of_root(Window sroot, int *screen)
@@ -1738,40 +1724,42 @@ del_client(Client *r)
 	remove_client(r);
 }
 
-static void
+static Bool
 handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 {
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		break;
 	case PropertyDelete:
 		break;
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_WM_COMMAND(XEvent *e, Client *c)
 {
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		break;
 	case PropertyDelete:
 		break;
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_WM_HINTS(XEvent *e, Client *c)
 {
 	Window grp = None;
 	Client *g = NULL;
 
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		if (c->wmh)
@@ -1791,19 +1779,23 @@ handle_WM_HINTS(XEvent *e, Client *c)
 		}
 		break;
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_WM_STATE(XEvent *e, Client *c)
 {
 	long data;
 
+	if (!c || e->type != PropertyNotify)
+		return False;
 	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
 	    && data != WithdrawnState && !c)
 		c = add_client(e->xany.window);
+	return True;
 }
 
-static void
+static Bool
 handle_NET_WM_STATE(XEvent *e, Client *c)
 {
 	Atom *atoms = NULL;
@@ -1818,7 +1810,9 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
 				break;
 			}
 		XFree(atoms);
+		return True;
 	}
+	return False;
 }
 
 /** @brief track the active window
@@ -1829,7 +1823,7 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
   * by EWMH/NetWM compliant window managers to indicate the active window.  We
   * keep track of the last time that each client window was active.
   */
-static void
+static Bool
 handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 {
 	Window active = None;
@@ -1839,18 +1833,22 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 			c = add_client(active);
 		if (e)
 			c->active_time = e->xproperty.time;
+		return True;
 	}
+	return False;
 }
 
-static void
+static Bool
 handle_NET_WM_USER_TIME(XEvent *e, Client *c)
 {
-	if (c
-	    && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
+	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time)) {
 		push_time(&last_user_time, c->user_time);
+		return True;
+	}
+	return False;
 }
 
-static void
+static Bool
 handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 {
 	Window *list;
@@ -1860,8 +1858,7 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 	if ((list = get_windows(root, atom, type, &n))) {
 		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
 		for (i = 0, c = NULL; i < n; c = NULL, i++) {
-			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) !=
-			    Success)
+			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) != Success)
 				c = add_client(list[i]);
 			c->breadcrumb = True;
 		}
@@ -1876,28 +1873,31 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 				c = *cp;
 			}
 		}
+		return True;
 	}
+	return False;
 }
 
-static void
+static Bool
 handle_NET_CLIENT_LIST(XEvent *e, Client *c)
 {
-	handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
+	return handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
 
-static void
+static Bool
 handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
 {
-	handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
+	return handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
 
-static void
+static Bool
 handle_MANAGER(XEvent *e, Client *c)
 {
 	check_compm();
 	check_pager();
 	check_stray();
 	check_icccm();
+	return True;
 }
 
 static void
@@ -2148,7 +2148,7 @@ process_startup_msg(Message *m)
 	remove_sequence(seq);
 }
 
-static void
+static Bool
 handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 {
 	Window from;
@@ -2156,11 +2156,11 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	int len;
 
 	if (!e || e->type != ClientMessage)
-		return;
+		return False;
 	from = e->xclient.window;
-	if (XFindContext(dpy, from, MessageContext, (XPointer *)&m) || !m) {
+	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
 		m = calloc(1, sizeof(*m));
-		XSaveContext(dpy, from, MessageContext, (XPointer)m);
+		XSaveContext(dpy, from, MessageContext, (XPointer) m);
 	}
 	free(m->data);
 	m->origin = from;
@@ -2169,13 +2169,15 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	/* unpack data */
 	len = strnlen(e->xclient.data.b, 20);
 	strncat(m->data, e->xclient.data.b, 20);
+	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 {
 	Window from;
@@ -2183,18 +2185,20 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 	int len;
 
 	if (!e || e->type != ClientMessage)
-		return;
+		return False;
 	from = e->xclient.window;
-	if (XFindContext(dpy, from, MessageContext, (XPointer *)&m) || !m)
-		return;
+	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
+		return False;
 	m->data = realloc(m->data, m->len + 21);
 	/* unpack data */
 	len = strnlen(e->xclient.data.b, 20);
 	strncat(m->data, e->xclient.data.b, 20);
+	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
 	}
+	return True;
 }
 
 void

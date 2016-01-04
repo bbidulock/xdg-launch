@@ -380,6 +380,7 @@ static const char *DesktopEntryFields[] = {
 	"Terminal",
 	"StartupNotify",
 	"StartupWMClass",
+	"SessionSetup",
 	"Categories",
 	"MimeType",
 	"AsRoot",
@@ -397,6 +398,7 @@ struct entry {
 	char *Terminal;
 	char *StartupNotify;
 	char *StartupWMClass;
+        char *SessionSetup;
 	char *Categories;
 	char *MimeType;
 	char *AsRoot;
