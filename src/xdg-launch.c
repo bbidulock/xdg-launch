@@ -420,11 +420,11 @@ SnMonitorContext *sn_ctx;
 #endif
 
 struct _Client {
+	Client *next;
 	int screen;
 	Window win;			/* the client window */
 	Window time_win;		/* the time window */
 	Window group;			/* the group window */
-	Client *next;
 	Bool breadcrumb;
 	Bool new;
 	Bool managed;
@@ -2834,7 +2834,7 @@ setup_client(Client *c)
 	/* only if assitance was requested or necessary */
 	if (!options.assist)
 		return;
-	if (fields.id) {
+	if (!c->startup_id && fields.id) {
 		XTextProperty xtp = { 0, };
 		char *list[2] = { NULL, };
 		int count = 1;
@@ -2845,13 +2845,13 @@ setup_client(Client *c)
 		if (xtp.value)
 			XFree(xtp.value);
 	}
-	if (fields.pid && atoi(fields.pid)) {
+	if (!c->pid && fields.pid && atoi(fields.pid)) {
 		long data = atoi(fields.pid);
 
 		XChangeProperty(dpy, c->group, _XA_NET_WM_PID, XA_CARDINAL, 32,
 				PropModeReplace, (unsigned char *) &data, 1);
 	}
-	if (fields.timestamp && atoi(fields.timestamp)) {
+	if (!c->user_time && fields.timestamp && atoi(fields.timestamp)) {
 		long data = atoi(fields.timestamp);
 
 		XChangeProperty(dpy, c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, 32,
@@ -2863,7 +2863,7 @@ setup_client(Client *c)
 		XChangeProperty(dpy, c->win, _XA_NET_WM_DESKTOP, XA_CARDINAL, 32,
 				PropModeReplace, (unsigned char *) &data, 1);
 	}
-	if (fields.hostname) {
+	if (!c->hostname && fields.hostname) {
 		XTextProperty xtp = { 0, };
 		char *list[2] = { NULL, };
 		int count = 1;
@@ -2880,7 +2880,7 @@ setup_client(Client *c)
 static void
 recheck_client(Client *c)
 {
-	long card;
+	long card = 0;
 	Window group;
 
 	XGetClassHint(dpy, c->win, &c->ch);
@@ -2899,10 +2899,14 @@ recheck_client(Client *c)
 		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
 	}
 	c->time_win = c->time_win ? : c->win;
-	c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE);
-	c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID);
-	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
-		c->pid = card;
+	get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time);
+	if (!c->hostname && !(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)))
+		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
+	if (!c->startup_id && !(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)))
+		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
+	if (!c->pid && !get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
+		if (get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card))
+			c->pid = card;
 	if (test_client(c))
 		setup_client(c);
 }
