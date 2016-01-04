@@ -3644,6 +3644,15 @@ handle_event(XEvent *e)
 	case VisibilityNotify:
 		break;
 	case CreateNotify:
+		/* no synthetics please */
+		if (e->xcreatewindow.send_event)
+			break;
+		/* must be created on correct root */
+		if (e->xcreatewindow.parent != root)
+			break;
+		/* no override redirect windows */
+		if (e->xcreatewindow.override_redirect)
+			break;
 		if (!(c = find_client(e->xcreatewindow.window)))
 			c = add_client(e->xcreatewindow.window);
 		break;
