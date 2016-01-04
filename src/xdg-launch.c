@@ -423,7 +423,6 @@ struct _Client {
 	int screen;
 	Window win;			/* the client window */
 	Window time_win;		/* the time window */
-	Window leader;			/* the leader window */
 	Window group;			/* the group window */
 	Client *next;
 	Bool breadcrumb;
@@ -483,6 +482,7 @@ Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_STATE_FOCUSED;
 Atom _XA_NET_WM_USER_TIME;
 Atom _XA_NET_WM_USER_TIME_WINDOW;
+Atom _XA_NET_WM_DESKTOP;
 Atom _XA__SWM_VROOT;
 Atom _XA_TIMESTAMP_PROP;
 Atom _XA_WIN_CLIENT_LIST;
@@ -508,10 +508,12 @@ static Bool handle_NET_SUPPORTED(XEvent *, Client *);
 static Bool handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
 static Bool handle_NET_WM_STATE(XEvent *, Client *);
 static Bool handle_NET_WM_USER_TIME(XEvent *, Client *);
+static Bool handle_NET_WM_DESKTOP(XEvent *, Client *);
 static Bool handle_WIN_CLIENT_LIST(XEvent *, Client *);
 static Bool handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
 static Bool handle_WIN_PROTOCOLS(XEvent *, Client *);
 static Bool handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static Bool handle_WIN_WORKSPACE(XEvent *, Client *);
 static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
 static Bool handle_WM_COMMAND(XEvent *, Client *);
 static Bool handle_WM_HINTS(XEvent *, Client *);
@@ -547,14 +549,15 @@ struct atoms {
 	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,		NULL,					None			},
 	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,			&handle_NET_WM_STATE,			None			},
 	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,		NULL,					None			},
+	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,			&handle_NET_WM_DESKTOP,			None,			},
 	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,			&handle_NET_WM_USER_TIME,		None			},
 	{ "__SWM_VROOT",			&_XA__SWM_VROOT,			NULL,					None			},
 	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,			NULL,					None			},
 	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,			&handle_WIN_CLIENT_LIST,		None			},
 	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,		&handle_WINDOWMAKER_NOTICEBOARD,	None			},
-	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,			&handle_WIN_PROTOCOLS,			None			},
 	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			NULL,					None			},
+	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,			&handle_WIN_PROTOCOLS,			None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			&handle_WIN_WORKSPACE,			None			},
 	{ "WM_CLIENT_MACHINE",			NULL,					&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
 	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
 	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
@@ -1102,6 +1105,12 @@ static Bool
 handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 {
 	return handle_wmchange(e, c);
+}
+
+static Bool
+handle_WIN_WORKSPACE(XEvent *e, Client *c)
+{
+	return False;
 }
 
 /** @brief Check for a system tray.
@@ -2825,6 +2834,28 @@ setup_client(Client *c)
 	/* only if assitance was requested or necessary */
 	if (!options.assist)
 		return;
+	if (fields.id) {
+		XTextProperty xtp = { 0, };
+		char *list[2] = { NULL, NULL };
+		int count = 1;
+
+		list[0] = fields.id;
+		Xutf8TextListToTextProperty(dpy, list, count, XUTF8StringStyle, &xtp);
+		XSetTextProperty(dpy, c->group, &xtp, _XA_NET_STARTUP_ID);
+	}
+	if (fields.pid && atoi(fields.pid)) {
+		long data = atoi(fields.pid);
+
+		XChangeProperty(dpy, c->group, _XA_NET_WM_PID, XA_CARDINAL, 32, PropModeReplace,
+				(unsigned char *) &data, 1);
+	}
+	if (fields.timestamp && atoi(fields.timestamp)) {
+		long data = atoi(fields.timestamp);
+
+		XChangeProperty(dpy, c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+	}
+	/* XXX: set _XA_NET_WM_DESKTOP */
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
@@ -2838,16 +2869,18 @@ recheck_client(Client *c)
 	XFetchName(dpy, c->win, &c->name);
 	if (c->wmh)
 		XFree(c->wmh);
-	c->group = None;
+	c->group = c->win;
 	if ((c->wmh = XGetWMHints(dpy, c->win)))
 		if (c->wmh->flags & WindowGroupHint)
 			if ((group = c->wmh->window_group) && group != root)
 				c->group = group;
+	c->time_win = c->win;
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
 	    && c->time_win) {
 		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
 		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
 	}
+	c->time_win = c->time_win ? : c->win;
 	c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE);
 	c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID);
 	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
@@ -3028,6 +3061,12 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
 		XFree(atoms);
 		return True;
 	}
+	return False;
+}
+
+static Bool
+handle_NET_WM_DESKTOP(XEvent *e, Client *c)
+{
 	return False;
 }
 
