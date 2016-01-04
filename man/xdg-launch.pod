@@ -31,19 +31,19 @@ following:
 
 =item 1.
 
-the name of a desktop entry file without the F<.desktop> suffix (e.g.
+The name of a desktop entry file without the F<.desktop> suffix (e.g.
 C<gvim>); the name may contain a C</> if it is specified relative to a
 user or system application directory, in which case it must not start
 with a C</> or C<.>.
 
 =item 2.
 
-the name of a desktop entry file with the F<.desktop> suffix (e.g.
+The name of a desktop entry file with the F<.desktop> suffix (e.g.
 C<gvim.desktop>); the same restrictions as (1), above, apply; or,
 
 =item 3.
 
-the full path (absolute or relative) and filename of a desktop entry
+The full path (absolute or relative) and filename of a desktop entry
 file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
 contain at least one C</> and start with either a C</> or a C<.>.
 
@@ -471,9 +471,48 @@ desktop resource before launching.
 =back
 
 Note that some key fields in the F<.desktop> file of an application can
-specify the autostart phase (.e.g. C<AutostartPhase>).  When the
-B<--autostart> option is option is specified, the setting of these key
-fields may affect the default settings of the session options, above.
+specify the autostart phase (.e.g. C<AutostartPhase>,
+C<X-GNOME-Autostart-Phase>).  When the B<--autostart> option is option
+is specified, the setting of these key fields may affect the default
+settings of the session options, above.  In particular:
+
+=over
+
+=item C<Initializting>
+
+When an autostart phase of C<Initializing> is specified, B<xdg-launch>
+will not wait for any desktop resource before running the application or
+command.
+
+=item C<WindowManager>
+
+When an autostart phase of C<WindowManager> is specified, or when
+the B<--xsession> is specified, B<xdg-launch> will not wait for any
+desktop resource before running the application or command.
+
+=item C<Panel>
+
+When an autostart phase of C<Panel> is specified, B<xdg-launch> will
+wait for a window manager (regardless of the B<--manager> option) before
+continuing; however, it will not wait for a tray or pager.  It will only
+wait for a composite manager if B<--composite> was specified.
+
+=item C<Desktop>
+
+When an autostart phase of B<Desktop> is specified, B<xdg-launch> will
+wait for a window manager (regardless of the B<--manager> option) before
+continuing.  It will only await other resources if they have been
+explicitly specified with options.
+
+=item C<Application>
+
+When an autostart phase of B<Desktop> is specified, or when no autostart
+phase is specified and B<--autostart> is given, B<xdg-launch> will wait
+for a window manager (regardless of the B<--manager> option) before
+continuing; however, it will only await other resources if they have
+been explicitly specified with options.
+
+=back
 
 =head1 BEHAVIOUR
 

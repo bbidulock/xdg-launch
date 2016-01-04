@@ -4059,11 +4059,13 @@ wait_for_resource()
 			options.manager = False;
 			options.tray = False;
 			options.pager = False;
+			options.composite = False;
 		} else if (strcmp(entry.AutostartPhase, "WindowManager") == 0) {
 			/* WindowManager: do not wait for anything. */
 			options.manager = False;
 			options.tray = False;
 			options.pager = False;
+			options.composite = False;
 		} else if (strcmp(entry.AutostartPhase, "Panel") == 0) {
 			/* Panel: wait only for window manager (if requested?). */
 			options.manager = True;
@@ -4089,6 +4091,13 @@ wait_for_resource()
 			if (strstr(entry.Categories, "SystemTray"))
 				options.tray = False;
 		}
+	}
+	if (options.xsession) {
+		/* Xsessions cannot wait (responsible for all). */
+		options.manager = False;
+		options.tray = False;
+		options.pager = False;
+		options.composite = False;
 	}
 
 	/* Be sure to wait for window manager before checking whether assistance is
