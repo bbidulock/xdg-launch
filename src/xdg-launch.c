@@ -426,6 +426,7 @@ struct _Client {
 	Client *next;
 	Bool breadcrumb;
 	Bool new;
+	Bool managed;
 	Time active_time;
 	Time focus_time;
 	Time user_time;
@@ -3608,7 +3609,7 @@ sn_handler(SnMonitorEvent * event, void *dummy)
 }
 #endif
 
-void
+Bool
 handle_atom(XEvent *e, Client *c, Atom atom)
 {
 	struct atoms *a;
@@ -3616,11 +3617,131 @@ handle_atom(XEvent *e, Client *c, Atom atom)
 	for (a = atoms; a->atom; a++) {
 		if (a->value == atom) {
 			if (a->handler)
-				a->handler(e, c);
+				return a->handler(e, c);
 			break;
 		}
 	}
+	return False;
 }
+
+Bool
+handle_CreateNotify(XEvent *e, Client *c)
+{
+	if (!e || e->type != CreateNotify) {
+		EPRINTF("bad event!\n");
+		return False;
+	}
+	/* no synthetics please */
+	if (e->xcreatewindow.send_event)
+		return False;
+	/* must be created on correct root */
+	if (e->xcreatewindow.parent != root)
+		return False;
+	/* no override redirect windows */
+	if (e->xcreatewindow.override_redirect)
+		return False;
+	c = c ? : add_client(e->xcreatewindow.window);
+	return True;
+}
+
+Bool
+handle_DestroyNotify(XEvent *e, Client *c)
+{
+	Bool handled = False;
+
+	if (!e || e->type != DestroyNotify) {
+		EPRINTF("bad event!\n");
+		return False;
+	}
+	if (c) {
+		del_client(c);
+		return True;
+	}
+	DPRINTF("DestroyNotify not for client!\n");
+	clean_msgs(e->xdestroywindow.window);
+	if (wm.netwm_check && e->xdestroywindow.window == wm.netwm_check) {
+		check_netwm();
+		handled = True;
+	}
+	if (wm.winwm_check && e->xdestroywindow.window == wm.winwm_check) {
+		check_winwm();
+		handled = True;
+	}
+	if (wm.maker_check && e->xdestroywindow.window == wm.maker_check) {
+		check_maker();
+		handled = True;
+	}
+	if (wm.motif_check && e->xdestroywindow.window == wm.motif_check) {
+		check_motif();
+		handled = True;
+	}
+	if (wm.icccm_check && e->xdestroywindow.window == wm.icccm_check) {
+		check_icccm();
+		handled = True;
+	}
+	if (wm.redir_check && e->xdestroywindow.window == wm.redir_check) {
+		check_redir();
+		handled = True;
+	}
+	return handled;
+}
+
+Bool
+handle_FocusIn(XEvent *e, Client *c)
+{
+	if (!e || e->type != FocusIn) {
+		EPRINTF("bad event!\n");
+		return False;
+	}
+	if (!c) {
+		DPRINTF("FocusIn not for us!\n");
+		return False;
+	}
+	return True;
+}
+
+Bool
+handle_VisibilityNotify(XEvent *e, Client *c)
+{
+	if (!e || e->type != VisibilityNotify) {
+		EPRINTF("bad event!\n");
+		return False;
+	}
+	if (!c) {
+		DPRINTF("VisibilityNotify not for us!\n");
+		return False;
+	}
+	return True;
+}
+
+Bool
+handle_UnmapNotify(XEvent *e, Client *c)
+{
+	if (!e || e->type != UnmapNotify) {
+		EPRINTF("bad event!\n");
+		return False;
+	}
+	if (!c) {
+		DPRINTF("UnmapNotify not for us!\n");
+		return False;
+	}
+	return True;
+}
+
+Bool
+handle_MapNotify(XEvent *e, Client *c)
+{
+	if (!e || e->type != MapNotify) {
+		EPRINTF("bad event!\n");
+		return False;
+	}
+	if (!c) {
+		DPRINTF("MapNotify not for us!\n");
+		return False;
+	}
+	return True;
+}
+
 
 /** @brief handle monitoring events.
   * @param e - X event to handle
@@ -3644,45 +3765,35 @@ handle_event(XEvent *e)
 		handle_atom(e, c, e->xproperty.atom);
 		break;
 	case FocusIn:
+		c = find_client(e->xfocus.window);
+		handle_FocusIn(e, c);
+		break;
 	case FocusOut:
+		break;
 	case Expose:
+		break;
 	case VisibilityNotify:
+		c = find_client(e->xvisibility.window);
+		handle_VisibilityNotify(e, c);
 		break;
 	case CreateNotify:
-		/* no synthetics please */
-		if (e->xcreatewindow.send_event)
-			break;
-		/* must be created on correct root */
-		if (e->xcreatewindow.parent != root)
-			break;
-		/* no override redirect windows */
-		if (e->xcreatewindow.override_redirect)
-			break;
-		if (!(c = find_client(e->xcreatewindow.window)))
-			c = add_client(e->xcreatewindow.window);
+		c = find_client(e->xcreatewindow.window);
+		handle_CreateNotify(e, c);
 		break;
 	case DestroyNotify:
-		if ((c = find_client(e->xdestroywindow.window)))
-			del_client(c);
-		else
-			clean_msgs(e->xdestroywindow.window);
-
-		if (wm.netwm_check && e->xdestroywindow.window == wm.netwm_check)
-			check_netwm();
-		if (wm.winwm_check && e->xdestroywindow.window == wm.winwm_check)
-			check_winwm();
-		if (wm.maker_check && e->xdestroywindow.window == wm.maker_check)
-			check_maker();
-		if (wm.motif_check && e->xdestroywindow.window == wm.motif_check)
-			check_motif();
-		if (wm.icccm_check && e->xdestroywindow.window == wm.icccm_check)
-			check_icccm();
-		if (wm.redir_check && e->xdestroywindow.window == wm.redir_check)
-			check_redir();
+		c = find_client(e->xdestroywindow.window);
+		handle_DestroyNotify(e, c);
 		break;
 	case UnmapNotify:
+		c = find_client(e->xunmap.window);
+		handle_UnmapNotify(e, c);
+		break;
 	case MapNotify:
+		c = find_client(e->xmap.window);
+		handle_MapNotify(e, c);
+		break;
 	case ReparentNotify:
+		break;
 	case ConfigureNotify:
 		break;
 	case ClientMessage:
