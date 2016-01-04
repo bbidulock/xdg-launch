@@ -376,6 +376,14 @@ that of L<xtoolwait(1)>.
 
 =over
 
+=item B<--assist>
+
+Normally B<xdg-launch> will determine whether the window manager and
+application toolkit requires assistance with startup notification.  The
+default when the window manager supports startup notification is to not
+provide any assistance.  This option requests that B<xdg-launch> provide
+startup notification assistance to the window manager.
+
 =item B<-T>, B<--toolwait>
 
 Normally, B<xdg-launch> will not exit, but will replace the foreground

@@ -174,6 +174,7 @@ typedef struct {
 	Bool tray;
 	Bool pager;
 	Bool composite;
+	Bool assist;
 } Options;
 
 Options options = {
@@ -224,6 +225,7 @@ Options options = {
 	.tray = False,
 	.pager = False,
 	.composite = False,
+	.assist = False,
 };
 
 Options defaults = {
@@ -270,6 +272,7 @@ Options defaults = {
 	.tray = False,
 	.pager = False,
 	.composite = False,
+	.assist = False,
 };
 
 static const char *StartupNotifyFields[] = {
@@ -3819,7 +3822,9 @@ assist()
   *
   * If assistance is required, we must identify when the application maps its
   * windows and send the "end:" message ourselves.  Upon transmission of the
-  * "end:" message (or timeout), consider the startup complete.
+  * "end:" message (or timeout), consider the startup complete.  In addition,
+  * EWMH properties are set on initial windows that are not set by the
+  * application.
   */
 void
 toolwait()
@@ -3851,6 +3856,10 @@ toolwait()
   * Normal launch without assist without toolwait: No child is generated, the
   * parent process sends the startup notification message and then executes the
   * command.  The main process owns the display connection.
+  *
+  * No startup notification completion is tracked nor generated: it is assumed
+  * that the window manager or application will complete startup notification
+  * and set the appropriate EWMH properties on all windows.
   */
 void
 normal()
@@ -3864,53 +3873,6 @@ normal()
 	}
 	reset_pid(pid);
 	/* main process returns and launches */
-	return;
-}
-
-void
-monitor_closure()
-{
-	exit(EXIT_SUCCESS);
-}
-
-/* This is a little different that assist().  The child continues to launching
- * the application or command, and the parent monitors and exits once startup
- * notification is complete.
- */
-void
-await_completion()
-{
-	pid_t pid;
-
-	XSync(dpy, False);
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent monitors and exits when startup complete */
-		monitor_closure();
-		/* does not return */
-		exit(EXIT_FAILURE);
-	}
-	setsid();		/* become a session leader */
-	/* close files */
-	fclose(stdin);
-	/* fork once more for SVR4 */
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent exits */
-		exit(EXIT_SUCCESS);
-	}
-	/* release current directory */
-	if (chdir("/") < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	umask(0);		/* clear file creation mask */
-	/* child returns with a new connection */
-	XCloseDisplay(dpy);
 	return;
 }
 
@@ -4163,8 +4125,14 @@ wait_for_resource()
 Bool
 need_assist()
 {
-	Bool need_assist = False;
+	Bool need_assist = options.assist;
 
+	if (need_assist) {
+		DPRINTF("Assistance requested\n");
+		if (options.info)
+			fputs("Assistance requested\n", stdout);
+		return need_assist;
+	}
 	if (options.xsession) {
 		DPRINTF("XSession: always needs assistance\n");
 		need_assist = True;
@@ -4201,18 +4169,19 @@ launch()
 	Bool change_only = False;
 
 	wait_for_resource();
+	options.assist = need_assist();
 
 	/* make the call... */
 
 	if (options.toolwait) {
 		OPRINTF("Tool wait requested\n");
 		if (options.info)
-			fputs("Tool wait requested\n", stdout);
+			fputs("Tool wait requested\n\n", stdout);
 		toolwait();
-	} else if (need_assist()) {
-		OPRINTF("Assistance is needed\n");
+	} else if (options.assist) {
+		OPRINTF("Assistance is required\n");
 		if (options.info)
-			fputs("Assistance is needed\n", stdout);
+			fputs("Assistance is required\n\n", stdout);
 		assist();
 	} else {
 		OPRINTF("Assistance is NOT needed, no tool wait\n");
@@ -6024,6 +5993,8 @@ main(int argc, char *argv[])
 			{"wid",		no_argument,		NULL,  4 },
 			{"noprop",	no_argument,		NULL,  5 },
 
+			{"assist",	no_argument,		NULL,  6 },
+
 			{"manager",	no_argument,		NULL, 'M'},
 			{"tray",	no_argument,		NULL, 'Y'},
 			{"pager",	no_argument,		NULL, 'G'},
@@ -6220,6 +6191,9 @@ main(int argc, char *argv[])
 			break;
 		case 5:		/* --noprop */
 			defaults.noprop = options.noprop = True;
+			break;
+		case 6:		/* --assist */
+			defaults.assist = options.assist = True;
 			break;
 		case 'M':	/* -M, --manager */
 			defaults.manager = options.manager = True;
