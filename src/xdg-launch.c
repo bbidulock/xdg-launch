@@ -448,6 +448,7 @@ typedef struct {
 	Window stray_owner;		/* _NET_WM_SYSTEM_TRAY_S%d owner */
 	Window pager_owner;		/* _NET_DESKTOP_LAYOUT_S%d owner */
 	Window compm_owner;		/* _NET_WM_CM_S%d owner */
+	Window shelp_owner;		/* _XDG_ASSIST_S%d owner */
 } WindowManager;
 
 WindowManager wm;
@@ -820,17 +821,17 @@ check_supported(Atom protocols, Atom supported)
 		if (after) {
 			num += ((after + 1) >> 2);
 			XFree(data);
+			DPRINTF("trying harder with num = %lu\n", num);
 			goto try_harder;
 		}
 		if (nitems > 0) {
 			unsigned long i;
 			Atom *atoms;
 
-			result = True;
 			atoms = (Atom *) data;
 			for (i = 0; i < nitems; i++) {
 				if (atoms[i] == supported) {
-					result = False;
+					result = True;
 					break;
 				}
 			}
@@ -1141,24 +1142,19 @@ check_pager()
 
 	snprintf(buf, sizeof(buf), "_NET_DESKTOP_LAYOUT_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.pager_owner) {
-			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner,
-				win);
-			wm.pager_owner = win;
-		}
-	} else if (wm.pager_owner) {
-		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
-		wm.pager_owner = None;
-		/* selection only held while setting _NET_DESKTOP_LAYOUT */
-		if ((cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
-		    && n >= 4) {
-			XFree(cards);
-			wm.pager_owner = root;
-		}
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	/* selection only held while setting _NET_DESKTOP_LAYOUT */
+	if (!win && (cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
+	    && n >= 4) {
+		XFree(cards);
+		win = root;
 	}
-	return wm.pager_owner;
+	if (win && win != wm.pager_owner)
+		DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner, win);
+	if (!win && wm.pager_owner)
+		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
+	return (wm.pager_owner = win);
 }
 
 static Bool
@@ -1188,17 +1184,31 @@ check_compm()
 
 	snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.compm_owner) {
-			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-			DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
-			wm.compm_owner = win;
-		}
-	} else if (wm.compm_owner) {
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	if (win && win != wm.compm_owner)
+		DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
+	if (!win && wm.compm_owner)
 		DPRINTF("composite manager removed from 0x%08lx\n", wm.compm_owner);
-		wm.compm_owner = None;
-	}
-	return wm.compm_owner;
+	return (wm.compm_owner = win);
+}
+
+static Window
+check_shelp()
+{
+	char buf[64];
+	Atom sel;
+	Window win;
+
+	snprintf(buf, sizeof(buf), "_XDG_ASSIST_S%d", screen);
+	sel = XInternAtom(dpy, buf, True);
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	if (win && win != wm.shelp_owner)
+		DPRINTF("startup helper changed from 0x%08lx to 0x%08lx\n", wm.shelp_owner, win);
+	if (!win && wm.shelp_owner)
+		DPRINTF("startup helper removed from 0x%08lx\n", wm.shelp_owner);
+	return (wm.shelp_owner = win);
 }
 
 
@@ -2100,12 +2110,20 @@ find_client(Window w)
 Bool
 need_assistance()
 {
+	if (check_shelp()) {
+		DPRINTF("No assistance needed: Startup notification helper running\n");
+		return False;
+	}
 	if (!check_netwm()) {
 		DPRINTF("Failed NetWM check!\n");
+		if (options.info)
+			fputs("Assistance required: window manager failed NetWM check\n", stdout);
 		return True;
 	}
 	if (!check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
 		DPRINTF("_NET_STARTUP_ID not supported\n");
+		if (options.info)
+			fputs("Assistance required: window manager does not support _NET_STARTUP_ID\n", stdout);
 		return True;
 	}
 	return False;
@@ -3698,7 +3716,7 @@ sighandler(int sig)
 void
 assist()
 {
-	pid_t pid = 0;
+	pid_t pid = getpid();
 
 	setup_to_assist();
 	XSync(dpy, False);
