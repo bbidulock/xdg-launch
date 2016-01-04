@@ -3723,6 +3723,12 @@ sighandler(int sig)
   * Assist the window manager to do the right thing with respect to focus and
   * with respect to positioning of the window on the correct monitor and the
   * correct desktop.
+  *
+  * Launch without toolwait, with assistance: a child is forked that will
+  * perform the assistance.  The parent will execute the command.  The parent
+  * should initialize client lists before starting the child.  The parent sends
+  * startup notification before executing the command.  The child performs
+  * assistance and then exits.  The child owns the display connection.
   */
 void
 assist()
@@ -3798,6 +3804,14 @@ assist()
 	}
 }
 
+/** @brief launch with tool wait
+  *
+  * Launch with toolwait, with or without assist: a child is forked that will
+  * execute the command.  The parent must determine existing clients before
+  * forking the child.  The child must send the startup notification before
+  * executing the command.  The parent will perform any assistance that is
+  * required and exit when the startup conditions have been satisfied.  The
+  * parent owns the display connection.  */
 void
 toolwait()
 {
@@ -3821,6 +3835,27 @@ toolwait()
 	}
 	/* for now the parent just exits */
 	exit(EXIT_SUCCESS);
+}
+
+/** @brief launch normally without assist or tool wait
+  *
+  * Normal launch without assist without toolwait: No child is generated, the
+  * parent process sends the startup notification message and then executes the
+  * command.  The main process owns the display connection.
+  */
+void
+normal()
+{
+	pid_t pid = getpid();
+
+	if (options.info) {
+		fputs("Would launch without assistance or tool wait\n\n", stdout);
+		reset_pid(pid);
+		return;
+	}
+	reset_pid(pid);
+	/* main process returns and launches */
+	return;
 }
 
 void
@@ -4164,42 +4199,17 @@ launch()
 		OPRINTF("Tool wait requested\n");
 		if (options.info)
 			fputs("Tool wait requested\n", stdout);
-		/* Case 1: Launch with toolwait, with or without assist: a child is
-		   forked that will execute the command.  The parent must determine
-		   existing clients before forking the child.  The child must send the
-		   startup notification before executing the command.  The parent will
-		   perform any assistance that is required and exit when the startup
-		   conditions have been satisfied.  The parent owns the display
-		   connection.  */
-#if 1
 		toolwait();
-#else
-		reset_pid(getpid());
-#endif
 	} else if (need_assist()) {
 		OPRINTF("Assistance is needed\n");
 		if (options.info)
 			fputs("Assistance is needed\n", stdout);
-		/* Case 2: Launch without toolwait, with assistance: a child is forked
-		   that will perform the assistance.  The parent will execute the
-		   command.  The parent should initialize client lists before starting
-		   the child.  The parent sends startup notification before executing the 
-		   command.  The child performs assistance and then exits.  The child
-		   owns the display connection.  */
-#if 1
 		assist();
-#else
-		reset_pid(getpid());
-#endif
 	} else {
 		OPRINTF("Assistance is NOT needed, no tool wait\n");
 		if (options.info)
 			fputs("Assistance is NOT needed, no tool wait\n\n", stdout);
-		/* Case 3: Normal launch without assist without toolwait: No child is
-		   generated, the parent process sends the startup notification message
-		   and then executes the command.  The main process owns the display
-		   connection.  */
-		reset_pid(getpid());
+		normal();
 	}
 
 	if (options.id)
