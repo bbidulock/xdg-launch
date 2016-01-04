@@ -421,8 +421,10 @@ SnMonitorContext *sn_ctx;
 
 struct _Client {
 	int screen;
-	Window win;
-	Window time_win;
+	Window win;			/* the client window */
+	Window time_win;		/* the time window */
+	Window leader;			/* the leader window */
+	Window group;			/* the group window */
 	Client *next;
 	Bool breadcrumb;
 	Bool new;
@@ -2762,7 +2764,7 @@ test_client(Client *c)
 		else
 			return False;
 	}
-	if ((pid = c->pid) && (!c->hostname || strcmp(fields.hostname, c->hostname)))
+	if ((pid = c->pid) && (!c->hostname || strcasecmp(fields.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
 		if (strcmp(fields.id, str))
@@ -2773,9 +2775,9 @@ test_client(Client *c)
 	}
 	/* correct wmclass */
 	if (fields.wmclass) {
-		if (c->ch.res_name && !strcmp(fields.wmclass, c->ch.res_name))
+		if (c->ch.res_name && !strcasecmp(fields.wmclass, c->ch.res_name))
 			return True;
-		if (c->ch.res_class && !strcmp(fields.wmclass, c->ch.res_class))
+		if (c->ch.res_class && !strcasecmp(fields.wmclass, c->ch.res_class))
 			return True;
 	}
 	/* same process id */
@@ -2811,19 +2813,36 @@ test_client(Client *c)
 	return False;
 }
 
+/** @brief assist by setting up the client
+  *
+  * Setting up the client consists of setting some EWMH and other properties on
+  * the (group or leader) window.  Because we can get here for tool wait, we
+  * must check whether assistance is desired.
+  */
 void
 setup_client(Client *c)
 {
+	/* only if assitance was requested or necessary */
+	if (!options.assist)
+		return;
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
 static void
-update_client(Client *c)
+recheck_client(Client *c)
 {
 	long card;
+	Window group;
 
 	XGetClassHint(dpy, c->win, &c->ch);
 	XFetchName(dpy, c->win, &c->name);
+	if (c->wmh)
+		XFree(c->wmh);
+	c->group = None;
+	if ((c->wmh = XGetWMHints(dpy, c->win)))
+		if (c->wmh->flags & WindowGroupHint)
+			if ((group = c->wmh->window_group) && group != root)
+				c->group = group;
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
 	    && c->time_win) {
 		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
@@ -2833,10 +2852,14 @@ update_client(Client *c)
 	c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID);
 	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
 		c->pid = card;
-
 	if (test_client(c))
 		setup_client(c);
+}
 
+static void
+update_client(Client *c)
+{
+	recheck_client(c);
 	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
 	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
 		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
@@ -3624,6 +3647,11 @@ handle_atom(XEvent *e, Client *c, Atom atom)
 	return False;
 }
 
+/** @brief handle CreateNotify event
+  *
+  * When a top-level, non-override-redirect window is created, add it to the
+  * potential client list as unmanaged.
+  */
 Bool
 handle_CreateNotify(XEvent *e, Client *c)
 {
@@ -3644,6 +3672,11 @@ handle_CreateNotify(XEvent *e, Client *c)
 	return True;
 }
 
+/** @brief handle DestroyNotify event
+  *
+  * When the window destroyed is one of our check windows, recheck the
+  * compliance of the window manager to the appropriate check.
+  */
 Bool
 handle_DestroyNotify(XEvent *e, Client *c)
 {
@@ -3686,6 +3719,11 @@ handle_DestroyNotify(XEvent *e, Client *c)
 	return handled;
 }
 
+/** @brief handle FocusIn event
+  *
+  * If a client receives a FocusIn event (receives the focus); then it was
+  * mapped and is managed.  We can updated the client and mark it as managed.
+  */
 Bool
 handle_FocusIn(XEvent *e, Client *c)
 {
@@ -3697,9 +3735,17 @@ handle_FocusIn(XEvent *e, Client *c)
 		DPRINTF("FocusIn not for us!\n");
 		return False;
 	}
+	c->managed = True;
+	recheck_client(c);
 	return True;
 }
 
+/** @brief handle VisibilityNotify event
+  *
+  * If a client becomes something other than fully obscured, then it is mapped
+  * and visible, and was managed.  We can update the client and mark it as
+  * managed.
+  */
 Bool
 handle_VisibilityNotify(XEvent *e, Client *c)
 {
@@ -3711,9 +3757,16 @@ handle_VisibilityNotify(XEvent *e, Client *c)
 		DPRINTF("VisibilityNotify not for us!\n");
 		return False;
 	}
+	c->managed = True;
+	recheck_client(c);
 	return True;
 }
 
+/** @brief handle UnmapNotify event
+  *
+  * If the client is unmapped (can be synthetic), we can perform deletion of
+  * managed client window information.
+  */
 Bool
 handle_UnmapNotify(XEvent *e, Client *c)
 {
@@ -3728,6 +3781,11 @@ handle_UnmapNotify(XEvent *e, Client *c)
 	return True;
 }
 
+/** @brief handle MapNotify event
+  *
+  * If a client becomes mapped, then it is mapped and visible, and was managed.
+  * We can update the client and mark it as managed.
+  */
 Bool
 handle_MapNotify(XEvent *e, Client *c)
 {
@@ -3739,6 +3797,8 @@ handle_MapNotify(XEvent *e, Client *c)
 		DPRINTF("MapNotify not for us!\n");
 		return False;
 	}
+	c->managed = True;
+	recheck_client(c);
 	return True;
 }
 
