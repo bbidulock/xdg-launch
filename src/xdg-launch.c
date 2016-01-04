@@ -3811,7 +3811,16 @@ assist()
   * forking the child.  The child must send the startup notification before
   * executing the command.  The parent will perform any assistance that is
   * required and exit when the startup conditions have been satisfied.  The
-  * parent owns the display connection.  */
+  * parent owns the display connection. 
+  *
+  * If we do not need assistance, all that is needed here is to wait for the
+  * startup notification "end:" message (or timeout) and then consider the
+  * startup complete.
+  *
+  * If assistance is required, we must identify when the application maps its
+  * windows and send the "end:" message ourselves.  Upon transmission of the
+  * "end:" message (or timeout), consider the startup complete.
+  */
 void
 toolwait()
 {
