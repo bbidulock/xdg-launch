@@ -148,6 +148,7 @@ typedef struct {
 	char *file;
 	char *url;
 	pid_t pid;
+	char *id;
 	Bool keyboard;
 	Bool pointer;
 	char *action;
@@ -197,6 +198,7 @@ Options options = {
 	.file = NULL,
 	.url = NULL,
 	.pid = 0,
+	.id = NULL,
 	.keyboard = False,
 	.pointer = False,
 	.action = NULL,
@@ -243,6 +245,7 @@ Options defaults = {
 	.file = "",
 	.url = "",
 	.pid = 0,
+	.id = "$DESKTOP_STARTUP_ID",
 	.keyboard = False,
 	.pointer = False,
 	.action = "none",
@@ -380,6 +383,7 @@ static const char *DesktopEntryFields[] = {
 	"Categories",
 	"MimeType",
 	"AsRoot",
+	"AutostartPhase",
 	NULL
 };
 
@@ -396,6 +400,7 @@ struct entry {
 	char *Categories;
 	char *MimeType;
 	char *AsRoot;
+	char *AutostartPhase;
 };
 
 struct entry entry = { NULL, };
@@ -1940,7 +1945,7 @@ set_launcher()
 	if (options.launcher)
 		fields.launcher = strdup(options.launcher);
 	else if (fields.id && (p = strchr(fields.id, '/')))
-		fields.id = strndup(fields.id, p - fields.id);
+		fields.launcher = strndup(fields.id, p - fields.id);
 	else
 		fields.launcher = strdup(NAME);
 	for (; (p = strchr(fields.launcher, '|')); *p = '/') ;
@@ -1973,7 +1978,12 @@ set_id()
 
 	PTRACE();
 	free(fields.id);
+	fields.id = NULL;
 
+	if (options.id) {
+		fields.id = strdup(options.id);
+		return;
+	}
 	if (!fields.launcher)
 		set_launcher();
 	if (!fields.launchee)
@@ -2038,6 +2048,42 @@ set_all()
 		set_pid();
 	if (!fields.id)
 		set_id();
+}
+
+void
+reset_pid(pid_t pid)
+{
+	PTRACE();
+	if (pid) {
+		/* this is the parent */
+		options.pid = pid;
+		set_pid();
+		set_id();
+		if (options.output > 1) {
+			const char **lp;
+			char **fp;
+
+			OPRINTF("Final notify fields:\n");
+			for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
+				if (*fp)
+					OPRINTF("%-24s = %s\n", *lp, *fp);
+		}
+		if (options.info) {
+			const char **lp;
+			char **fp;
+
+			fputs("Final notify fields:\n\n", stdout);
+			for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
+				if (*fp)
+					fprintf(stdout, "%-24s = %s\n", *lp, *fp);
+			fputs("\n", stdout);
+		}
+	} else {
+		/* this is the child */
+		options.pid = getpid();
+		set_pid();
+		set_id();
+	}
 }
 
 Client *
@@ -2231,6 +2277,25 @@ parse_file(char *path)
 			if (!entry.AsRoot)
 				entry.AsRoot = strdup(val);
 			ok = 1;
+		} else if (strcmp(key, "X-GNOME-Autostart-Phase") == 0) {
+			if (!entry.AutostartPhase) {
+				if (strcmp(val, "Applications") == 0)
+					entry.AutostartPhase = strdup("Application");
+				else
+					entry.AutostartPhase = strdup(val);
+			}
+		} else if (strcmp(key, "X-KDE-autostart-phase") == 0) {
+			if (!entry.AutostartPhase) {
+				switch (atoi(val)) {
+				case 0:
+				case 1:
+					entry.AutostartPhase = strdup("Initializing");
+					break;
+				case 2:
+					entry.AutostartPhase = strdup("Application");
+					break;
+				}
+			}
 		}
 	}
 	fclose(file);
@@ -3623,35 +3688,32 @@ sighandler(int sig)
 void
 assist()
 {
-	pid_t pid;
+	pid_t pid = getpid();
+	int status = 0;
 
 	setup_to_assist();
 	XSync(dpy, False);
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent returns with new connection */
-		XCloseDisplay(dpy);
+	if (options.info) {
+		reset_pid(pid);
 		return;
 	}
-	setsid();		/* become a session leader */
-	/* close files */
-	fclose(stdin);
-	/* fork once more for SVR4 */
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent exits */
+	}
+	reset_pid(pid);
+	if (pid) {
+		/* for now parent just exits */
+		/* set pgrp of child to session id */
+		setpgid(0, 1808);
+		setpgid(pid, 1808);
+		wait(&status);
 		exit(EXIT_SUCCESS);
+	} else {
+		/* child returns and launches */
+		return;
 	}
-	/* release current directory */
-	if (chdir("/") < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	umask(0);		/* clear file creation mask */
+
 	/* continue on monitoring */
 	{
 		int xfd;
@@ -3916,42 +3978,81 @@ wait_for_composite_manager()
 	wait_for_condition(&check_compm);
 }
 
+/* NOTES:
+ *
+ * We really need a guard timer option setting.  We should typically only wait
+ * for 2 seconds for a window manager.  Setting the guard timer to zero should
+ * result in indefinite wait.
+ *
+ * When options.xsession is true, we should never wait for resources.
+ */
 void
-launch()
+wait_for_resource()
 {
-	size_t size;
-	char *disp, *cmd, *p;
-	Bool need_assist = False;
-	Bool change_only = False;
-
-	/* set the DESKTOP_STARTUP_ID environment variable */
-	if ((p = getenv("DESKTOP_STARTUP_ID")) && *p)
-		change_only = True;
-	setenv("DESKTOP_STARTUP_ID", fields.id, 1);
-
-	/* set the DISPLAY environment variable */
-	p = getenv("DISPLAY");
-	size = strlen(p) + strlen(fields.screen) + 2;
-	disp = calloc(size, sizeof(*disp));
-	strcpy(disp, p);
-	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
-		*p = '\0';
-	strcat(disp, ".");
-	strcat(disp, fields.screen);
-	setenv("DISPLAY", disp, 1);
+	if (options.xsession) {
+		DPRINTF("Cannot wait for resources when launching xsessions.\n");
+		return;
+	}
+	if (entry.AutostartPhase) {
+		/* When autostarting we should use the autostart phase to
+		 * determine the resources for which to wait. */
+		if (strcmp(entry.AutostartPhase, "Initializing") == 0) {
+			/* Initializing: do not wait for anything. */
+			options.manager = False;
+			options.tray = False;
+			options.pager = False;
+		} else if (strcmp(entry.AutostartPhase, "WindowManager") == 0) {
+			/* WindowManager: do not wait for anything. */
+			options.manager = False;
+			options.tray = False;
+			options.pager = False;
+		} else if (strcmp(entry.AutostartPhase, "Panel") == 0) {
+			/* Panel: wait only for window manager (if requested?). */
+			options.manager = True;
+			options.tray = False;
+			options.pager = False;
+		} else if (strcmp(entry.AutostartPhase, "Desktop") == 0) {
+			/* Desktop: wait only for window manager (if requested?). */
+			options.manager = True;
+		} else if (strcmp(entry.AutostartPhase, "Application") == 0) {
+			/* Application(s): wait for window manager, others if requested. */
+			options.manager = True;
+		} else {
+			/* default is same as Application */
+			options.manager = True;
+		}
+	} else if (options.autostart) {
+		options.manager = True;
+		if (entry.Categories) {
+			if (strstr(entry.Categories, "TrayIcon"))
+				options.tray = True;
+			if (strstr(entry.Categories, "DockApp"))
+				options.manager = True;
+			if (strstr(entry.Categories, "SystemTray"))
+				options.tray = False;
+		}
+	}
 
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
-	if (options.manager || options.tray || options.pager || options.composite)
-		alarm(120);
-	if (options.manager)
-		wait_for_window_manager();
-	if (options.tray)
-		wait_for_system_tray();
-	if (options.pager)
-		wait_for_desktop_pager();
-	if (options.composite)
-		wait_for_composite_manager();
+	if (options.manager || options.tray || options.pager || options.composite) {
+		alarm(120);	/* guard time for wait */
+		if (options.manager)
+			wait_for_window_manager();
+		if (options.tray)
+			wait_for_system_tray();
+		if (options.pager)
+			wait_for_desktop_pager();
+		if (options.composite)
+			wait_for_composite_manager();
+	} else
+		DPRINTF("No resource wait requested.\n");
+}
+
+Bool
+need_assist()
+{
+	Bool need_assist = False;
 
 	if (options.xsession) {
 		DPRINTF("XSession: always needs assistance\n");
@@ -3963,11 +4064,6 @@ launch()
 		need_assist = True;
 		if (options.info)
 			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
-	} else if (options.toolwait) {
-		DPRINTF("ToolWait: always needs assistance\n");
-		need_assist = True;
-		if (options.info)
-			fputs("Launching ToolWait entry always requires assistance.\n", stdout);
 	} else if (need_assistance()) {
 		OPRINTF("WindowManager: needs assistance\n");
 		if (fields.wmclass) {
@@ -3983,21 +4079,84 @@ launch()
 				fputs("Launching SILENT entry always requires assistance.\n", stdout);
 		}
 	}
+	return need_assist;
+}
+
+void
+launch()
+{
+	size_t size;
+	char *disp, *cmd, *p;
+	Bool change_only = False;
+
+	wait_for_resource();
+
 	/* make the call... */
+
+	if (options.toolwait) {
+		OPRINTF("Tool wait requested\n");
+		if (options.info)
+			fputs("Tool wait requested\n\n", stdout);
+		/* Case 1: Launch with toolwait, with or without assist: a child is
+		   forked that will execute the command.  The parent must determine
+		   existing clients before forking the child.  The child must send the
+		   startup notification before executing the command.  The parent will
+		   perform any assistance that is required and exit when the startup
+		   conditions have been satisfied.  The parent owns the display
+		   connection.  */
+#if 0
+		toolwait();
+#else
+		reset_pid(getpid());
+#endif
+	} else if (need_assist()) {
+		OPRINTF("Assistance is needed\n");
+		if (options.info)
+			fputs("Assistance is needed\n\n", stdout);
+		/* Case 2: Launch without toolwait, with assistance: a child is forked
+		   that will perform the assistance.  The parent will execute the
+		   command.  The parent should initialize client lists before starting
+		   the child.  The parent sends startup notification before executing the 
+		   command.  The child performs assistance and then exits.  The child
+		   owns the display connection.  */
+#if 0
+		assist();
+#else
+		reset_pid(getpid());
+#endif
+	} else {
+		OPRINTF("Assistance is NOT needed\n");
+		if (options.info)
+			fputs("Assistance is NOT needed\n\n", stdout);
+		/* Case 3: Normal launch without assist without toolwait: No child is
+		   generated, the parent process sends the startup notification message
+		   and then executes the command.  The main process owns the display
+		   connection.  */
+		reset_pid(getpid());
+	}
+
+	if (options.id)
+		change_only = True;
+
 	if (change_only)
 		send_change();
 	else
 		send_new();
-
-	if (need_assist) {
-		OPRINTF("Assistance is needed\n");
-#if 0
-		assist();
-#endif
-	} else {
-		OPRINTF("Assistance is NOT needed\n");
-	}
 	XCloseDisplay(dpy);
+
+	/* set the DESKTOP_STARTUP_ID environment variable */
+	setenv("DESKTOP_STARTUP_ID", fields.id, 1);
+
+	/* set the DISPLAY environment variable */
+	p = getenv("DISPLAY");
+	size = strlen(p) + strlen(fields.screen) + 2;
+	disp = calloc(size, sizeof(*disp));
+	strcpy(disp, p);
+	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
+		*p = '\0';
+	strcat(disp, ".");
+	strcat(disp, fields.screen);
+	setenv("DISPLAY", disp, 1);
 
 	if (eargv) {
 		if (options.info) {
@@ -5721,6 +5880,12 @@ main(int argc, char *argv[])
 	int exec_mode = 0;		/* application mode is default */
 	char *p;
 
+	if ((p = getenv("DESKTOP_STARTUP_ID")) && *p) {
+		free(options.id);
+		options.id = strdup(p);
+	}
+	unsetenv("DESKTOP_STARTUP_ID");
+
 #ifdef RECENTLY_USED
 	now = time(NULL);
 #ifdef RECENTLY_USED_XBEL
@@ -6149,32 +6314,16 @@ main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	/* populate some fields */
-	if (getenv("DESKTOP_STARTUP_ID") && *getenv("DESKTOP_STARTUP_ID"))
-		fields.id = strdup(getenv("DESKTOP_STARTUP_ID"));
-
+	if (options.id) {
+		if (options.info)
+			fprintf(stdout, "Setting desktop startup id to: %s\n", options.id);
+		free(fields.id);
+		fields.id = strdup(options.id);
+	}
 	/* open display now */
 	get_display();
 	/* fill out all fields */
 	set_all();
-	if (options.output > 1) {
-		const char **lp;
-		char **fp;
-
-		OPRINTF("Final notify fields:\n");
-		for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
-			if (*fp)
-				OPRINTF("%-24s = %s\n", *lp, *fp);
-	}
-	if (options.info) {
-		const char **lp;
-		char **fp;
-
-		fputs("Final notify fields:\n\n", stdout);
-		for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
-			if (*fp)
-				fprintf(stdout, "%-24s = %s\n", *lp, *fp);
-		fputs("\n", stdout);
-	}
 	if (!options.info)
 		put_history();
 	launch();
