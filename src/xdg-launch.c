@@ -2836,18 +2836,20 @@ setup_client(Client *c)
 		return;
 	if (fields.id) {
 		XTextProperty xtp = { 0, };
-		char *list[2] = { NULL, NULL };
+		char *list[2] = { NULL, };
 		int count = 1;
 
 		list[0] = fields.id;
 		Xutf8TextListToTextProperty(dpy, list, count, XUTF8StringStyle, &xtp);
 		XSetTextProperty(dpy, c->group, &xtp, _XA_NET_STARTUP_ID);
+		if (xtp.value)
+			XFree(xtp.value);
 	}
 	if (fields.pid && atoi(fields.pid)) {
 		long data = atoi(fields.pid);
 
-		XChangeProperty(dpy, c->group, _XA_NET_WM_PID, XA_CARDINAL, 32, PropModeReplace,
-				(unsigned char *) &data, 1);
+		XChangeProperty(dpy, c->group, _XA_NET_WM_PID, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
 	}
 	if (fields.timestamp && atoi(fields.timestamp)) {
 		long data = atoi(fields.timestamp);
@@ -2855,7 +2857,23 @@ setup_client(Client *c)
 		XChangeProperty(dpy, c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, 32,
 				PropModeReplace, (unsigned char *) &data, 1);
 	}
-	/* XXX: set _XA_NET_WM_DESKTOP */
+	if (fields.desktop) {
+		long data = atoi(fields.desktop);
+
+		XChangeProperty(dpy, c->win, _XA_NET_WM_DESKTOP, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+	}
+	if (fields.hostname) {
+		XTextProperty xtp = { 0, };
+		char *list[2] = { NULL, };
+		int count = 1;
+
+		list[0] = fields.hostname;
+		Xutf8TextListToTextProperty(dpy, list, count, XStringStyle, &xtp);
+		XSetTextProperty(dpy, c->group, &xtp, XA_WM_CLIENT_MACHINE);
+		if (xtp.value)
+			XFree(xtp.value);
+	}
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
