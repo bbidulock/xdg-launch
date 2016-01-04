@@ -615,7 +615,7 @@ get_display()
 			root = RootWindow(dpy, screen);
 			XSelectInput(dpy, root,
 				     VisibilityChangeMask | StructureNotifyMask |
-				     FocusChangeMask | PropertyChangeMask);
+				     SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask);
 		}
 #ifdef STARTUP_NOTIFICATION
 		sn_dpy = sn_display_new(dpy, NULL, NULL);
@@ -739,7 +739,7 @@ check_recursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
 			XFree(data);
 			data = NULL;
 		} else {
@@ -789,7 +789,7 @@ check_nonrecursive(Atom atom, Atom type)
 			       (unsigned char **) &data) == Success && format != 0) {
 		if (nitems > 0) {
 			if ((check = data[0]))
-				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
+				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
 		}
 		if (data)
 			XFree(data);
@@ -845,17 +845,17 @@ static Window
 check_anywm()
 {
 	if (wm.netwm_check)
-		return wm.netwm_check;
+		return True;
 	if (wm.winwm_check)
-		return wm.winwm_check;
+		return True;
 	if (wm.maker_check)
-		return wm.maker_check;
+		return True;
 	if (wm.motif_check)
-		return wm.motif_check;
+		return True;
 	if (wm.icccm_check)
-		return wm.icccm_check;
+		return True;
 	if (wm.redir_check)
-		return wm.redir_check;
+		return True;
 	return False;
 }
 
@@ -889,17 +889,18 @@ static Window
 check_netwm()
 {
 	int i = 0;
+	Window win;
 
 	do {
-		wm.netwm_check = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW);
-	} while (i++ < 2 && !wm.netwm_check);
-
-	if (wm.netwm_check)
-		XSelectInput(dpy, wm.netwm_check, PropertyChangeMask | StructureNotifyMask);
-	else
-		wm.netwm_check = check_netwm_supported();
-
-	return wm.netwm_check;
+		if ((win = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	} while (i++ < 2 && !win);
+	win = win ?: check_netwm_supported();
+	if (win && win != wm.netwm_check)
+		DPRINTF("NetWM/EWMH changed from 0x%08lx to 0x%08lx\n", wm.netwm_check, win);
+	if (!win && wm.netwm_check)
+		DPRINTF("NetWM/EWMH removed from 0x%08lx\n", wm.netwm_check);
+	return (wm.netwm_check = win);
 }
 
 /** @brief Check for a non-compliant GNOME/WinWM window manager.
@@ -924,17 +925,18 @@ static Window
 check_winwm()
 {
 	int i = 0;
+	Window win;
 
 	do {
-		wm.winwm_check = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL);
-	} while (i++ < 2 && !wm.winwm_check);
-
-	if (wm.winwm_check)
-		XSelectInput(dpy, wm.winwm_check, PropertyChangeMask | StructureNotifyMask);
-	else
-		wm.winwm_check = check_winwm_supported();
-
-	return wm.winwm_check;
+		if ((win = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	} while (i++ < 2 && !win);
+	win = win ?: check_winwm_supported();
+	if (win && win != wm.winwm_check)
+		DPRINTF("WinWM/WMH changed from 0x%08lx to 0x%08lx\n", wm.winwm_check, win);
+	if (!win && wm.winwm_check)
+		DPRINTF("WinWM/WMH removed from 0x%08lx\n", wm.winwm_check);
+	return (wm.winwm_check = win);
 }
 
 /** @brief Check for a WindowMaker compliant window manager.
@@ -943,15 +945,17 @@ static Window
 check_maker()
 {
 	int i = 0;
+	Window win;
 
 	do {
-		wm.maker_check = check_recursive(_XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW);
-	} while (i++ < 2 && !wm.maker_check);
-
-	if (wm.maker_check)
-		XSelectInput(dpy, wm.maker_check, PropertyChangeMask | StructureNotifyMask);
-
-	return wm.maker_check;
+		if ((win = check_recursive(_XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	} while (i++ < 2 && !win);
+	if (win && win != wm.maker_check)
+		DPRINTF("WindowMaker changed from 0x%08lx to 0x%08lx\n", wm.maker_check, win);
+	if (!win && wm.maker_check)
+		DPRINTF("WindowMaker removed from 0x%08lx\n", wm.maker_check);
+	return (wm.maker_check = win);
 }
 
 /** @brief Check for an OSF/Motif compliant window manager.
@@ -961,17 +965,20 @@ check_motif()
 {
 	int i = 0;
 	long *data, n = 0;
+	Window win = None;
 
 	do {
-		data = get_cardinals(root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n);
+		if ((data = get_cardinals(root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n))) {
+			if (n >= 2 && (win = data[1]))
+				XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+			XFree(data);
+		}
 	} while (i++ < 2 && !data);
-
-	if (data && n >= 2)
-		wm.motif_check = data[1];
-	if (wm.motif_check)
-		XSelectInput(dpy, wm.motif_check, PropertyChangeMask | StructureNotifyMask);
-
-	return wm.motif_check;
+	if (win && win != wm.motif_check)
+		DPRINTF("OSF/MOTIF changed from 0x%08lx to 0x%08lx\n", wm.motif_check, win);
+	if (!win && wm.motif_check)
+		DPRINTF("OSF/MOTIF removed from 0x%08lx\n", wm.motif_check);
+	return (wm.motif_check = win);
 }
 
 /** @brief Check for an ICCCM 2.0 compliant window manager.
@@ -985,20 +992,13 @@ check_icccm()
 
 	snprintf(buf, sizeof(buf), "WM_S%d", screen);
 	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.icccm_check) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
-			DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check,
-				win);
-			wm.icccm_check = win;
-		}
-	} else if (wm.icccm_check) {
+	if ((win = XGetSelectionOwner(dpy, sel)))
+		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+	if (win && win != wm.icccm_check)
+		DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check, win);
+	if (!win && wm.icccm_check)
 		DPRINTF("ICCCM 2.0 WM removed from 0x%08lx\n", wm.icccm_check);
-		wm.icccm_check = None;
-	}
-	return wm.icccm_check;
+	return (wm.icccm_check = win);
 }
 
 /** @brief Check whether an ICCCM window manager is present.
@@ -1010,22 +1010,17 @@ static Window
 check_redir()
 {
 	XWindowAttributes wa;
+	Window win = None;
 
-	OPRINTF("checking direction for screen %d\n", screen);
-
-	wm.redir_check = None;
-	if (XGetWindowAttributes(dpy, root, &wa)) {
-		if (wa.all_event_masks & SubstructureRedirectMask) {
-			if (wm.redir_check != root) {
-				DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, root);
-				wm.redir_check = root;
-			}
-		} else if (wm.redir_check) {
-			DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
-			wm.redir_check = None;
-		}
-	}
-	return wm.redir_check;
+	OPRINTF("checking redirection for screen %d\n", screen);
+	if (XGetWindowAttributes(dpy, root, &wa))
+		if (wa.all_event_masks & SubstructureRedirectMask)
+			win = root;
+	if (win && win != wm.redir_check)
+		DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, win);
+	if (!win && wm.redir_check)
+		DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
+	return (wm.redir_check = win);
 }
 
 /** @brief Find window manager and compliance for the current screen.
@@ -1113,9 +1108,7 @@ check_stray()
 	sel = XInternAtom(dpy, buf, True);
 	if ((win = XGetSelectionOwner(dpy, sel))) {
 		if (win != wm.stray_owner) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner, win);
 			wm.stray_owner = win;
 		}
@@ -1150,9 +1143,7 @@ check_pager()
 	sel = XInternAtom(dpy, buf, True);
 	if ((win = XGetSelectionOwner(dpy, sel))) {
 		if (win != wm.pager_owner) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 			DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner,
 				win);
 			wm.pager_owner = win;
@@ -1199,9 +1190,7 @@ check_compm()
 	sel = XInternAtom(dpy, buf, True);
 	if ((win = XGetSelectionOwner(dpy, sel))) {
 		if (win != wm.compm_owner) {
-			XSelectInput(dpy, win,
-				     StructureNotifyMask | SubstructureNotifyMask |
-				     PropertyChangeMask);
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 			DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
 			wm.compm_owner = win;
 		}
