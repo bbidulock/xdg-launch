@@ -489,32 +489,32 @@ Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
 
-static void handle_MANAGER(XEvent *, Client *);
-static void handle_MOTIF_WM_INFO(XEvent *, Client *);
-static void handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
-static void handle_NET_CLIENT_LIST(XEvent *, Client *);
-static void handle_NET_STARTUP_INFO_BEGIN(XEvent *, Client *);
-static void handle_NET_STARTUP_INFO(XEvent *, Client *);
-static void handle_NET_SUPPORTED(XEvent *, Client *);
-static void handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static void handle_NET_WM_STATE(XEvent *, Client *);
-static void handle_NET_WM_USER_TIME(XEvent *, Client *);
-static void handle_WIN_CLIENT_LIST(XEvent *, Client *);
-static void handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
-static void handle_WIN_PROTOCOLS(XEvent *, Client *);
-static void handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static void handle_WM_CLIENT_MACHINE(XEvent *, Client *);
-static void handle_WM_COMMAND(XEvent *, Client *);
-static void handle_WM_HINTS(XEvent *, Client *);
-static void handle_WM_STATE(XEvent *, Client *);
-static void handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
-static void handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
-static void handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
+static Bool handle_MANAGER(XEvent *, Client *);
+static Bool handle_MOTIF_WM_INFO(XEvent *, Client *);
+static Bool handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
+static Bool handle_NET_CLIENT_LIST(XEvent *, Client *);
+static Bool handle_NET_STARTUP_INFO_BEGIN(XEvent *, Client *);
+static Bool handle_NET_STARTUP_INFO(XEvent *, Client *);
+static Bool handle_NET_SUPPORTED(XEvent *, Client *);
+static Bool handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static Bool handle_NET_WM_STATE(XEvent *, Client *);
+static Bool handle_NET_WM_USER_TIME(XEvent *, Client *);
+static Bool handle_WIN_CLIENT_LIST(XEvent *, Client *);
+static Bool handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
+static Bool handle_WIN_PROTOCOLS(XEvent *, Client *);
+static Bool handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
+static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
+static Bool handle_WM_COMMAND(XEvent *, Client *);
+static Bool handle_WM_HINTS(XEvent *, Client *);
+static Bool handle_WM_STATE(XEvent *, Client *);
+static Bool handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
+static Bool handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
+static Bool handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
 
 struct atoms {
 	char *name;
 	Atom *atom;
-	void (*handler) (XEvent *, Client *);
+	Bool (*handler) (XEvent *, Client *);
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
@@ -1055,48 +1055,49 @@ check_window_manager()
 	return check_anywm();
 }
 
-static void
+static Bool
 handle_wmchange(XEvent *e, Client *c)
 {
 	if (!e || e->type == PropertyNotify)
 		if (!check_window_manager())
 			check_window_manager();
+	return True;
 }
 
-static void
+static Bool
 handle_WINDOWMAKER_NOTICEBOARD(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_MOTIF_WM_INFO(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_NET_SUPPORTING_WM_CHECK(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_NET_SUPPORTED(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_WIN_SUPPORTING_WM_CHECK(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
-static void
+static Bool
 handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 {
-	handle_wmchange(e, c);
+	return handle_wmchange(e, c);
 }
 
 /** @brief Check for a system tray.
@@ -1125,14 +1126,16 @@ check_stray()
 	return wm.stray_owner;
 }
 
-static void
+static Bool
 handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *e, Client *c)
 {
+	return False;
 }
 
-static void
+static Bool
 handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
 {
+	return False;
 }
 
 static Window
@@ -1167,11 +1170,11 @@ check_pager()
 	return wm.pager_owner;
 }
 
-static void
+static Bool
 handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
 {
 	if (!e || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		if (!wm.pager_owner)
@@ -1182,6 +1185,7 @@ handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
 			wm.pager_owner = None;
 		break;
 	}
+	return True;
 }
 
 static Window
@@ -2874,30 +2878,32 @@ del_client(Client *r)
 	remove_client(r);
 }
 
-static void
+static Bool
 handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 {
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		break;
 	case PropertyDelete:
 		break;
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_WM_COMMAND(XEvent *e, Client *c)
 {
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		break;
 	case PropertyDelete:
 		break;
 	}
+	return True;
 }
 
 /** @brief a sophisticated dock app test
@@ -2926,14 +2932,14 @@ is_trayicon(Client *c)
 	return False;
 }
 
-static void
+static Bool
 handle_WM_HINTS(XEvent *e, Client *c)
 {
 	Window grp = None;
 	Client *g = NULL;
 
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		if (c->wmh)
@@ -2953,21 +2959,23 @@ handle_WM_HINTS(XEvent *e, Client *c)
 		}
 		break;
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_WM_STATE(XEvent *e, Client *c)
 {
 	long data;
 
 	if (!c || e->type != PropertyNotify)
-		return;
+		return False;
 	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
 	    && data != WithdrawnState && !c)
 		c = add_client(e->xany.window);
+	return True;
 }
 
-static void
+static Bool
 handle_NET_WM_STATE(XEvent *e, Client *c)
 {
 	Atom *atoms = NULL;
@@ -2982,7 +2990,9 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
 				break;
 			}
 		XFree(atoms);
+		return True;
 	}
+	return False;
 }
 
 /** @brief track the active window
@@ -2993,7 +3003,7 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
   * by EWMH/NetWM compliant window managers to indicate the active window.  We
   * keep track of the last time that each client window was active.
   */
-static void
+static Bool
 handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 {
 	Window active = None;
@@ -3003,17 +3013,22 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 			c = add_client(active);
 		if (e)
 			c->active_time = e->xproperty.time;
+		return True;
 	}
+	return False;
 }
 
-static void
+static Bool
 handle_NET_WM_USER_TIME(XEvent *e, Client *c)
 {
-	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time))
+	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time)) {
 		push_time(&last_user_time, c->user_time);
+		return True;
+	}
+	return False;
 }
 
-static void
+static Bool
 handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 {
 	Window *list;
@@ -3038,28 +3053,31 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 				c = *cp;
 			}
 		}
+		return True;
 	}
+	return False;
 }
 
-static void
+static Bool
 handle_NET_CLIENT_LIST(XEvent *e, Client *c)
 {
-	handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
+	return handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
 
-static void
+static Bool
 handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
 {
-	handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
+	return handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
 
-static void
+static Bool
 handle_MANAGER(XEvent *e, Client *c)
 {
 	check_compm();
 	check_pager();
 	check_stray();
 	check_icccm();
+	return True;
 }
 
 static void
@@ -3472,7 +3490,7 @@ process_startup_msg(Message *m)
 	remove_sequence(seq);
 }
 
-static void
+static Bool
 handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 {
 	Window from;
@@ -3480,7 +3498,7 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	int len;
 
 	if (!e || e->type != ClientMessage)
-		return;
+		return False;
 	from = e->xclient.window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
 		m = calloc(1, sizeof(*m));
@@ -3498,9 +3516,10 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
 	}
+	return True;
 }
 
-static void
+static Bool
 handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 {
 	Window from;
@@ -3508,10 +3527,10 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 	int len;
 
 	if (!e || e->type != ClientMessage)
-		return;
+		return False;
 	from = e->xclient.window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
-		return;
+		return False;
 	m->data = realloc(m->data, m->len + 21);
 	/* unpack data */
 	len = strnlen(e->xclient.data.b, 20);
@@ -3521,6 +3540,7 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
 	}
+	return True;
 }
 
 void
@@ -3664,8 +3684,9 @@ handle_event(XEvent *e)
 void
 setup_to_assist()
 {
-	handle_NET_CLIENT_LIST(NULL, NULL);
-	handle_WIN_CLIENT_LIST(NULL, NULL);
+	if (!handle_NET_CLIENT_LIST(NULL, NULL))
+		if (!handle_WIN_CLIENT_LIST(NULL, NULL))
+			;
 	handle_NET_ACTIVE_WINDOW(NULL, NULL);
 	if (fields.timestamp)
 		push_time(&launch_time, (Time) strtoul(fields.timestamp, NULL, 0));
