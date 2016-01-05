@@ -3292,26 +3292,53 @@ handle_WM_CLASS(XEvent *e, Client *c)
 	return False;
 }
 
+/** @brief track the NetWM state of client
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  *
+  * This property is set by both the client and the window manager; however,
+  * _NET_WM_STATE_FOCUSED can only be set by the window manager and indicates
+  * that the client is being managed.
+  */
 static Bool
 handle_NET_WM_STATE(XEvent *e, Client *c)
 {
 	Atom *atoms = NULL;
-	long i, n;
+	long i, n = -1;
 
-	if ((atoms = get_atoms(e->xany.window, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
-		if (!c)
-			c = add_client(e->xany.window);
-		for (i = 0; i < n; i++)
-			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
-				c->focus_time = e->xproperty.time;
-				break;
-			}
-		XFree(atoms);
+	if (!c || e->type != PropertyNotify)
+		return False;
+	if (e->xproperty.window != c->win)
+		return False;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if ((atoms = get_atoms(e->xany.window, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
+			for (i = 0; i < n; i++)
+				if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+					c->focus_time = e->xproperty.time;
+					if (!c->managed) {
+						c->managed = True;
+						recheck_client(c);
+					}
+					break;
+				}
+			XFree(atoms);
+		}
+		return True;
+	case PropertyDelete:
 		return True;
 	}
 	return False;
 }
 
+/** @brief track the NetWM desktop of client
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  *
+  * This property property can be set either by the client (before mapping) or
+  * the window manager (after mapping).  Therefore it indicates nothing of the
+  * management of the client.
+  */
 static Bool
 handle_NET_WM_DESKTOP(XEvent *e, Client *c)
 {
