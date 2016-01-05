@@ -425,9 +425,13 @@ struct _Client {
 	Window win;			/* the client window */
 	Window time_win;		/* the time window */
 	Window group;			/* the group window */
+	Window icon_win;		/* the icon window */
+	int state;			/* WM_STATE */
+	Bool dockapp;			/* this client is a dockapp */
 	Bool breadcrumb;
 	Bool new;
-	Bool managed;
+	Bool managed;			/* set when client managed */
+	Bool counted;			/* set when client counted */
 	Time active_time;
 	Time focus_time;
 	Time user_time;
@@ -2761,12 +2765,41 @@ get_proc_argv0(pid_t pid)
 	return get_proc_file(pid, "cmdline", &size);
 }
 
+/** @brief a sophisticated dock app test
+  */
+Bool
+is_dockapp(Client *c)
+{
+	if (!c->wmh)
+		return False;
+	if ((c->wmh->flags & StateHint) && c->wmh->initial_state == WithdrawnState)
+		return True;
+	if ((c->wmh->flags & ~IconPositionHint) == (StateHint | IconWindowHint | WindowGroupHint))
+		return True;
+	if (!c->ch.res_class)
+		return False;
+	if (!strcmp(c->ch.res_class, "DockApp"))
+		return True;
+	return False;
+}
+
+/** @brief a sophisticated tray icon test
+  */
+Bool
+is_trayicon(Client *c)
+{
+	return False;
+}
+
 static Bool
 test_client(Client *c)
 {
 	pid_t pid;
 	char *str;
 
+	/* are we managed yet? */
+	if (!c->managed)
+		return False;
 	if (c->startup_id) {
 		if (!strcmp(c->startup_id, fields.id))
 			return True;
@@ -2881,17 +2914,24 @@ static void
 recheck_client(Client *c)
 {
 	long card = 0;
-	Window group;
+	Window win;
 
 	XGetClassHint(dpy, c->win, &c->ch);
 	XFetchName(dpy, c->win, &c->name);
 	if (c->wmh)
 		XFree(c->wmh);
 	c->group = c->win;
-	if ((c->wmh = XGetWMHints(dpy, c->win)))
+	c->icon_win = c->win;
+	if ((c->wmh = XGetWMHints(dpy, c->win))) {
 		if (c->wmh->flags & WindowGroupHint)
-			if ((group = c->wmh->window_group) && group != root)
-				c->group = group;
+			if ((win = c->wmh->window_group) && win != root)
+				c->group = win;
+		c->icon_win = c->win;
+		if (c->wmh->flags & IconWindowHint)
+			if ((win = c->wmh->icon_window))
+				c->icon_win = win;
+		c->dockapp = is_dockapp(c);
+	}
 	c->time_win = c->win;
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
 	    && c->time_win) {
@@ -2907,8 +2947,16 @@ recheck_client(Client *c)
 	if (!c->pid && !get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
 		if (get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card))
 			c->pid = card;
-	if (test_client(c))
-		setup_client(c);
+	if (c->managed && !c->counted) {
+		if (test_client(c)) {
+			c->counted = True;
+			if (options.assist)
+				setup_client(c);
+			if (options.assist || options.toolwait)
+				if (--options.mappings == 0)
+					running = False;
+		}
+	}
 }
 
 static void
@@ -2918,6 +2966,21 @@ update_client(Client *c)
 	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
 	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
 		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	if (c->group && c->group != c->win) {
+		XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->group, ExposureMask | VisibilityChangeMask |
+			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	}
+	if (c->icon_win && c->icon_win != c->win) {
+		XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->icon_win, ExposureMask | VisibilityChangeMask |
+			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	}
+	if (c->time_win && c->time_win != c->win) {
+		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->time_win, ExposureMask | VisibilityChangeMask |
+			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	}
 	c->new = False;
 }
 
@@ -2995,32 +3058,6 @@ handle_WM_COMMAND(XEvent *e, Client *c)
 		break;
 	}
 	return True;
-}
-
-/** @brief a sophisticated dock app test
-  */
-Bool
-is_dockapp(Client *c)
-{
-	if (!c->wmh)
-		return False;
-	if ((c->wmh->flags & StateHint) && c->wmh->initial_state == WithdrawnState)
-		return True;
-	if ((c->wmh->flags & ~IconPositionHint) == (StateHint | IconWindowHint | WindowGroupHint))
-		return True;
-	if (!c->ch.res_class)
-		return False;
-	if (!strcmp(c->ch.res_class, "DockApp"))
-		return True;
-	return False;
-}
-
-/** @brief a sophisticated tray icon test
-  */
-Bool
-is_trayicon(Client *c)
-{
-	return False;
 }
 
 static Bool
