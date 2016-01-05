@@ -79,6 +79,7 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <wordexp.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -437,7 +438,8 @@ struct _Client {
 	Time user_time;
 	pid_t pid;
 	char *startup_id;
-	char **command;
+	char **command;			/* words in WM_COMMAND */
+	int count;			/* count of words in WM_COMMAND */
 	char *name;
 	char *hostname;
 	XClassHint ch;
@@ -2803,6 +2805,9 @@ test_client(Client *c)
 	/* are we managed yet? */
 	if (!c->managed)
 		return False;
+	/* already considered? */
+	if (c->counted)
+		return False;
 	if (c->startup_id) {
 		if (!strcmp(c->startup_id, fields.id))
 			return True;
@@ -2855,6 +2860,35 @@ test_client(Client *c)
 	/* NOTE: we use the PID to look in: /proc/[pid]/cmdline for argv[]
 	   /proc/[pid]/environ for env[] /proc/[pid]/comm basename of executable
 	   /proc/[pid]/exe symbolic link to executable */
+	/* correct command */
+	if (c->command && (eargv || fields.command)) {
+		int i;
+
+		if (eargv) {
+			if (c->count != eargc)
+				return False;
+			for (i = 0; i < c->count; i++)
+				if (strcmp(eargv[i], c->command[i]))
+					return False;
+			return True;
+		} else if (fields.command) {
+			wordexp_t we = { 0, };
+
+			if (wordexp(fields.command, &we, 0) == 0) {
+				if (we.we_wordc != c->count) {
+					wordfree(&we);
+					return False;
+				}
+				for (i = 0; i < c->count; i++)
+					if (strcmp(we.we_wordv[i], c->command[i])) {
+						wordfree(&we);
+						return False;
+					}
+				wordfree(&we);
+				return True;
+			}
+		}
+	}
 	return False;
 }
 
@@ -2909,6 +2943,18 @@ setup_client(Client *c)
 		XSetTextProperty(dpy, c->group, &xtp, XA_WM_CLIENT_MACHINE);
 		if (xtp.value)
 			XFree(xtp.value);
+	}
+	if (!c->command && (eargv || fields.command)) {
+		if (eargv)
+			XSetCommand(dpy, c->win, eargv, eargc);
+		else if (fields.command) {
+			wordexp_t we = { 0, };
+
+			if (wordexp(fields.command, &we, 0) == 0) {
+				XSetCommand(dpy, c->win, we.we_wordv, we.we_wordc);
+				wordfree(&we);
+			}
+		}
 	}
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
@@ -3036,6 +3082,8 @@ remove_client(Client *c)
 	XDeleteContext(dpy, c->win, ClientContext);
 	if (c->time_win)
 		XDeleteContext(dpy, c->time_win, ClientContext);
+	if (c->command)
+		XFreeStringList(c->command);
 #ifdef STARTUP_NOTIFICATION
 	if (c->seq)
 		sn_startup_sequence_unref(c->seq);
@@ -3068,18 +3116,36 @@ handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 	return True;
 }
 
+/** @brief track client command
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  */
 static Bool
 handle_WM_COMMAND(XEvent *e, Client *c)
 {
 	if (!c || e->type != PropertyNotify)
 		return False;
+	if (e->xproperty.window != c->win)
+		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
-		break;
+		if (c->command) {
+			XFreeStringList(c->command);
+			c->command = NULL;
+			c->count = 0;
+		}
+		if (XGetCommand(dpy, c->win, &c->command, &c->count))
+			recheck_client(c);
+		return True;
 	case PropertyDelete:
-		break;
+		if (c->command) {
+			XFreeStringList(c->command);
+			c->command = NULL;
+			c->count = 0;
+		}
+		return True;
 	}
-	return True;
+	return False;
 }
 
 static Bool
@@ -3151,6 +3217,11 @@ handle_WM_STATE(XEvent *e, Client *c)
 /** @brief track client class
   * @param e - property notification event
   * @param c - client associated with e->xany.window
+  *
+  * Typically we expect that the client sets WM_CLASS on a window between the
+  * creation of the top-level window and the map request for that window.  We
+  * can recheck the client; however, when the property changes in case it is
+  * incorrectly altered by the client after the window is mapped.
   */
 static Bool
 handle_WM_CLASS(XEvent *e, Client *c)
