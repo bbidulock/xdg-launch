@@ -495,6 +495,7 @@ Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
 Atom _XA_WM_STATE;
+Atom _XA_WM_CLASS;
 Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
 Atom _XA_NET_SYSTEM_TRAY_VISUAL;
 Atom _XA_NET_DESKTOP_LAYOUT;
@@ -522,6 +523,7 @@ static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
 static Bool handle_WM_COMMAND(XEvent *, Client *);
 static Bool handle_WM_HINTS(XEvent *, Client *);
 static Bool handle_WM_STATE(XEvent *, Client *);
+static Bool handle_WM_CLASS(XEvent *, Client *);
 static Bool handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
 static Bool handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
 static Bool handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
@@ -566,6 +568,7 @@ struct atoms {
 	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
 	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
 	{ "WM_STATE",				&_XA_WM_STATE,				&handle_WM_STATE,			None			},
+	{ "WM_CLASS",				NULL,					&handle_WM_CLASS,			XA_WM_CLASS		},
 	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
 	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
 	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,		&handle_NET_DESKTOP_LAYOUT,		None			},
@@ -2916,8 +2919,15 @@ recheck_client(Client *c)
 	long card = 0;
 	Window win;
 
-	XGetClassHint(dpy, c->win, &c->ch);
-	XFetchName(dpy, c->win, &c->name);
+	/* WM_STATE */
+	if (!c->state && get_cardinal(c->win, _XA_WM_STATE, XA_CARDINAL, &card)) {
+		c->state = card;
+		c->managed = True;
+	}
+	if (!c->ch.res_name && !c->ch.res_class)
+		XGetClassHint(dpy, c->win, &c->ch);
+	if (!c->name)
+		XFetchName(dpy, c->win, &c->name);
 	if (c->wmh)
 		XFree(c->wmh);
 	c->group = c->win;
@@ -2952,9 +2962,11 @@ recheck_client(Client *c)
 			c->counted = True;
 			if (options.assist)
 				setup_client(c);
-			if (options.assist || options.toolwait)
+			if (options.toolwait) {
 				if (--options.mappings == 0)
 					running = False;
+			} else if (options.assist)
+				running = False;
 		}
 	}
 }
@@ -2962,24 +2974,34 @@ recheck_client(Client *c)
 static void
 update_client(Client *c)
 {
+	Client *g = NULL;
+
 	recheck_client(c);
-	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
-	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
-		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
-	if (c->group && c->group != c->win) {
-		XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
-		XSelectInput(dpy, c->group, ExposureMask | VisibilityChangeMask |
+	if (XFindContext(dpy, c->win, ClientContext, (XPointer *) &g)) {
+		XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
 			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	}
+	if (c->group && c->group != c->win) {
+		if (XFindContext(dpy, c->group, ClientContext, (XPointer *) &g)) {
+			XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
+			XSelectInput(dpy, c->group, ExposureMask | VisibilityChangeMask |
+				     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		}
 	}
 	if (c->icon_win && c->icon_win != c->win) {
-		XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
-		XSelectInput(dpy, c->icon_win, ExposureMask | VisibilityChangeMask |
-			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &g)) {
+			XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
+			XSelectInput(dpy, c->icon_win, ExposureMask | VisibilityChangeMask |
+				     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		}
 	}
 	if (c->time_win && c->time_win != c->win) {
-		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
-		XSelectInput(dpy, c->time_win, ExposureMask | VisibilityChangeMask |
-			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		if (XFindContext(dpy, c->time_win, ClientContext, (XPointer *) &g)) {
+			XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
+			XSelectInput(dpy, c->time_win, ExposureMask | VisibilityChangeMask |
+				     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		}
 	}
 	c->new = False;
 }
@@ -3090,6 +3112,16 @@ handle_WM_HINTS(XEvent *e, Client *c)
 	return True;
 }
 
+/** @brief track client state
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  *
+  * This handler tracks the WM_STATE of the client.  If the client was added on
+  * CreateNotify of its top-level window it can be addressed now.  If the state
+  * is WithdrawnState and the client is not a dockapp, the state is
+  * transitioning in the wrong direction.  Otherwise, the window has (or is
+  * about to be) mapped and we can check startup notification completion.
+  */
 static Bool
 handle_WM_STATE(XEvent *e, Client *c)
 {
@@ -3097,10 +3129,62 @@ handle_WM_STATE(XEvent *e, Client *c)
 
 	if (!c || e->type != PropertyNotify)
 		return False;
-	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
-	    && data != WithdrawnState && !c)
-		c = add_client(e->xany.window);
-	return True;
+	if (e->xproperty.window != c->win)
+		return False;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)) {
+			c->state = data;
+			c->managed = True;
+			if (c->state != WithdrawnState || c->dockapp)
+				recheck_client(c);
+			return True;
+		}
+		break;
+	case PropertyDelete:
+		c->state = 0;
+		return True;
+	}
+	return False;
+}
+
+/** @brief track client class
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  */
+static Bool
+handle_WM_CLASS(XEvent *e, Client *c)
+{
+	if (!c || e->type != PropertyNotify)
+		return False;
+	if (e->xproperty.window != c->win)
+		return False;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		if (c->ch.res_name) {
+			XFree(c->ch.res_name);
+			c->ch.res_name = NULL;
+		}
+		if (c->ch.res_class) {
+			XFree(c->ch.res_class);
+			c->ch.res_class = NULL;
+		}
+		XGetClassHint(dpy, e->xproperty.window, &c->ch);
+		if (c->ch.res_name || c->ch.res_class)
+			recheck_client(c);
+		break;
+	case PropertyDelete:
+		if (c->ch.res_name) {
+			XFree(c->ch.res_name);
+			c->ch.res_name = NULL;
+		}
+		if (c->ch.res_class) {
+			XFree(c->ch.res_class);
+			c->ch.res_class = NULL;
+		}
+		return True;
+	}
+	return False;
 }
 
 static Bool
