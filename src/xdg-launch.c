@@ -2975,10 +2975,13 @@ recheck_client(Client *c)
 		c->state = card;
 		c->managed = True;
 	}
+	/* WM_CLASS */
 	if (!c->ch.res_name && !c->ch.res_class)
 		XGetClassHint(dpy, c->win, &c->ch);
+	/* WM_NAME */
 	if (!c->name)
 		XFetchName(dpy, c->win, &c->name);
+	/* WM_HINTS */
 	if (c->wmh)
 		XFree(c->wmh);
 	c->group = c->win;
@@ -2993,6 +2996,7 @@ recheck_client(Client *c)
 				c->icon_win = win;
 		c->dockapp = is_dockapp(c);
 	}
+	/* _NET_WM_USER_TIME_WINDOW */
 	c->time_win = c->win;
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
 	    && c->time_win) {
@@ -3000,11 +3004,15 @@ recheck_client(Client *c)
 		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
 	}
 	c->time_win = c->time_win ? : c->win;
+	/* _NET_WM_USER_TIME */
 	get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time);
+	/* WM_CLIENT_MACHINE */
 	if (!c->hostname && !(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)))
 		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
+	/* _NET_STARTUP_ID */
 	if (!c->startup_id && !(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)))
 		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
+	/* _NET_WM_PID */
 	if (!c->pid && !get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
 		if (get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card))
 			c->pid = card;
@@ -3110,16 +3118,14 @@ del_client(Client *r)
 /** @brief track client machine
   * @param e - property notification event
   * @param c - client associated with e->xany.window
+  *
+  * This is a parameter typically set by the client on the window or group
+  * window before the first top-level window map request.
   */
 static Bool
 handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 {
-	XTextProperty xtp = { 0, };
-	Window win = None;
-
 	if (!c || e->type != PropertyNotify)
-		return False;
-	if ((win = e->xproperty.window) != c->win)
 		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
@@ -3127,8 +3133,9 @@ handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 			XFree(c->hostname);
 			c->hostname = NULL;
 		}
-		if (XGetWMClientMachine(dpy, win, &xtp))
-			c->hostname = (char *) xtp.value;
+		if ((c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
+		    (c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE)))
+			recheck_client(c);
 		return True;
 	case PropertyDelete:
 		if (c->hostname) {
@@ -3143,6 +3150,9 @@ handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 /** @brief track client command
   * @param e - property notification event
   * @param c - client associated with e->xany.window
+  *
+  * This is a parameter typically set by the client before the top-level window
+  * map request.
   */
 static Bool
 handle_WM_COMMAND(XEvent *e, Client *c)
