@@ -2814,6 +2814,10 @@ test_client(Client *c)
 		else
 			return False;
 	}
+	/* correct hostname */
+	if (fields.hostname)
+		if (c->hostname && strcasecmp(fields.hostname, c->hostname))
+			return False;
 	if ((pid = c->pid) && (!c->hostname || strcasecmp(fields.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
@@ -2939,10 +2943,11 @@ setup_client(Client *c)
 		int count = 1;
 
 		list[0] = fields.hostname;
-		Xutf8TextListToTextProperty(dpy, list, count, XStringStyle, &xtp);
-		XSetTextProperty(dpy, c->group, &xtp, XA_WM_CLIENT_MACHINE);
-		if (xtp.value)
+		XStringListToTextProperty(list, count, &xtp);
+		if (xtp.value) {
+			XSetWMClientMachine(dpy, c->group, &xtp);
 			XFree(xtp.value);
+		}
 	}
 	if (!c->command && (eargv || fields.command)) {
 		if (eargv)
@@ -3102,16 +3107,35 @@ del_client(Client *r)
 	remove_client(r);
 }
 
+/** @brief track client machine
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  */
 static Bool
 handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 {
+	XTextProperty xtp = { 0, };
+	Window win = None;
+
 	if (!c || e->type != PropertyNotify)
+		return False;
+	if ((win = e->xproperty.window) != c->win)
 		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
-		break;
+		if (c->hostname) {
+			XFree(c->hostname);
+			c->hostname = NULL;
+		}
+		if (XGetWMClientMachine(dpy, win, &xtp))
+			c->hostname = (char *) xtp.value;
+		return True;
 	case PropertyDelete:
-		break;
+		if (c->hostname) {
+			XFree(c->hostname);
+			c->hostname = NULL;
+		}
+		return True;
 	}
 	return True;
 }
