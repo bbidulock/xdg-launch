@@ -424,8 +424,8 @@ struct _Client {
 	Client *next;
 	int screen;
 	Window win;			/* the client window */
+	Window grp;			/* the group window */
 	Window time_win;		/* the time window */
-	Window group;			/* the group window */
 	Window icon_win;		/* the icon window */
 	int state;			/* WM_STATE */
 	Bool dockapp;			/* this client is a dockapp */
@@ -2915,14 +2915,14 @@ setup_client(Client *c)
 
 		list[0] = fields.id;
 		Xutf8TextListToTextProperty(dpy, list, count, XUTF8StringStyle, &xtp);
-		XSetTextProperty(dpy, c->group, &xtp, _XA_NET_STARTUP_ID);
+		XSetTextProperty(dpy, c->grp, &xtp, _XA_NET_STARTUP_ID);
 		if (xtp.value)
 			XFree(xtp.value);
 	}
 	if (!c->pid && fields.pid && atoi(fields.pid)) {
 		long data = atoi(fields.pid);
 
-		XChangeProperty(dpy, c->group, _XA_NET_WM_PID, XA_CARDINAL, 32,
+		XChangeProperty(dpy, c->grp, _XA_NET_WM_PID, XA_CARDINAL, 32,
 				PropModeReplace, (unsigned char *) &data, 1);
 	}
 	if (!c->user_time && fields.timestamp && atoi(fields.timestamp)) {
@@ -2945,7 +2945,7 @@ setup_client(Client *c)
 		list[0] = fields.hostname;
 		XStringListToTextProperty(list, count, &xtp);
 		if (xtp.value) {
-			XSetWMClientMachine(dpy, c->group, &xtp);
+			XSetWMClientMachine(dpy, c->grp, &xtp);
 			XFree(xtp.value);
 		}
 	}
@@ -2967,55 +2967,6 @@ setup_client(Client *c)
 static void
 recheck_client(Client *c)
 {
-	long card = 0;
-	Window win;
-
-	/* WM_STATE */
-	if (!c->state && get_cardinal(c->win, _XA_WM_STATE, XA_CARDINAL, &card)) {
-		c->state = card;
-		c->managed = True;
-	}
-	/* WM_CLASS */
-	if (!c->ch.res_name && !c->ch.res_class)
-		XGetClassHint(dpy, c->win, &c->ch);
-	/* WM_NAME */
-	if (!c->name)
-		XFetchName(dpy, c->win, &c->name);
-	/* WM_HINTS */
-	if (c->wmh)
-		XFree(c->wmh);
-	c->group = c->win;
-	c->icon_win = c->win;
-	if ((c->wmh = XGetWMHints(dpy, c->win))) {
-		if (c->wmh->flags & WindowGroupHint)
-			if ((win = c->wmh->window_group) && win != root)
-				c->group = win;
-		c->icon_win = c->win;
-		if (c->wmh->flags & IconWindowHint)
-			if ((win = c->wmh->icon_window))
-				c->icon_win = win;
-		c->dockapp = is_dockapp(c);
-	}
-	/* _NET_WM_USER_TIME_WINDOW */
-	c->time_win = c->win;
-	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
-	    && c->time_win) {
-		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
-		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
-	}
-	c->time_win = c->time_win ? : c->win;
-	/* _NET_WM_USER_TIME */
-	get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time);
-	/* WM_CLIENT_MACHINE */
-	if (!c->hostname && !(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)))
-		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
-	/* _NET_STARTUP_ID */
-	if (!c->startup_id && !(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)))
-		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
-	/* _NET_WM_PID */
-	if (!c->pid && !get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
-		if (get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card))
-			c->pid = card;
 	if (c->managed && !c->counted) {
 		if (test_client(c)) {
 			c->counted = True;
@@ -3030,39 +2981,130 @@ recheck_client(Client *c)
 	}
 }
 
+/** @brief check a newly created client (top-level) window
+  * @param c - client structure pointer
+  *
+  * Client structures are added when a new top-level window is created.  The
+  * window may or may not have anything to do with the client we in which we are
+  * interested.  The purpose of this procedure is to acuire information on
+  * properties that may have been set after the window was created, but before
+  * we had a chance to select input on the window.  This way we do not have to
+  * grab the server.
+  */
 static void
 update_client(Client *c)
 {
+	long card = 0, n = -1, i;
+	Window win = None;
+	Time time = CurrentTime;
+	char *text = NULL;
+	Atom *atoms = NULL;
+	long mask =
+	    ExposureMask | VisibilityChangeMask | StructureNotifyMask | FocusChangeMask |
+	    PropertyChangeMask;
 	Client *g = NULL;
 
-	recheck_client(c);
+	/* first windows */
 	if (XFindContext(dpy, c->win, ClientContext, (XPointer *) &g)) {
 		XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
-		XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
-			     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		XSelectInput(dpy, c->win, StructureNotifyMask | PropertyChangeMask);
 	}
-	if (c->group && c->group != c->win) {
-		if (XFindContext(dpy, c->group, ClientContext, (XPointer *) &g)) {
-			XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
-			XSelectInput(dpy, c->group, ExposureMask | VisibilityChangeMask |
-				     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	/* WM_HINTS */
+	if (c->wmh) {
+		XFree(c->wmh);
+		c->wmh = NULL;
+	}
+	if ((c->wmh = XGetWMHints(dpy, c->win))) {
+		if (c->wmh->flags & WindowGroupHint) {
+			if ((win = c->wmh->window_group) && win != root)
+				c->grp = win;
+			if (XFindContext(dpy, c->grp, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->grp, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->grp, mask);
+			}
 		}
-	}
-	if (c->icon_win && c->icon_win != c->win) {
-		if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &g)) {
-			XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
-			XSelectInput(dpy, c->icon_win, ExposureMask | VisibilityChangeMask |
-				     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+		c->icon_win = c->win;
+		if (c->wmh->flags & IconWindowHint) {
+			if ((win = c->wmh->icon_window))
+				c->icon_win = win;
+			if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->icon_win, mask);
+			}
 		}
+		c->dockapp = is_dockapp(c);
 	}
-	if (c->time_win && c->time_win != c->win) {
+	/* _NET_WM_USER_TIME_WINDOW */
+	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win) ||
+	    get_window(c->grp, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win)) {
+		c->time_win = win;
 		if (XFindContext(dpy, c->time_win, ClientContext, (XPointer *) &g)) {
 			XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
-			XSelectInput(dpy, c->time_win, ExposureMask | VisibilityChangeMask |
-				     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+			XSelectInput(dpy, c->time_win, mask);
 		}
 	}
-	c->new = False;
+	/* WM_STATE */
+	c->state = -1;
+	if (get_cardinal(c->win, _XA_WM_STATE, XA_CARDINAL, &card)) {
+		c->state = card;
+		if (c->state != WithdrawnState || c->dockapp)
+			c->managed = True;
+	}
+	/* WM_CLASS */
+	if (XGetClassHint(dpy, c->win, &c->ch) || XGetClassHint(dpy, c->grp, &c->ch)) {
+	}
+	/* WM_NAME */
+	if (c->name) {
+		XFree(c->name);
+		c->name = NULL;
+	}
+	XFetchName(dpy, c->win, &c->name);
+	/* WM_CLIENT_MACHINE */
+	if (c->hostname) {
+		XFree(c->hostname);
+		c->hostname = NULL;
+	}
+	if ((text = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
+	    (text = get_text(c->grp, XA_WM_CLIENT_MACHINE))) {
+		c->hostname = text;
+	}
+	/* WM_COMMAND */
+	if (c->command) {
+		XFreeStringList(c->command);
+		c->command = NULL;
+		c->count = 0;
+	}
+	if (XGetCommand(dpy, c->win, &c->command, &c->count) ||
+	    XGetCommand(dpy, c->grp, &c->command, &c->count)) {
+	}
+	/* _NET_WM_USER_TIME */
+	c->user_time = CurrentTime;
+	if (get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time))
+		c->user_time = time;
+	/* _NET_WM_PID */
+	c->pid = 0;
+	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) ||
+	    get_cardinal(c->grp, _XA_NET_WM_PID, XA_CARDINAL, &card)) {
+		c->pid = card;
+	}
+	/* _NET_STARTUP_ID */
+	if (c->startup_id) {
+		XFree(c->startup_id);
+		c->startup_id = NULL;
+	}
+	if ((text = get_text(c->win, _XA_NET_STARTUP_ID)) ||
+	    (text = get_text(c->grp, _XA_NET_STARTUP_ID))) {
+		c->startup_id = text;
+	}
+	/* _NET_WM_STATE */
+	if ((atoms = get_atoms(c->win, _XA_NET_WM_STATE, XA_ATOM, &n))) {
+		for (i = 0; i < n; i++) {
+			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+				c->managed = True;
+				break;
+			}
+		}
+	}
 }
 
 static Client *
@@ -3072,34 +3114,60 @@ add_client(Window win)
 
 	c = calloc(1, sizeof(*c));
 	c->win = win;
+	c->grp = win;
+	c->icon_win = win;
+	c->time_win = win;
 	c->next = clients;
 	clients = c;
-	update_client(c);
 	c->new = True;
+	update_client(c);
+	recheck_client(c);
 	return (c);
 }
 
 static void
 remove_client(Client *c)
 {
-	if (c->ch.res_name)
-		XFree(c->ch.res_name);
-	if (c->ch.res_class)
-		XFree(c->ch.res_class);
-	if (c->name)
-		XFree(c->name);
-	if (c->hostname)
-		XFree(c->hostname);
-	if (c->startup_id)
+	if (c->startup_id) {
 		XFree(c->startup_id);
-	XDeleteContext(dpy, c->win, ClientContext);
-	if (c->time_win)
-		XDeleteContext(dpy, c->time_win, ClientContext);
-	if (c->command)
+		c->startup_id = NULL;
+	}
+	if (c->command) {
 		XFreeStringList(c->command);
+		c->command = NULL;
+	}
+	if (c->name) {
+		XFree(c->name);
+		c->name = NULL;
+	}
+	if (c->hostname) {
+		XFree(c->hostname);
+		c->hostname = NULL;
+	}
+	if (c->ch.res_name) {
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (c->wmh) {
+		XFree(c->wmh);
+		c->wmh = NULL;
+	}
+	XDeleteContext(dpy, c->win, ClientContext);
+	if (c->grp && c->grp != c->win)
+		XDeleteContext(dpy, c->grp, ClientContext);
+	if (c->icon_win && c->icon_win != c->win)
+		XDeleteContext(dpy, c->icon_win, ClientContext);
+	if (c->time_win && c->time_win != c->win)
+		XDeleteContext(dpy, c->time_win, ClientContext);
 #ifdef STARTUP_NOTIFICATION
-	if (c->seq)
+	if (c->seq) {
 		sn_startup_sequence_unref(c->seq);
+		c->seq = NULL;
+	}
 #endif
 	free(c);
 }
@@ -3134,7 +3202,7 @@ handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 			c->hostname = NULL;
 		}
 		if ((c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
-		    (c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE)))
+		    (c->hostname = get_text(c->grp, XA_WM_CLIENT_MACHINE)))
 			recheck_client(c);
 		return True;
 	case PropertyDelete:
