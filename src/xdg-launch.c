@@ -422,6 +422,8 @@ SnMonitorContext *sn_ctx;
 
 struct _Client {
 	Client *next;
+	Bool managed;			/* set when client managed */
+	Bool counted;			/* set when client counted */
 	int screen;
 	Window win;			/* the client window */
 	Window grp;			/* the group window */
@@ -429,10 +431,6 @@ struct _Client {
 	Window icon_win;		/* the icon window */
 	int state;			/* WM_STATE */
 	Bool dockapp;			/* this client is a dockapp */
-	Bool breadcrumb;
-	Bool new;
-	Bool managed;			/* set when client managed */
-	Bool counted;			/* set when client counted */
 	Time active_time;
 	Time focus_time;
 	Time user_time;
@@ -2796,28 +2794,24 @@ is_trayicon(Client *c)
 	return False;
 }
 
+/** @brief test client window for match to launched app
+  * @param c - pointer to client structure
+  *
+  * We should only test windows that are considered managed and that have not
+  * yet been counted as belonging to the application.  Returns True if the
+  * properties of the window match the application being launched.
+  */
 static Bool
 test_client(Client *c)
 {
 	pid_t pid;
 	char *str;
 
-	/* are we managed yet? */
-	if (!c->managed)
-		return False;
-	/* already considered? */
-	if (c->counted)
-		return False;
-	if (c->startup_id) {
-		if (!strcmp(c->startup_id, fields.id))
-			return True;
-		else
-			return False;
-	}
+	if (fields.id && c->startup_id)
+		return strcmp(c->startup_id, fields.id) ? False : True;
 	/* correct hostname */
-	if (fields.hostname)
-		if (c->hostname && strcasecmp(fields.hostname, c->hostname))
-			return False;
+	if (fields.hostname && c->hostname && strcasecmp(fields.hostname, c->hostname))
+		return False;
 	if ((pid = c->pid) && (!c->hostname || strcasecmp(fields.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
@@ -2840,30 +2834,6 @@ test_client(Client *c)
 	/* same timestamp to the millisecond */
 	if (c->user_time && c->user_time == strtoul(fields.timestamp, NULL, 0))
 		return True;
-	/* correct executable */
-	if (pid && fields.bin) {
-		if ((str = get_proc_comm(pid)))
-			if (!strcmp(fields.bin, str)) {
-				free(str);
-				return True;
-			}
-		free(str);
-		if ((str = get_proc_exec(pid)))
-			if (!strcmp(fields.bin, str)) {
-				free(str);
-				return True;
-			}
-		free(str);
-		if ((str = get_proc_argv0(pid)))
-			if (!strcmp(fields.bin, str)) {
-				free(str);
-				return True;
-			}
-		free(str);
-	}
-	/* NOTE: we use the PID to look in: /proc/[pid]/cmdline for argv[]
-	   /proc/[pid]/environ for env[] /proc/[pid]/comm basename of executable
-	   /proc/[pid]/exe symbolic link to executable */
 	/* correct command */
 	if (c->command && (eargv || fields.command)) {
 		int i;
@@ -2893,6 +2863,30 @@ test_client(Client *c)
 			}
 		}
 	}
+	/* correct executable */
+	if (pid && fields.bin) {
+		if ((str = get_proc_comm(pid)))
+			if (!strcmp(fields.bin, str)) {
+				free(str);
+				return True;
+			}
+		free(str);
+		if ((str = get_proc_exec(pid)))
+			if (!strcmp(fields.bin, str)) {
+				free(str);
+				return True;
+			}
+		free(str);
+		if ((str = get_proc_argv0(pid)))
+			if (!strcmp(fields.bin, str)) {
+				free(str);
+				return True;
+			}
+		free(str);
+	}
+	/* NOTE: we use the PID to look in: /proc/[pid]/cmdline for argv[]
+	   /proc/[pid]/environ for env[] /proc/[pid]/comm basename of executable
+	   /proc/[pid]/exe symbolic link to executable */
 	return False;
 }
 
@@ -3010,10 +3004,8 @@ update_client(Client *c)
 		XSelectInput(dpy, c->win, StructureNotifyMask | PropertyChangeMask);
 	}
 	/* WM_HINTS */
-	if (c->wmh) {
+	if (c->wmh)
 		XFree(c->wmh);
-		c->wmh = NULL;
-	}
 	if ((c->wmh = XGetWMHints(dpy, c->win))) {
 		if (c->wmh->flags & WindowGroupHint) {
 			if ((win = c->wmh->window_group) && win != root)
@@ -3119,10 +3111,24 @@ add_client(Window win)
 	c->time_win = win;
 	c->next = clients;
 	clients = c;
-	c->new = True;
 	update_client(c);
 	recheck_client(c);
 	return (c);
+}
+
+static void
+manage_client(Client *c, Time time)
+{
+	if (!c) {
+		EPRINTF("null client!\n");
+		return;
+	}
+	if (!c->managed) {
+		c->managed = True;
+		if (time)
+			c->active_time = time;
+		recheck_client(c);
+	}
 }
 
 static void
@@ -3253,8 +3259,11 @@ handle_WM_COMMAND(XEvent *e, Client *c)
 static Bool
 handle_WM_HINTS(XEvent *e, Client *c)
 {
-	Window grp = None;
+	Window win = None;
 	Client *g = NULL;
+	long mask =
+	    ExposureMask | VisibilityChangeMask | StructureNotifyMask | FocusChangeMask |
+	    PropertyChangeMask;
 
 	if (!c || e->type != PropertyNotify)
 		return False;
@@ -3262,13 +3271,32 @@ handle_WM_HINTS(XEvent *e, Client *c)
 	case PropertyNewValue:
 		if (c->wmh)
 			XFree(c->wmh);
-		if ((c->wmh = XGetWMHints(dpy, c->win))) {
-			/* ensure that the group leader is also tracked */
-			if (c->wmh->flags & WindowGroupHint)
-				if ((grp = c->wmh->window_group) && grp != root)
-					if (XFindContext(dpy, grp, ClientContext, (XPointer *) &g))
-						add_client(grp);
+		if (!(c->wmh = XGetWMHints(dpy, c->win)))
+			break;
+		if (c->grp && c->grp != c->win) {
+			XDeleteContext(dpy, c->grp, ClientContext);
+			c->grp = c->win;
 		}
+		if (c->icon_win && c->icon_win != c->win) {
+			XDeleteContext(dpy, c->icon_win, ClientContext);
+			c->icon_win = c->win;
+		}
+		if (c->wmh->flags & WindowGroupHint)
+			if ((win = c->wmh->window_group) && win != root && win != c->win)
+				c->grp = win;
+		if (c->grp != c->win)
+			if (XFindContext(dpy, c->grp, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->grp, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->grp, mask);
+			}
+		if (c->wmh->flags & IconWindowHint)
+			if ((win = c->wmh->icon_window) && win != c->win)
+				c->icon_win = win;
+		if (c->icon_win != c->win)
+			if (XFindContext(dpy, c->grp, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->grp, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->grp, mask);
+			}
 		break;
 	case PropertyDelete:
 		if (c->wmh) {
@@ -3303,9 +3331,8 @@ handle_WM_STATE(XEvent *e, Client *c)
 	case PropertyNewValue:
 		if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)) {
 			c->state = data;
-			c->managed = True;
 			if (c->state != WithdrawnState || c->dockapp)
-				recheck_client(c);
+				manage_client(c, e->xproperty.time);
 			return True;
 		}
 		break;
@@ -3384,10 +3411,7 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
 			for (i = 0; i < n; i++)
 				if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
 					c->focus_time = e->xproperty.time;
-					if (!c->managed) {
-						c->managed = True;
-						recheck_client(c);
-					}
+					manage_client(c, e->xproperty.time);
 					break;
 				}
 			XFree(atoms);
@@ -3419,7 +3443,8 @@ handle_NET_WM_DESKTOP(XEvent *e, Client *c)
   *
   * This handler tracks the _NET_ACTIVE_WINDOW property on the root window set
   * by EWMH/NetWM compliant window managers to indicate the active window.  We
-  * keep track of the last time that each client window was active.
+  * keep track of the last time that each client window was active.  If a window
+  * appears in this property it has become managed.
   */
 static Bool
 handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
@@ -3427,10 +3452,8 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 	Window active = None;
 
 	if (get_window(root, _XA_NET_ACTIVE_WINDOW, XA_WINDOW, &active) && active) {
-		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c) != Success)
-			c = add_client(active);
-		if (e)
-			c->active_time = e->xproperty.time;
+		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c))
+			manage_client(c, e->xproperty.time);
 		return True;
 	}
 	return False;
@@ -3451,26 +3474,13 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 {
 	Window *list;
 	long i, n;
-	Client *c, **cp;
+	Client *c;
 
 	if ((list = get_windows(root, atom, type, &n))) {
-		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
-		for (i = 0, c = NULL; i < n; c = NULL, i++) {
-			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) != Success)
-				c = add_client(list[i]);
-			c->breadcrumb = True;
-		}
+		for (i = 0, c = NULL; i < n; c = NULL, i++)
+			if (!XFindContext(dpy, list[i], ClientContext, (XPointer *) &c))
+				manage_client(c, e->xproperty.time);
 		XFree(list);
-		for (cp = &clients, c = *cp; c;) {
-			if (!c->breadcrumb) {
-				*cp = c->next;
-				remove_client(c);
-				c = *cp;
-			} else {
-				cp = &c->next;
-				c = *cp;
-			}
-		}
 		return True;
 	}
 	return False;
@@ -4117,8 +4127,7 @@ handle_FocusIn(XEvent *e, Client *c)
 		DPRINTF("FocusIn not for us!\n");
 		return False;
 	}
-	c->managed = True;
-	recheck_client(c);
+	manage_client(c, CurrentTime);
 	return True;
 }
 
@@ -4139,8 +4148,8 @@ handle_VisibilityNotify(XEvent *e, Client *c)
 		DPRINTF("VisibilityNotify not for us!\n");
 		return False;
 	}
-	c->managed = True;
-	recheck_client(c);
+	if (e->xvisibility.state != VisibilityFullyObscured)
+		manage_client(c, CurrentTime);
 	return True;
 }
 
@@ -4179,8 +4188,7 @@ handle_MapNotify(XEvent *e, Client *c)
 		DPRINTF("MapNotify not for us!\n");
 		return False;
 	}
-	c->managed = True;
-	recheck_client(c);
+	manage_client(c, CurrentTime);
 	return True;
 }
 
@@ -4258,10 +4266,6 @@ handle_event(XEvent *e)
 void
 setup_to_assist()
 {
-	if (!handle_NET_CLIENT_LIST(NULL, NULL))
-		if (!handle_WIN_CLIENT_LIST(NULL, NULL))
-			;
-	handle_NET_ACTIVE_WINDOW(NULL, NULL);
 	if (fields.timestamp)
 		push_time(&launch_time, (Time) strtoul(fields.timestamp, NULL, 0));
 }
