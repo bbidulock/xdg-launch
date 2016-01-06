@@ -470,20 +470,25 @@ Atom _XA_MOTIF_WM_INFO;
 Atom _XA_NET_ACTIVE_WINDOW;
 Atom _XA_NET_CLIENT_LIST;
 Atom _XA_NET_CURRENT_DESKTOP;
+Atom _XA_NET_DESKTOP_LAYOUT;
 Atom _XA_NET_STARTUP_ID;
 Atom _XA_NET_STARTUP_INFO;
 Atom _XA_NET_STARTUP_INFO_BEGIN;
 Atom _XA_NET_SUPPORTED;
 Atom _XA_NET_SUPPORTING_WM_CHECK;
+Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
+Atom _XA_NET_SYSTEM_TRAY_VISUAL;
 Atom _XA_NET_VIRTUAL_ROOTS;
 Atom _XA_NET_VISIBLE_DESKTOPS;
 Atom _XA_NET_WM_ALLOWED_ACTIONS;
+Atom _XA_NET_WM_DESKTOP;
 Atom _XA_NET_WM_PID;
 Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_STATE_FOCUSED;
 Atom _XA_NET_WM_USER_TIME;
 Atom _XA_NET_WM_USER_TIME_WINDOW;
-Atom _XA_NET_WM_DESKTOP;
+Atom _XA_NET_WM_VISIBLE_ICON_NAME;
+Atom _XA_NET_WM_VISIBLE_NAME;
 Atom _XA__SWM_VROOT;
 Atom _XA_TIMESTAMP_PROP;
 Atom _XA_WIN_CLIENT_LIST;
@@ -491,11 +496,8 @@ Atom _XA_WINDOWMAKER_NOTICEBOARD;
 Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
-Atom _XA_WM_STATE;
 Atom _XA_WM_CLASS;
-Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
-Atom _XA_NET_SYSTEM_TRAY_VISUAL;
-Atom _XA_NET_DESKTOP_LAYOUT;
+Atom _XA_WM_STATE;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
@@ -504,30 +506,32 @@ static Bool handle_MANAGER(XEvent *, Client *);
 static Bool handle_MOTIF_WM_INFO(XEvent *, Client *);
 static Bool handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
 static Bool handle_NET_CLIENT_LIST(XEvent *, Client *);
+static Bool handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
 static Bool handle_NET_STARTUP_ID(XEvent *, Client *);
 static Bool handle_NET_STARTUP_INFO_BEGIN(XEvent *, Client *);
 static Bool handle_NET_STARTUP_INFO(XEvent *, Client *);
 static Bool handle_NET_SUPPORTED(XEvent *, Client *);
 static Bool handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static Bool handle_NET_WM_USER_TIME_WINDOW(XEvent *, Client *);
+static Bool handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
+static Bool handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
 static Bool handle_NET_WM_ALLOWED_ACTIONS(XEvent *, Client *);
+static Bool handle_NET_WM_DESKTOP(XEvent *, Client *);
 static Bool handle_NET_WM_PID(XEvent *, Client *);
 static Bool handle_NET_WM_STATE(XEvent *, Client *);
+static Bool handle_NET_WM_USER_TIME_WINDOW(XEvent *, Client *);
 static Bool handle_NET_WM_USER_TIME(XEvent *, Client *);
-static Bool handle_NET_WM_DESKTOP(XEvent *, Client *);
+static Bool handle_NET_WM_VISIBLE_ICON_NAME(XEvent *, Client *);
+static Bool handle_NET_WM_VISIBLE_NAME(XEvent *, Client *);
 static Bool handle_WIN_CLIENT_LIST(XEvent *, Client *);
 static Bool handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
 static Bool handle_WIN_PROTOCOLS(XEvent *, Client *);
 static Bool handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
 static Bool handle_WIN_WORKSPACE(XEvent *, Client *);
+static Bool handle_WM_CLASS(XEvent *, Client *);
 static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
 static Bool handle_WM_COMMAND(XEvent *, Client *);
 static Bool handle_WM_HINTS(XEvent *, Client *);
 static Bool handle_WM_STATE(XEvent *, Client *);
-static Bool handle_WM_CLASS(XEvent *, Client *);
-static Bool handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
-static Bool handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
-static Bool handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
 
 struct atoms {
 	char *name;
@@ -544,35 +548,37 @@ struct atoms {
 	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,			&handle_NET_ACTIVE_WINDOW,		None			},
 	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,			&handle_NET_CLIENT_LIST,		None			},
 	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,		NULL,					None			},
+	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,		&handle_NET_DESKTOP_LAYOUT,		None			},
 	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,			&handle_NET_STARTUP_ID,			None			},
 	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,		&handle_NET_STARTUP_INFO_BEGIN,		None			},
 	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,			&handle_NET_STARTUP_INFO,		None			},
 	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,			&handle_NET_SUPPORTED,			None			},
 	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,		&handle_NET_SUPPORTING_WM_CHECK,	None			},
+	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
+	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
 	{ "_NET_VIRTUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,			NULL,					None			},
 	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,		NULL,					None			},
 	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,		&handle_NET_WM_ALLOWED_ACTIONS,		None			},
+	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,			&handle_NET_WM_DESKTOP,			None,			},
 	{ "_NET_WM_PID",			&_XA_NET_WM_PID,			&handle_NET_WM_PID,			None			},
 	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,		NULL,					None			},
 	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,			&handle_NET_WM_STATE,			None			},
 	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,		&handle_NET_WM_USER_TIME_WINDOW,	None			},
-	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,			&handle_NET_WM_DESKTOP,			None,			},
 	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,			&handle_NET_WM_USER_TIME,		None			},
+	{ "_NET_WM_VISIBLE_ICON_NAME",		&_XA_NET_WM_VISIBLE_ICON_NAME,		&handle_NET_WM_VISIBLE_ICON_NAME,	None			},
+	{ "_NET_WM_VISIBLE_NAME",		&_XA_NET_WM_VISIBLE_NAME,		&handle_NET_WM_VISIBLE_NAME,		None			},
 	{ "__SWM_VROOT",			&_XA__SWM_VROOT,			NULL,					None			},
 	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,			NULL,					None			},
 	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,			&handle_WIN_CLIENT_LIST,		None			},
 	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,		&handle_WINDOWMAKER_NOTICEBOARD,	None			},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
 	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,			&handle_WIN_PROTOCOLS,			None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
 	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			&handle_WIN_WORKSPACE,			None			},
+	{ "WM_CLASS",				NULL,					&handle_WM_CLASS,			XA_WM_CLASS		},
 	{ "WM_CLIENT_MACHINE",			NULL,					&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
 	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
 	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
 	{ "WM_STATE",				&_XA_WM_STATE,				&handle_WM_STATE,			None			},
-	{ "WM_CLASS",				NULL,					&handle_WM_CLASS,			XA_WM_CLASS		},
-	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
-	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
-	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,		&handle_NET_DESKTOP_LAYOUT,		None			},
 	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,		NULL,					None			},
 	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,		NULL,					None			},
 	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,			NULL,					None			},
@@ -3540,10 +3546,47 @@ handle_NET_STARTUP_ID(XEvent *e, Client *c)
 }
 
 static Bool
+handle_NET_WM_VISIBLE_NAME(XEvent *e, Client *c)
+{
+	PTRACE();
+	if (!c || e->type != PropertyNotify)
+		return False;
+	if (e->xproperty.window != c->win)
+		return False;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		/* only window manager sets this */
+		manage_client(c, e->xproperty.time);
+		return True;
+	case PropertyDelete:
+		return True;
+	}
+	return False;
+}
+
+static Bool
+handle_NET_WM_VISIBLE_ICON_NAME(XEvent *e, Client *c)
+{
+	PTRACE();
+	if (!c || e->type != PropertyNotify)
+		return False;
+	if (e->xproperty.window != c->win)
+		return False;
+	switch (e->xproperty.state) {
+	case PropertyNewValue:
+		/* only window manager sets this */
+		manage_client(c, e->xproperty.time);
+		return True;
+	case PropertyDelete:
+		return True;
+	}
+	return False;
+}
+
+static Bool
 handle_NET_WM_ALLOWED_ACTIONS(XEvent *e, Client *c)
 {
 	PTRACE();
-
 	if (!c || e->type != PropertyNotify)
 		return False;
 	if (e->xproperty.window != c->win)
@@ -4582,6 +4625,7 @@ assist()
 		signal(SIGINT, sighandler);
 		signal(SIGTERM, sighandler);
 		signal(SIGQUIT, sighandler);
+		signal(SIGALRM, sighandler);
 
 #ifdef STARTUP_NOTIFICATION
 		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
@@ -4671,6 +4715,7 @@ toolwait()
 	}
 	/* continue on monitoring */
 	get_display();
+	alarm(options.timeout);
 	{
 		int xfd;
 		XEvent ev;
@@ -4680,6 +4725,7 @@ toolwait()
 		signal(SIGINT, sighandler);
 		signal(SIGTERM, sighandler);
 		signal(SIGQUIT, sighandler);
+		signal(SIGALRM, sighandler);
 
 #ifdef STARTUP_NOTIFICATION
 		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
