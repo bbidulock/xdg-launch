@@ -101,26 +101,22 @@
 #include <glib.h>
 #include <gio/gio.h>
 #endif
-// #undef RECENTLY_USED_XBEL    /* FIXME */
-#ifdef RECENTLY_USED_XBEL
-#include <gtk/gtk.h>
-#endif
 
 #define DPRINTF(_args...) do { if (options.debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args); } } while (0)
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
 		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args);   } while (0)
+		fprintf(stderr, _args); fflush(stderr);   } while (0)
 
 #define OPRINTF(_args...) do { if (options.debug > 0 || options.output > 1) { \
 		fprintf(stderr, "I: "); \
-		fprintf(stderr, _args); } } while (0)
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
-					} } while (0)
+					fflush(stderr); } } while (0)
 
 const char *program = NAME;
 
@@ -431,8 +427,6 @@ struct _Client {
 	Window icon_win;		/* the icon window */
 	int state;			/* WM_STATE */
 	Bool dockapp;			/* this client is a dockapp */
-	Time active_time;
-	Time focus_time;
 	Time user_time;
 	pid_t pid;
 	char *startup_id;
@@ -624,6 +618,7 @@ XContext MessageContext;		/* window to message context */
 Bool
 get_display()
 {
+	PTRACE();
 	if (!dpy) {
 		if (!(dpy = XOpenDisplay(0))) {
 			EPRINTF("cannot open display\n");
@@ -647,6 +642,22 @@ get_display()
 		MessageContext = XUniqueContext();
 	}
 	return (dpy ? True : False);
+}
+
+void
+put_display()
+{
+	PTRACE();
+	if (dpy) {
+#ifdef STARTUP_NOTIFICATION
+		if (sn_dpy) {
+			sn_display_unref(sn_dpy);
+			sn_dpy = NULL;
+		}
+#endif
+		XCloseDisplay(dpy);
+		dpy = NULL;
+	}
 }
 
 static char *
@@ -2998,18 +3009,21 @@ update_client(Client *c)
 	    PropertyChangeMask;
 	Client *g = NULL;
 
+	OPRINTF("0x%lx updating client\n", c->win);
 	/* first windows */
 	if (XFindContext(dpy, c->win, ClientContext, (XPointer *) &g)) {
 		XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
-		XSelectInput(dpy, c->win, StructureNotifyMask | PropertyChangeMask);
+		XSelectInput(dpy, c->win, mask);
 	}
 	/* WM_HINTS */
 	if (c->wmh)
 		XFree(c->wmh);
 	if ((c->wmh = XGetWMHints(dpy, c->win))) {
 		if (c->wmh->flags & WindowGroupHint) {
-			if ((win = c->wmh->window_group) && win != root)
+			if ((win = c->wmh->window_group) && win != root) {
 				c->grp = win;
+				OPRINTF("0x%lx client has group window 0x%lx\n", c->win, c->grp);
+			}
 			if (XFindContext(dpy, c->grp, ClientContext, (XPointer *) &g)) {
 				XSaveContext(dpy, c->grp, ClientContext, (XPointer) c);
 				XSelectInput(dpy, c->grp, mask);
@@ -3017,40 +3031,52 @@ update_client(Client *c)
 		}
 		c->icon_win = c->win;
 		if (c->wmh->flags & IconWindowHint) {
-			if ((win = c->wmh->icon_window))
+			if ((win = c->wmh->icon_window)) {
 				c->icon_win = win;
+				OPRINTF("0x%lx client has icon window 0x%lx\n", c->win, c->icon_win);
+			}
 			if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &g)) {
 				XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
 				XSelectInput(dpy, c->icon_win, mask);
 			}
 		}
-		c->dockapp = is_dockapp(c);
+		if ((c->dockapp = is_dockapp(c)))
+			OPRINTF("0x%lx client is a dock app\n", c->win);
+		else
+			OPRINTF("0x%lx client is not a dock app\n", c->win);
 	}
 	/* _NET_WM_USER_TIME_WINDOW */
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win) ||
 	    get_window(c->grp, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win)) {
-		c->time_win = win;
-		if (XFindContext(dpy, c->time_win, ClientContext, (XPointer *) &g)) {
-			XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
-			XSelectInput(dpy, c->time_win, mask);
+		if (win != c->win) {
+			c->time_win = win;
+			OPRINTF("0x%lx client has time window 0x%lx\n", c->win, c->time_win);
+			if (XFindContext(dpy, c->time_win, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->time_win, mask);
+			}
 		}
 	}
 	/* WM_STATE */
 	c->state = -1;
 	if (get_cardinal(c->win, _XA_WM_STATE, XA_CARDINAL, &card)) {
 		c->state = card;
-		if (c->state != WithdrawnState || c->dockapp)
+		if (c->state != WithdrawnState || c->dockapp) {
 			c->managed = True;
+			OPRINTF("0x%lx client in managed state\n", c->win);
+		}
 	}
 	/* WM_CLASS */
 	if (XGetClassHint(dpy, c->win, &c->ch) || XGetClassHint(dpy, c->grp, &c->ch)) {
+		OPRINTF("0x%lx client resource (%s,%s)\n", c->win, c->ch.res_name, c->ch.res_class);
 	}
 	/* WM_NAME */
 	if (c->name) {
 		XFree(c->name);
 		c->name = NULL;
 	}
-	XFetchName(dpy, c->win, &c->name);
+	if (XFetchName(dpy, c->win, &c->name))
+		OPRINTF("0x%lx client named %s\n", c->win, c->name);
 	/* WM_CLIENT_MACHINE */
 	if (c->hostname) {
 		XFree(c->hostname);
@@ -3059,6 +3085,7 @@ update_client(Client *c)
 	if ((text = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
 	    (text = get_text(c->grp, XA_WM_CLIENT_MACHINE))) {
 		c->hostname = text;
+		OPRINTF("0x%lx client host %s\n", c->win, c->hostname);
 	}
 	/* WM_COMMAND */
 	if (c->command) {
@@ -3068,16 +3095,29 @@ update_client(Client *c)
 	}
 	if (XGetCommand(dpy, c->win, &c->command, &c->count) ||
 	    XGetCommand(dpy, c->grp, &c->command, &c->count)) {
+		if (options.debug > 0 || options.output > 1) {
+			char **p;
+
+			OPRINTF("0x%lx client has command:", c->win);
+			for (p = c->command; p && *p; p++)
+				fprintf(stderr, " '%s'", *p);
+			fputs("\n", stderr);
+		}
+
 	}
 	/* _NET_WM_USER_TIME */
 	c->user_time = CurrentTime;
-	if (get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time))
-		c->user_time = time;
+	if (get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time)) {
+		OPRINTF("0x%lx client has user time: %lu\n", c->win, time);
+		push_time(&c->user_time, time);
+		push_time(&last_user_time, c->user_time);
+	}
 	/* _NET_WM_PID */
 	c->pid = 0;
 	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) ||
 	    get_cardinal(c->grp, _XA_NET_WM_PID, XA_CARDINAL, &card)) {
 		c->pid = card;
+		OPRINTF("0x%lx client has pid %d\n", c->win, c->pid);
 	}
 	/* _NET_STARTUP_ID */
 	if (c->startup_id) {
@@ -3087,11 +3127,13 @@ update_client(Client *c)
 	if ((text = get_text(c->win, _XA_NET_STARTUP_ID)) ||
 	    (text = get_text(c->grp, _XA_NET_STARTUP_ID))) {
 		c->startup_id = text;
+		OPRINTF("0x%lx client has startup id %s\n", c->win, text);
 	}
 	/* _NET_WM_STATE */
 	if ((atoms = get_atoms(c->win, _XA_NET_WM_STATE, XA_ATOM, &n))) {
 		for (i = 0; i < n; i++) {
 			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+				OPRINTF("0x%lx client is focussed\n", c->win);
 				c->managed = True;
 				break;
 			}
@@ -3125,8 +3167,6 @@ manage_client(Client *c, Time time)
 	}
 	if (!c->managed) {
 		c->managed = True;
-		if (time)
-			c->active_time = time;
 		recheck_client(c);
 	}
 }
@@ -3410,7 +3450,6 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
 		if ((atoms = get_atoms(e->xany.window, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
 			for (i = 0; i < n; i++)
 				if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
-					c->focus_time = e->xproperty.time;
 					manage_client(c, e->xproperty.time);
 					break;
 				}
@@ -4208,10 +4247,22 @@ void
 handle_event(XEvent *e)
 {
 	Client *c;
+	char *name;
 
 	switch (e->type) {
 	case PropertyNotify:
 		c = find_client(e->xproperty.window);
+		if ((name = XGetAtomName(dpy, e->xproperty.atom))) {
+			switch (e->xproperty.state) {
+			case PropertyNewValue:
+				OPRINTF("%s property changed\n", name);
+				break;
+			case PropertyDelete:
+				OPRINTF("%s property removed\n", name);
+				break;
+			}
+			XFree(name);
+		}
 		handle_atom(e, c, e->xproperty.atom);
 		break;
 	case FocusIn:
@@ -4248,6 +4299,10 @@ handle_event(XEvent *e)
 		break;
 	case ClientMessage:
 		c = find_client(e->xclient.window);
+		if ((name = XGetAtomName(dpy, e->xclient.message_type))) {
+			OPRINTF("%s client message received\n", name);
+			XFree(name);
+		}
 		handle_atom(e, c, e->xclient.message_type);
 		break;
 	case MappingNotify:
@@ -4278,6 +4333,9 @@ sighandler(int sig)
 	signum = sig;
 }
 
+Bool get_display();
+void put_display();
+
 /** @brief assist the window manager.
   *
   * Assist the window manager to do the right thing with respect to focus and
@@ -4295,6 +4353,7 @@ assist()
 {
 	pid_t pid = getpid();
 
+	PTRACE();
 	setup_to_assist();
 	XSync(dpy, False);
 	reset_pid(pid);
@@ -4307,12 +4366,104 @@ assist()
 		exit(EXIT_FAILURE);
 	}
 	if (pid) {
+		OPRINTF("parent says child pid is %d\n", pid);
 		/* parent returns and launches */
 		return;
 	}
-	/* for now the child just exits */
-	exit(EXIT_SUCCESS);
+	/* continue on monitoring */
+	{
+		int xfd;
+		XEvent ev;
 
+		signum = 0;
+		signal(SIGHUP, sighandler);
+		signal(SIGINT, sighandler);
+		signal(SIGTERM, sighandler);
+		signal(SIGQUIT, sighandler);
+
+#ifdef STARTUP_NOTIFICATION
+		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
+#endif
+
+		/* main event loop */
+		running = True;
+		DPRINTF("Addressing X Server!\n");
+		XSync(dpy, False);
+		xfd = ConnectionNumber(dpy);
+		while (running) {
+			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+
+			if (signum)
+				exit(EXIT_SUCCESS);
+
+			if (poll(&pfd, 1, -1) == -1) {
+				switch (errno) {
+				case EINTR:
+				case EAGAIN:
+				case ERESTART:
+					continue;
+				}
+				EPRINTF("poll: %s\n", strerror(errno));
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
+				EPRINTF("poll: error\n");
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+			if (pfd.revents & (POLLIN)) {
+				while (XPending(dpy) && running) {
+					XNextEvent(dpy, &ev);
+					handle_event(&ev);
+				}
+			}
+		}
+	}
+	exit(EXIT_SUCCESS);
+}
+
+/** @brief launch with tool wait
+  *
+  * Launch with toolwait, with or without assist: a child is forked that will
+  * execute the command.  The parent must determine existing clients before
+  * forking the child.  The child must send the startup notification before
+  * executing the command.  The parent will perform any assistance that is
+  * required and exit when the startup conditions have been satisfied.  The
+  * parent owns the display connection. 
+  *
+  * If we do not need assistance, all that is needed here is to wait for the
+  * startup notification "end:" message (or timeout) and then consider the
+  * startup complete.
+  *
+  * If assistance is required, we must identify when the application maps its
+  * windows and send the "end:" message ourselves.  Upon transmission of the
+  * "end:" message (or timeout), consider the startup complete.  In addition,
+  * EWMH properties are set on initial windows that are not set by the
+  * application.
+  */
+void
+toolwait()
+{
+	pid_t pid = getpid();
+
+	PTRACE();
+	setup_to_assist();
+	XSync(dpy, False);
+	if (options.info) {
+		fputs("Would launch with tool wait support\n\n", stdout);
+		reset_pid(pid);
+		return;
+	}
+	if ((pid = fork()) < 0) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	reset_pid(pid);
+	if (!pid) {
+		/* child returns and launches */
+		return;
+	}
 	/* continue on monitoring */
 	{
 		int xfd;
@@ -4362,49 +4513,6 @@ assist()
 			}
 		}
 	}
-}
-
-/** @brief launch with tool wait
-  *
-  * Launch with toolwait, with or without assist: a child is forked that will
-  * execute the command.  The parent must determine existing clients before
-  * forking the child.  The child must send the startup notification before
-  * executing the command.  The parent will perform any assistance that is
-  * required and exit when the startup conditions have been satisfied.  The
-  * parent owns the display connection. 
-  *
-  * If we do not need assistance, all that is needed here is to wait for the
-  * startup notification "end:" message (or timeout) and then consider the
-  * startup complete.
-  *
-  * If assistance is required, we must identify when the application maps its
-  * windows and send the "end:" message ourselves.  Upon transmission of the
-  * "end:" message (or timeout), consider the startup complete.  In addition,
-  * EWMH properties are set on initial windows that are not set by the
-  * application.
-  */
-void
-toolwait()
-{
-	pid_t pid = getpid();
-
-	setup_to_assist();
-	XSync(dpy, False);
-	if (options.info) {
-		fputs("Would launch with tool wait support\n\n", stdout);
-		reset_pid(pid);
-		return;
-	}
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	reset_pid(pid);
-	if (!pid) {
-		/* child returns and launches */
-		return;
-	}
-	/* for now the parent just exits */
 	exit(EXIT_SUCCESS);
 }
 
@@ -4423,6 +4531,7 @@ normal()
 {
 	pid_t pid = getpid();
 
+	PTRACE();
 	if (options.info) {
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
 		reset_pid(pid);
@@ -4439,6 +4548,7 @@ wait_for_condition(Window (*until) (void))
 	int xfd;
 	XEvent ev;
 
+	PTRACE();
 	signal(SIGHUP, sighandler);
 	signal(SIGINT, sighandler);
 	signal(SIGTERM, sighandler);
@@ -4491,6 +4601,7 @@ wait_for_condition(Window (*until) (void))
 static Bool
 check_for_window_manager()
 {
+	PTRACE();
 	OPRINTF("checking NetWM/EWMH compliance\n");
 	if (check_netwm())
 		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
@@ -4515,6 +4626,7 @@ check_for_window_manager()
 void
 wait_for_window_manager()
 {
+	PTRACE();
 	if (check_for_window_manager()) {
 		if (options.info) {
 			fputs("Have a window manager:\n\n", stdout);
@@ -4545,6 +4657,7 @@ wait_for_window_manager()
 void
 wait_for_system_tray()
 {
+	PTRACE();
 	if (check_stray()) {
 		if (options.info) {
 			fputs("Have a system tray:\n\n", stdout);
@@ -4564,6 +4677,7 @@ wait_for_system_tray()
 void
 wait_for_desktop_pager()
 {
+	PTRACE();
 	if (check_pager()) {
 		if (options.info) {
 			fputs("Have a desktop pager:\n\n", stdout);
@@ -4583,6 +4697,7 @@ wait_for_desktop_pager()
 void
 wait_for_composite_manager()
 {
+	PTRACE();
 	if (check_compm()) {
 		if (options.info) {
 			fputs("Have a composite manager:\n\n", stdout);
@@ -4684,19 +4799,20 @@ need_assist()
 {
 	Bool need_assist = options.assist;
 
+	PTRACE();
 	if (need_assist) {
-		DPRINTF("Assistance requested\n");
+		OPRINTF("Assistance requested\n");
 		if (options.info)
 			fputs("Assistance requested\n", stdout);
 		return need_assist;
 	}
 	if (options.xsession) {
-		DPRINTF("XSession: always needs assistance\n");
+		OPRINTF("XSession: always needs assistance\n");
 		need_assist = True;
 		if (options.info)
 			fputs("Launching XSession entry always requires assistance.\n", stdout);
 	} else if (options.autostart) {
-		DPRINTF("AutoStart: always needs assistance\n");
+		OPRINTF("AutoStart: always needs assistance\n");
 		need_assist = True;
 		if (options.info)
 			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
@@ -4725,6 +4841,7 @@ launch()
 	char *disp, *cmd, *p;
 	Bool change_only = False;
 
+	PTRACE();
 	wait_for_resource();
 	options.assist = need_assist();
 
@@ -4800,9 +4917,6 @@ launch()
 
 #ifdef RECENTLY_USED
 
-time_t now;
-int age = 30;
-
 char *
 get_mime_type(const char *uri)
 {
@@ -4828,21 +4942,13 @@ get_mime_type(const char *uri)
 	return (mime);
 }
 
-#ifdef RECENTLY_USED_XBEL
-
 static void
 put_recent_applications_xbel(char *filename)
 {
-	GtkRecentManager *mgr;
-	GtkRecentData data = { NULL, };
-	gchar *groups[2] = { "Application", NULL };
+	GBookmarkFile *bookmark;
+	GError *error = NULL;
 	char *file;
 
-	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
-	if (!file) {
-		EPRINTF("cannot record %s without a file\n", filename);
-		return;
-	}
 	if (!options.uri) {
 		EPRINTF("cannot record %s without a uri\n", filename);
 		return;
@@ -4851,50 +4957,61 @@ put_recent_applications_xbel(char *filename)
 		DPRINTF("do not record autostart or xsession invocations\n");
 		return;
 	}
+	if (!(file = g_build_filename(g_get_user_data_dir(), filename, NULL))) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		return;
+	}
 
 	/* 1) read in the recently-used.xbel file (uri only) */
-	if (!(mgr = g_object_new(GTK_TYPE_RECENT_MANAGER, "filename", file, NULL))) {
-		EPRINTF("could not get recent manager instance\n");
+	if (!(bookmark = g_bookmark_file_new())) {
+		EPRINTF("could not obtain bookmark file!\n");
 		g_free(file);
 		return;
 	}
-	g_free(file);
-
-	/* 2) append new information (uri only) */
-	data.display_name = fields.name;
-	data.description = fields.description;
-	data.mime_type = "application/x-desktop";
-	data.app_name = "XDG Launcher";
-	data.app_exec = "xdg-launch %f";
-	data.groups = groups;
-	data.is_private = TRUE;
-	if (!gtk_recent_manager_add_full(mgr, options.uri, &data)) {
-		EPRINTF("could not add recent data info\n");
+	if (!g_bookmark_file_load_from_file(bookmark, file, &error)) {
+		DPRINTF("could not load bookmark file %s: %s\n", file, error->message);
+		g_error_free(error);
+		error = NULL;
+		g_bookmark_file_free(bookmark);
+		g_free(file);
 		return;
 	}
 
+	/* 2) append new information (uri only) */
+	if (fields.name)
+		g_bookmark_file_set_title(bookmark, options.uri, fields.name);
+	if (fields.description)
+		g_bookmark_file_set_description(bookmark, options.uri, fields.description);
+	g_bookmark_file_set_mime_type(bookmark, options.uri, "application/x-desktop");
+	g_bookmark_file_set_is_private(bookmark, options.uri, TRUE);
+	if (fields.icon)
+		/* XXX: can we set mime_type to NULL here? No mime type for Icon Naming
+		   Convention icons */
+		g_bookmark_file_set_icon(bookmark, options.uri, fields.icon, NULL);
+//	g_bookmark_file_set_added(bookmark, options.uri, -1);
+//	g_bookmark_file_set_modified(bookmark, options.uri, -1);
+	g_bookmark_file_set_visited(bookmark, options.uri, -1);
+	g_bookmark_file_add_application(bookmark, options.uri, "XDG Launcher", "xdg-launch %f");
+	g_bookmark_file_add_group(bookmark, options.uri, "Application");
+
 	/* 3) write out the recently-used.xbel file (uri only) */
-	g_object_unref(mgr);
-	do {
-		gtk_main_iteration_do(FALSE);
+	if (!g_bookmark_file_to_file(bookmark, file, &error)) {
+		EPRINTF("could not write bookmark file %s: %s\n", file, error->message);
+		g_error_free(error);
+		error = NULL;
 	}
-	while (gtk_events_pending());
+	g_bookmark_file_free(bookmark);
+	g_free(file);
+	return;
 }
 
 static void
 put_recently_used_xbel(char *filename)
 {
-	GtkRecentManager *mgr;
-	GtkRecentData data = { NULL, };
-	gchar *groups[2] = { NULL, NULL };
-	char *file, *p, *mime = NULL, *group = NULL, *exec = NULL;
-	int len;
+	GBookmarkFile *bookmark;
+	GError *error = NULL;
+	char *file, *mime = NULL;
 
-	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
-	if (!file) {
-		EPRINTF("cannot record %s without a file\n", filename);
-		return;
-	}
 	if (!options.url) {
 		EPRINTF("cannot record %s without a url\n", filename);
 		return;
@@ -4903,743 +5020,77 @@ put_recently_used_xbel(char *filename)
 		DPRINTF("do not record autostart or xsession invocations\n");
 		return;
 	}
-
+	if (!(file = g_build_filename(g_get_user_data_dir(), filename, NULL))) {
+		EPRINTF("cannot record %s without a file\n", filename);
+		return;
+	}
 	/* 1) read in the recently-used.xbel file (url only) */
-	if (!(mgr = g_object_new(GTK_TYPE_RECENT_MANAGER, "filename", file, NULL))) {
-		EPRINTF("could not get recent manager instance\n");
+	if (!(bookmark = g_bookmark_file_new())) {
+		EPRINTF("could not obtain bookmark file!\n");
 		g_free(file);
 		return;
 	}
-	g_free(file);
+	if (!g_bookmark_file_load_from_file(bookmark, file, &error)) {
+		DPRINTF("could not load bookmark file %s: %s\n", file, error->message);
+		g_error_free(error);
+		error = NULL;
+		g_bookmark_file_free(bookmark);
+		g_free(file);
+		return;
+	}
 
 	/* 2) append new information (url only) */
-	data.display_name = NULL;
-	data.description = NULL;
 	if (!(mime = get_mime_type(options.url))) {
 		if (entry.MimeType) {
+			char *p;
+
 			mime = strdup(entry.MimeType);
 			if ((p = strchr(mime, ';')))
 				*p = '\0';
 		}
 	}
-	data.mime_type = mime;
-	if (fields.application_id) {
-		len = strlen(NAME) + 1 + strlen(fields.application_id) + 1 + strlen("%u") + 1;
-		exec = calloc(len, sizeof(*exec));
-		snprintf(exec, len, "%s %s %%u", NAME, fields.application_id);
-
-		data.app_name = NAME;
-		data.app_exec = exec;
-	} else {
-		data.app_name = fields.bin ? : entry.Name;
-		data.app_exec = options.rawcmd;
-	}
-
-	/* FIXME: why not do multiple groups? */
-	if (entry.Categories) {
-		group = strdup(entry.Categories);
-		if ((p = strchr(group, ';')))
-			*p = '\0';
-		/* reserved for application launching */
-		if (!strcmp(group, "Application")) {
-			free(group);
-			group = NULL;
-		}
-	}
-	if (group) {
-		groups[0] = group;
-		data.groups = groups;
-	} else
-		data.groups = NULL;
-	data.is_private = TRUE;
-	if (!gtk_recent_manager_add_full(mgr, options.url, &data)) {
-		EPRINTF("could not add recent data info\n");
-		free(mime);
-		free(exec);
-		free(group);
-		return;
-	}
+	if (mime)
+		g_bookmark_file_set_mime_type(bookmark, options.url, mime);
 	free(mime);
-	free(exec);
-	free(group);
-
-	/* 3) write out the recently-used.xbel file (url only) */
-	g_object_unref(mgr);
-	do {
-		gtk_main_iteration_do(FALSE);
-	}
-	while (gtk_events_pending());
-}
-
-#else				/* RECENTLY_USED_XBEL */
-
-/*
- * XXX: Without gtk2 present (or desired for dependencies), I wrote this
- * implementation for parsing the desktop bookmark specification XBEL file
- * parser using the glib XML parser.  There is also a gio parser specifically
- * for the desktop-bookmark XBEL file format, but I didn't know about it when I
- * wrote this... :(
- */
-
-typedef struct {
-	gchar *name;
-	gchar *exec;
-	time_t modified;
-	guint count;
-} XbelApplication;
-
-typedef struct {
-	gchar *href;
-	time_t added;
-	time_t modified;
-	time_t visited;
-	gchar *title;
-	gchar *desc;
-	gchar *owner;
-	gchar *mime;
-	GList *groups;
-	GList *applications;
-	gboolean private;
-} XbelBookmark;
-
-static void
-xbel_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar
-		   **attrs, const gchar **values, gpointer user, GError **err)
-{
-	GList **list = user;
-	GList *item = g_list_last(*list);
-	XbelBookmark *mark = item ? item->data : NULL;
-
-	if (!strcmp(name, "xbel")) {
-	} else if (!strcmp(name, "bookmark")) {
-		struct tm tm = { 0, };
-
-		if (!(mark = calloc(1, sizeof(*mark)))) {
-			EPRINTF("could not allocate bookmark\n");
-			exit(1);
-		}
-		for (; *attrs; attrs++, values++) {
-			if (!strcmp(*attrs, "href")) {
-				free(mark->href);
-				mark->href = strdup(*values);
-			} else if (!strcmp(*attrs, "added")) {
-				if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
-					mark->added = timegm(&tm);
-			} else if (!strcmp(*attrs, "modified")) {
-				if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
-					mark->modified = timegm(&tm);
-			} else if (!strcmp(*attrs, "visited")) {
-				if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
-					mark->visited = timegm(&tm);
-			} else {
-				DPRINTF("unrecognized attribute of bookmark: '%s'\n", *attrs);
-			}
-		}
-		*list = g_list_append(*list, mark);
-	} else if (!strcmp(name, "title")) {
-	} else if (!strcmp(name, "desc")) {
-	} else if (!strcmp(name, "info")) {
-	} else if (!strcmp(name, "metadata")) {
-		if (mark) {
-			for (; *attrs; attrs++, values++) {
-				if (!strcmp(*attrs, "owner")) {
-					free(mark->owner);
-					mark->owner = strdup(*values);
-				}
-			}
-		}
-	} else if (!strcmp(name, "mime:mime-type")) {
-		if (mark) {
-			for (; *attrs; attrs++, values++) {
-				if (!strcmp(*attrs, "type")) {
-					free(mark->mime);
-					mark->mime = strdup(*values);
-				} else {
-					DPRINTF("unrecognized attribute of mime:mime-type: '%s'\n",
-						*attrs);
-				}
-			}
-		}
-	} else if (!strcmp(name, "bookmark:groups")) {
-	} else if (!strcmp(name, "bookmark:group")) {
-	} else if (!strcmp(name, "bookmark:applications")) {
-	} else if (!strcmp(name, "bookmark:application")) {
-		if (mark) {
-			XbelApplication *appl;
-			struct tm tm = { 0, };
-
-			if (!(appl = calloc(1, sizeof(*appl)))) {
-				EPRINTF("could not allocate application\n");
-				exit(1);
-			}
-			for (; *attrs; attrs++, values++) {
-				if (!strcmp(*attrs, "name")) {
-					free(appl->name);
-					appl->name = strdup(*values);
-				} else if (!strcmp(*attrs, "exec")) {
-					free(appl->exec);
-					appl->exec = strdup(*values);
-				} else if (!strcmp(*attrs, "modified")) {
-					if (strptime(*values, "%FT%H:%M:%S%Z", &tm))
-						appl->modified = timegm(&tm);
-				} else if (!strcmp(*attrs, "count")) {
-					appl->count = strtoul(*values, NULL, 0);
-				} else {
-					DPRINTF
-					    ("unrecognized attribute of bookmark:application: '%s'\n",
-					     *attrs);
-				}
-			}
-			mark->applications = g_list_append(mark->applications, appl);
-		}
-	} else if (!strcmp(name, "bookmark:private")) {
-		if (mark)
-			mark->private = TRUE;
-	} else {
-		DPRINTF("unrecognized start tag: '%s'\n", name);
-	}
-}
-
-static void
-xbel_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer user, GError **err)
-{
-	GList **list = user;
-	GList *item = g_list_last(*list);
-	XbelBookmark *mark = item ? item->data : NULL;
-	const gchar *name;
-
-	name = g_markup_parse_context_get_element(ctx);
-
-	if (!strcmp(name, "xbel")) {
-	} else if (!strcmp(name, "bookmark")) {
-	} else if (!strcmp(name, "title")) {
-		if (mark) {
-			free(mark->title);
-			mark->title = strndup(text, len);
-		}
-	} else if (!strcmp(name, "desc")) {
-		if (mark) {
-			free(mark->desc);
-			mark->desc = strndup(text, len);
-		}
-	} else if (!strcmp(name, "info")) {
-	} else if (!strcmp(name, "metadata")) {
-	} else if (!strcmp(name, "mime:mime-type")) {
-	} else if (!strcmp(name, "bookmark:groups")) {
-	} else if (!strcmp(name, "bookmark:group")) {
-		if (mark)
-			mark->groups = g_list_append(mark->groups, strndup(text, len));
-	} else if (!strcmp(name, "bookmark:applications")) {
-	} else if (!strcmp(name, "bookmark:application")) {
-	} else if (!strcmp(name, "bookmark:private")) {
-	} else {
-		DPRINTF("unrecognized cdata tag: '%s'\n", name);
-	}
-}
-
-static void
-text_free(gpointer data)
-{
-	free(data);
-}
-
-static void
-appl_free(gpointer data)
-{
-	XbelApplication *appl = data;
-
-	free(appl->name);
-	appl->name = NULL;
-	free(appl->exec);
-	appl->exec = NULL;
-	appl->modified = 0;
-	appl->count = 0;
-	free(appl);
-}
-
-static void
-xbel_free(gpointer data)
-{
-	XbelBookmark *book = data;
-
-	free(book->href);
-	book->href = NULL;
-	book->added = 0;
-	book->modified = 0;
-	book->visited = 0;
-	free(book->title);
-	book->title = NULL;
-	free(book->desc);
-	book->desc = NULL;
-	free(book->owner);
-	book->owner = NULL;
-	free(book->mime);
-	book->mime = NULL;
-	g_list_free_full(book->groups, text_free);
-	g_list_free_full(book->applications, appl_free);
-	free(book);
-}
-
-static void
-xbel_grp_write(gpointer data, gpointer user)
-{
-	gchar *grp = data;
-	FILE *f = user;
-	char *s;
-
-	s = g_markup_printf_escaped("          <bookmark:group>%s</bookmark:group>\n", grp);
-	fputs(s, f);
-	g_free(s);
-}
-
-static void
-xbel_app_write(gpointer data, gpointer user)
-{
-	XbelApplication *a = data;
-	FILE *f = user;
-	char *s;
-
-	fputs("          <bookmark:application", f);
-	if (a->name) {
-		s = g_markup_printf_escaped(" name=\"%s\"", a->name);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (a->exec) {
-		s = g_markup_printf_escaped(" exec=\"%s\"", a->exec);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (a->modified) {
-		struct tm tm = { 0, };
-		char t[32] = { 0, };
-
-		gmtime_r(&a->modified, &tm);
-		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
-		s = g_markup_printf_escaped(" modified=\"%s\"", t);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (a->count) {
-		s = g_markup_printf_escaped(" count=\"%d\"", a->count);
-		fputs(s, f);
-		g_free(s);
-	}
-	fputs("/>\n", f);
-}
-
-static void
-xbel_write(gpointer data, gpointer user)
-{
-	XbelBookmark *b = data;
-	FILE *f = user;
-	char *s;
-
-	/* XXX: we should be trimming bookmarks that are beyond a maximum age factor. We
-	   could get the value from GSettings, but we don't have it available if we are
-	   here.  We could use some other value or look for an XSettings daemon on the
-	   primary screen.
-
-	   The age is in gtk-recent-files-max-age (GtkRecentFilesMaxAge) and has a
-	   default value of 30 (days, I suppose).  */
-
-	if (((int) ((now - b->modified) / (60 * 60 * 24))) > age)
-		return;
-
-	fputs("  <bookmark", f);
-	if (b->href) {
-		s = g_markup_printf_escaped(" href=\"%s\"", b->href);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (b->added) {
-		struct tm tm = { 0, };
-		char t[32] = { 0, };
-
-		gmtime_r(&b->added, &tm);
-		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
-		s = g_markup_printf_escaped(" added=\"%s\"", t);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (b->modified) {
-		struct tm tm = { 0, };
-		char t[32] = { 0, };
-
-		gmtime_r(&b->modified, &tm);
-		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
-		s = g_markup_printf_escaped(" modified=\"%s\"", t);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (b->visited) {
-		struct tm tm = { 0, };
-		char t[32] = { 0, };
-
-		gmtime_r(&b->visited, &tm);
-		strftime(t, 32, "%FT%H:%M:%SZ", &tm);
-		s = g_markup_printf_escaped(" visited=\"%s\"", t);
-		fputs(s, f);
-		g_free(s);
-	}
-	fputs(">\n", f);
-	if (b->title) {
-		s = g_markup_printf_escaped("    <title>%s</title>\n", b->title);
-		fputs(s, f);
-		g_free(s);
-	}
-	if (b->desc) {
-		s = g_markup_printf_escaped("    <desc>%s</desc>\n", b->desc);
-		fputs(s, f);
-		g_free(s);
-	}
-	fputs("    <info>\n", f);
-	fputs("      <metadata", f);
-	if (b->owner) {
-		s = g_markup_printf_escaped(" owner=\"%s\"", b->owner);
-		fputs(s, f);
-		g_free(s);
-	}
-	fputs(">\n", f);
-	fputs("        <mime:mime-type", f);
-	if (b->mime) {
-		s = g_markup_printf_escaped(" type=\"%s\"", b->mime);
-		fputs(s, f);
-		g_free(s);
-	}
-	fputs("/>\n", f);
-	if (b->groups) {
-		fputs("        <bookmark:groups>\n", f);
-		g_list_foreach(b->groups, xbel_grp_write, f);
-		fputs("        </bookmark:groups>\n", f);
-	}
-	if (b->applications) {
-		fputs("        <bookmark:applications>\n", f);
-		g_list_foreach(b->applications, xbel_app_write, f);
-		fputs("        </bookmark:applications>\n", f);
-	}
-	if (b->private)
-		fputs("        <bookmark:private/>\n", f);
-	fputs("      </metadata>\n", f);
-	fputs("    </info>\n", f);
-	fputs("  </bookmark>\n", f);
-}
-
-static gint
-href_match(gconstpointer data, gconstpointer user)
-{
-	const XbelBookmark *b = data;
-
-	return (strcmp(b->href, user));
-}
-
-static gint
-grp_match(gconstpointer data, gconstpointer user)
-{
-	return (strcmp(data, user));
-}
-
-static gint
-app_match(gconstpointer data, gconstpointer user)
-{
-	const XbelApplication *a = data;
-
-	return (strcmp(a->name, user));
-}
-
-static void
-put_recent_applications_xbel(char *filename)
-{
-	FILE *f;
-	int dummy;
-	GList *item;
-	struct stat st;
-	char *file;
-	XbelApplication *appl;
-	GList *list = NULL;
-	XbelBookmark *book = NULL;
-
-	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
-
-	if (!file) {
-		EPRINTF("cannot record %s without a file\n", filename);
-		g_free(file);
-		return;
-	}
-	if (!options.uri) {
-		EPRINTF("cannot record %s without a uri\n", filename);
-		g_free(file);
-		return;
-	}
-	if (options.autostart || options.xsession) {
-		DPRINTF("do not record autostart or xsession invocations\n");
-		g_free(file);
-		return;
-	}
-
-	/* 1) read in the recently-used.xbel file (uri only) */
-	if (!(f = fopen(file, "a+"))) {
-		EPRINTF("cannot open %s file: '%s'\n", filename, file);
-		g_free(file);
-		return;
-	}
-	dummy = lockf(fileno(f), F_LOCK, 0);
-	if (fstat(fileno(f), &st)) {
-		EPRINTF("cannot state open file: '%s'\n", file);
-		fclose(f);
-		g_free(file);
-		return;
-	}
-	g_free(file);
-	if (st.st_size > 0) {
-		GMarkupParseContext *ctx;
-
-		GMarkupParser parser = {
-			.start_element = xbel_start_element,
-			.end_element = NULL,
-			.text = xbel_text,
-			.passthrough = NULL,
-			.error = NULL,
-		};
-		gchar buf[BUFSIZ];
-		gsize got;
-
-		if (!(ctx = g_markup_parse_context_new(&parser,
-						       G_MARKUP_TREAT_CDATA_AS_TEXT |
-						       G_MARKUP_PREFIX_ERROR_POSITION,
-						       &list, NULL))) {
-			EPRINTF("cannot create XML parser\n");
-			fclose(f);
-			return;
-		}
-		while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
-			if (!g_markup_parse_context_parse(ctx, buf, got, NULL)) {
-				EPRINTF("could not parse buffer contents\n");
-				g_markup_parse_context_unref(ctx);
-				fclose(f);
-				return;
-			}
-		}
-		if (!g_markup_parse_context_end_parse(ctx, NULL)) {
-			EPRINTF("could not end parsing\n");
-			g_markup_parse_context_unref(ctx);
-			fclose(f);
-			return;
-		}
-		g_markup_parse_context_unref(ctx);
-	}
-
-	/* 2) append new information (uri only) */
-	if (!(item = g_list_find_custom(list, options.uri, href_match))) {
-		book = calloc(1, sizeof(*book));
-		book->href = strdup(options.uri);
-		book->mime = strdup("application/x-desktop");
-		book->added = now;
-		book->private = TRUE;
-		list = g_list_append(list, book);
-	} else
-		book = item->data;
-	book->modified = now;
-	book->visited = now;
-	if (!book->title && fields.name)
-		book->title = strdup(fields.name);
-	if (!book->desc && fields.description)
-		book->desc = strdup(fields.description);
-	if (!(item = g_list_find_custom(book->groups, "Application", grp_match)))
-		book->groups = g_list_append(book->groups, strdup("Application"));
-	if (!(item = g_list_find_custom(book->applications, "XDG Launcher", app_match))) {
-		appl = calloc(1, sizeof(*appl));
-		appl->name = strdup("XDG Launcher");
-		appl->exec = strdup("'xdg-launch %f'");
-		book->applications = g_list_append(book->applications, appl);
-	} else
-		appl = item->data;
-	appl->modified = now;
-	appl->count++;
-
-	/* 3) write out the recently-used.xbel file (uri only) */
-	dummy = ftruncate(fileno(f), 0);
-	fseek(f, 0L, SEEK_SET);
-
-	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", f);
-	fputs("<xbel version=\"1.0\"\n", f);
-	fputs("      xmlns:bookmark=\"http://www.freedesktop.org/standards/desktop-bookmarks\"\n",
-	      f);
-	fputs("      xmlns:mime=\"http://www.freedesktop.org/standards/shared-mime-info\"\n", f);
-	fputs(">\n", f);
-	g_list_foreach(list, xbel_write, f);
-	fputs("</xbel>\n", f);
-	fflush(f);
-	dummy = lockf(fileno(f), F_ULOCK, 0);
-	fclose(f);
-	g_list_free_full(list, xbel_free);
-	list = NULL;
-	(void) dummy;
-}
-
-static void
-put_recently_used_xbel(char *filename)
-{
-	FILE *f;
-	int dummy;
-	GList *item;
-	struct stat st;
-	char *file;
-	XbelApplication *appl;
-	GList *list = NULL;
-	XbelBookmark *book = NULL;
-	char *temp = NULL, *exec = NULL;
-	int len;
-
-	file = g_build_filename(g_get_user_data_dir(), filename, NULL);
-
-	if (!file) {
-		EPRINTF("cannot record %s without a file\n", filename);
-		g_free(file);
-		return;
-	}
-	if (!options.url) {
-		EPRINTF("cannot record %s without a url\n", filename);
-		g_free(file);
-		return;
-	}
-	if (options.autostart || options.xsession) {
-		DPRINTF("do not record autostart or xsession invocations\n");
-		g_free(file);
-		return;
-	}
-
-	/* 1) read in the recently-used.xbel file (url only) */
-	if (!(f = fopen(file, "a+"))) {
-		EPRINTF("cannot open %s file: '%s'\n", filename, file);
-		g_free(file);
-		return;
-	}
-	dummy = lockf(fileno(f), F_LOCK, 0);
-	if (fstat(fileno(f), &st)) {
-		EPRINTF("cannot stat open file: '%s'\n", file);
-		fclose(f);
-		g_free(file);
-		return;
-	}
-	g_free(file);
-	if (st.st_size > 0) {
-		GMarkupParseContext *ctx;
-
-		GMarkupParser parser = {
-			.start_element = xbel_start_element,
-			.end_element = NULL,
-			.text = xbel_text,
-			.passthrough = NULL,
-			.error = NULL,
-		};
-		gchar buf[BUFSIZ];
-		gsize got;
-
-		if (!(ctx = g_markup_parse_context_new(&parser,
-						       G_MARKUP_TREAT_CDATA_AS_TEXT |
-						       G_MARKUP_PREFIX_ERROR_POSITION,
-						       &list, NULL))) {
-			EPRINTF("cannot create XML parser\n");
-			fclose(f);
-			return;
-		}
-		while ((got = fread(buf, 1, BUFSIZ, f)) > 0) {
-			if (!g_markup_parse_context_parse(ctx, buf, got, NULL)) {
-				EPRINTF("could not parse buffer contents\n");
-				g_markup_parse_context_unref(ctx);
-				fclose(f);
-				return;
-			}
-		}
-		if (!g_markup_parse_context_end_parse(ctx, NULL)) {
-			EPRINTF("could not end parsing\n");
-			g_markup_parse_context_unref(ctx);
-			fclose(f);
-			return;
-		}
-		g_markup_parse_context_unref(ctx);
-	}
-
-	/* 2) append new information (url only) */
-	if (!(item = g_list_find_custom(list, options.url, href_match))) {
-		book = calloc(1, sizeof(*book));
-		book->href = strdup(options.url);
-		if (!(book->mime = get_mime_type(options.url))) {
-			EPRINTF("could not get mime type for %s\n", options.url);
-			if (entry.MimeType) {
-				char *p;
-
-				book->mime = strdup(entry.MimeType);
-				if ((p = strchr(book->mime, ';')))
-					*p = '\0';
-			} else
-				book->mime = strdup("application/octet-stream");
-		}
-		book->added = now;
-		book->private = TRUE;
-		list = g_list_append(list, book);
-	} else
-		book = item->data;
-	book->modified = now;
-	book->visited = now;
-	if (entry.Categories) {
-		char *p;
-
-		temp = strdup(entry.Categories);
-		if ((p = strchr(temp, ';')))
-			*p = '\0';
-		/* reserved for application launching */
-		if (!strcmp(temp, "Application")) {
-			free(temp);
-			temp = NULL;
-		}
-	}
-	if (temp && !(item = g_list_find_custom(book->groups, temp, grp_match)))
-		book->groups = g_list_append(book->groups, strdup(temp));
-	free(temp);
+	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
+//	g_bookmark_file_set_added(bookmark, options.url, -1);
+//	g_bookmark_file_set_modified(bookmark, options.url, -1);
+	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	if (fields.application_id) {
+		char *exec;
+		int len;
+
 		len = strlen(NAME) + 1 + strlen(fields.application_id) + 1 + strlen("%u") + 1;
 		exec = calloc(len, sizeof(*exec));
 		snprintf(exec, len, "%s %s %%u", NAME, fields.application_id);
-		temp = NAME;
+
+		g_bookmark_file_add_application(bookmark, options.url, NAME, exec);
+		free(exec);
 	} else {
-		exec = strdup(options.rawcmd);
-		temp = fields.bin ? : entry.Name;
+		g_bookmark_file_add_application(bookmark, options.url, fields.bin ? : entry.Name, options.rawcmd);
 	}
-	if (!(item = g_list_find_custom(book->applications, temp, app_match))) {
-		appl = calloc(1, sizeof(*appl));
-		appl->name = strdup(temp);
-		appl->exec = exec;
-		exec = NULL;
-		book->applications = g_list_append(book->applications, appl);
-	} else
-		appl = item->data;
-	free(exec);
-	appl->modified = now;
-	appl->count++;
+	if (entry.Categories) {
+		char *p, *e, *groups;
+
+		groups = strdup(entry.Categories);
+		e = groups + strlen(groups) + 1;
+		p = groups;
+		for (p = groups, *strchrnul(p, ';') = '\0'; p < e; p += strlen(p) + 1, *strchrnul(p, ';') = '\0')
+			if (strcmp(p, "Application"))
+				g_bookmark_file_add_group(bookmark, options.url, p);
+		free(groups);
+	}
 
 	/* 3) write out the recently-used.xbel file (url only) */
-	dummy = ftruncate(fileno(f), 0);
-	fseek(f, 0L, SEEK_SET);
-
-	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", f);
-	fputs("<xbel version=\"1.0\"\n", f);
-	fputs("      xmlns:bookmark=\"http://www.freedesktop.org/standards/desktop-bookmarks\"\n",
-	      f);
-	fputs("      xmlns:mime=\"http://www.freedesktop.org/standards/shared-mime-info\"\n", f);
-	fputs(">\n", f);
-	g_list_foreach(list, xbel_write, f);
-	fputs("</xbel>\n", f);
-	fflush(f);
-	dummy = lockf(fileno(f), F_ULOCK, 0);
-	fclose(f);
-	g_list_free_full(list, xbel_free);
-	list = NULL;
-	(void) dummy;
+	if (!g_bookmark_file_to_file(bookmark, file, &error)) {
+		EPRINTF("could not write bookmark file %s: %s\n", file, error->message);
+		g_error_free(error);
+		error = NULL;
+	}
+	g_bookmark_file_free(bookmark);
+	g_free(file);
+	return;
 }
-
-#endif				/* RECENTLY_USED_XBEL */
 
 typedef struct {
 	gchar *uri;
@@ -5896,7 +5347,7 @@ put_recent_applications(char *filename)
 		used->groups = g_list_append(used->groups, strdup("recently-used-apps"));
 	if (!(item = g_list_find_custom(used->groups, NAME, grps_match)))
 		used->groups = g_list_append(used->groups, strdup(NAME));
-	used->stamp = now;
+	used->stamp = time(NULL);
 
 	/* 3) write out the recently-used file (uri only) */
 	dummy = ftruncate(fileno(f), 0);
@@ -6027,7 +5478,7 @@ put_recently_used(char *filename)
 		else
 			free(grp);
 	}
-	used->stamp = now;
+	used->stamp = time(NULL);
 
 	/* 3) write out the recently-used file (url only) */
 	dummy = ftruncate(fileno(f), 0);
@@ -6497,13 +5948,6 @@ main(int argc, char *argv[])
 		options.id = strdup(p);
 	}
 	unsetenv("DESKTOP_STARTUP_ID");
-
-#ifdef RECENTLY_USED
-	now = time(NULL);
-#ifdef RECENTLY_USED_XBEL
-	gtk_init(NULL, NULL);
-#endif
-#endif
 
 	set_defaults(argc, argv);
 
