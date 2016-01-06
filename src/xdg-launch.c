@@ -80,6 +80,7 @@
 #include <strings.h>
 #include <regex.h>
 #include <wordexp.h>
+#include <execinfo.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -398,7 +399,7 @@ struct entry {
 	char *Terminal;
 	char *StartupNotify;
 	char *StartupWMClass;
-        char *SessionSetup;
+	char *SessionSetup;
 	char *Categories;
 	char *MimeType;
 	char *AsRoot;
@@ -612,8 +613,25 @@ handler(Display *display, XErrorEvent *xev)
 	return (0);
 }
 
+int
+iohandler(Display *display)
+{
+	void *buffer[1024];
+	int nptr;
+	char **strings;
+	int i;
+
+	if ((nptr = backtrace(buffer, 1023)) && (strings = backtrace_symbols(buffer, nptr)))
+		for (i = 0; i < nptr; i++)
+			fprintf(stderr, "backtrace> %s\n", strings[i]);
+	exit(EXIT_FAILURE);
+}
+
 XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
+
+int (*oldhandler) (Display *, XErrorEvent *) = NULL;
+int (*oldiohandler) (Display *) = NULL;
 
 Bool
 get_display()
@@ -624,7 +642,8 @@ get_display()
 			EPRINTF("cannot open display\n");
 			exit(EXIT_FAILURE);
 		}
-		XSetErrorHandler(handler);
+		oldhandler = XSetErrorHandler(handler);
+		oldiohandler = XSetIOErrorHandler(iohandler);
 		for (screen = 0; screen < ScreenCount(dpy); screen++) {
 			root = RootWindow(dpy, screen);
 			XSelectInput(dpy, root,
@@ -655,6 +674,8 @@ put_display()
 			sn_dpy = NULL;
 		}
 #endif
+		XSetErrorHandler(oldhandler);
+		XSetIOErrorHandler(oldiohandler);
 		XCloseDisplay(dpy);
 		dpy = NULL;
 	}
@@ -925,7 +946,7 @@ check_netwm()
 		if ((win = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW)))
 			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 	} while (i++ < 2 && !win);
-	win = win ?: check_netwm_supported();
+	win = win ? : check_netwm_supported();
 	if (win && win != wm.netwm_check)
 		DPRINTF("NetWM/EWMH changed from 0x%08lx to 0x%08lx\n", wm.netwm_check, win);
 	if (!win && wm.netwm_check)
@@ -961,7 +982,7 @@ check_winwm()
 		if ((win = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL)))
 			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 	} while (i++ < 2 && !win);
-	win = win ?: check_winwm_supported();
+	win = win ? : check_winwm_supported();
 	if (win && win != wm.winwm_check)
 		DPRINTF("WinWM/WMH changed from 0x%08lx to 0x%08lx\n", wm.winwm_check, win);
 	if (!win && wm.winwm_check)
@@ -1145,7 +1166,8 @@ check_stray()
 	if ((win = XGetSelectionOwner(dpy, sel))) {
 		if (win != wm.stray_owner) {
 			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner, win);
+			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner,
+				win);
 			wm.stray_owner = win;
 		}
 	} else if (wm.stray_owner) {
@@ -1203,7 +1225,7 @@ handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
 			wm.pager_owner = root;
 		break;
 	case PropertyDelete:
-		if (wm.pager_owner &&  wm.pager_owner == root)
+		if (wm.pager_owner && wm.pager_owner == root)
 			wm.pager_owner = None;
 		break;
 	}
@@ -1245,7 +1267,6 @@ check_shelp()
 		DPRINTF("startup helper removed from 0x%08lx\n", wm.shelp_owner);
 	return (wm.shelp_owner = win);
 }
-
 
 Bool
 set_screen_of_root(Window sroot, int *screen)
@@ -2158,7 +2179,8 @@ need_assistance()
 	if (!check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
 		DPRINTF("_NET_STARTUP_ID not supported\n");
 		if (options.info)
-			fputs("Assistance required: window manager does not support _NET_STARTUP_ID\n", stdout);
+			fputs("Assistance required: window manager does not support _NET_STARTUP_ID\n",
+			     stdout);
 		return True;
 	}
 	return False;
@@ -3033,7 +3055,8 @@ update_client(Client *c)
 		if (c->wmh->flags & IconWindowHint) {
 			if ((win = c->wmh->icon_window)) {
 				c->icon_win = win;
-				OPRINTF("0x%lx client has icon window 0x%lx\n", c->win, c->icon_win);
+				OPRINTF("0x%lx client has icon window 0x%lx\n", c->win,
+					c->icon_win);
 			}
 			if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &g)) {
 				XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
@@ -4231,7 +4254,6 @@ handle_MapNotify(XEvent *e, Client *c)
 	return True;
 }
 
-
 /** @brief handle monitoring events.
   * @param e - X event to handle
   *
@@ -4361,6 +4383,7 @@ assist()
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
 	}
+	put_display();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -4368,9 +4391,11 @@ assist()
 	if (pid) {
 		OPRINTF("parent says child pid is %d\n", pid);
 		/* parent returns and launches */
+		get_display();
 		return;
 	}
 	/* continue on monitoring */
+	get_display();
 	{
 		int xfd;
 		XEvent ev;
@@ -4455,6 +4480,7 @@ toolwait()
 		reset_pid(pid);
 		return;
 	}
+	put_display();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -4462,9 +4488,11 @@ toolwait()
 	reset_pid(pid);
 	if (!pid) {
 		/* child returns and launches */
+		get_display();
 		return;
 	}
 	/* continue on monitoring */
+	get_display();
 	{
 		int xfd;
 		XEvent ev;
@@ -4631,17 +4659,23 @@ wait_for_window_manager()
 		if (options.info) {
 			fputs("Have a window manager:\n\n", stdout);
 			if (wm.netwm_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window NetWM/EWMH", wm.netwm_check);
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window NetWM/EWMH",
+					wm.netwm_check);
 			if (wm.winwm_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WinWM/GNOME", wm.winwm_check);
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WinWM/GNOME",
+					wm.winwm_check);
 			if (wm.maker_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WindowMaker", wm.maker_check);
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WindowMaker",
+					wm.maker_check);
 			if (wm.motif_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window OSF/MOTIF", wm.motif_check);
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window OSF/MOTIF",
+					wm.motif_check);
 			if (wm.icccm_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window ICCCM 2.0", wm.icccm_check);
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window ICCCM 2.0",
+					wm.icccm_check);
 			if (wm.redir_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window redirection", wm.redir_check);
+				fprintf(stdout, "%-24s = 0x%08lx\n", "Window redirection",
+					wm.redir_check);
 			fputs("\n", stdout);
 		}
 		return;
@@ -4681,7 +4715,8 @@ wait_for_desktop_pager()
 	if (check_pager()) {
 		if (options.info) {
 			fputs("Have a desktop pager:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "Desktop pager window", wm.pager_owner);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "Desktop pager window",
+				wm.pager_owner);
 			fputs("\n", stdout);
 		}
 		return;
@@ -4701,7 +4736,8 @@ wait_for_composite_manager()
 	if (check_compm()) {
 		if (options.info) {
 			fputs("Have a composite manager:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "Composite manager window", wm.compm_owner);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "Composite manager window",
+				wm.compm_owner);
 			fputs("\n", stdout);
 		}
 		return;
@@ -4730,8 +4766,8 @@ wait_for_resource()
 		return;
 	}
 	if (entry.AutostartPhase) {
-		/* When autostarting we should use the autostart phase to
-		 * determine the resources for which to wait. */
+		/* When autostarting we should use the autostart phase to determine the
+		   resources for which to wait. */
 		if (strcmp(entry.AutostartPhase, "Initializing") == 0) {
 			/* Initializing: do not wait for anything. */
 			options.manager = False;
@@ -4822,13 +4858,16 @@ need_assist()
 			OPRINTF("WMCLASS: requires assistance\n");
 			need_assist = True;
 			if (options.info)
-				fputs("Launching StartupWMClass entry always requires assistance.\n", stdout);
+				fputs
+				    ("Launching StartupWMClass entry always requires assistance.\n",
+				     stdout);
 		}
 		if (fields.silent && atoi(fields.silent)) {
 			OPRINTF("SILENT: requires assistance\n");
 			need_assist = True;
 			if (options.info)
-				fputs("Launching SILENT entry always requires assistance.\n", stdout);
+				fputs("Launching SILENT entry always requires assistance.\n",
+				      stdout);
 		}
 	}
 	return need_assist;
@@ -4988,8 +5027,10 @@ put_recent_applications_xbel(char *filename)
 		/* XXX: can we set mime_type to NULL here? No mime type for Icon Naming
 		   Convention icons */
 		g_bookmark_file_set_icon(bookmark, options.uri, fields.icon, NULL);
-//	g_bookmark_file_set_added(bookmark, options.uri, -1);
-//	g_bookmark_file_set_modified(bookmark, options.uri, -1);
+#if 0
+	g_bookmark_file_set_added(bookmark, options.uri, -1);
+	g_bookmark_file_set_modified(bookmark, options.uri, -1);
+#endif
 	g_bookmark_file_set_visited(bookmark, options.uri, -1);
 	g_bookmark_file_add_application(bookmark, options.uri, "XDG Launcher", "xdg-launch %f");
 	g_bookmark_file_add_group(bookmark, options.uri, "Application");
@@ -5053,8 +5094,10 @@ put_recently_used_xbel(char *filename)
 		g_bookmark_file_set_mime_type(bookmark, options.url, mime);
 	free(mime);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
-//	g_bookmark_file_set_added(bookmark, options.url, -1);
-//	g_bookmark_file_set_modified(bookmark, options.url, -1);
+#if 0
+	g_bookmark_file_set_added(bookmark, options.url, -1);
+	g_bookmark_file_set_modified(bookmark, options.url, -1);
+#endif
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	if (fields.application_id) {
 		char *exec;
@@ -5067,7 +5110,8 @@ put_recently_used_xbel(char *filename)
 		g_bookmark_file_add_application(bookmark, options.url, NAME, exec);
 		free(exec);
 	} else {
-		g_bookmark_file_add_application(bookmark, options.url, fields.bin ? : entry.Name, options.rawcmd);
+		g_bookmark_file_add_application(bookmark, options.url,
+						fields.bin ? : entry.Name, options.rawcmd);
 	}
 	if (entry.Categories) {
 		char *p, *e, *groups;
@@ -5075,7 +5119,8 @@ put_recently_used_xbel(char *filename)
 		groups = strdup(entry.Categories);
 		e = groups + strlen(groups) + 1;
 		p = groups;
-		for (p = groups, *strchrnul(p, ';') = '\0'; p < e; p += strlen(p) + 1, *strchrnul(p, ';') = '\0')
+		for (p = groups, *strchrnul(p, ';') = '\0'; p < e;
+		     p += strlen(p) + 1, *strchrnul(p, ';') = '\0')
 			if (strcmp(p, "Application"))
 				g_bookmark_file_add_group(bookmark, options.url, p);
 		free(groups);
@@ -5707,6 +5752,7 @@ help(int argc, char *argv[])
 {
 	if (!options.output && !options.debug)
 		return;
+	/* *INDENT-OFF* */
 	(void) fprintf(stdout, "\
 Usage:\n\
     %1$s [options] [APPID [FILE|URL]]\n\
@@ -5807,7 +5853,6 @@ Options:\n\
     -C, --copying\n\
         print copying permission and exit\n\
 ", argv[0]
-	/* *INDENT-OFF* */
 	, defaults.launcher
 	, defaults.hostname
 	, defaults.monitor
@@ -5840,8 +5885,8 @@ Options:\n\
 	, show_bool(defaults.tray)
 	, show_bool(defaults.pager)
 	, show_bool(defaults.composite)
-	/* *INDENT-ON* */
 	);
+	/* *INDENT-ON* */
 }
 
 static void
