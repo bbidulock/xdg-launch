@@ -428,6 +428,7 @@ struct _Client {
 	Window grp;			/* the group window */
 	Window time_win;		/* the time window */
 	Window icon_win;		/* the icon window */
+	Window lead_win;		/* the leader window */
 	int state;			/* WM_STATE */
 	Bool dockapp;			/* this client is a dockapp */
 	Time user_time;
@@ -497,6 +498,7 @@ Atom _XA_WIN_PROTOCOLS;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
 Atom _XA_WM_CLASS;
+Atom _XA_WM_CLIENT_LEADER;
 Atom _XA_WM_STATE;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
@@ -528,6 +530,7 @@ static Bool handle_WIN_PROTOCOLS(XEvent *, Client *);
 static Bool handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
 static Bool handle_WIN_WORKSPACE(XEvent *, Client *);
 static Bool handle_WM_CLASS(XEvent *, Client *);
+static Bool handle_WM_CLIENT_LEADER(XEvent *, Client *);
 static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
 static Bool handle_WM_COMMAND(XEvent *, Client *);
 static Bool handle_WM_HINTS(XEvent *, Client *);
@@ -575,6 +578,7 @@ struct atoms {
 	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
 	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			&handle_WIN_WORKSPACE,			None			},
 	{ "WM_CLASS",				NULL,					&handle_WM_CLASS,			XA_WM_CLASS		},
+	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,			&handle_WM_CLIENT_LEADER,		None			},
 	{ "WM_CLIENT_MACHINE",			NULL,					&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
 	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
 	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
@@ -3127,6 +3131,18 @@ update_client(Client *c)
 		else
 			OPRINTF("0x%08lx client is not a dock app\n", c->win);
 	}
+	/* WM_CLIENT_LEADER */
+	if (get_window(c->win, _XA_WM_CLIENT_LEADER, XA_WINDOW, &win) ||
+	    get_window(c->grp, _XA_WM_CLIENT_LEADER, XA_WINDOW, &win)) {
+		if (win != c->win) {
+			c->lead_win = win;
+			OPRINTF("0x%08lx client has lead window 0x%08lx\n", c->win, c->lead_win);
+			if (XFindContext(dpy, c->lead_win, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->lead_win, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->lead_win, mask);
+			}
+		}
+	}
 	/* _NET_WM_USER_TIME_WINDOW */
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win) ||
 	    get_window(c->grp, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win)) {
@@ -3165,7 +3181,8 @@ update_client(Client *c)
 		c->hostname = NULL;
 	}
 	if ((text = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
-	    (text = get_text(c->grp, XA_WM_CLIENT_MACHINE))) {
+	    (text = get_text(c->grp, XA_WM_CLIENT_MACHINE)) ||
+	    (text = get_text(c->lead_win, XA_WM_CLIENT_MACHINE))) {
 		c->hostname = text;
 		OPRINTF("0x%08lx client host %s\n", c->win, c->hostname);
 	}
@@ -3176,7 +3193,8 @@ update_client(Client *c)
 		c->count = 0;
 	}
 	if (XGetCommand(dpy, c->win, &c->command, &c->count) ||
-	    XGetCommand(dpy, c->grp, &c->command, &c->count)) {
+	    XGetCommand(dpy, c->grp, &c->command, &c->count) ||
+	    XGetCommand(dpy, c->lead_win, &c->command, &c->count)) {
 		if (options.debug > 0 || options.output > 1) {
 			int i;
 
@@ -3197,7 +3215,8 @@ update_client(Client *c)
 	/* _NET_WM_PID */
 	c->pid = 0;
 	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) ||
-	    get_cardinal(c->grp, _XA_NET_WM_PID, XA_CARDINAL, &card)) {
+	    get_cardinal(c->grp, _XA_NET_WM_PID, XA_CARDINAL, &card) ||
+	    get_cardinal(c->lead_win, _XA_NET_WM_PID, XA_CARDINAL, &card)) {
 		c->pid = card;
 		OPRINTF("0x%08lx client has pid %d\n", c->win, c->pid);
 	}
@@ -3207,7 +3226,8 @@ update_client(Client *c)
 		c->startup_id = NULL;
 	}
 	if ((text = get_text(c->win, _XA_NET_STARTUP_ID)) ||
-	    (text = get_text(c->grp, _XA_NET_STARTUP_ID))) {
+	    (text = get_text(c->grp, _XA_NET_STARTUP_ID)) ||
+	    (text = get_text(c->lead_win, _XA_NET_STARTUP_ID))) {
 		c->startup_id = text;
 		OPRINTF("0x%08lx client has startup id %s\n", c->win, text);
 	}
@@ -3313,6 +3333,37 @@ del_client(Client *r)
 	remove_client(r);
 }
 
+static Bool
+handle_WM_CLIENT_LEADER(XEvent *e, Client *c)
+{
+	Window lead = None;
+	Client *g = NULL;
+	long mask =
+	    ExposureMask | VisibilityChangeMask | StructureNotifyMask | FocusChangeMask |
+	    PropertyChangeMask;
+
+	PTRACE();
+	if (!c || e->type != PropertyNotify)
+		return False;
+	if (e->xproperty.window != c->win)
+		return False;
+	if (c->lead_win && c->lead_win != c->win) {
+		XDeleteContext(dpy, c->lead_win, ClientContext);
+		c->lead_win = c->win;
+	}
+	if (get_window(e->xproperty.window, _XA_WM_CLIENT_LEADER, XA_WINDOW, &lead)) {
+		if (lead && lead != root && lead != c->win)
+			c->lead_win = lead;
+		if (c->lead_win != c->win) {
+			if (XFindContext(dpy, c->lead_win, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->lead_win, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->lead_win, mask);
+			}
+		}
+	}
+	return False;
+}
+
 /** @brief track client machine
   * @param e - property notification event
   * @param c - client associated with e->xany.window
@@ -3332,8 +3383,7 @@ handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 			XFree(c->hostname);
 			c->hostname = NULL;
 		}
-		if ((c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
-		    (c->hostname = get_text(c->grp, XA_WM_CLIENT_MACHINE)))
+		if ((c->hostname = get_text(e->xproperty.window, XA_WM_CLIENT_MACHINE)))
 			recheck_client(c);
 		return True;
 	case PropertyDelete:
@@ -3343,7 +3393,7 @@ handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
 		}
 		return True;
 	}
-	return True;
+	return False;
 }
 
 /** @brief track client command
@@ -3359,8 +3409,6 @@ handle_WM_COMMAND(XEvent *e, Client *c)
 	PTRACE();
 	if (!c || e->type != PropertyNotify)
 		return False;
-	if (e->xproperty.window != c->win)
-		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		if (c->command) {
@@ -3368,7 +3416,7 @@ handle_WM_COMMAND(XEvent *e, Client *c)
 			c->command = NULL;
 			c->count = 0;
 		}
-		if (XGetCommand(dpy, c->win, &c->command, &c->count))
+		if (XGetCommand(dpy, e->xproperty.window, &c->command, &c->count))
 			recheck_client(c);
 		return True;
 	case PropertyDelete:
@@ -3457,7 +3505,7 @@ handle_WM_STATE(XEvent *e, Client *c)
 		return False;
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
-		if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)) {
+		if (get_cardinal(e->xproperty.window, _XA_WM_STATE, AnyPropertyType, &data)) {
 			c->state = data;
 			if (c->state != WithdrawnState || c->dockapp)
 				manage_client(c, e->xproperty.time);
