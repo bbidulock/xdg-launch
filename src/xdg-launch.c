@@ -4361,7 +4361,7 @@ handle_atom(XEvent *e, Client *c, Atom atom)
 		}
 	}
 	if ((name = XGetAtomName(dpy, atom))) {
-		EPRINTF("0x%08lx %s atom unhandled!\n", e->xany.window, name);
+		DPRINTF("0x%08lx %s atom unhandled!\n", e->xany.window, name);
 		XFree(name);
 	}
 	return False;
