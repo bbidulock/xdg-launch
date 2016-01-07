@@ -422,6 +422,7 @@ SnMonitorContext *sn_ctx;
 struct _Client {
 	Client *next;
 	Bool managed;			/* set when client managed */
+	Bool mapped;			/* set when client "mapped" */
 	Bool counted;			/* set when client counted */
 	int screen;
 	Window win;			/* the client window */
@@ -2879,54 +2880,90 @@ test_client(Client *c)
 	char *str;
 
 	PTRACE();
-	if (fields.id && c->startup_id)
-		return strcmp(c->startup_id, fields.id) ? False : True;
+	if (fields.id && c->startup_id) {
+		if (strcmp(c->startup_id, fields.id)) {
+			OPRINTF("0x%08lx client has different startup id %s\n",
+				c->win, c->startup_id);
+			return False;
+		} else {
+			OPRINTF("0x%08lx client has same startup id %s\n", c->win, c->startup_id);
+			return True;
+		}
+	} else
+		OPRINTF("0x%08lx client cannot test startup id\n", c->win);
 	/* correct hostname */
-	if (fields.hostname && c->hostname && strcasecmp(fields.hostname, c->hostname))
+	if (fields.hostname && c->hostname && strcasecmp(fields.hostname, c->hostname)) {
+		OPRINTF("0x%08lx client has different hostname %s\n", c->win, c->hostname);
 		return False;
+	} else
+		OPRINTF("0x%08lx client cannot test hostname\n", c->win);
 	if ((pid = c->pid) && (!c->hostname || strcasecmp(fields.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
-		if (strcmp(fields.id, str))
+		if (strcmp(fields.id, str)) {
+			OPRINTF("0x%08lx client has different startup id %s\n", c->win, str);
 			return False;
-		else
+		} else {
+			OPRINTF("0x%08lx client has same startup id %s\n", c->win, str);
 			return True;
+		}
 		free(str);
-	}
+	} else
+		OPRINTF("0x%08lx client cannot test process startup id\n", c->win);
 	/* correct wmclass */
 	if (fields.wmclass) {
-		if (c->ch.res_name && !strcasecmp(fields.wmclass, c->ch.res_name))
+		if (c->ch.res_name && !strcasecmp(fields.wmclass, c->ch.res_name)) {
+			OPRINTF("0x%08lx client has comparable resource name: %s ~ %s\n",
+				c->win, fields.wmclass, c->ch.res_name);
 			return True;
-		if (c->ch.res_class && !strcasecmp(fields.wmclass, c->ch.res_class))
+		}
+		if (c->ch.res_class && !strcasecmp(fields.wmclass, c->ch.res_class)) {
+			OPRINTF("0x%08lx client has comparable resource class: %s ~ %s\n",
+				c->win, fields.wmclass, c->ch.res_class);
 			return True;
-	}
+		}
+	} else
+		OPRINTF("0x%08lx client cannot test WM_CLASS\n", c->win);
 	/* same process id */
-	if (pid && atoi(fields.pid) == pid)
+	if (pid && atoi(fields.pid) == pid) {
+		OPRINTF("0x%08lx client has correct pid %d\n", c->win, pid);
 		return True;
+	}
 	/* same timestamp to the millisecond */
-	if (c->user_time && c->user_time == strtoul(fields.timestamp, NULL, 0))
+	if (c->user_time && c->user_time == strtoul(fields.timestamp, NULL, 0)) {
+		OPRINTF("0x%08lx client has identical user time %lu\n", c->win, c->user_time);
 		return True;
+	}
 	/* correct command */
 	if (c->command && (eargv || fields.command)) {
 		int i;
 
 		if (eargv) {
-			if (c->count != eargc)
+			if (c->count != eargc) {
+				OPRINTF("0x%08lx client has different command word count %d != %d\n",
+				     c->win, c->count, eargc);
 				return False;
+			}
 			for (i = 0; i < c->count; i++)
-				if (strcmp(eargv[i], c->command[i]))
+				if (strcmp(eargv[i], c->command[i])) {
+					OPRINTF("0x%08lx client has different command\n", c->win);
 					return False;
+				}
 			return True;
 		} else if (fields.command) {
 			wordexp_t we = { 0, };
 
 			if (wordexp(fields.command, &we, 0) == 0) {
 				if (we.we_wordc != c->count) {
+					OPRINTF("0x%08lx client has different command word count %d != %d\n",
+					     c->win, c->count, we.we_wordc);
 					wordfree(&we);
 					return False;
 				}
 				for (i = 0; i < c->count; i++)
 					if (strcmp(we.we_wordv[i], c->command[i])) {
+						OPRINTF("0x%08lx client has different command\n",
+							c->win);
 						wordfree(&we);
 						return False;
 					}
@@ -2939,18 +2976,21 @@ test_client(Client *c)
 	if (pid && fields.bin) {
 		if ((str = get_proc_comm(pid)))
 			if (!strcmp(fields.bin, str)) {
+				OPRINTF("0x%08lx client has same binary %s\n", c->win, str);
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_exec(pid)))
 			if (!strcmp(fields.bin, str)) {
+				OPRINTF("0x%08lx client has same binary %s\n", c->win, str);
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_argv0(pid)))
 			if (!strcmp(fields.bin, str)) {
+				OPRINTF("0x%08lx client has same binary %s\n", c->win, str);
 				free(str);
 				return True;
 			}
@@ -3041,7 +3081,7 @@ static void
 recheck_client(Client *c)
 {
 	PTRACE();
-	if (c->managed && !c->counted) {
+	if (c->managed && c->mapped && !c->counted) {
 		if (test_client(c)) {
 			OPRINTF("0x%08lx client --------------!\n", c->win);
 			OPRINTF("0x%08lx client IS THE ONE(tm)!\n", c->win);
@@ -3161,7 +3201,8 @@ update_client(Client *c)
 		c->state = card;
 		if (c->state != WithdrawnState || c->dockapp) {
 			c->managed = True;
-			OPRINTF("0x%08lx client in managed state\n", c->win);
+			c->mapped = True;
+			OPRINTF("0x%08lx client in managed and mapped state\n", c->win);
 		}
 	}
 	/* WM_CLASS */
@@ -3237,6 +3278,7 @@ update_client(Client *c)
 			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
 				OPRINTF("0x%08lx client is focussed\n", c->win);
 				c->managed = True;
+				c->mapped = True;
 				break;
 			}
 		}
@@ -3253,6 +3295,7 @@ add_client(Window win)
 	c->grp = win;
 	c->icon_win = win;
 	c->time_win = win;
+	c->lead_win = win;
 	c->next = clients;
 	clients = c;
 	update_client(c);
@@ -3261,12 +3304,31 @@ add_client(Window win)
 }
 
 static void
-manage_client(Client *c, Time time)
+managed_client(Client *c, Time time)
 {
 	PTRACE();
 	if (!c) {
 		EPRINTF("null client!\n");
 		return;
+	}
+	if (!c->managed) {
+		c->managed = True;
+		OPRINTF("0x%08lx client managed!\n", c->win);
+	}
+	recheck_client(c);
+}
+
+static void
+mapped_client(Client *c, Time time)
+{
+	PTRACE();
+	if (!c) {
+		EPRINTF("null client!\n");
+		return;
+	}
+	if (!c->mapped) {
+		c->mapped = True;
+		OPRINTF("0x%08lx client mapped!\n", c->win);
 	}
 	if (!c->managed) {
 		c->managed = True;
@@ -3508,7 +3570,7 @@ handle_WM_STATE(XEvent *e, Client *c)
 		if (get_cardinal(e->xproperty.window, _XA_WM_STATE, AnyPropertyType, &data)) {
 			c->state = data;
 			if (c->state != WithdrawnState || c->dockapp)
-				manage_client(c, e->xproperty.time);
+				mapped_client(c, e->xproperty.time);
 			return True;
 		}
 		break;
@@ -3604,7 +3666,7 @@ handle_NET_WM_VISIBLE_NAME(XEvent *e, Client *c)
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		/* only window manager sets this */
-		manage_client(c, e->xproperty.time);
+		managed_client(c, e->xproperty.time);
 		return True;
 	case PropertyDelete:
 		return True;
@@ -3623,7 +3685,7 @@ handle_NET_WM_VISIBLE_ICON_NAME(XEvent *e, Client *c)
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		/* only window manager sets this */
-		manage_client(c, e->xproperty.time);
+		managed_client(c, e->xproperty.time);
 		return True;
 	case PropertyDelete:
 		return True;
@@ -3642,7 +3704,7 @@ handle_NET_WM_ALLOWED_ACTIONS(XEvent *e, Client *c)
 	switch (e->xproperty.state) {
 	case PropertyNewValue:
 		/* only window manager sets this */
-		manage_client(c, e->xproperty.time);
+		managed_client(c, e->xproperty.time);
 		return True;
 	case PropertyDelete:
 		return True;
@@ -3725,7 +3787,7 @@ handle_NET_WM_STATE(XEvent *e, Client *c)
 		if ((atoms = get_atoms(e->xany.window, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
 			for (i = 0; i < n; i++)
 				if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
-					manage_client(c, e->xproperty.time);
+					mapped_client(c, e->xproperty.time);
 					break;
 				}
 			XFree(atoms);
@@ -3769,7 +3831,7 @@ handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
 	PTRACE();
 	if (get_window(root, _XA_NET_ACTIVE_WINDOW, XA_WINDOW, &active) && active) {
 		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c))
-			manage_client(c, e->xproperty.time);
+			mapped_client(c, e->xproperty.time);
 		return True;
 	}
 	return False;
@@ -3796,7 +3858,7 @@ handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
 	if ((list = get_windows(root, atom, type, &n))) {
 		for (i = 0, c = NULL; i < n; c = NULL, i++)
 			if (!XFindContext(dpy, list[i], ClientContext, (XPointer *) &c))
-				manage_client(c, e->xproperty.time);
+				mapped_client(c, e->xproperty.time);
 		XFree(list);
 		return True;
 	}
@@ -4353,13 +4415,12 @@ handle_atom(XEvent *e, Client *c, Atom atom)
 	char *name;
 
 	PTRACE();
-	for (a = atoms; a->name; a++) {
+	for (a = atoms; a->name; a++)
 		if (a->value == atom) {
 			if (a->handler)
 				return a->handler(e, c);
 			break;
 		}
-	}
 	if ((name = XGetAtomName(dpy, atom))) {
 		DPRINTF("0x%08lx %s atom unhandled!\n", e->xany.window, name);
 		XFree(name);
@@ -4455,7 +4516,7 @@ handle_FocusIn(XEvent *e, Client *c)
 		DPRINTF("FocusIn not for us!\n");
 		return False;
 	}
-	manage_client(c, CurrentTime);
+	mapped_client(c, CurrentTime);
 	return True;
 }
 
@@ -4477,7 +4538,7 @@ handle_VisibilityNotify(XEvent *e, Client *c)
 		return False;
 	}
 	if (e->xvisibility.state != VisibilityFullyObscured)
-		manage_client(c, CurrentTime);
+		mapped_client(c, CurrentTime);
 	return True;
 }
 
@@ -4516,7 +4577,7 @@ handle_MapNotify(XEvent *e, Client *c)
 		DPRINTF("MapNotify not for us!\n");
 		return False;
 	}
-	manage_client(c, CurrentTime);
+	mapped_client(c, CurrentTime);
 	return True;
 }
 
