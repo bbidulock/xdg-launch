@@ -4081,7 +4081,7 @@ handle_selection_clear(XSelectionClearEvent *e)
 /** @brief handle monitoring events
   * @param e - X event to handle
   *
-  * If the window mwnager has a client list, we can check for newly mapped
+  * If the window manager has a client list, we can check for newly mapped
   * window by additions to the client list.  We can calculate the user time by
   * tracking _NET_WM_USER_TIME and _NET_WM_TIME_WINDOW on all clients.  If the
   * window manager supports _NET_WM_STATE_FOCUSED or at least
