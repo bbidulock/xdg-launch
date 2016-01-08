@@ -1,13 +1,13 @@
 [Desktop Entry]
 Encoding=UTF-8
 Type=Application
-Name=XDG Monitor
-Comment=Monitor the XDG launching of programs
+Name=XDG Assist
+Comment=Assist WM with XDG program launching
 Icon=utilities-system-monitor
-TryExec=/usr/bin/xdg-monitor
-Exec=/usr/bin/xdg-monitor --replace
+TryExec=/usr/bin/xdg-assist
+Exec=/usr/bin/xdg-assist --replace
 Terminal=false
-Categories=XDG;System;Monitor;TrayIcon;
+Categories=XDG;System;Monitor;
 NotShowIn=GNOME;KDE;XFCE;
 StartupNotify=true
 X-GNOME-Autostart-enabled=true
