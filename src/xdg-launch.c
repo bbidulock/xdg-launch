@@ -338,7 +338,6 @@ typedef struct _Client Client;
 typedef struct _Sequence {
 	struct _Sequence *next;
 	StartupNotifyState state;
-	Client *client;
 	Bool changed;
 	union {
 		char *fields[sizeof(struct fields) / sizeof(char *)];
@@ -2148,6 +2147,32 @@ set_all()
 		set_id();
 }
 
+static void
+show_sequence(const char *label, const struct fields *fields)
+{
+	const char **lp;
+	char *const *fp;
+
+	OPRINTF("%s:\n", label);
+	for (lp = StartupNotifyFields, fp = &fields->launcher; *lp; lp++, fp++)
+		if (*fp)
+			OPRINTF("%-24s = %s\n", *lp, *fp);
+}
+
+static void
+info_sequence(const char *label, const struct fields *fields)
+{
+	const char **lp;
+	char *const *fp;
+
+	fprintf(stdout, "%s:\n\n", label);
+	for (lp = StartupNotifyFields, fp = &fields->launcher; *lp; lp++, fp++)
+		if (*fp)
+			fprintf(stdout, "%-24s = %s\n", *lp, *fp);
+	fputs("\n", stdout);
+	fflush(stdout);
+}
+
 void
 reset_pid(pid_t pid)
 {
@@ -2157,25 +2182,10 @@ reset_pid(pid_t pid)
 		options.pid = pid;
 		set_pid();
 		set_id();
-		if (options.output > 1) {
-			const char **lp;
-			char **fp;
-
-			OPRINTF("Final notify fields:\n");
-			for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
-				if (*fp)
-					OPRINTF("%-24s = %s\n", *lp, *fp);
-		}
-		if (options.info) {
-			const char **lp;
-			char **fp;
-
-			fputs("Final notify fields:\n\n", stdout);
-			for (lp = StartupNotifyFields, fp = &fields.launcher; *lp; lp++, fp++)
-				if (*fp)
-					fprintf(stdout, "%-24s = %s\n", *lp, *fp);
-			fputs("\n", stdout);
-		}
+		if (options.output > 1)
+			show_sequence("Final notify fields", &fields);
+		if (options.info)
+			info_sequence("Final notify fields", &fields);
 	} else {
 		/* this is the child */
 		options.pid = getpid();
@@ -3074,6 +3084,7 @@ setup_client(Client *c)
 			}
 		}
 	}
+	send_remove();
 	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 }
 
@@ -3893,6 +3904,46 @@ handle_MANAGER(XEvent *e, Client *c)
 static void
 update_startup_client(Sequence *seq)
 {
+	if (!seq->f.id) {
+		EPRINTF("Sequence without id!\n");
+		return;
+	}
+	if (!fields.id) {
+		EPRINTF("No startup id to work from!\n");
+		return;
+	}
+	if (strcmp(seq->f.id, fields.id)) {
+		DPRINTF("Sequence for unrelated id %s\n", seq->f.id);
+		return;
+	}
+	OPRINTF("Related sequence received:\n");
+	switch (seq->state) {
+	case StartupNotifyIdle:
+		break;
+	case StartupNotifyNew:
+		if (options.output > 1)
+			show_sequence("New sequence:", &seq->f);
+		if (options.info)
+			info_sequence("New sequence:", &seq->f);
+		break;
+	case StartupNotifyChanged:
+		if (options.output > 1)
+			show_sequence("Change sequence:", &seq->f);
+		if (options.info)
+			info_sequence("Change sequence:", &seq->f);
+		break;
+	case StartupNotifyComplete:
+		if (options.output > 1)
+			show_sequence("Completed sequence:", &seq->f);
+		if (options.info)
+			info_sequence("Completed sequence:", &seq->f);
+		if (options.toolwait || options.assist) {
+			OPRINTF("Startup notification complete!\n");
+			running = False;
+		}
+		break;
+	}
+	return;
 }
 
 static void
@@ -4116,6 +4167,10 @@ find_seq_by_id(char *id)
 static void
 add_sequence(Sequence *seq)
 {
+	if (options.output > 1)
+		show_sequence("Adding sequence", &seq->f);
+	if (options.info)
+		info_sequence("Adding sequence", &seq->f);
 	seq->next = sequences;
 	sequences = seq;
 }
@@ -4125,14 +4180,16 @@ remove_sequence(Sequence *del)
 {
 	Sequence *seq, **prev;
 
+	if (options.output > 1)
+		show_sequence("Removing sequence", &del->f);
+	if (options.info)
+		info_sequence("Removing sequence", &del->f);
 	for (prev = &sequences, seq = *prev; seq && seq != del; prev = &seq->next, seq = *prev) ;
 	if (seq) {
 		*prev = seq->next;
 		seq->next = NULL;
-		if (!seq->client) {
-			free_sequence_fields(seq);
-			free(seq);
-		}
+		free_sequence_fields(seq);
+		free(seq);
 	} else
 		EPRINTF("could not find sequence\n");
 	return (seq);
@@ -4227,8 +4284,6 @@ process_startup_msg(Message *m)
 		}
 		*seq = cmd;
 		add_sequence(seq);
-		seq->client = NULL;
-
 		seq->changed = False;
 		return;
 	}
@@ -4245,14 +4300,12 @@ process_startup_msg(Message *m)
 		case StartupNotifyNew:
 			seq->state = StartupNotifyNew;
 			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
+			update_startup_client(seq);
 			return;
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
+			update_startup_client(seq);
 			return;
 		}
 		break;
@@ -4269,8 +4322,7 @@ process_startup_msg(Message *m)
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
+			update_startup_client(seq);
 			return;
 		}
 		break;
@@ -4287,8 +4339,7 @@ process_startup_msg(Message *m)
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			if (seq->client)
-				update_startup_client(seq);
+			update_startup_client(seq);
 			return;
 		}
 		break;
@@ -4297,6 +4348,7 @@ process_startup_msg(Message *m)
 		break;
 	}
 	/* remove sequence */
+	update_startup_client(seq);
 	remove_sequence(seq);
 }
 
@@ -4310,6 +4362,11 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	PTRACE();
 	if (!e || e->type != ClientMessage)
 		return False;
+#if 0
+#ifdef STARTUP_NOTIFICATION
+	sn_display_process_event(sn_dpy, e);
+#endif
+#endif
 	from = e->xclient.window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
 		m = calloc(1, sizeof(*m));
@@ -4340,6 +4397,11 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 	PTRACE();
 	if (!e || e->type != ClientMessage)
 		return False;
+#if 0
+#ifdef STARTUP_NOTIFICATION
+	sn_display_process_event(sn_dpy, e);
+#endif
+#endif
 	from = e->xclient.window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
 		return False;
@@ -4370,7 +4432,7 @@ clean_msgs(Window w)
 
 #ifdef STARTUP_NOTIFICATION
 static void
-sn_handler(SnMonitorEvent * event, void *dummy)
+sn_handler(SnMonitorEvent *event, void *dummy)
 {
 	Notify *n, **np;
 	SnStartupSequence *seq;
@@ -4725,6 +4787,7 @@ assist()
 	}
 	/* continue on monitoring */
 	get_display();
+	alarm(options.timeout);
 	{
 		int xfd;
 		XEvent ev;
@@ -4748,8 +4811,11 @@ assist()
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 
-			if (signum)
+			if (signum) {
+				if (signum == SIGALRM)
+					EPRINTF("Exiting on timeout!\n");
 				exit(EXIT_SUCCESS);
+			}
 
 			if (poll(&pfd, 1, -1) == -1) {
 				switch (errno) {
@@ -4847,9 +4913,11 @@ toolwait()
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 
-			if (signum)
+			if (signum) {
+				if (signum == SIGALRM)
+					EPRINTF("Exiting on timeout!\n");
 				exit(EXIT_SUCCESS);
-
+			}
 			if (poll(&pfd, 1, -1) == -1) {
 				switch (errno) {
 				case EINTR:

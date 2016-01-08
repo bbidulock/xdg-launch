@@ -298,3 +298,4 @@
 -TXSession
 -TXWMIconGeometry
 -TXWMState
+-TSnMonitorEvent
