@@ -92,10 +92,6 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
-#ifdef STARTUP_NOTIFICATION
-#define SN_API_NOT_YET_FROZEN
-#include <libsn/sn.h>
-#endif
 
 #define DPRINTF(_args...) do { if (options.debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
@@ -228,16 +224,6 @@ typedef struct {
 	int len;	    /* number of message bytes */
 } Message;
 
-#ifdef STARTUP_NOTIFICATION
-typedef struct Notify Notify;
-
-struct Notify {
-	Notify *next;
-	SnStartupSequence *seq;
-	Bool assigned;
-};
-#endif
-
 static const char *DesktopEntryFields[] = {
 	"Type",
 	"Name",
@@ -279,11 +265,6 @@ Display *dpy = NULL;
 int screen;
 Window root;
 
-#ifdef STARTUP_NOTIFICATION
-SnDisplay *sn_dpy;
-SnMonitorContext *sn_ctx;
-#endif
-
 struct _Client {
 	int screen;
 	Window win;
@@ -301,9 +282,6 @@ struct _Client {
 	char *hostname;
 	XClassHint ch;
 	XWMHints *wmh;
-#ifdef STARTUP_NOTIFICATION
-	SnStartupSequence *seq;
-#endif
 };
 
 Client *clients = NULL;
@@ -488,9 +466,6 @@ get_display()
 				     VisibilityChangeMask | StructureNotifyMask |
 				     SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask);
 		}
-#ifdef STARTUP_NOTIFICATION
-		sn_dpy = sn_display_new(dpy, NULL, NULL);
-#endif
 		screen = DefaultScreen(dpy);
 		root = RootWindow(dpy, screen);
 		intern_atoms();

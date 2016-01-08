@@ -16,12 +16,12 @@ xdg_launch_SOURCES = xdg-launch.c
 xdg_launch_LDADD = $(RU_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
 
 xdg_assist_CPPFLAGS = -DNAME=\"xde-assist\"
-xdg_assist_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(SN_CFLAGS) $(X11_CFLAGS)
+xdg_assist_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(X11_CFLAGS)
 xdg_assist_SOURCES = xdg-assist.c
-xdg_assist_LDADD = $(GTK2_LIBS) $(SN_LIBS) $(X11_LIBS)
+xdg_assist_LDADD = $(GTK2_LIBS) $(X11_LIBS)
 
 xdg_monitor_CPPFLAGS = -DNAME=\"xde-monitor\"
-xdg_monitor_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(SN_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
+xdg_monitor_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
 xdg_monitor_SOURCES = xdg-monitor.c
 xdg_monitor_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
 
@@ -32,7 +32,7 @@ xdg_whereis_CPPFLAGS = -DNAME=\"xde-whereis\"
 xdg_whereis_SOURCES = xdg-whereis.c
 
 xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
-xdg_show_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(SN_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
+xdg_show_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
 xdg_show_SOURCES = xdg-show.c
 xdg_show_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
 

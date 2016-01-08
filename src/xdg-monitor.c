@@ -93,10 +93,6 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
-#ifdef STARTUP_NOTIFICATION
-#define SN_API_NOT_YET_FROZEN
-#include <libsn/sn.h>
-#endif
 #ifdef DESKTOP_NOTIFICATIONS
 #include <libnotify/notify.h>
 #endif
