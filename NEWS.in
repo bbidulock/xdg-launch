@@ -3,6 +3,227 @@
 Release @PACKAGE@-@VERSION@ released @DATE@
 -------------------------------------------
 
+git shortlog -e -n -w80,6,8 0.3...0.4
+
+Brian Bidulock <bidulock@openss7.org> (106):
+      add xdg-entry command
+      typo
+      add todo items
+      preliminary AsRoot support
+      always set wmclass for terminals
+      update TODO
+      document programs in README
+      describe dmenu_launch better
+      document new xdg-show program
+      more documentation
+      first cut at xdg-show
+      working up xdg-show
+      working up xdg-show
+      working up xdg-show
+      remove unnecessary libraries
+      try to remove pthread library
+      did not work
+      remove redundnat CFLAGS
+      spellcheck please
+      add BUGS section
+      add some SEE ALSO sections
+      add xdg-toolwait manpage
+      build xdg-toolwait manpage
+      add xdg-toolwait script
+      install xdg-toolwait script
+      ignore xdg-toolwait manpage
+      document toolwait
+      add new options
+      add parameters to options
+      process new options
+      complete usage info
+      set up to monitor completion
+      new option functionality
+      wait for wm event loop
+      wait for window manager
+      more wm and tray checks
+      check for system tray
+      clean system tray info
+      add wait for composite manager
+      also composite manager wait
+      some factoring
+      recheck on MANAGER msg
+      check composite mgr and pager
+      consider _NET_DESKTOP_LAYOUT property
+      do not wait longer than 120 seconds
+      reorder final fields
+      rationalize launch to assist
+      convert some options fields
+      more options conversion
+      convert timestamp option
+      convert pid option
+      convert keyboard and pointer options
+      convert xsession and autostart options
+      convert keep option
+      convert info option
+      convert toolwait opiton
+      convert timeout option
+      convert mappings option
+      convert withdrawn option
+      convert boolean options
+      remove useless global
+      rationalize assist to launch
+      rationalize assist to launch
+      link assist with sn lib
+      remove deprecated SessionSetup
+      get some things working better
+      update copyright headers
+      set up for toolwait and assist
+      make event handlers return Bool
+      clean up wm checks a bit
+      also check for helper
+      skip meaningless clients
+      rationalize xdg-assist back to launch
+      document autostart phase
+      reorganize launch comments
+      start working up toolwait
+      add assist option
+      split out some event handling
+      working up assist
+      working up assist
+      more assist
+      working up assist
+      more assist workup
+      working up assist
+      handle WM_COMMAND
+      handle client machine
+      better WM_CLIENT_MACHINE handling
+      handle _NET_WM_STATE
+      better checking of properties
+      factor client management
+      use glib instead of gtk2 for RU
+      error handling and indent
+      works better
+      two more WM only properties
+      more props and leader window
+      downgrade error to debug
+      update release files
+      wait until client mapped
+      typo
+      consider startup messages
+      64-bit error
+      remove startupnotification requirement from xdg-launch
+      remove startup-notification dependency
+      update desktop files
+      update release files
+      adjust paths in scripts for distcheck
+
+'
+Release xdg-launch-0.4
+----------------------
+
+git shortlog -e -n -w80,6,8 0.3...0.4
+'
+Brian Bidulock <bidulock@openss7.org> (20):
+      split up files into subdirectories
+      add in XDE run history and recent apps files
+      working up recently used applications support
+      add provision for recently-used.xbel support
+      prepare to update history files
+      get history working correctly
+      indent and prepare for recently-used
+      handle ~/.recently-used file updates
+      proper handling of xbel files with gtk2
+      non-gtk2 support for recently-used.xbel works
+      get rid of some globals (they were problematic)
+      prepare to keep track of recent files
+      more preparation for recently used files
+      first stab at complete recent file history
+      handle proper sizing and ageing of files
+      relaunch recent files with xdg-lauch again
+      properly handle mime types using gio library
+      general comment
+      commit release files
+      clock ticked over during release
+
+
+Release xdg-launch-0.3
+----------------------
+
+git shortlog -e -n -w80,6,8 0.2...0.3
+
+Brian Bidulock <bidulock@openss7.org> (4):
+      very unfortunate error after initial release
+      user persistent source window for messages
+      added xdg-which utility
+      add fallback directory to xdg-which
+
+
+Release xdg-launch-0.2
+----------------------
+
+git shortlog -e -n -w80,6,8 0.1...0.2
+
+Brian Bidulock <bidulock@openss7.org> (59):
+      initial commit off skeleton
+      working up program
+      almost complete, still needs assist
+      intern atoms more efficiently
+      more better atom handling
+      working up launch utility
+      working up xde-theme
+      compiles
+      trimmed down to just xdg-launch
+      cleanup of build system, passes distcheck
+      complete build system
+      adding xdg-assist program
+      fixups
+      checking in work
+      better build
+      add xdg-assist program (not finished)
+      add check for fallback directories
+      better desktop entry parsing, added xdg-monitor manpage
+      add a dmenu utility called dmenu_launch
+      appids with a / are relative to an app dir are permitted
+      more ignores
+      enhancements
+      two items done
+      typo
+      install an X error handler
+      working up startup notification assistance
+      add maintainer script
+      start preparing to assist window manager in xdg-launch
+      add xdg-monitor
+      adding status icon and notification to xde-monitor
+      working up xdg-monitor
+      working up xdg-launch
+      pull information from startup id where possible
+      additional wm property handlers
+      working up state machine for xdg-monitor
+      further workup of xdg-monitor
+      move a few things around
+      more rearrangements
+      add selection functions to xdg-monitor
+      handle selection clear in xdg-monitor
+      rework event handling
+      add some missing client messages
+      a few last missing client messages
+      fill out some state machine behavior
+      add timeouts and status icon creation and destruction
+      create desktop notifications
+      properly remove client
+      sending with propertychangemask just doesn't work
+      add debug flags in for maintainer
+      some debugging
+      more corrections and debugging of xdg-monitor
+      update documentation for xdg-monitor
+      for now, close after timeout
+      add XDG application and autostart files
+      help the toolkit/window manager a bit
+      add autostart launch behaviour
+      autodetect XSessions
+      rework assist logic
+      my bad
+
+
+Release xdg-launch-0.1
+----------------------
+
 This is the initial development release of @PACKAGE@.
 
 
