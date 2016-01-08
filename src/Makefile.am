@@ -11,9 +11,9 @@ EXTRA_PROGRAMS = \
 	xdg-whereis
 
 xdg_launch_CPPFLAGS = -DNAME=\"xde-launch\"
-xdg_launch_CFLAGS = $(AM_CFLAGS) $(RU_CFLAGS) $(SN_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(X11_CFLAGS)
+xdg_launch_CFLAGS = $(AM_CFLAGS) $(RU_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(X11_CFLAGS)
 xdg_launch_SOURCES = xdg-launch.c
-xdg_launch_LDADD = $(RU_LIBS) $(SN_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
+xdg_launch_LDADD = $(RU_LIBS) $(XINERAMA_LIBS) $(XRANDR_LIBS) $(X11_LIBS)
 
 xdg_assist_CPPFLAGS = -DNAME=\"xde-assist\"
 xdg_assist_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(SN_CFLAGS) $(X11_CFLAGS)

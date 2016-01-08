@@ -94,10 +94,6 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
-#ifdef STARTUP_NOTIFICATION
-#define SN_API_NOT_YET_FROZEN
-#include <libsn/sn.h>
-#endif
 #ifdef RECENTLY_USED
 #include <glib.h>
 #include <gio/gio.h>
@@ -362,16 +358,6 @@ typedef struct {
 	int len;			/* number of message bytes */
 } Message;
 
-#ifdef STARTUP_NOTIFICATION
-typedef struct Notify Notify;
-
-struct Notify {
-	Notify *next;
-	SnStartupSequence *seq;
-	Bool assigned;
-};
-#endif
-
 static const char *DesktopEntryFields[] = {
 	"Type",
 	"Name",
@@ -413,11 +399,6 @@ Display *dpy = NULL;
 int screen;
 Window root;
 
-#ifdef STARTUP_NOTIFICATION
-SnDisplay *sn_dpy;
-SnMonitorContext *sn_ctx;
-#endif
-
 struct _Client {
 	Client *next;
 	Bool managed;			/* set when client managed */
@@ -440,9 +421,6 @@ struct _Client {
 	char *hostname;
 	XClassHint ch;
 	XWMHints *wmh;
-#ifdef STARTUP_NOTIFICATION
-	SnStartupSequence *seq;
-#endif
 };
 
 Client *clients = NULL;
@@ -678,9 +656,6 @@ get_display()
 				     VisibilityChangeMask | StructureNotifyMask |
 				     SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask);
 		}
-#ifdef STARTUP_NOTIFICATION
-		sn_dpy = sn_display_new(dpy, NULL, NULL);
-#endif
 		screen = DefaultScreen(dpy);
 		root = RootWindow(dpy, screen);
 		intern_atoms();
@@ -696,12 +671,6 @@ put_display()
 {
 	PTRACE();
 	if (dpy) {
-#ifdef STARTUP_NOTIFICATION
-		if (sn_dpy) {
-			sn_display_unref(sn_dpy);
-			sn_dpy = NULL;
-		}
-#endif
 		XSetErrorHandler(oldhandler);
 		XSetIOErrorHandler(oldiohandler);
 		XCloseDisplay(dpy);
@@ -3386,12 +3355,6 @@ remove_client(Client *c)
 		XDeleteContext(dpy, c->icon_win, ClientContext);
 	if (c->time_win && c->time_win != c->win)
 		XDeleteContext(dpy, c->time_win, ClientContext);
-#ifdef STARTUP_NOTIFICATION
-	if (c->seq) {
-		sn_startup_sequence_unref(c->seq);
-		c->seq = NULL;
-	}
-#endif
 	free(c);
 }
 
@@ -3990,169 +3953,6 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 	convert_sequence_fields(old);
 }
 
-#ifdef STARTUP_NOTIFICATION
-static Notify *notifies;
-
-SnStartupSequence *
-find_startup_seq(Client *c)
-{
-	Notify *n = NULL;
-	SnStartupSequence *seq = NULL;
-	XClassHint ch;
-	char **argv;
-	int argc;
-	const char *binary, *wmclass;
-	char *startup_id;
-	Window win, grp = None;
-
-	if ((seq = c->seq))
-		return seq;
-	win = c->win;
-	if (!(startup_id = get_text(win, _XA_NET_STARTUP_ID))) {
-		XWMHints *wmh;
-
-		if ((wmh = XGetWMHints(dpy, c->win))) {
-			if (wmh->flags & WindowGroupHint) {
-				grp = wmh->window_group;
-				startup_id = get_text(grp, _XA_NET_STARTUP_ID);
-			}
-			XFree(wmh);
-		}
-	}
-	if (startup_id) {
-		for (n = notifies; n; n = n->next)
-			if (!strcmp(startup_id, sn_startup_sequence_get_id(n->seq)))
-				break;
-		if (!n) {
-			DPRINTF("Cannot find startup id '%s'\n", startup_id);
-			XFree(startup_id);
-			return NULL;
-		}
-		XFree(startup_id);
-		goto found_it;
-	}
-	if (XGetClassHint(dpy, win, &ch)) {
-		for (n = notifies; n; n = n->next) {
-			if (n->assigned)
-				continue;
-			if (sn_startup_sequence_get_completed(n->seq))
-				continue;
-			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
-				if (ch.res_name && !strcmp(wmclass, ch.res_name))
-					break;
-				if (ch.res_class && !strcmp(wmclass, ch.res_class))
-					break;
-			}
-		}
-		if (ch.res_class)
-			XFree(ch.res_class);
-		if (ch.res_name)
-			XFree(ch.res_name);
-		if (n)
-			goto found_it;
-	}
-	if (grp && XGetClassHint(dpy, grp, &ch)) {
-		for (n = notifies; n; n = n->next) {
-			if (n->assigned)
-				continue;
-			if (sn_startup_sequence_get_completed(n->seq))
-				continue;
-			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
-				if (ch.res_name && !strcmp(wmclass, ch.res_name))
-					break;
-				if (ch.res_class && !strcmp(wmclass, ch.res_class))
-					break;
-			}
-		}
-		if (ch.res_class)
-			XFree(ch.res_class);
-		if (ch.res_name)
-			XFree(ch.res_name);
-		if (n)
-			goto found_it;
-	}
-	if (XGetCommand(dpy, win, &argv, &argc)) {
-		for (n = notifies; n; n = n->next) {
-			if (n->assigned)
-				continue;
-			if (sn_startup_sequence_get_completed(n->seq))
-				continue;
-			if ((binary = sn_startup_sequence_get_binary_name(n->seq)))
-				if (argv[0] && !strcmp(binary, argv[0]))
-					break;
-		}
-		if (argv)
-			XFreeStringList(argv);
-		if (n)
-			goto found_it;
-	}
-	if (grp && XGetCommand(dpy, win, &argv, &argc)) {
-		for (n = notifies; n; n = n->next) {
-			if (n->assigned)
-				continue;
-			if (sn_startup_sequence_get_completed(n->seq))
-				continue;
-			if ((binary = sn_startup_sequence_get_binary_name(n->seq)))
-				if (argv[0] && !strcmp(binary, argv[0]))
-					break;
-		}
-		if (argv)
-			XFreeStringList(argv);
-		if (n)
-			goto found_it;
-	}
-	/* try again case insensitive */
-	if (XGetClassHint(dpy, win, &ch)) {
-		for (n = notifies; n; n = n->next) {
-			if (n->assigned)
-				continue;
-			if (sn_startup_sequence_get_completed(n->seq))
-				continue;
-			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
-				if (ch.res_name && !strcasecmp(wmclass, ch.res_name))
-					break;
-				if (ch.res_class && !strcasecmp(wmclass, ch.res_class))
-					break;
-			}
-		}
-		if (ch.res_class)
-			XFree(ch.res_class);
-		if (ch.res_name)
-			XFree(ch.res_name);
-		if (n)
-			goto found_it;
-	}
-	if (grp && XGetClassHint(dpy, grp, &ch)) {
-		for (n = notifies; n; n = n->next) {
-			if (n->assigned)
-				continue;
-			if (sn_startup_sequence_get_completed(n->seq))
-				continue;
-			if ((wmclass = sn_startup_sequence_get_wmclass(n->seq))) {
-				if (ch.res_name && !strcasecmp(wmclass, ch.res_name))
-					break;
-				if (ch.res_class && !strcasecmp(wmclass, ch.res_class))
-					break;
-			}
-		}
-		if (ch.res_class)
-			XFree(ch.res_class);
-		if (ch.res_name)
-			XFree(ch.res_name);
-		if (n)
-			goto found_it;
-	}
-	return NULL;
-      found_it:
-	n->assigned = True;
-	seq = n->seq;
-	sn_startup_sequence_ref(seq);
-	sn_startup_sequence_complete(seq);
-	c->seq = seq;
-	return seq;
-}
-#endif
-
 static Sequence *
 find_seq_by_id(char *id)
 {
@@ -4362,11 +4162,6 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	PTRACE();
 	if (!e || e->type != ClientMessage)
 		return False;
-#if 0
-#ifdef STARTUP_NOTIFICATION
-	sn_display_process_event(sn_dpy, e);
-#endif
-#endif
 	from = e->xclient.window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
 		m = calloc(1, sizeof(*m));
@@ -4397,11 +4192,6 @@ handle_NET_STARTUP_INFO(XEvent *e, Client *c)
 	PTRACE();
 	if (!e || e->type != ClientMessage)
 		return False;
-#if 0
-#ifdef STARTUP_NOTIFICATION
-	sn_display_process_event(sn_dpy, e);
-#endif
-#endif
 	from = e->xclient.window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
 		return False;
@@ -4429,46 +4219,6 @@ clean_msgs(Window w)
 	free(m->data);
 	free(m);
 }
-
-#ifdef STARTUP_NOTIFICATION
-static void
-sn_handler(SnMonitorEvent *event, void *dummy)
-{
-	Notify *n, **np;
-	SnStartupSequence *seq;
-
-	seq = sn_monitor_event_get_startup_sequence(event);
-
-	switch (sn_monitor_event_get_type(event)) {
-	case SN_MONITOR_EVENT_INITIATED:
-		n = calloc(1, sizeof(*n));
-		n->seq = sn_monitor_event_get_startup_sequence(event);
-		n->assigned = False;
-		n->next = notifies;
-		notifies = n;
-		break;
-	case SN_MONITOR_EVENT_CHANGED:
-		break;
-	case SN_MONITOR_EVENT_COMPLETED:
-	case SN_MONITOR_EVENT_CANCELED:
-		seq = sn_monitor_event_get_startup_sequence(event);
-		np = &notifies;
-		while ((n = *np)) {
-			if (n->seq == seq) {
-				sn_startup_sequence_unref(n->seq);
-				*np = n->next;
-				free(n);
-			} else {
-				np = &n->next;
-			}
-		}
-		break;
-	}
-	if (seq)
-		sn_startup_sequence_unref(seq);
-	sn_monitor_event_unref(event);
-}
-#endif
 
 Bool
 handle_atom(XEvent *e, Client *c, Atom atom)
@@ -4799,10 +4549,6 @@ assist()
 		signal(SIGQUIT, sighandler);
 		signal(SIGALRM, sighandler);
 
-#ifdef STARTUP_NOTIFICATION
-		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
-#endif
-
 		/* main event loop */
 		running = True;
 		DPRINTF("Addressing X Server!\n");
@@ -4902,10 +4648,6 @@ toolwait()
 		signal(SIGQUIT, sighandler);
 		signal(SIGALRM, sighandler);
 
-#ifdef STARTUP_NOTIFICATION
-		sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
-#endif
-
 		/* main event loop */
 		running = True;
 		XSync(dpy, False);
@@ -4985,9 +4727,6 @@ wait_for_condition(Window (*until) (void))
 	signal(SIGQUIT, sighandler);
 	signal(SIGALRM, sighandler);
 
-#ifdef STARTUP_NOTIFICATION
-	sn_ctx = sn_monitor_context_new(sn_dpy, screen, &sn_handler, NULL, NULL);
-#endif
 	/* main event loop */
 	running = True;
 	XSync(dpy, False);
