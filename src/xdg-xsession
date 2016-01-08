@@ -1,3 +1,6 @@
 #!/bin/sh
 
-exec xdg-launch --xsession $@
+prog="xdg-launch"
+dir=$(dirname "$0")
+test -x "$dir/$prog" && prog="$dir/$prog"
+exec $prog --xsession $@

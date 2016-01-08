@@ -1,3 +1,6 @@
 #!/bin/sh
 
-exec xdg-launch --autostart $@
+prog="xdg-launch"
+dir=$(dirname "$0")
+test -x "$dir/$prog" && prog="$dir/$prog"
+exec $prog --autostart $@
