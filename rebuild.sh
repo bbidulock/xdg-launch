@@ -4,6 +4,6 @@ rm -f cscope.*
 ./autogen.sh
 ./configure.sh
 make clean
-make cscope
+make V=0 cscope
 cscope -b
-make clean all
+make V=0 clean all
