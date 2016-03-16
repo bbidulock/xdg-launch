@@ -5,6 +5,7 @@ bin_PROGRAMS = \
 	xdg-assist \
 	xdg-monitor \
 	xdg-which \
+	xdg-list \
 	xdg-show
 
 EXTRA_PROGRAMS = \
@@ -30,6 +31,9 @@ xdg_which_SOURCES = xdg-which.c
 
 xdg_whereis_CPPFLAGS = -DNAME=\"xde-whereis\"
 xdg_whereis_SOURCES = xdg-whereis.c
+
+xdg_list_CPPFLAGS = -DNAME=\"xde-list\"
+xdg_list_SOURCES = xdg-list.c
 
 xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
 xdg_show_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
