@@ -2934,7 +2934,7 @@ test_client(Client *c)
 
 			if (wordexp(fields.command, &we, 0) == 0) {
 				if (we.we_wordc != c->count) {
-					OPRINTF("0x%08lx client has different command word count %d != %ld\n",
+					OPRINTF("0x%08lx client has different command word count %d != %zd\n",
 					     c->win, c->count, we.we_wordc);
 					wordfree(&we);
 					return False;
