@@ -878,6 +878,7 @@ main(int argc, char *argv[])
 	switch (command) {
 	case CommandDefault:
 		command = CommandWhich;
+		/* fall thru */
 	case CommandWhich:
 		DPRINTF("%s: running which\n", argv[0]);
 		do_which(argc, argv);

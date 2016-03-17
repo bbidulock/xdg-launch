@@ -66,6 +66,7 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <dirent.h>
 #ifdef _GNU_SOURCE
 #include <getopt.h>
 #endif
@@ -100,6 +101,7 @@ const char *program = NAME;
 
 typedef enum {
 	CommandDefault,
+	CommandWhich,
 	CommandWhereis,
 	CommandList,
 	CommandHelp,
@@ -108,16 +110,16 @@ typedef enum {
 } CommandType;
 
 typedef enum {
-	WhereisApplication,
-	WhereisAutostart,
-	WhereisXsession,
-} WhereisEntry;
+	WhichApplication,
+	WhichAutostart,
+	WhichXsession,
+} WhichEntry;
 
 typedef struct {
 	int debug;
 	int output;
 	CommandType command;
-	WhereisEntry whereis;
+	WhichEntry which;
 	int all;
 	int skipdot;
 	int skiptilde;
@@ -130,10 +132,25 @@ Options options = {
 	.debug = 0,
 	.output = 1,
 	.command = CommandDefault,
-	.whereis = WhereisApplication,
+	.which = WhichApplication,
 	.all = 0,
+	.skipdot = 0,
+	.skiptilde = 0,
+	.showdot = 0,
+	.showtilde = 0,
 	.appids = NULL,
 };
+
+typedef struct _Entry Entry;
+
+struct _Entry {
+	struct _Entry *next;
+	char *key;
+	char *file;
+};
+
+Entry *entries = NULL;
+Entry **array = NULL;
 
 static int
 output_path(char *home, char *path)
@@ -190,7 +207,7 @@ lookup_file(char *name)
 		char *list, *dirs, *env;
 
 		list = calloc(PATH_MAX + 1, sizeof(*list));
-		if (options.whereis == WhereisAutostart) {
+		if (options.which == WhichAutostart) {
 			dirs = getenv("XDG_CONFIG_DIRS") ? : "/etc/xdg";
 			if ((env = getenv("XDG_CONFIG_HOME")) && *env)
 				strncpy(list, env, PATH_MAX);
@@ -229,14 +246,14 @@ lookup_file(char *name)
 				*dirs = '\0';
 			}
 			path = realloc(path, PATH_MAX + 1);
-			switch (options.whereis) {
-			case WhereisApplication:
+			switch (options.which) {
+			case WhichApplication:
 				strncat(path, "/applications/", PATH_MAX);
 				break;
-			case WhereisAutostart:
+			case WhichAutostart:
 				strncat(path, "/autostart/", PATH_MAX);
 				break;
-			case WhereisXsession:
+			case WhichXsession:
 				strncat(path, "/xsessions/", PATH_MAX);
 				break;
 			}
@@ -253,12 +270,12 @@ lookup_file(char *name)
 			free(path);
 			path = NULL;
 		}
-		switch (options.whereis) {
-		case WhereisApplication:
+		switch (options.which) {
+		case WhichApplication:
 			break;
-		case WhereisAutostart:
+		case WhichAutostart:
 			/* only look in autostart for autostart entries */
-		case WhereisXsession:
+		case WhichXsession:
 			/* only look in xsession for xsession entries */
 			free(list);
 			free(appid);
@@ -409,7 +426,7 @@ list_paths(void)
 	home = getenv("HOME") ? : ".";
 
 	list = calloc(PATH_MAX + 1, sizeof(*list));
-	if (options.whereis == WhereisAutostart) {
+	if (options.which == WhichAutostart) {
 		dirs = getenv("XDG_CONFIG_DIRS") ? : "/etc/xdg";
 		if ((env = getenv("XDG_CONFIG_HOME")) && *env)
 			strncpy(list, env, PATH_MAX);
@@ -448,14 +465,14 @@ list_paths(void)
 			*dirs = '\0';
 		}
 		path = realloc(path, PATH_MAX + 1);
-		switch (options.whereis) {
-		case WhereisApplication:
+		switch (options.which) {
+		case WhichApplication:
 			strncat(path, "/applications", PATH_MAX);
 			break;
-		case WhereisAutostart:
+		case WhichAutostart:
 			strncat(path, "/autostart", PATH_MAX);
 			break;
-		case WhereisXsession:
+		case WhichXsession:
 			strncat(path, "/xsessions", PATH_MAX);
 			break;
 		}
@@ -465,12 +482,12 @@ list_paths(void)
 		free(path);
 		path = NULL;
 	}
-	switch (options.whereis) {
-	case WhereisApplication:
+	switch (options.which) {
+	case WhichApplication:
 		break;
-	case WhereisAutostart:
+	case WhichAutostart:
 		/* only look in autostart for autostart entries */
-	case WhereisXsession:
+	case WhichXsession:
 		/* only look in xsession for xsession entries */
 		free(list);
 		return;
@@ -579,12 +596,203 @@ list_paths(void)
 }
 
 static void
-do_whereis(int argc, char *argv[])
+do_which(int argc, char *argv[])
 {
 	char **appid;
 
 	for (appid = options.appids; appid && *appid; appid++)
 		lookup_file(*appid);
+}
+
+static void
+get_desktop_entry(char *key, char *file)
+{
+	Entry *entry;
+
+	DPRINTF("getting desktop entry: %s: %s\n", key, file);
+	for (entry = entries; entry; entry = entry->next) {
+		if (!strcmp(key, entry->key))
+			break;
+	}
+	if (!entry) {
+		DPRINTF("allocating entry for: %s: %s\n", key, file);
+		entry = calloc(1, sizeof(*entry));
+		entry->next = entries;
+		entries = entry;
+		entry->key = strdup(key);
+		entry->file = strdup(file);
+	}
+}
+
+static int
+sort_keys(const void *a, const void *b)
+{
+	Entry * const *A = a;
+	Entry * const *B = b;
+
+	return strcmp((*A)->key, (*B)->key);
+
+}
+
+static void
+sort_desktop_entries()
+{
+	Entry *entry;
+	int i, n;
+
+	for (n = 0, entry = entries; entry; entry = entry->next, n++) ;
+	array = calloc(n, sizeof(Entry *));
+	DPRINTF("there are %d entries\n", n);
+	for (i = 0, entry = entries; entry; entry = entry->next, i++)
+		array[i] = entry;
+	qsort(array, n, sizeof(Entry *), &sort_keys);
+	entries = array[0];
+	for (i = 0; i < n - 1; i++)
+		array[i]->next = array[i+1];
+	array[n-1]->next = NULL;
+	free(array);
+}
+
+static void
+list_desktop_entries()
+{
+	Entry *entry;
+
+	for (entry = entries; entry; entry = entry->next)
+		fprintf(stdout, "%s: %s\n", entry->key, entry->file);
+}
+
+static void
+get_entries(char *path, char *prefix)
+{
+	DIR *dir;
+	struct dirent *d;
+
+	DPRINTF("checking directory: %s (%s)\n", path, prefix);
+	if (!(dir = opendir(path))) {
+		DPRINTF("%s: %s\n", path, strerror(errno));
+		return;
+	}
+	while ((d = readdir(dir))) {
+		static const char *suffix = ".desktop";
+		static const int suflen = 8;
+		char *f, *file;
+		struct stat st;
+		int len;
+
+		if (d->d_name[0] == '.')
+			continue;
+		len = strlen(path) + strlen(d->d_name) + 2;
+		file = calloc(len, sizeof(*file));
+		strcpy(file, path);
+		strcat(file, "/");
+		strcat(file, d->d_name);
+		if (stat(file, &st) == -1) {
+			EPRINTF("%s: %s\n", file, strerror(errno));
+			free(file);
+			continue;
+		}
+		if (S_ISREG(st.st_mode)) {
+			char *key;
+
+			if (!(f = strstr(d->d_name, suffix)) || f[suflen]) {
+				DPRINTF("%s: no %s suffix\n", d->d_name, suffix);
+				free(file);
+				continue;
+			}
+			len = strlen(prefix) + strlen(d->d_name) + 1;
+			key = calloc(len, sizeof(*key));
+			strcpy(key, prefix);
+			strcat(key, d->d_name);
+			*strstr(key, suffix) = '\0';
+			get_desktop_entry(key, file);
+			free(key);
+			free(file);
+			continue;
+		} else if (S_ISDIR(st.st_mode)) {
+			char *stem;
+
+			len = strlen(prefix) + strlen(d->d_name) + 2;
+			stem = calloc(len, sizeof(*stem));
+			strcpy(stem, prefix);
+			strcat(stem, d->d_name);
+			strcat(stem, "-");
+			get_entries(file, stem);
+			free(stem);
+			free(file);
+			continue;
+		} else {
+			DPRINTF("%s: %s\n", file, "not a file or directory");
+			free(file);
+			continue;
+		}
+	}
+	closedir(dir);
+	sort_desktop_entries();
+	list_desktop_entries();
+}
+
+static void
+do_whereis(int argc, char *argv[])
+{
+	char *home, *dirs, *list, *env;
+
+	home = getenv("HOME") ? : ".";
+	list = calloc(PATH_MAX + 1, sizeof(*list));
+	if (options.which == WhichAutostart) {
+		dirs = getenv("XDG_CONFIG_DIRS") ? : "/etc/xdg";
+		if ((env = getenv("XDG_CONFIG_HOME")) && *env) {
+			strncpy(list, env, PATH_MAX);
+		} else {
+			strncpy(list, home, PATH_MAX);
+			strncat(list, "/.config", PATH_MAX);
+		}
+	} else {
+		dirs = getenv("XDG_DATA_DIRS") ? : "/usr/local/share:/usr/share";
+		if ((env = getenv("XDG_DATA_HOME")) && *env) {
+			strncpy(list, env, PATH_MAX);
+		} else {
+			strncpy(list, home, PATH_MAX);
+			strncat(list, "/.local/share", PATH_MAX);
+		}
+	}
+	if (options.skiptilde) {
+		strncpy(list, dirs, PATH_MAX);
+	} else {
+		strncat(list, ":", PATH_MAX);
+		strncat(list, dirs, PATH_MAX);
+	}
+	for (dirs = list; dirs && *dirs;) {
+		char *p, *path, *prefix;
+
+		if (*dirs == '.' && options.skipdot)
+			continue;
+		if (*dirs == '~' && options.skiptilde)
+			continue;
+		if ((p = strchr(dirs, ':'))) {
+			*p = '\0';
+			path = strdup(dirs);
+			dirs = p + 1;
+		} else {
+			path = strdup(dirs);
+			*dirs = '\0';
+		}
+		path = realloc(path, PATH_MAX + 1);
+		switch (options.which) {
+		case WhichApplication:
+			strncat(path, "/applications", PATH_MAX);
+			break;
+		case WhichAutostart:
+			strncat(path, "/autostart", PATH_MAX);
+			break;
+		case WhichXsession:
+			strncat(path, "/xsessions", PATH_MAX);
+			break;
+		}
+		prefix = calloc(PATH_MAX + 1, sizeof(*prefix));
+		get_entries(path, prefix);
+	}
+
 }
 
 static void
@@ -761,14 +969,14 @@ main(int argc, char *argv[])
 			goto bad_usage;
 
 		case 'X':	/* -X, --xsession */
-			if (options.whereis != WhereisApplication)
+			if (options.which != WhichApplication)
 				goto bad_option;
-			options.whereis = WhereisXsession;
+			options.which = WhichXsession;
 			break;
 		case 'U':	/* -U, --autostart */
-			if (options.whereis != WhereisApplication)
+			if (options.which != WhichApplication)
 				goto bad_option;
-			options.whereis = WhereisAutostart;
+			options.which = WhichAutostart;
 			break;
 		case 'a':	/* -a, --all */
 			options.all = 1;
@@ -867,16 +1075,21 @@ main(int argc, char *argv[])
 		while (optind < argc)
 			options.appids[j++] = strdup(argv[optind++]);
 	} else if (command == CommandDefault) {
-		fprintf(stderr, "%s: APPID must be specified\n", argv[0]);
-		goto bad_usage;
+//		fprintf(stderr, "%s: APPID must be specified\n", argv[0]);
+//		goto bad_usage;
 	}
 
 	switch (command) {
 	case CommandDefault:
 		command = CommandWhereis;
+		/* fall thru */
 	case CommandWhereis:
-		DPRINTF("%s: running whereis\n", argv[0]);
+		DPRINTF("%s: running which\n", argv[0]);
 		do_whereis(argc, argv);
+		break;
+	case CommandWhich:
+		DPRINTF("%s: running which\n", argv[0]);
+		do_which(argc, argv);
 		break;
 	case CommandList:
 		DPRINTF("%s: running list\n", argv[0]);
