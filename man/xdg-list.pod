@@ -61,6 +61,30 @@ directory instead of the applications directory.
 List desktop entries (sorted by application id) in the auto-start
 directory instead of the applications directory.
 
+=item B<-a>, B<--all>
+
+Print all matching desktop entries, not just the first.
+
+=item B<--skip-dot>
+
+Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
+with a dot.
+
+=item B<--skip-tilde>
+
+Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
+with a tilde and entries that reside in C<XDG_CONFIG_HOME> or
+C<XDG_DATA_HOME>.
+
+=item B<--show-dot>
+
+If a directory starts with a dot and a matching desktop entry was found
+for that path, then print "./appid.desktop" rather than the full path.
+
+=item B<--show-tilde>
+
+Output a tilde when a directory matches the C<HOME> directory.
+
 =back
 
 The default is to list files (sorted by application id) in the
