@@ -525,6 +525,10 @@ list_paths(void)
 		free(path);
 		path = NULL;
 	}
+#if 1
+	free(list);
+	return;
+#endif
 	/* next look in autostart subdirectory */
 	dirs = getenv("XDG_CONFIG_DIRS") ? : "/etc/xdg";
 	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
@@ -728,8 +732,6 @@ get_entries(char *path, char *prefix)
 		}
 	}
 	closedir(dir);
-	sort_desktop_entries();
-	list_desktop_entries();
 }
 
 static void
@@ -792,6 +794,8 @@ do_whereis(int argc, char *argv[])
 		prefix = calloc(PATH_MAX + 1, sizeof(*prefix));
 		get_entries(path, prefix);
 	}
+	sort_desktop_entries();
+	list_desktop_entries();
 
 }
 
