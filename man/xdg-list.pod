@@ -66,6 +66,56 @@ directory instead of the applications directory.
 The default is to list files (sorted by application id) in the
 applications directory.
 
+=head1 OUTPUT
+
+The format of the output depends on whether B<xdg-list> is operating in
+list mode or normal mode, as follows.
+
+=head2 LIST OUTPUT
+
+When run in B<--list> mode, B<xdg-list> prints the full path of
+directories associated with auto-start, x-sessions, or applications
+depending on the settings of other options.  The directories are printed
+one per line in search order.  Note that for applications, B<xdg-list>
+will also list fallback directories in addition to applications
+directories.
+
+An example follows:
+
+ $> xdg-list -l -U
+ /home/brian/.config/autostart
+ /etc/xdg/xde/autostart
+ /etc/xdg/autostart
+
+
+=head2 NORMAL OUTPUT
+
+When run in application, auto-start or x-session modes, B<xdg-list> will
+collect all of the desktop file by application id in accordance with XDG
+specifications.  It will then print the list, one application per line,
+sorted by application id.  On each line, the application id is printed
+first, immediately followed by a colon C<:> and one space, followed by
+the full path of the F<.desktop> file associated with the application
+id.  Note that all application ids are printed: the F<.desktop> file is
+not checked for any fields that would suppress their display on a
+launcher, session manager or display manager.
+
+An example follows:
+
+ $> xdg-list -U
+ at-spi-dbus-bus: /etc/xdg/autostart/at-spi-dbus-bus.desktop
+ at-spi-registryd: /etc/xdg/autostart/at-spi-registryd.desktop
+ deja-dup-monitor: /etc/xdg/autostart/deja-dup-monitor.desktop
+ dhcpcd-gtk: /etc/xdg/xde/autostart/dhcpcd-gtk.desktop
+ eekboard-autostart: /etc/xdg/autostart/eekboard-autostart.desktop
+ gnome-settings-daemon: /etc/xdg/autostart/gnome-settings-daemon.desktop
+ gsettings-data-convert: /etc/xdg/autostart/gsettings-data-convert.desktop
+ icewmtray: /etc/xdg/xde/autostart/icewmtray.desktop
+ pulseaudio: /etc/xdg/autostart/pulseaudio.desktop
+ smproxy: /etc/xdg/xde/autostart/smproxy.desktop
+ vboxclient: /etc/xdg/autostart/vboxclient.desktop
+ zeitgeist-datahub: /etc/xdg/autostart/zeitgeist-datahub.desktop
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-list>:
