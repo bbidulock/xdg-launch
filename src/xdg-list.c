@@ -618,7 +618,7 @@ get_desktop_entry(char *key, char *file)
 		if (!strcmp(key, entry->key))
 			break;
 	}
-	if (!entry) {
+	if (options.all || !entry) {
 		DPRINTF("allocating entry for: %s: %s\n", key, file);
 		entry = calloc(1, sizeof(*entry));
 		entry->next = entries;
@@ -878,7 +878,7 @@ usage(int argc, char *argv[])
 		return;
 	(void) fprintf(stderr, "\
 Usage:\n\
-    %1$s [options] [--] [APPID]\n\
+    %1$s [options]\n\
     %1$s [options] {-l|--list}\n\
     %1$s {-h|--help}\n\
     %1$s {-V|--version}\n\
@@ -893,14 +893,11 @@ help(int argc, char *argv[])
 		return;
 	(void) fprintf(stdout, "\
 Usage:\n\
-    %1$s [options] [--] [APPID]\n\
+    %1$s [options]\n\
     %1$s [options] {-l|--list}\n\
     %1$s {-h|--help}\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
-Arguments:\n\
-    APPID\n\
-        the application identifier of XDG application to locate\n\
 Command Options:\n\
     --list, -l\n\
         print list of effective lookup paths\n\
