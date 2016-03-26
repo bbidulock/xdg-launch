@@ -476,6 +476,12 @@ Awaits the appearance of a composite manager before launching the
 application or command.  The default behaviour is to not wait for any
 desktop resource before launching.
 
+=item B<-R>, B<--audio>
+
+Awaits the appearance of an audio server before launching the
+application or command.  The default behavior is to not wait for any
+desktop resource before launching.
+
 =back
 
 Note that some key fields in the F<.desktop> file of an application can

@@ -168,6 +168,7 @@ typedef struct {
 	Bool tray;
 	Bool pager;
 	Bool composite;
+	Bool audio;
 	Bool assist;
 } Options;
 
@@ -219,6 +220,7 @@ Options options = {
 	.tray = False,
 	.pager = False,
 	.composite = False,
+	.audio = False,
 	.assist = False,
 };
 
@@ -268,6 +270,7 @@ Options defaults = {
 	.tray = False,
 	.pager = False,
 	.composite = False,
+	.audio = False,
 	.assist = False,
 };
 
@@ -435,6 +438,7 @@ typedef struct {
 	Window stray_owner;		/* _NET_WM_SYSTEM_TRAY_S%d owner */
 	Window pager_owner;		/* _NET_DESKTOP_LAYOUT_S%d owner */
 	Window compm_owner;		/* _NET_WM_CM_S%d owner */
+	Window audio_owner;		/* PULSE_SERVER owner or root */
 	Window shelp_owner;		/* _XDG_ASSIST_S%d owner */
 } WindowManager;
 
@@ -481,6 +485,9 @@ Atom _XA_WM_STATE;
 Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
+Atom _XA_PULSE_COOKIE;
+Atom _XA_PULSE_SERVER;
+Atom _XA_PULSE_ID;
 
 static Bool handle_MANAGER(XEvent *, Client *);
 static Bool handle_MOTIF_WM_INFO(XEvent *, Client *);
@@ -564,6 +571,9 @@ struct atoms {
 	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,		NULL,					None			},
 	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,		NULL,					None			},
 	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,			NULL,					None			},
+	{ "PULSE_COOKIE",			&_XA_PULSE_COOKIE,			NULL,					None			},
+	{ "PULSE_SERVER",			&_XA_PULSE_SERVER,			NULL,					None			},
+	{ "PULSE_ID",				&_XA_PULSE_ID,				NULL,					None			},
 	{ NULL,					NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
@@ -1255,6 +1265,23 @@ check_compm()
 	if (!win && wm.compm_owner)
 		DPRINTF("composite manager removed from 0x%08lx\n", wm.compm_owner);
 	return (wm.compm_owner = win);
+}
+
+static Window
+check_audio()
+{
+	char *text;
+
+	if (!(text = get_text(root, _XA_PULSE_COOKIE)))
+		return (wm.audio_owner = None);
+	XFree(text);
+	if (!(text = get_text(root, _XA_PULSE_SERVER)))
+		return (wm.audio_owner = None);
+	XFree(text);
+	if (!(text = get_text(root, _XA_PULSE_ID)))
+		return (wm.audio_owner = None);
+	XFree(text);
+	return (wm.audio_owner = root);
 }
 
 static Window
@@ -4792,7 +4819,7 @@ check_for_window_manager()
 	return check_anywm();
 }
 
-void
+static void
 wait_for_window_manager()
 {
 	PTRACE();
@@ -4829,7 +4856,7 @@ wait_for_window_manager()
 	wait_for_condition(&check_anywm);
 }
 
-void
+static void
 wait_for_system_tray()
 {
 	PTRACE();
@@ -4849,7 +4876,7 @@ wait_for_system_tray()
 	wait_for_condition(&check_stray);
 }
 
-void
+static void
 wait_for_desktop_pager()
 {
 	PTRACE();
@@ -4870,7 +4897,7 @@ wait_for_desktop_pager()
 	wait_for_condition(&check_pager);
 }
 
-void
+static void
 wait_for_composite_manager()
 {
 	PTRACE();
@@ -4889,6 +4916,26 @@ wait_for_composite_manager()
 		}
 	}
 	wait_for_condition(&check_compm);
+}
+
+static void
+wait_for_audio_server()
+{
+	PTRACE();
+	if (check_audio()) {
+		if (options.info) {
+			fputs("Have an audio server:\n\n", stdout);
+			fprintf(stdout, "%-24s = 0x%08lx\n", "Audio server window", wm.audio_owner);
+			fputs("\n", stdout);
+		}
+		return;
+	} else {
+		if (options.info) {
+			fputs("Would wait for audio server\n", stdout);
+			return;
+		}
+	}
+	wait_for_condition(&check_audio);
 }
 
 /* NOTES:
@@ -4953,11 +5000,12 @@ wait_for_resource()
 		options.tray = False;
 		options.pager = False;
 		options.composite = False;
+		options.audio = False;
 	}
 
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
-	if (options.manager || options.tray || options.pager || options.composite) {
+	if (options.manager || options.tray || options.pager || options.composite || options.audio) {
 		alarm(120);	/* guard time for wait */
 		if (options.manager)
 			wait_for_window_manager();
@@ -4967,6 +5015,8 @@ wait_for_resource()
 			wait_for_desktop_pager();
 		if (options.composite)
 			wait_for_composite_manager();
+		if (options.audio)
+			wait_for_audio_server();
 	} else
 		DPRINTF("No resource wait requested.\n");
 }
@@ -5982,6 +6032,8 @@ Options:\n\
         wait for desktop pager before launching, [default: '%32$s']\n\
     -O, --composite\n\
         wait for composite manager before launching, [default: '%33$s']\n\
+    -R, --audio\n\
+        wait for audio server before launching, [default: '%34$s']\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -6026,6 +6078,7 @@ Options:\n\
 	, show_bool(defaults.tray)
 	, show_bool(defaults.pager)
 	, show_bool(defaults.composite)
+	, show_bool(defaults.audio)
 	);
 	/* *INDENT-ON* */
 }
@@ -6186,6 +6239,7 @@ main(int argc, char *argv[])
 			{"tray",	no_argument,		NULL, 'Y'},
 			{"pager",	no_argument,		NULL, 'G'},
 			{"composite",	no_argument,		NULL, 'O'},
+			{"audio",	no_argument,		NULL, 'R'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -6198,10 +6252,10 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGOD::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORD::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGODvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORDvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (options.debug)
@@ -6393,6 +6447,9 @@ main(int argc, char *argv[])
 			break;
 		case 'O':	/* -O, --composite */
 			defaults.composite = options.composite = True;
+			break;
+		case 'R':	/* -R, --audio */
+			defaults.audio = options.audio = True;
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (options.debug)
