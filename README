@@ -1,9 +1,9 @@
-xdg-launch -- read me first file.  2016-03-17
+xdg-launch -- read me first file.  2016-03-26
 
 xdg-launch
 ==========
 
-Package xdg-launch-0.6 was release under GPLv3 license 2016-03-17.
+Package xdg-launch-0.7 was release under GPLv3 license 2016-03-26.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -15,7 +15,7 @@ scripts.
 Release
 -------
 
-This is the xdg-launch-0.6 package, released 2016-03-17.  This release,
+This is the xdg-launch-0.7 package, released 2016-03-26.  This release,
 and the latest version, can be obtained from the GitHub repository at
 (http://github.com/bbidulock/xdg-launch), using a command such as:
 
