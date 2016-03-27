@@ -170,6 +170,7 @@ typedef struct {
 	Bool composite;
 	Bool audio;
 	Bool assist;
+	int guard;
 } Options;
 
 Options options = {
@@ -222,6 +223,7 @@ Options options = {
 	.composite = False,
 	.audio = False,
 	.assist = False,
+	.guard = 2,
 };
 
 Options defaults = {
@@ -272,6 +274,7 @@ Options defaults = {
 	.composite = False,
 	.audio = False,
 	.assist = False,
+	.guard = 2,
 };
 
 static const char *StartupNotifyFields[] = {
@@ -4564,7 +4567,8 @@ assist()
 	}
 	/* continue on monitoring */
 	get_display();
-	alarm(options.timeout);
+	if (options.guard)
+		alarm(options.guard);
 	{
 		int xfd;
 		XEvent ev;
@@ -4663,7 +4667,8 @@ toolwait()
 	}
 	/* continue on monitoring */
 	get_display();
-	alarm(options.timeout);
+	if (options.guard)
+		alarm(options.guard);
 	{
 		int xfd;
 		XEvent ev;
@@ -5006,7 +5011,6 @@ wait_for_resource()
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
 	if (options.manager || options.tray || options.pager || options.composite || options.audio) {
-		alarm(120);	/* guard time for wait */
 		if (options.manager)
 			wait_for_window_manager();
 		if (options.tray)
@@ -6012,17 +6016,17 @@ Options:\n\
         print information about entry instead of launching, [default: '%22$s']\n\
     -T, --toolwait\n\
         wait for startup to complete and then exit, [default: '%23$s']\n\
-    -timeout SECONDS\n\
+    --timeout SECONDS\n\
         consider startup complete after SECONDS seconds, [default: '%24$d']\n\
-    -mappings MAPPINGS\n\
+    --mappings MAPPINGS\n\
         consider startup complete after MAPPINGS mappings, [default: '%25$d']\n\
-    -withdrawn\n\
+    --withdrawn\n\
         consider withdrawn state mappings, [default: '%26$s']\n\
-    -pid\n\
+    --pid\n\
         print the pid of the process to standard out, [default: '%27$s']\n\
-    -wid\n\
+    --wid\n\
         print the window id to standard out, [default: '%28$s']\n\
-    -noprop\n\
+    --noprop\n\
         use top-level creations instead of mappings, [default: '%29$s']\n\
     -M, --manager\n\
         wait for window manager before launching, [default: '%30$s']\n\
@@ -6034,6 +6038,8 @@ Options:\n\
         wait for composite manager before launching, [default: '%33$s']\n\
     -R, --audio\n\
         wait for audio server before launching, [default: '%34$s']\n\
+    -g, --guard [SECONDS]\n\
+        only wait for resources for SECONDS, [default: '%35$d']\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -6079,6 +6085,7 @@ Options:\n\
 	, show_bool(defaults.pager)
 	, show_bool(defaults.composite)
 	, show_bool(defaults.audio)
+	, defaults.guard
 	);
 	/* *INDENT-ON* */
 }
@@ -6227,7 +6234,7 @@ main(int argc, char *argv[])
 			{"info",	no_argument,		NULL, 'I'},
 
 			{"toolwait",	no_argument,		NULL, 'T'},
-			{"timeout",	required_argument,	NULL,  1 },
+			{"timeout",	optional_argument,	NULL,  1 },
 			{"mappings",	required_argument,	NULL,  2 },
 			{"withdrawn",	no_argument,		NULL,  3 },
 			{"wid",		no_argument,		NULL,  4 },
@@ -6240,6 +6247,7 @@ main(int argc, char *argv[])
 			{"pager",	no_argument,		NULL, 'G'},
 			{"composite",	no_argument,		NULL, 'O'},
 			{"audio",	no_argument,		NULL, 'R'},
+			{"guard",	optional_argument,	NULL, 'g'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -6252,10 +6260,11 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORD::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORg::D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORDvhVC?");
+		c = getopt(argc, argv,
+			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORg:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (options.debug)
@@ -6406,7 +6415,11 @@ main(int argc, char *argv[])
 		case 'T':	/* -T, --toolwait */
 			defaults.toolwait = options.toolwait = True;
 			break;
-		case 1:		/* --timeout TIMEOUT */
+		case 1:		/* --timeout [SECONDS] */
+			if (optarg == NULL) {
+				defaults.timeout = options.timeout = 0;
+				break;
+			}
 			if ((val = strtoul(optarg, &endptr, 0)) < 0)
 				goto bad_option;
 			if (endptr && *endptr)
@@ -6451,16 +6464,29 @@ main(int argc, char *argv[])
 		case 'R':	/* -R, --audio */
 			defaults.audio = options.audio = True;
 			break;
+		case 'g':	/* -g, --guard [SECONDS] */
+			if (optarg == NULL) {
+				defaults.guard = options.guard = 0;
+				break;
+			}
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
+				goto bad_option;
+			defaults.guard = options.guard = val;
+			break;
 		case 'D':	/* -D, --debug [level] */
 			if (options.debug)
 				fprintf(stderr, "%s: increasing debug verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				options.debug++;
-			} else {
-				if ((val = strtol(optarg, NULL, 0)) < 0)
-					goto bad_option;
-				options.debug = val;
+				break;
 			}
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
+				goto bad_option;
+			options.debug = val;
 			break;
 		case 'v':	/* -v, --verbose [level] */
 			if (options.debug)
@@ -6469,7 +6495,9 @@ main(int argc, char *argv[])
 				options.output++;
 				break;
 			}
-			if ((val = strtol(optarg, NULL, 0)) < 0)
+			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (endptr && *endptr)
 				goto bad_option;
 			options.output = val;
 			break;

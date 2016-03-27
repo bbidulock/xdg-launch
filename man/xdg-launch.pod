@@ -393,13 +393,16 @@ application in a background process and exit once the application has
 started.  The criteria for when the application is considered as started
 depends on the other L</JOB CONTROL OPTIONS>.
 
-=item B<-timeout> I<SECONDS>
+=item B<--timeout> [I<SECONDS>]
 
 Specifies the amount of time to await completion of startup before
-considering the application as launched.  The default is fifteen
-seconds.  This is the same default as L<xtoolwait(1)>.
+considering the application as launched.  Not specifying a value, or
+specifying a value of zero (0), indicates to await completion of startup
+indefinitely.  The default is fifteen (15) seconds.  This is the same
+default as L<xtoolwait(1)>.  This timeout only applies to startup
+notification completion.
 
-=item B<-mappings> I<NWINDOWS>
+=item B<--mappings> I<NWINDOWS>
 
 Normally when expecting no startup notification completion message,
 B<xdg-launch(1)> will consider the application as launched once it maps
@@ -407,7 +410,7 @@ the first client window.  When this option is specified, it will await
 I<NWINDOWS> mappings before it considers the application launched.  The
 default, when unspecified, is one window.
 
-=item B<-withdrawn>
+=item B<--withdrawn>
 
 L<xtoolwait(1)> must be told when an application is a Window Maker
 dockapp so that it may detect windows mapped in the C<WithdrawnState>.
@@ -416,7 +419,7 @@ is only necessary when the automatic detection fails for some reason.
 This option is for compatibility with L<xtoolwait(1)> and, for the most
 part, does not change behaviour.
 
-=item B<-pid>
+=item B<--pid>
 
 For compatibility with L<xtoolwait(1)>, requests that B<xdg-launch>
 print the process id of the command to standard output.  B<xdg-launch>
@@ -427,7 +430,7 @@ specified.
 (Note that this option conflicts with the usage of the B<--pid> option,
 above, however, this usage does not accept an argument.)
 
-=item B<-wid>
+=item B<--wid>
 
 Print the id of the X window that caused startup completion to be
 signalled to standard output for use with tools like L<wmctrl(1)> or
@@ -435,7 +438,7 @@ L<xdotool(1)>.  B<xdg-launch> will redirect the standard output of the
 application to standard error when this option is specified.  Only one
 of B<-pid> or B<-wid> can be specified.
 
-=item B<-noprop>
+=item B<--noprop>
 
 When using the mapping of a window to determine startup notification
 completion, simply use the creation of a top-level window as the
@@ -479,8 +482,14 @@ desktop resource before launching.
 =item B<-R>, B<--audio>
 
 Awaits the appearance of an audio server before launching the
-application or command.  The default behavior is to not wait for any
+application or command.  The default behaviour is to not wait for any
 desktop resource before launching.
+
+=item B<-g>, B<--guard> [I<SECONDS>]
+
+Await resources for no longer than I<SECONDS> seconds before continuing.
+Not specifying a value or specifying a value of zero (0) indicates to
+wait indefinitely for the resource.  The default value is 2 seconds.
 
 =back
 
