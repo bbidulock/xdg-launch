@@ -1,11 +1,15 @@
 
 ## xdg-launch
 
-Package xdg-launch-0.7 was released under GPL license 2016-03-26.
+Package xdg-launch-0.8 was released under GPL license 2016-03-29.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
-assistance from the command line.  The source is hosted on
+assistance from the command line.  The command is able to launch
+desktop applications, autostart entries and xsession entries.  It is
+useful when generating applications root menus for light-weight window
+managers that do not provide startup notification for applications
+launched using the keyboard or root menu.  The source is hosted on
 [GitHub](https://github.com/bbidulock/xdg-launch).  What it includes is
 just the xdg-launch program and manual page, as well as a handfull of
 wrapper scripts.
@@ -13,7 +17,7 @@ wrapper scripts.
 
 ### Release
 
-This is the `xdg-launch-0.7` package, released 2016-03-26.  This release,
+This is the `xdg-launch-0.8` package, released 2016-03-29.  This release,
 and the latest version, can be obtained from the GitHub repository at
 https://github.com/bbidulock/xdg-launch, using a command such as:
 
@@ -44,7 +48,7 @@ the following commands:
 git clone https://github.com/bbidulock/xdg-launch.git xdg-launch
 cd xdg-launch
 ./autogen.sh
-./configure --prefix=/usr
+./configure --prefix=/usr --sysconfdir=/etc
 make V=0
 make DESTDIR="$pkgdir" install
 ```
