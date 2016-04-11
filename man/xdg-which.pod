@@ -130,6 +130,16 @@ Output a tilde when a directory matches the C<HOME> directory.
 
 =back
 
+=head1 EXAMPLES
+
+ $> xdg-which wmbattery
+ /usr/share/xde/applications/wmbattery.desktop
+
+ $> xdg-which -U -a --show-tilde wmbattery
+ ~/.config/autostart/wmbattery.desktop
+ /etc/xdg/xde/autostart/wmbattery.desktop
+ /etc/xdg/xde/autostart/wmbattery.desktop
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-which>:
