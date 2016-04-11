@@ -6,7 +6,8 @@ bin_PROGRAMS = \
 	xdg-monitor \
 	xdg-which \
 	xdg-list \
-	xdg-show
+	xdg-show \
+	xdg-types
 
 EXTRA_PROGRAMS = \
 	xdg-whereis
@@ -39,6 +40,9 @@ xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
 xdg_show_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
 xdg_show_SOURCES = xdg-show.c
 xdg_show_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
+
+xdg_types_CPPFLAGS = -DNAME=\"xde-types\"
+xdg_types_SOURCES = xdg-types.c
 
 dist_bin_SCRIPTS = \
 	dmenu_apps \
