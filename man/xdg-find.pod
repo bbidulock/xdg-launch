@@ -46,6 +46,60 @@ contain wild cards (i.e. it cannot contain C<*>).
 
 =back
 
+=head1 OPTIONS
+
+The options that are detailed below are recognized by B<xdg-find>.
+B<xdg-find> uses L<getopt_long_only(3)>, so unambiguous abbreviations of
+long options and long options with a single dash are are also supported.
+
+=head2 COMMAND OPTIONS
+
+The default is to find all desktop entries of the type or types
+specified, I<TYPE>.  When any of the following options are specified,
+the mode changes:
+
+=over
+
+=item B<-l>, B<--list>
+
+Output list of effective lookup paths that B<xdg-find> is using.
+
+=item B<-h>, B<--help>
+
+Prints usage information to standard output and exits.
+
+=item B<-V>, B<--version>
+
+Prints detailed version information and exits.
+
+=item B<-C>, B<--copying>
+
+Prints detailed copying permissions and exits.
+
+=back
+
+=head2 GENERAL OPTIONS
+
+The following general options are recognized:
+
+=over
+
+=item B<-X>, B<--xsession>
+
+Find applications that are C<XSession> entries instead of
+C<Application> entries.
+
+=item B<-U>, B<--autostart>
+
+Find applications that are C<Autostart> entries instead of
+C<Application> entries.
+
+=item B<-a>, B<--all>
+
+Print all matching desktop entries, not just the first.
+
+=back
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-find>:
@@ -60,7 +114,7 @@ Used by B<xdg-find> to determine the user's home directory.
 
 Used by B<xdg-find> to determine the user's XDG data directory.  This
 defaults to F<$HOME/.local/share>.  The F<applications> (or
-F<xsessions>) subdirectory under this directory is the first searched to
+F<xsessions>) sub-directory under this directory is the first searched to
 locate desktop entry files.  See the XDG Desktop Entry file
 specification for more information.
 
@@ -68,14 +122,14 @@ specification for more information.
 
 Used by B<xdg-find> to determine the system XDG data directories.
 This defaults to F</usr/local/share:/usr/share>.  The F<applications>
-(or F<xsessions>) subdirectory under these directories are searched in
+(or F<xsessions>) sub-directory under these directories are searched in
 order to locate desktop entry files.  See the XDG Desktop Entry file
 specification for more information.
 
 =item B<XDG_CONFIG_HOME>
 
 Used by B<xdg-find> to determin the user's XDG configuration directory.
-This defaults to F<$HOME/.config>.  The F<autostart> subdirectory under
+This defaults to F<$HOME/.config>.  The F<autostart> sub-directory under
 this directory is the first searched to locate desktop entry files.  See
 the XDG Desktop Entry file specification for more information.
 
@@ -83,7 +137,7 @@ the XDG Desktop Entry file specification for more information.
 
 Used by B<xdg-find> to determine the system XDG configuration
 directories.  This defaults to F</etc/xdg>.  The F<autostart>
-subdirectory under these directories are searched in order to locate
+sub-directory under these directories are searched in order to locate
 desktop entry files.  See the XDG Desktop Entry file specification for
 more information.
 

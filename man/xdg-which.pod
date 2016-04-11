@@ -159,7 +159,7 @@ Used by B<xdg-which> to determine the user's home directory.
 
 Used by B<xdg-which> to determine the user's XDG data directory.  This
 defaults to F<$HOME/.local/share>.  The F<applications> (or
-F<xsessions>) subdirectory under this directory is the first searched to
+F<xsessions>) sub-directory under this directory is the first searched to
 locate desktop entry files.  See the XDG Desktop Entry file
 specification for more information.
 
@@ -167,14 +167,14 @@ specification for more information.
 
 Used by B<xdg-which> to determine the system XDG data directories.
 This defaults to F</usr/local/share:/usr/share>.  The F<applications>
-(or F<xsessions>) subdirectory under these directories are searched in
+(or F<xsessions>) sub-directory under these directories are searched in
 order to locate desktop entry files.  See the XDG Desktop Entry file
 specification for more information.
 
 =item B<XDG_CONFIG_HOME>
 
 Used by B<xdg-which> to determin the user's XDG configuration directory.
-This defaults to F<$HOME/.config>.  The F<autostart> subdirectory under
+This defaults to F<$HOME/.config>.  The F<autostart> sub-directory under
 this directory is the first searched to locate desktop entry files.  See
 the XDG Desktop Entry file specification for more information.
 
@@ -182,7 +182,7 @@ the XDG Desktop Entry file specification for more information.
 
 Used by B<xdg-which> to determine the system XDG configuration
 directories.  This defaults to F</etc/xdg>.  The F<autostart>
-subdirectory under these directories are searched in order to locate
+sub-directory under these directories are searched in order to locate
 desktop entry files.  See the XDG Desktop Entry file specification for
 more information.
 
