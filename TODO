@@ -1,4 +1,4 @@
-xdg-launch -- todo file.  2016-03-29
+xdg-launch -- todo file.  2016-04-10
 
 - [X] handle XDG_CURRENT_DESKTOP that has multiple fields separated by ':'
 - [X] handle applications desktop entry file id's correctly
