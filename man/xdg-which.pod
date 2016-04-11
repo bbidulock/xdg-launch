@@ -137,6 +137,8 @@ entry, one per line.
 
 =head1 EXAMPLES
 
+Following are some examples of invocation and output:
+
  $> xdg-which wmbattery
  /usr/share/xde/applications/wmbattery.desktop
 

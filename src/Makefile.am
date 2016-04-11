@@ -7,7 +7,8 @@ bin_PROGRAMS = \
 	xdg-which \
 	xdg-list \
 	xdg-show \
-	xdg-types
+	xdg-types \
+	xdg-find
 
 EXTRA_PROGRAMS = \
 	xdg-whereis
@@ -47,6 +48,11 @@ xdg_types_CPPFLAGS = -DNAME=\"xde-types\"
 xdg_types_CFLAGS = $(AM_CFLAGS) $(GLIB2_CFLAGS)
 xdg_types_SOURCES = xdg-types.c
 xdg_types_LDADD = $(GLIB2_LIBS)
+
+xdg_find_CPPFLAGS = -DNAME=\"xde-find\"
+xdg_find_CFLAGS = $(AM_CFLAGS) $(GLIB2_CFLAGS)
+xdg_find_SOURCES = xdg-find.c
+xdg_find_LDADD = $(GLIB2_LIBS)
 
 dist_bin_SCRIPTS = \
 	dmenu_apps \

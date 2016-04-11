@@ -186,6 +186,64 @@ Address books, contact lists, LDIF file manipulation.
 
 =back
 
+=head1 FILE FORMAT
+
+=head2 MIME APPLICATIONS
+
+For applications that are set by default the XDG mime applications
+specification is used to store the default applications, added
+associations and removed associations.  Files are searched in the
+following order:
+
+=over
+
+=item F<$XDG_CONFIG_HOME/$XDG_CURRENT_DESKTOP-mimeapps.list>
+
+=item F<$XDG_CONFIG_HOME/mimeapps.list>
+
+=item F<$XDG_CONFIG_DIRS/$XDG_CURRENT_DESKTOP-mimeapps.list>
+
+=item F<$XDG_CONFIG_DIRS/mimeapps.list>
+
+=item F<$XDG_DATA_HOME/applications/$XDG_CURRENT_DESKTOP-mimeapps.list>
+
+=item F<$XDG_DATA_HOME/applications/mimeapps.list>
+
+=item F<$XDG_DATA_DIRS/applications/$XDG_CURRENT_DESKTOP-mimeapps.list>
+
+=item F<$XDG_DATA_DIRS/applications/mimeapps.list>
+
+=back
+
+=head2 XDG CATEGORIES
+
+For preferences that are set by category, B<xdg-prefs> maintains a
+separate F<prefapps.list> file that is similar in format to the
+F<mimeapps.list> file of the XDG mime applications specification with
+the exception that the XDG category is used in place of the mime type as
+a key in the various sections of the file.  As for the F<mimeapps.list>
+files, F<prefapps.list> files are searched in the following order:
+
+=over
+
+=item F<$XDG_CONFIG_HOME/$XDG_CURRENT_DESKTOP-prefapps.list>
+
+=item F<$XDG_CONFIG_HOME/prefapps.list>
+
+=item F<$XDG_CONFIG_DIRS/$XDG_CURRENT_DESKTOP-prefapps.list>
+
+=item F<$XDG_CONFIG_DIRS/prefapps.list>
+
+=item F<$XDG_DATA_HOME/applications/$XDG_CURRENT_DESKTOP-prefapps.list>
+
+=item F<$XDG_DATA_HOME/applications/prefapps.list>
+
+=item F<$XDG_DATA_DIRS/applications/$XDG_CURRENT_DESKTOP-prefapps.list>
+
+=item F<$XDG_DATA_DIRS/applications/prefapps.list>
+
+=back
+
 =cut
 
 # vim: set sw=4 tw=72 nocin spell spelllang=en_ca:

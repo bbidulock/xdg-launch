@@ -115,6 +115,10 @@ the C<NoDisplay> key field set to B<true>.
 
 =back
 
+=head1 EXAMPLES
+
+Following are some examples of invocation and output:
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-find>:
