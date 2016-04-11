@@ -1,0 +1,89 @@
+=pod
+
+=head1 NAME
+
+xdg-types - show the content types provided by a desktop application
+
+=head1 SYNOPSIS
+
+B<xdg-types> [I<options>] [--] I<APPID> [...]
+
+=head1 DESCRIPTION
+
+B<xdg-types> takes one or more arguments.  For each of its arguments, it
+prints to standard output the full path of the desktop entry that would
+have been launched when this argument had been supplied to
+L<xdg-launch(1)>.  It does this by searching for a desktop entry in the
+appropriate sub-directories of the C<XDG_CONFIG_DIRS>,
+C<XDG_CONFIG_HOME>, C<XDG_DATA_DIRS> and C<XDG_DATA_HOME> environment
+variables using the same algorithms as L<xdg-launch(1)>.
+
+For each desktop entry, it also prints to standard output an indented
+list of the mime types supported by the desktop entry, one mime type per
+line.
+
+=head1 ARGUMENTS
+
+The program accepts the following arguments:
+
+=head1 ENVIRONMENT
+
+The following environment variables are examined by B<xdg-types>:
+
+=over
+
+=item B<HOME>
+
+Used by B<xdg-types> to determine the user's home directory.
+
+=item B<XDG_DATA_HOME>
+
+Used by B<xdg-types> to determine the user's XDG data directory.  This
+defaults to F<$HOME/.local/share>.  The F<applications> (or
+F<xsessions>) subdirectory under this directory is the first searched to
+locate desktop entry files.  See the XDG Desktop Entry file
+specification for more information.
+
+=item B<XDG_DATA_DIRS>
+
+Used by B<xdg-types> to determine the system XDG data directories.
+This defaults to F</usr/local/share:/usr/share>.  The F<applications>
+(or F<xsessions>) subdirectory under these directories are searched in
+order to locate desktop entry files.  See the XDG Desktop Entry file
+specification for more information.
+
+=item B<XDG_CONFIG_HOME>
+
+Used by B<xdg-types> to determin the user's XDG configuration directory.
+This defaults to F<$HOME/.config>.  The F<autostart> subdirectory under
+this directory is the first searched to locate desktop entry files.  See
+the XDG Desktop Entry file specification for more information.
+
+=item B<XDG_CONFIG_DIRS>
+
+Used by B<xdg-types> to determine the system XDG configuration
+directories.  This defaults to F</etc/xdg>.  The F<autostart>
+subdirectory under these directories are searched in order to locate
+desktop entry files.  See the XDG Desktop Entry file specification for
+more information.
+
+=back
+
+=head1 BUGS
+
+B<xdg-types> has no known bugs.
+Please report bugs to the source code repository at
+L<https://github.com/bbidulock/xdg-launch/issues>.
+
+=head1 SEE ALSO
+
+L<xdg-which(1)>,
+L<xdg-whereis(1)>.
+
+=head1 AUTHOR
+
+Brian Bidulock L<mailto:bidulock@openss7.org>
+
+=cut
+
+# vim: set sw=4 tw=72 nocin spell spelllang=en_ca:
