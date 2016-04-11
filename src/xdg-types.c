@@ -100,7 +100,7 @@ const char *program = NAME;
 
 typedef enum {
 	CommandDefault,
-	CommandTypes,
+	CommandWhich,
 	CommandList,
 	CommandHelp,
 	CommandVersion,
@@ -123,6 +123,7 @@ typedef struct {
 	int skiptilde;
 	int showdot;
 	int showtilde;
+	int mimetypes;
 	char **appids;
 } Options;
 
@@ -136,11 +137,12 @@ Options options = {
 	.skiptilde = 0,
 	.showdot = 0,
 	.showtilde = 0,
+	.mimetypes = 1,
 	.appids = NULL,
 };
 
 static int
-output_path(char *home, char *path)
+output_path(const char *home, const char *path)
 {
 	char *p, *line, *cdir;
 
@@ -583,7 +585,7 @@ list_paths(void)
 }
 
 static void
-do_types(int argc, char *argv[])
+do_which(int argc, char *argv[])
 {
 	char **appid;
 
@@ -739,6 +741,7 @@ main(int argc, char *argv[])
 			{"skip-tilde",	no_argument,		NULL, 't'},
 			{"show-dot",	no_argument,		NULL, 'O'},
 			{"show-tilde",	no_argument,		NULL, 'T'},
+			{"mime-types",	no_argument,		NULL, 'm'},
 			{"list",	no_argument,		NULL, 'l'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
@@ -751,9 +754,9 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "XUaotOTD::v::hVCH?", long_options, &option_index);
+		c = getopt_long_only(argc, argv, "XUaotOTmlD::v::hVCH?", long_options, &option_index);
 #else				/* _GNU_SOURCE */
-		c = getopt(argc, argv, "XUaotOTDvhVCH?");
+		c = getopt(argc, argv, "XUaotOTmlDvhVCH?");
 #endif				/* _GNU_SOURCE */
 		if (c == -1) {
 			if (options.debug)
@@ -788,6 +791,9 @@ main(int argc, char *argv[])
 			break;
 		case 'T':	/* -T, --show-tilde */
 			options.showtilde = 1;
+			break;
+		case 'm':	/* -m, --mime-types */
+			options.mimetypes = 1;
 			break;
 		case 'l':	/* -l, --list */
 			if (options.command != CommandDefault)
@@ -877,11 +883,11 @@ main(int argc, char *argv[])
 
 	switch (command) {
 	case CommandDefault:
-		command = CommandTypes;
+		command = CommandWhich;
 		/* fall thru */
-	case CommandTypes:
-		DPRINTF("%s: running types\n", argv[0]);
-		do_types(argc, argv);
+	case CommandWhich:
+		DPRINTF("%s: running which\n", argv[0]);
+		do_which(argc, argv);
 		break;
 	case CommandList:
 		DPRINTF("%s: running list\n", argv[0]);
