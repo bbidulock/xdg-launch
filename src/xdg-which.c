@@ -733,14 +733,16 @@ General Options:\n\
         interpret entry as autostart instead of application\n\
     --all, -a\n\
         print all matching desktop entries\n\
-    --skip-dot\n\
+    --skip-dot, -o\n\
         skip directories that start with a dot\n\
-    --skip-tilde\n\
+    --skip-tilde, -t\n\
         skip directories that start with a tilde\n\
-    --show-dot\n\
+    --show-dot, -O\n\
         print dots instead of full path\n\
-    --show-tilde\n\
+    --show-tilde, -T\n\
         print tildes instead of full path\n\
+    --mime-types, -m\n\
+        print mime types support for each path\n\
 ", argv[0]);
 }
 
