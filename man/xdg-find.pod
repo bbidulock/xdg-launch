@@ -95,6 +95,10 @@ B<xdg-find> has no known bugs.
 Please report bugs to the source code repository at
 L<https://github.com/bbidulock/xdg-launch/issues>.
 
+I can likely be considered a bug that B<xdg-find> does not provide any
+other criteria on which to search other than supported mime type and
+XDG category.
+
 =head1 SEE ALSO
 
 L<xdg-which(1)>,
