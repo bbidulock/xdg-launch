@@ -21,5 +21,6 @@
 - [X] should add a wait-for-window-manager option that waits for a
       window manager whenever a WMCLASS would be used
 - [X] similarly, could add a wait-for-systray and wait-for-pager option
+- [ ] make xdg-which and xdg-types work without gio-unix-2.0
 
 # vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:
