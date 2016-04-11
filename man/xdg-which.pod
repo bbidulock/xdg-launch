@@ -14,7 +14,7 @@ B<xdg-which> takes one or more arguments.  For each of its arguments, it
 prints to standard output the full path of the desktop entry that would
 have been launched when this argument had been supplied to
 L<xdg-launch(1)>.  It does this by searching for a desktop entry in the
-appropriate subdirectories of the C<XDG_CONFIG_DIRS>,
+appropriate sub-directories of the C<XDG_CONFIG_DIRS>,
 C<XDG_CONFIG_HOME>, C<XDG_DATA_DIRS> and C<XDG_DATA_HOME> environment
 variables using the same algorithms as L<xdg-launch(1)>.
 
@@ -108,25 +108,30 @@ C<Application> identifier.
 
 Print all matching desktop entries, not just the first.
 
-=item B<--skip-dot>
+=item B<-o>, B<--skip-dot>
 
 Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
 with a dot.
 
-=item B<--skip-tilde>
+=item B<-t>, B<--skip-tilde>
 
 Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
 with a tilde and entries that reside in C<XDG_CONFIG_HOME> or
 C<XDG_DATA_HOME>.
 
-=item B<--show-dot>
+=item B<-O>, B<--show-dot>
 
 If a directory starts with a dot and a matching desktop entry was found
 for that path, then print "./appid.desktop" rather than the full path.
 
-=item B<--show-tilde>
+=item B<-T>, B<--show-tilde>
 
 Output a tilde when a directory matches the C<HOME> directory.
+
+=item B<-m>, B<--mime-types>
+
+Also output an indented list of supported mime types for the desktop
+entry, one per line.
 
 =back
 

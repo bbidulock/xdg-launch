@@ -112,27 +112,43 @@ C<Application> identifier.
 
 Print all matching desktop entries, not just the first.
 
-=item B<--skip-dot>
+=item B<-o>, B<--skip-dot>
 
 Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
 with a dot.
 
-=item B<--skip-tilde>
+=item B<-t>, B<--skip-tilde>
 
 Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
 with a tilde and entries that reside in C<XDG_CONFIG_HOME> or
 C<XDG_DATA_HOME>.
 
-=item B<--show-dot>
+=item B<-O>, B<--show-dot>
 
 If a directory starts with a dot and a matching desktop entry was found
 for that path, then print "./appid.desktop" rather than the full path.
 
-=item B<--show-tilde>
+=item B<-T>, B<--show-tilde>
 
 Output a tilde when a directory matches the C<HOME> directory.
 
 =back
+
+=head1 EXAMPLES
+
+ $> xdg-types firefox
+ /usr/share/xde/applications/firefox.desktop
+         text/html
+         text/xml
+         application/xhtml+xml
+         application/xml
+         application/rss+xml
+         application/rdf+xml
+         application/vnd.mozilla.xul+xml
+         text/mml
+         x-scheme-handler/http
+         x-scheme-handler/https
+         x-scheme-handler/ftp
 
 =head1 ENVIRONMENT
 
