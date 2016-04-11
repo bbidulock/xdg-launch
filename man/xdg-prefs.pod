@@ -1,0 +1,83 @@
+=pod
+
+=head1 NAME
+
+xdg-prefs - locate and set preferred desktop applications
+
+=head1 SYNOPSIS
+
+B<xdg-prefs> [I<options>] {-f,--find} [--] I<TYPE> [...]
+
+B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID> [I<TYPE> [...]]
+
+=head1 DESCRIPTION
+
+B<xdg-prefs> operates in two modes: (1) locates preferred applications
+by category or mime type; and (2) sets preferred applications by
+category or mime type.
+
+=head1 ARGUMENTS
+
+The program accepts the following arguments:
+
+=over
+
+=item I<APPID>
+
+Specifies the application identifier of an XDG desktop application to
+locate.  The application identifier, I<APPID>, can be one of the
+following:
+
+=over
+
+=item 1.
+
+the name of a desktop entry file without the F<.desktop> suffix (e.g.
+C<gvim>); the name may contain a C</> if it is specified relative to a
+user or system application directory, in which case it must not start
+with a C</> or C<.>.
+
+=item 2.
+
+the name of a desktop entry file with the F<.desktop> suffix (e.g.
+C<gvim.desktop>); the same restrictions as (1), above, apply; or,
+
+=item 3.
+
+the full path (absolute or relative) and filename of a desktop entry
+file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
+contain at least one C</> and start with either a C</> or a C<.>.
+
+=back
+
+Providing a non-option application identifier argument is mandatory
+when the B<--pref> or B<--dflt> option is specified.
+
+=item I<TYPE>
+
+Specifies the type of application to find, or for which to set I<APPID>
+as the preferred application.  The application type, I<TYPE>, can be one
+of the following:
+
+=over
+
+=item 1.
+
+A recognized XDG category name.  For recognized XDG category names, see
+L</XDG CATEGORIES>.
+
+=item 2.
+
+A mime (content) type.  All mime types have a C</> in their names and
+are thus distinguished from XDG categories.  The content type cannot
+contain wild cards (i.e. it cannot contain C<*>).
+
+=back
+
+=back
+
+=head1 XDG CATEGORIES
+
+=cut
+
+# vim: set sw=4 tw=72 nocin spell spelllang=en_ca:
