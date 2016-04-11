@@ -122,6 +122,8 @@ typedef struct {
 	int skiptilde;
 	int showdot;
 	int showtilde;
+	int recommend;
+	int fallback;
 	char *appid;
 	char **types;
 } Options;
@@ -134,6 +136,8 @@ Options options = {
 	.skiptilde = 0,
 	.showdot = 0,
 	.showtilde = 0,
+	.recommend = 0,
+	.fallback = 0,
 	.appid = NULL,
 	.types = NULL,
 };
@@ -151,6 +155,73 @@ do_exec(int argc, char *argv[])
 static void
 do_list(int argc, char *argv[])
 {
+	char **type;
+
+	for (type = options.types; type && *type; type++) {
+		GList *apps, *app;
+		GAppInfo *info;
+		GDesktopAppInfo *desk;
+
+		if (strchr(*type, '/')) {
+			gchar *content;
+
+			if ((content = g_content_type_from_mime_type(*type))) {
+				fprintf(stdout, "%s:\n", content);
+				if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+					fprintf(stdout, "\tdefault:\n");
+					fprintf(stdout, "\t\t%s:\n", g_app_info_get_id(info));
+				}
+				if (options.recommend) {
+					if ((apps = g_app_info_get_recommended_for_type(content))) {
+						fprintf(stdout, "\trecommended:\n");
+						for (app = apps; app; app = app->next) {
+							info = app->data;
+							fprintf(stdout, "\t\t%s\n", g_app_info_get_id(info));
+						}
+						g_list_free(apps);
+					}
+				}
+				if (options.fallback) {
+					if ((apps = g_app_info_get_fallback_for_type(content))) {
+						fprintf(stdout, "\tfallback:\n");
+						for (app = apps; app; app = app->next) {
+							info = app->data;
+							fprintf(stdout, "\t\t%s\n", g_app_info_get_id(info));
+						}
+						g_list_free(apps);
+					}
+				}
+				g_free(content);
+			}
+		} else {
+			char *category = calloc(PATH_MAX + 1, sizeof(*category));
+
+			strncpy(category, ";", PATH_MAX);
+			strncat(category, *type, PATH_MAX);
+			strncat(category, ";", PATH_MAX);
+
+			fprintf(stdout, "%s:\n", *type);
+
+			if ((apps = g_app_info_get_all())) {
+				char *categories = calloc(PATH_MAX + 1, sizeof(*categories));
+				const char *cat;
+
+				for (app = apps; app; app = app->next) {
+					desk = G_DESKTOP_APP_INFO(app->data);
+					if ((cat = g_desktop_app_info_get_categories(desk))) {
+						strncpy(categories, ";", PATH_MAX);
+						strncat(categories, cat, PATH_MAX);
+						strncat(categories, ";", PATH_MAX);
+						if (strstr(categories, category)) {
+							info = G_APP_INFO(desk);
+							fprintf(stdout, "\t%s\n", g_app_info_get_id(info));
+						}
+					}
+				}
+				g_list_free(apps);
+			}
+		}
+	}
 }
 
 static void
@@ -277,6 +348,8 @@ General Options:\n\
         print tildes instead of full path\n\
     --recommend, -r\n\
         list, execute or set recommended rather than default\n\
+  - --fallback, -f\n\
+        list or execute fallback rather than default\n\
 ", argv[0]);
 }
 
@@ -296,6 +369,8 @@ main(int argc, char *argv[])
 			{"skip-tilde",	no_argument,		NULL, 't'},
 			{"show-dot",	no_argument,		NULL, 'O'},
 			{"show-tilde",	no_argument,		NULL, 'T'},
+			{"recommend",	no_argument,		NULL, 'r'},
+			{"fallback",	no_argument,		NULL, 'f'},
 
 			{"pref",	no_argument,		NULL, 'p'},
 			{"exec",	no_argument,		NULL, 'e'},
@@ -311,9 +386,9 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "otOTpelD::v::hVCH?", long_options, &option_index);
+		c = getopt_long_only(argc, argv, "otOTrfpelD::v::hVCH?", long_options, &option_index);
 #else				/* _GNU_SOURCE */
-		c = getopt(argc, argv, "otOTpelDvhVCH?");
+		c = getopt(argc, argv, "otOTrfpelDvhVCH?");
 #endif				/* _GNU_SOURCE */
 		if (c == -1) {
 			DPRINTF("%s: done options processing\n", argv[0]);
@@ -334,6 +409,12 @@ main(int argc, char *argv[])
 			break;
 		case 'T':	/* -T, --show-tilde */
 			options.showtilde = 1;
+			break;
+		case 'r':	/* -r, --recommend */
+			options.recommend = 1;
+			break;
+		case 'f':	/* -f, --fallback */
+			options.fallback = 1;
 			break;
 
 		case 'p':	/* -p, --pref */
