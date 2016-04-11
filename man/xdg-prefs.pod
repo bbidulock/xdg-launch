@@ -6,7 +6,7 @@ xdg-prefs - locate and set preferred desktop applications
 
 =head1 SYNOPSIS
 
-B<xdg-prefs> [I<options>] {-f,--find} [--] I<TYPE> [...]
+B<xdg-prefs> [I<options>] {-l,--list} [--] I<TYPE> [...]
 
 B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID>[:I<ACTION>][B<;>...] [I<TYPE> [...]]
 
@@ -61,7 +61,7 @@ the B<--pref> option is specified.
 
 =item I<TYPE>
 
-Specifies the type of application to find, or for which to set I<APPID>
+Specifies the type of application for which to show or set I<APPID>
 as the preferred application.  The application type, I<TYPE>, can be one
 of the following:
 
@@ -95,7 +95,7 @@ command mode:
 
 =over
 
-=item B<-f>, B<--find> [--] I<TYPE> [...]
+=item B<-l>, B<--list> [--] I<TYPE> [...]
 
 =item B<-p>, B<--pref> [--] I<APPID> [I<TYPE> [...]]
 
@@ -118,9 +118,71 @@ The following XDG categories are recognized and tracked by the program:
 
 =over
 
-=item C<TerminalEmulator>
+=item C<Calendar>
+
+Calendar, task manager and scheduling programs.
+
+=item C<ContactManager>
+
+Address books, contact lists, LDIF file manipulation.
+
+=item C<Dictionary>
+
+=item C<Email>
+
+=item C<Presentation>
+
+=item C<Spreadsheet>
+
+=item C<WordProcessor>
+
+=item C<2DGraphics>
+
+=item C<Viewer>
+
+=item C<Printing>
+
+=item C<PackageManager>
+
+=item C<IIRCClient>
+
+=item C<Feed>
+
+=item C<FileTransfer>
+
+=item C<News>
+
+=item C<RemoteAccess>
+
+=item C<Telephony>
+
+=item C<VideoConference>
 
 =item C<WebBrowser>
+
+=item C<Mixer>
+
+=item C<Player>
+
+=item C<Recorder>
+
+=item C<DiscBurning>
+
+=item C<Archiving>
+
+=item C<FileManager>
+
+=item C<TerminalEmulator>
+
+=item C<Monitor>
+
+=item C<Calculator>
+
+=item C<Clock>
+
+=item C<TextEditor>
+
+=item C<Documentation>
 
 =back
 

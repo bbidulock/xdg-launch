@@ -13,7 +13,8 @@ xdg_man_files = \
 	     xdg-toolwait.man \
 	     xdg-list.man \
 	     xdg-types.man \
-	     xdg-prefs.man
+	     xdg-prefs.man \
+	     xdg-find.man
 
 nodist_man1_MANS = $(xdg_man_files)
 CLEANFILES = $(xdg_man_files)
@@ -32,7 +33,8 @@ EXTRA_DIST = \
 	     xdg-toolwait.pod \
 	     xdg-list.pod \
 	     xdg-types.pod \
-	     xdg-prefs.pod
+	     xdg-prefs.pod \
+	     xdg-find.pod
 
 SUFFIXES = .man .pod
 
