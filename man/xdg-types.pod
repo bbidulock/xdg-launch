@@ -92,6 +92,48 @@ Prints detailed copying permissions and exits.
 
 =back
 
+=head2 GENERAL OPTIONS
+
+The following general options are recognized:
+
+=over
+
+=item B<-X>, B<--xsession>
+
+Treat I<APPID> as an C<XSession> identifier instead of an C<Application>
+identifier.
+
+=item B<-U>, B<--autostart>
+
+Treat I<APPID> as an C<Autostart> identifier instead of an
+C<Application> identifier.
+
+=item B<-a>, B<--all>
+
+Print all matching desktop entries, not just the first.
+
+=item B<--skip-dot>
+
+Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
+with a dot.
+
+=item B<--skip-tilde>
+
+Skip directories in C<XDG_CONFIG_DIRS> and C<XDG_DATA_DIRS> that start
+with a tilde and entries that reside in C<XDG_CONFIG_HOME> or
+C<XDG_DATA_HOME>.
+
+=item B<--show-dot>
+
+If a directory starts with a dot and a matching desktop entry was found
+for that path, then print "./appid.desktop" rather than the full path.
+
+=item B<--show-tilde>
+
+Output a tilde when a directory matches the C<HOME> directory.
+
+=back
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-types>:
