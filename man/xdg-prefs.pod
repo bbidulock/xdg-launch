@@ -8,7 +8,7 @@ xdg-prefs - locate and set preferred desktop applications
 
 B<xdg-prefs> [I<options>] {-f,--find} [--] I<TYPE> [...]
 
-B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID> [I<TYPE> [...]]
+B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID>[:I<ACTION>][B<;>...] [I<TYPE> [...]]
 
 =head1 DESCRIPTION
 
@@ -22,7 +22,7 @@ The program accepts the following arguments:
 
 =over
 
-=item I<APPID>
+=item I<APPID>[:I<ACTION>][B<;>...]
 
 Specifies the application identifier of an XDG desktop application to
 locate.  The application identifier, I<APPID>, can be one of the
@@ -50,8 +50,14 @@ contain at least one C</> and start with either a C</> or a C<.>.
 
 =back
 
-Providing a non-option application identifier argument is mandatory
-when the B<--pref> or B<--dflt> option is specified.
+The optional action, I<ACTION>, can be specified after a colon so that
+actions within desktop entries can be identified.
+
+Additional application identifiers and option actions can be listed
+separated by semi-colons (C<;>).
+
+Providing a non-option application identifier argument is mandatory when
+the B<--pref> option is specified.
 
 =item I<TYPE>
 
@@ -76,7 +82,47 @@ contain wild cards (i.e. it cannot contain C<*>).
 
 =back
 
+=head1 OPTIONS
+
+The options that are detailed below are recognized by B<xdg-prefs>.
+B<xdg-which> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+of long options and long options with a single dash are also supported.
+
+=head2 COMMAND OPTIONS
+
+One of the following command options must be specified to set the
+command mode:
+
+=over
+
+=item B<-f>, B<--find> [--] I<TYPE> [...]
+
+=item B<-p>, B<--pref> [--] I<APPID> [I<TYPE> [...]]
+
+=item B<-h>, B<--help>, B<-H>, B<-?>, B<--?>
+
+=item B<-V>, B<--version>
+
+=item B<-C>, B<--copying>
+
+=back
+
+=head2 GENERAL OPTIONS
+
+The following general options are recognized:
+
+
 =head1 XDG CATEGORIES
+
+The following XDG categories are recognized and tracked by the program:
+
+=over
+
+=item C<TerminalEmulator>
+
+=item C<WebBrowser>
+
+=back
 
 =cut
 
