@@ -61,6 +61,37 @@ unless the B<--exec> or B<--appid> options are specified.
 
 =back
 
+=head1 OPTIONS
+
+The options that are detailed below are recognized by B<xdg-types>.
+B<xdg-types> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+of long options and long options with a single dash are also supported.
+
+=head2 COMMAND OPTIONS
+
+The default is to match the I<APPID> and provide output.  When any of
+the following options are specified, the command mode changes:
+
+=over
+
+=item B<-l>, B<--list>
+
+Output list of effective lookup paths that B<xdg-types> is using.
+
+=item B<-h>, B<--help>
+
+Prints usage information to standard output and exits.
+
+=item B<-V>, B<--version>
+
+Prints detailed version information and exits.
+
+=item B<-C>, B<--copying>
+
+Prints detailed copying permissions and exits.
+
+=back
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-types>:
