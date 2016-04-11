@@ -86,17 +86,32 @@ The following general options are recognized:
 
 =item B<-X>, B<--xsession>
 
-Find applications that are C<XSession> entries instead of
-C<Application> entries.
+Also find applications that are C<XSession> entries instead of
+just C<Application> entries.
 
 =item B<-U>, B<--autostart>
 
-Find applications that are C<Autostart> entries instead of
-C<Application> entries.
+Also find applications that are C<Autostart> entries instead of
+just C<Application> entries.
+
+=item B<-A>, B<--application>
+
+Also find applications when B<--xsession> or B<--autostart> options are
+specified.
 
 =item B<-a>, B<--all>
 
 Print all matching desktop entries, not just the first.
+
+=item B<-e>, B<--desktop> I<DESKTOP>[;I<DESKTOP>[...]]
+
+Exclude entries that are not to be included in the semi-colon separated
+list of desktop environments, I<DESKTOP>, specified.
+
+=item B<-n>, B<--nodisplay>
+
+Exclude entries that are not be be shown in menus.  That is, they have
+the C<NoDisplay> key field set to B<true>.
 
 =back
 
