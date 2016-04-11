@@ -141,6 +141,11 @@ Options options = {
 	.appids = NULL,
 };
 
+static void
+output_types(const char *path)
+{
+}
+
 static int
 output_path(const char *home, const char *path)
 {
@@ -172,6 +177,8 @@ output_path(const char *home, const char *path)
 		fprintf(stdout, "%s\n", line);
 	free(cdir);
 	free(line);
+	if (options.mimetypes)
+		output_types(path);
 	return 1;
 }
 
