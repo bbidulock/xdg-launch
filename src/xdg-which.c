@@ -80,6 +80,12 @@
 #include <strings.h>
 #include <regex.h>
 
+#ifdef GIO_GLIB2_SUPPORT
+#include <glib.h>
+#include <gio/gio.h>
+#include <gio/gdesktopappinfo.h>
+#endif
+
 #define DPRINTF(_args...) do { if (options.debug > 0) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); } } while (0)
@@ -144,6 +150,15 @@ Options options = {
 static void
 output_types(const char *path)
 {
+#ifdef GIO_GLIB2_SUPPORT
+	GDesktopAppInfo *info;
+	const char **types;
+
+	if ((info = g_desktop_app_info_new_from_filename(path)) &&
+	    (types = g_app_info_get_supported_types(G_APP_INFO(info))))
+		while (*types)
+			fprintf(stdout, "\t%s\n", *types++);
+#endif
 }
 
 static int

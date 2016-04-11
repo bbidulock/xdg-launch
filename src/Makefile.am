@@ -28,7 +28,9 @@ xdg_monitor_SOURCES = xdg-monitor.c
 xdg_monitor_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
 
 xdg_which_CPPFLAGS = -DNAME=\"xde-which\"
+xdg_which_CFLAGS = $(AM_CFLAGS) $(GLIB2_CFLAGS)
 xdg_which_SOURCES = xdg-which.c
+xdg_which_LDADD = $(GLIB2_LIBS)
 
 xdg_whereis_CPPFLAGS = -DNAME=\"xde-whereis\"
 xdg_whereis_SOURCES = xdg-whereis.c
@@ -42,7 +44,9 @@ xdg_show_SOURCES = xdg-show.c
 xdg_show_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
 
 xdg_types_CPPFLAGS = -DNAME=\"xde-types\"
+xdg_types_CFLAGS = $(AM_CFLAGS) $(GLIB2_CFLAGS)
 xdg_types_SOURCES = xdg-types.c
+xdg_types_LDADD = $(GLIB2_LIBS)
 
 dist_bin_SCRIPTS = \
 	dmenu_apps \
