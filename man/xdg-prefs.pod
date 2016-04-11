@@ -6,9 +6,11 @@ xdg-prefs - locate and set preferred desktop applications
 
 =head1 SYNOPSIS
 
-B<xdg-prefs> [I<options>] {-l,--list} [--] I<TYPE> [...]
+B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID>[B<;>...] [I<TYPE> [...]]
 
-B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID>[:I<ACTION>][B<;>...] [I<TYPE> [...]]
+B<xdg-prefs> [I<options>] {-e,--exec} [--] I<TYPE>
+
+B<xdg-prefs> [I<options>] {-l,--list} [--] I<TYPE> [...]
 
 =head1 DESCRIPTION
 
@@ -22,7 +24,7 @@ The program accepts the following arguments:
 
 =over
 
-=item I<APPID>[:I<ACTION>][B<;>...]
+=item I<APPID>[B<;>...]
 
 Specifies the application identifier of an XDG desktop application to
 locate.  The application identifier, I<APPID>, can be one of the
@@ -49,9 +51,6 @@ file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
 contain at least one C</> and start with either a C</> or a C<.>.
 
 =back
-
-The optional action, I<ACTION>, can be specified after a colon so that
-actions within desktop entries can be identified.
 
 Additional application identifiers and option actions can be listed
 separated by semi-colons (C<;>).
@@ -95,9 +94,14 @@ command mode:
 
 =over
 
-=item B<-l>, B<--list> [--] I<TYPE> [...]
-
 =item B<-p>, B<--pref> [--] I<APPID> [I<TYPE> [...]]
+
+Specifies that I<APPID> is to be used as the default or preferred
+application for I<TYPE>.
+
+=item B<-e>, B<--exec> [--] I<TYPE>
+
+=item B<-l>, B<--list> [--] I<TYPE> [...]
 
 =item B<-h>, B<--help>, B<-H>, B<-?>, B<--?>
 
@@ -110,6 +114,16 @@ command mode:
 =head2 GENERAL OPTIONS
 
 The following general options are recognized:
+
+=over
+
+=item B<-r>, B<--recommend>
+
+When listing, launching or setting preferred applications, use the
+recommended application instead of the default application for the given
+type.
+
+=back
 
 
 =head1 XDG CATEGORIES
@@ -188,6 +202,22 @@ Address books, contact lists, LDIF file manipulation.
 
 =head1 FILE FORMAT
 
+There are two formats of file:
+
+=over
+
+=item 1.
+
+Mime application file format that is compliant to the XDG mime
+application specification.
+
+=item 2.
+
+XDG category file format that is similar to the XDG mime application
+specification but uses XDG categories instead of mime types.
+
+=back
+
 =head2 MIME APPLICATIONS
 
 For applications that are set by default the XDG mime applications
@@ -199,21 +229,66 @@ following order:
 
 =item F<$XDG_CONFIG_HOME/$XDG_CURRENT_DESKTOP-mimeapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+
 =item F<$XDG_CONFIG_HOME/mimeapps.list>
+
+Considered for both defaults and associations.
 
 =item F<$XDG_CONFIG_DIRS/$XDG_CURRENT_DESKTOP-mimeapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+
 =item F<$XDG_CONFIG_DIRS/mimeapps.list>
+
+Considered for both defaults and associations.
 
 =item F<$XDG_DATA_HOME/applications/$XDG_CURRENT_DESKTOP-mimeapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+This location is deprecated but available for backward compatibility.
+
 =item F<$XDG_DATA_HOME/applications/mimeapps.list>
+
+Considered for both defaults and associations.
+This location is deprecated but available for backward compatibility.
 
 =item F<$XDG_DATA_DIRS/applications/$XDG_CURRENT_DESKTOP-mimeapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+This location is deprecated but available for backward compatibility.
+
 =item F<$XDG_DATA_DIRS/applications/mimeapps.list>
 
+Considered for both defaults and associations.
+This location is deprecated but available for backward compatibility.
+
 =back
+
+=head3 EXAMPLE
+
+Following is an example of the contents of a F<mimeapps.list> file:
+
+ [Added Associations]
+ application/pdf=zat.desktop;zathura.desktop;raktpdf.desktop;gvim.desktop;
+ application/x-ole-storage=libreoffice-startcenter.desktop;
+ application/x-desktop=gvim.desktop;
+ image/jpeg=xv.desktop;flphoto.desktop;gpicview.desktop;
+ image/png=gpicview.desktop;
+ application/octet-stream=bvi.desktop;wireshark.desktop;
+ text/html=firefox.desktop;
+ text/plain=vim.desktop;
+ 
+ [Default Applications]
+ x-scheme-handler/mailto=kde4-kmailservice.desktop
+ application/x-extension-eml=kde4-kmailservice.desktop
+ message/rfc822=kde4-kmailservice.desktop
+ application/octet-stream=bvi.desktop
+ text/plain=vim.desktop
 
 =head2 XDG CATEGORIES
 
@@ -228,21 +303,49 @@ files, F<prefapps.list> files are searched in the following order:
 
 =item F<$XDG_CONFIG_HOME/$XDG_CURRENT_DESKTOP-prefapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+
 =item F<$XDG_CONFIG_HOME/prefapps.list>
+
+Considered for both defaults and associations.
 
 =item F<$XDG_CONFIG_DIRS/$XDG_CURRENT_DESKTOP-prefapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+
 =item F<$XDG_CONFIG_DIRS/prefapps.list>
+
+Considered for both defaults and associations.
 
 =item F<$XDG_DATA_HOME/applications/$XDG_CURRENT_DESKTOP-prefapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+This location is deprecated but available for backward compatibility.
+
 =item F<$XDG_DATA_HOME/applications/prefapps.list>
+
+Considered for both defaults and associations.
+This location is deprecated but available for backward compatibility.
 
 =item F<$XDG_DATA_DIRS/applications/$XDG_CURRENT_DESKTOP-prefapps.list>
 
+This file is desktop environment specific.
+Only considered for defaults and not associations.
+This location is deprecated but available for backward compatibility.
+
 =item F<$XDG_DATA_DIRS/applications/prefapps.list>
 
+Considered for both defaults and associations.
+This location is deprecated but available for backward compatibility.
+
 =back
+
+=head3 EXAMPLE
+
+Following is an example of the contents of a F<prefapps.list> file:
 
 =cut
 
