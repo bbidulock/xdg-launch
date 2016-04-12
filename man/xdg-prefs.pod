@@ -614,32 +614,95 @@ F<image/x-xcursor>.
 =item C<3DGraphics;Graphics>
 
 Application for viewing, creating, or processing 3-D graphics.
+F<blender-windowed.desktop> with mime types,
+F<application/x-blender>;
+F<drawxtl.desktop> with no mime types;
+F<wings3d.desktop> with no mime types;
+F<blender.desktop> with mime types,
+F<application/blender>,
+F<application/x-blender>;
+F<g3dviewer.desktop> with no mime types.
 
 =item C<Scanning;Graphics>
 
 Tool to scan a file/text.
+F<xsane.desktop> with no mime types.
 
 =item C<OCR;Scanning;Graphics>
 
 Optical character recognition application.
+F<xsane.desktop> with no mime types.
 
 =item C<Photography;Graphics>
 
 =item C<Photography;Office>
 
 Camera tools, etc.
+F<apache.en.desktop> with mime types,
+F<image/bmp>,
+F<image/gif>,
+F<image/jpeg>,
+F<image/jpg>,
+F<image/png>,
+F<image/tiff>,
+F<image/x-bmp>,
+F<image/x-pcx>,
+F<image/x-tga>,
+F<image/x-portable-pixmap>,
+F<image/x-portable-bitmap>,
+F<image/x-targa>,
+F<image/x-portable-greymap>,
+F<application/pcx>,
+F<image/svg+xml>,
+F<image/svg-xml>;
+F<flphoto.desktop> with mime types,
+F<application/x-flphoto>;
+F<gtkam.desktop> with no mime types;
+F<gpicview.desktop> with mime types,
+F<image/bmp>,
+F<image/gif>,
+F<image/jpeg>,
+F<image/jpg>,
+F<image/png>,
+F<image/tiff>,
+F<image/x-bmp>,
+F<image/x-pcx>,
+F<image/x-tga>,
+F<image/x-portable-pixmap>,
+F<image/x-portable-bitmap>,
+F<image/x-targa>,
+F<image/x-portable-greymap>,
+F<application/pcx>,
+F<image/svg+xml>,
+F<image/svg-xml>;
+F<gthumb.desktop> with mime types,
+F<image/bmp>,
+F<image/jpeg>,
+F<image/gif>,
+F<image/png>,
+F<image/tiff>,
+F<image/x-bmp>,
+F<image/x-ico>,
+F<image/x-png>,
+F<image/x-pcx>,
+F<image/x-tga>,
+F<image/xpm>,
+F<image/svg+xml>.
 
 =item C<Publishing;Graphics>
 
 =item C<Publishing;Office>
 
 Desktop publishing applications and colour management tools.
+No commonly known applications or mime types.
 
 =item C<Viewer;Graphics>
 
 =item C<Viewer;Office>
 
 Tool to view e.g. a graphic or pdf file.
+C<Viewer;Office> is primarily PDF viewers; C<Viewer;Graphics> are
+primarily image viewers.
 
 =item C<TextTools;Utility>
 
