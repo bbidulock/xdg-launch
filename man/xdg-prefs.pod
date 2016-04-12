@@ -225,33 +225,159 @@ No commonly known applications or mime types.
 
 =item C<Email;Network>
 
-Email application.
+Email application.  Many applications with mime types
+F<x-scheme-handler/mailto> and
+F<message/rfc822>.
 
 =item C<FlowChart;Office>
 
 A flowchart application.
+Applications F<dia.desktop> with mime types
+F<application/x-dia-diagram>; and
+F<libreoffice-draw.desktop> with mime types
+F<application/vnd.oasis.opendocument.graphics>,
+F<application/vnd.oasis.opendocument.graphics-flat-xml>,
+F<application/vnd.oasis.opendocument.graphics-template>,
+F<application/vnd.sun.xml.draw>,
+F<application/vnd.sun.xml.draw.template>,
+F<application/vnd.visio>,
+F<application/x-wpg>,
+F<application/vnd.corel-draw>,
+F<application/vnd.ms-publisher>,
+F<image/x-freehand>,
+F<application/clarisworks>.
 
 =item C<PDA;Office>
 
 Tool to manage your PDA.
+No commonly known applications or mime types.
 
 =item C<ProjectManagement;Office>
 
 =item C<ProjectManagement;Development>
 
 Project management application.
+No commonly known applications or mime types.
 
 =item C<Presentation;Office>
 
 Presentation software.
+F<libreoffice-impress.desktop> with mime types
+F<application/vnd.oasis.opendocument.presentation>,
+F<application/vnd.oasis.opendocument.presentation-template>,
+F<application/vnd.sun.xml.impress>,
+F<application/vnd.sun.xml.impress.template>,
+F<application/mspowerpoint>,
+F<application/vnd.ms-powerpoint>,
+F<application/vnd.openxmlformats-officedocument.presentationml.presentation>,
+F<application/vnd.ms-powerpoint.presentation.macroenabled.12>,
+F<application/vnd.openxmlformats-officedocument.presentationml.template>,
+F<application/vnd.ms-powerpoint.template.macroenabled.12>,
+F<application/vnd.openxmlformats-officedocument.presentationml.slide>,
+F<application/vnd.openxmlformats-officedocument.presentationml.slideshow>,
+F<application/vnd.ms-powerpoint.slideshow.macroEnabled.12>,
+F<application/vnd.oasis.opendocument.presentation-flat-xml>,
+F<application/x-iwork-keynote-sffkey>.
+Perhaps the oasis and microsoft mime types are the most common.
 
 =item C<Spreadsheet;Office>
 
 A spreadsheet.
+F<libreoffice-calc.desktop> with mime types
+F<application/vnd.oasis.opendocument.spreadsheet>,
+F<application/vnd.oasis.opendocument.spreadsheet-template>,
+F<application/vnd.sun.xml.calc>,
+F<application/vnd.sun.xml.calc.template>,
+F<application/msexcel>,
+F<application/vnd.ms-excel>,
+F<application/vnd.openxmlformats-officedocument.spreadsheetml.sheet>,
+F<application/vnd.ms-excel.sheet.macroenabled.12>,
+F<application/vnd.openxmlformats-officedocument.spreadsheetml.template>,
+F<application/vnd.ms-excel.template.macroenabled.12>,
+F<application/vnd.ms-excel.sheet.binary.macroenabled.12>,
+F<text/csv>,
+F<application/x-dbf>,
+F<text/spreadsheet>,
+F<application/csv>,
+F<application/excel>,
+F<application/tab-separated-values>,
+F<application/vnd.lotus-1-2-3>,
+F<application/vnd.oasis.opendocument.chart>,
+F<application/vnd.oasis.opendocument.chart-template>,
+F<application/x-dbase>,
+F<application/x-dos_ms_excel>,
+F<application/x-excel>,
+F<application/x-msexcel>,
+F<application/x-ms-excel>,
+F<application/x-quattropro>,
+F<application/x-123>,
+F<text/comma-separated-values>,
+F<text/tab-separated-values>,
+F<text/x-comma-separated-values>,
+F<text/x-csv>,
+F<application/vnd.oasis.opendocument.spreadsheet-flat-xml>,
+F<application/vnd.ms-works>,
+F<application/clarisworks>.
 
 =item C<WordProcessor;Office>
 
 A word processor.
+F<abiword.desktop> with mime types
+F<application/x-abiword>,
+F<text/x-abiword>,
+F<text/x-xml-abiword>,
+F<text/plain>,
+F<application/msword>,
+F<application/rtf>,
+F<application/vnd.plain>,
+F<application/xhtml+xml>,
+F<text/html>,
+F<application/x-crossmark>,
+F<application/docbook+xml>,
+F<application/x-t602>,
+F<application/vnd.oasis.opendocument.text>,
+F<application/vnd.oasis.opendocument.text-template>,
+F<application/vnd.oasis.opendocument.text-web>,
+F<application/vnd.sun.xml.writer>,
+F<application/vnd.stardivision.writer>,
+F<text/vnd.wap.wml>,
+F<application/wordperfect6>,
+F<application/wordperfect5.1>,
+F<application/vnd.wordperfect>,
+F<application/x-abicollab>; and
+F<libreoffice-writer.desktop> with mime types
+F<application/vnd.oasis.opendocument.text>,
+F<application/vnd.oasis.opendocument.text-template>,
+F<application/vnd.oasis.opendocument.text-web>,
+F<application/vnd.oasis.opendocument.text-master>,
+F<application/vnd.sun.xml.writer>,
+F<application/vnd.sun.xml.writer.template>,
+F<application/vnd.sun.xml.writer.global>,
+F<application/msword>,
+F<application/vnd.ms-word>,
+F<application/x-doc>,
+F<application/x-hwp>,
+F<application/rtf>,
+F<text/rtf>,
+F<application/vnd.wordperfect>,
+F<application/wordperfect>,
+F<application/vnd.lotus-wordpro>,
+F<application/vnd.openxmlformats-officedocument.wordprocessingml.document>,
+F<application/vnd.ms-word.document.macroenabled.12>,
+F<application/vnd.openxmlformats-officedocument.wordprocessingml.template>,
+F<application/vnd.ms-word.template.macroenabled.12>,
+F<application/vnd.ms-works>,
+F<application/vnd.stardivision.writer-global>,
+F<application/x-extension-txt>,
+F<application/x-t602>,
+F<text/plain>,
+F<application/vnd.oasis.opendocument.text-flat-xml>,
+F<application/x-fictionbook+xml>,
+F<application/macwriteii>,
+F<application/x-aportisdoc>,
+F<application/prs.plucker>,
+F<application/vnd.palm>,
+F<application/clarisworks>.
 
 =item C<2DGraphics;Graphics>
 
@@ -260,11 +386,230 @@ A word processor.
 =item C<VectorGraphics;2DGraphics;Graphics>
 
 Application for viewing, creating, or processing vector graphics.
+F<evince-previewer.desktop> with mime types
+F<application/pdf>,
+F<application/x-bzpdf>,
+F<application/x-gzpdf>,
+F<application/x-xzpdf>,
+F<application/x-ext-pdf>,
+F<application/postscript>,
+F<application/x-bzpostscript>,
+F<application/x-gzpostscript>,
+F<image/x-eps>,
+F<image/x-bzeps>,
+F<image/x-gzeps>,
+F<application/x-ext-ps>,
+F<application/x-ext-eps>,
+F<application/x-dvi>,
+F<application/x-bzdvi>,
+F<application/x-gzdvi>,
+F<application/x-ext-dvi>,
+F<image/vnd.djvu>,
+F<image/vnd.djvu+multipage>,
+F<application/x-ext-djv>,
+F<application/x-ext-djvu>,
+F<image/tiff>,
+F<application/x-cbr>,
+F<application/x-cbz>,
+F<application/x-cb7>,
+F<application/x-cbt>,
+F<application/x-ext-cbr>,
+F<application/x-ext-cbz>,
+F<application/x-ext-cb7>,
+F<application/x-ext-cbt>,
+F<application/oxps>,
+F<application/vnd.ms-xpsdocument>;
+F<evince.desktop> with mime types
+F<application/pdf>,
+F<application/x-bzpdf>,
+F<application/x-gzpdf>,
+F<application/x-xzpdf>,
+F<application/x-ext-pdf>,
+F<application/postscript>,
+F<application/x-bzpostscript>,
+F<application/x-gzpostscript>,
+F<image/x-eps>,
+F<image/x-bzeps>,
+F<image/x-gzeps>,
+F<application/x-ext-ps>,
+F<application/x-ext-eps>,
+F<application/x-dvi>,
+F<application/x-bzdvi>,
+F<application/x-gzdvi>,
+F<application/x-ext-dvi>,
+F<image/vnd.djvu>,
+F<image/vnd.djvu+multipage>,
+F<application/x-ext-djv>,
+F<application/x-ext-djvu>,
+F<image/tiff>,
+F<application/x-cbr>,
+F<application/x-cbz>,
+F<application/x-cb7>,
+F<application/x-cbt>,
+F<application/x-ext-cbr>,
+F<application/x-ext-cbz>,
+F<application/x-ext-cb7>,
+F<application/x-ext-cbt>,
+F<application/oxps>,
+F<application/vnd.ms-xpsdocument>;
+F<inkscape.desktop> with mime types
+F<image/svg+xml>,
+F<image/svg+xml-compressed>,
+F<application/vnd.corel-draw>,
+F<application/pdf>,
+F<application/postscript>,
+F<image/x-eps>,
+F<application/illustrator>;
+F<libreoffice-draw.desktop> with mime types
+F<application/vnd.oasis.opendocument.graphics>,
+F<application/vnd.oasis.opendocument.graphics-flat-xml>,
+F<application/vnd.oasis.opendocument.graphics-template>,
+F<application/vnd.sun.xml.draw>,
+F<application/vnd.sun.xml.draw.template>,
+F<application/vnd.visio>,
+F<application/x-wpg>,
+F<application/vnd.corel-draw>,
+F<application/vnd.ms-publisher>,
+F<image/x-freehand>,
+F<application/clarisworks>.
 
 =item C<RasterGraphics;2DGraphics;Graphics>
 
 Application for viewing, creating, or processing raster (bitmap)
 graphics.
+F<apache.en.desktop> with mime types,
+F<image/bmp>,
+F<image/gif>,
+F<image/jpeg>,
+F<image/jpg>,
+F<image/png>,
+F<image/tiff>,
+F<image/x-bmp>,
+F<image/x-pcx>,
+F<image/x-tga>,
+F<image/x-portable-pixmap>,
+F<image/x-portable-bitmap>,
+F<image/x-targa>,
+F<image/x-portable-greymap>,
+F<application/pcx>,
+F<image/svg+xml>,
+F<image/svg-xml>;
+F<gtkam.desktop> with no mime types,
+F<xsane.desktop> with no mime types,
+F<qiv.desktop> with mime types,
+F<image/bmp>,
+F<image/gif>,
+F<image/jpeg>,
+F<image/jpg>,
+F<image/pjpeg>,
+F<image/png>,
+F<image/tiff>,
+F<image/x-bmp>,
+F<image/x-gray>,
+F<image/x-icb>,
+F<image/x-ico>,
+F<image/x-png>,
+F<image/x-portable-anymap>,
+F<image/x-portable-bitmap>,
+F<image/x-portable-graymap>,
+F<image/x-portable-pixmap>,
+F<image/x-xbitmap>,
+F<image/x-xpixmap>,
+F<image/x-pcx>,
+F<image/svg+xml>,
+F<image/svg+xml-compressed>,
+F<image/vnd.wap.wbmp>;
+F<gpicview.desktop> with mime types,
+F<image/bmp>,
+F<image/gif>,
+F<image/jpeg>,
+F<image/jpg>,
+F<image/png>,
+F<image/tiff>,
+F<image/x-bmp>,
+F<image/x-pcx>,
+F<image/x-tga>,
+F<image/x-portable-pixmap>,
+F<image/x-portable-bitmap>,
+F<image/x-targa>,
+F<image/x-portable-greymap>,
+F<application/pcx>,
+F<image/svg+xml>,
+F<image/svg-xml>;
+F<gpaint.desktop> with no mime types,
+F<gthumb-import.desktop> with mime types,
+F<x-content/image-dcf>,
+F<x-content/image-picturecd>;
+F<xzgv.desktop> with no mime types,
+F<fedora-xsane.desktop> with no mime types,
+F<gimp.desktop> with mime types,
+F<image/bmp>,
+F<image/g3fax>,
+F<image/gif>,
+F<image/x-fits>,
+F<image/x-pcx>,
+F<image/x-portable-anymap>,
+F<image/x-portable-bitmap>,
+F<image/x-portable-graymap>,
+F<image/x-portable-pixmap>,
+F<image/x-psd>,
+F<image/x-sgi>,
+F<image/x-tga>,
+F<image/x-xbitmap>,
+F<image/x-xwindowdump>,
+F<image/x-xcf>,
+F<image/x-compressed-xcf>,
+F<image/x-gimp-gbr>,
+F<image/x-gimp-pat>,
+F<image/x-gimp-gih>,
+F<image/tiff>,
+F<image/jpeg>,
+F<image/x-psp>,
+F<application/postscript>,
+F<image/png>,
+F<image/x-icon>,
+F<image/x-xpixmap>,
+F<image/svg+xml>,
+F<application/pdf>,
+F<image/x-wmf>,
+F<image/jp2>,
+F<image/jpeg2000>,
+F<image/jpx>,
+F<image/x-xcursor>;
+F<gthumb.desktop> with mime types.
+F<image/bmp>,
+F<image/g3fax>,
+F<image/gif>,
+F<image/x-fits>,
+F<image/x-pcx>,
+F<image/x-portable-anymap>,
+F<image/x-portable-bitmap>,
+F<image/x-portable-graymap>,
+F<image/x-portable-pixmap>,
+F<image/x-psd>,
+F<image/x-sgi>,
+F<image/x-tga>,
+F<image/x-xbitmap>,
+F<image/x-xwindowdump>,
+F<image/x-xcf>,
+F<image/x-compressed-xcf>,
+F<image/x-gimp-gbr>,
+F<image/x-gimp-pat>,
+F<image/x-gimp-gih>,
+F<image/tiff>,
+F<image/jpeg>,
+F<image/x-psp>,
+F<application/postscript>,
+F<image/png>,
+F<image/x-icon>,
+F<image/x-xpixmap>,
+F<image/svg+xml>,
+F<application/pdf>,
+F<image/x-wmf>,
+F<image/jp2>,
+F<image/jpeg2000>,
+F<image/jpx>,
+F<image/x-xcursor>.
 
 =item C<3DGraphics;Graphics>
 
