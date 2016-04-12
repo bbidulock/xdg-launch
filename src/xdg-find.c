@@ -372,6 +372,92 @@ do_list(int argc, char *argv[])
 static void
 do_find(int argc, char *argv[])
 {
+	GList *apps, *app;
+	char **type;
+
+	if (!(apps = g_app_info_get_all()))
+		return;
+
+	for (type = options.types; type && *type; type++) {
+		if (strchr(*type, '/')) {
+			gchar *content;
+			GList *deleted = NULL;
+
+			if (!(content = g_content_type_from_mime_type(*type)))
+				continue;
+			for (app = apps; app; app = app->next) {
+				const char **supported, **support;
+				GAppInfo *info;
+
+				info = app->data;
+				if (!(supported = g_app_info_get_supported_types(info))) {
+					DPRINTF("%s does not have any mime types\n", g_app_info_get_id(info));
+					deleted = g_list_remove(deleted, info);
+					deleted = g_list_append(deleted, info);
+					continue;
+				}
+				for (support = supported;support && *support; support++)
+					if (!strcmp(content, *support))
+						break;
+				if (!support || !*support) {
+					OPRINTF("%s does not have mime type %s\n", g_app_info_get_id(info), *type);
+					deleted = g_list_remove(deleted, info);
+					deleted = g_list_append(deleted, info);
+					continue;
+				}
+			}
+			for (app = deleted; app; app = app->next)
+				apps = g_list_remove_all(apps, app->data);
+			g_list_free(deleted);
+		} else {
+			char *category = calloc(PATH_MAX + 1, sizeof(*category));
+			char *categories = calloc(PATH_MAX + 1, sizeof(*categories));
+			GList *deleted = NULL;
+
+			strncpy(category, ";", PATH_MAX);
+			strncat(category, *type, PATH_MAX);
+			strncat(category, ";", PATH_MAX);
+
+			for (app = apps; app; app = app->next) {
+				GDesktopAppInfo *desk;
+				const char *cat;
+
+				desk = G_DESKTOP_APP_INFO(app->data);
+				if (!(cat = g_desktop_app_info_get_categories(desk))) {
+					DPRINTF("%s does not have any categories\n", g_app_info_get_id(G_APP_INFO(desk)));
+					deleted = g_list_remove(deleted, desk);
+					deleted = g_list_append(deleted, desk);
+					continue;
+				}
+				strncpy(categories, ";", PATH_MAX);
+				strncat(categories, cat, PATH_MAX);
+				strncat(categories, ";", PATH_MAX);
+				if (!strstr(categories, category)) {
+					OPRINTF("%s does not have category %s\n", g_app_info_get_id(G_APP_INFO(desk)), *type);
+					deleted = g_list_remove(deleted, desk);
+					deleted = g_list_append(deleted, desk);
+					continue;
+				}
+			}
+			for (app = deleted; app; app = app->next)
+				apps = g_list_remove_all(apps, app->data);
+			g_list_free(deleted);
+			free(category);
+			free(categories);
+		}
+	}
+	for (type = options.types; type && *type; type++) {
+		if (type != options.types)
+			fputs(" && ", stdout);
+		fputs(*type, stdout);
+	}
+	fputs(":\n", stdout);
+	for (app = apps; app; app = app->next) {
+		GAppInfo *info = app->data;
+
+		fprintf(stdout, "\t%s\n", g_app_info_get_id(info));
+	}
+	g_list_free(apps);
 }
 
 static void
@@ -660,7 +746,7 @@ main(int argc, char *argv[])
 		command = CommandFind;
 		/* fall thru */
 	case CommandFind:
-		DPRINTF("%s: running which\n", argv[0]);
+		DPRINTF("%s: running find\n", argv[0]);
 		do_find(argc, argv);
 		break;
 	case CommandList:

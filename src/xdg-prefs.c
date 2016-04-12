@@ -219,7 +219,9 @@ do_list(int argc, char *argv[])
 					}
 				}
 				g_list_free(apps);
+				free(categories);
 			}
+			free(category);
 		}
 	}
 }
