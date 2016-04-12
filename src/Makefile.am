@@ -6,13 +6,20 @@ bin_PROGRAMS = \
 	xdg-monitor \
 	xdg-which \
 	xdg-list \
-	xdg-show \
+	xdg-show
+
+EXTRA_PROGRAMS = \
+	xdg-types \
+	xdg-find \
+	xdg-prefs \
+	xdg-whereis
+
+if HAVE_GIO_GLIB2_SUPPORT
+bin_PROGRAMS += \
 	xdg-types \
 	xdg-find \
 	xdg-prefs
-
-EXTRA_PROGRAMS = \
-	xdg-whereis
+endif
 
 xdg_launch_CPPFLAGS = -DNAME=\"xde-launch\"
 xdg_launch_CFLAGS = $(AM_CFLAGS) $(RU_CFLAGS) $(XINERAMA_CFLAGS) $(XRANDR_CFLAGS) $(X11_CFLAGS)

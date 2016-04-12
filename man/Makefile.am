@@ -11,10 +11,14 @@ xdg_man_files = \
 	     xdg-entry.man \
 	     xdg-show.man \
 	     xdg-toolwait.man \
-	     xdg-list.man \
+	     xdg-list.man
+
+if HAVE_GIO_GLIB2_SUPPORT
+xdg_man_files += \
 	     xdg-types.man \
 	     xdg-prefs.man \
 	     xdg-find.man
+endif
 
 nodist_man1_MANS = $(xdg_man_files)
 CLEANFILES = $(xdg_man_files)
