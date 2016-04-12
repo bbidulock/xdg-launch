@@ -132,71 +132,330 @@ The following XDG categories are recognized and tracked by the program:
 
 =over
 
-=item C<Calendar>
+=item C<Building;Development>
 
-Calendar, task manager and scheduling programs.
+A tool to build applications.
 
-=item C<ContactManager>
+=item C<Debugger;Development>
+
+A tool to debug applications.
+
+=item C<IDE;Development>
+
+Integrated Development Environment (IDE) application.
+
+=item C<GUIDesigner;Development>
+
+A GUI designer application.
+
+=item C<Profiling;Development>
+
+A profiling tool.
+
+=item C<RevisionControl;Development>
+
+Applications like cvs or subversion.
+
+=item C<Translation;Development>
+
+A translation tool.
+
+=item C<Calendar;Office>
+
+Calendar application.
+
+=item C<ContactManager;Office>
 
 Address books, contact lists, LDIF file manipulation.
 
-=item C<Dictionary>
+=item C<Database;Office>
 
-=item C<Email>
+=item C<Database;Development>
 
-=item C<Presentation>
+=item C<Database;AudioVideo>
 
-=item C<Spreadsheet>
+Application to manage a database.
 
-=item C<WordProcessor>
+=item C<Dictionary;Office>
 
-=item C<2DGraphics>
+=item C<Dictionary;TextTools>
 
-=item C<Viewer>
+A dictionary.
 
-=item C<Printing>
+=item C<Chart;Office>
 
-=item C<PackageManager>
+Chart application.
 
-=item C<IIRCClient>
+=item C<Email;Office>
 
-=item C<Feed>
+=item C<Email;Network>
 
-=item C<FileTransfer>
+Email application.
 
-=item C<News>
+=item C<Presentation;Office>
 
-=item C<RemoteAccess>
+Presentation software.
 
-=item C<Telephony>
+=item C<Spreadsheet;Office>
 
-=item C<VideoConference>
+A spreadsheet.
 
-=item C<WebBrowser>
+=item C<WordProcessor;Office>
 
-=item C<Mixer>
+A word processor.
 
-=item C<Player>
+=item C<2DGraphics;Graphics>
 
-=item C<Recorder>
+2D based graphical application.
 
-=item C<DiscBurning>
+=item C<VectorGraphics;2DGraphics;Graphics>
 
-=item C<Archiving>
+Application for viewing, creating, or processing vector graphics.
 
-=item C<FileManager>
+=item C<RasterGraphics;2DGraphics;Graphics>
 
-=item C<TerminalEmulator>
+Application for viewing, creating, or processing raster (bitmap)
+graphics.
 
-=item C<Monitor>
+=item C<3DGraphics;Graphics>
 
-=item C<Calculator>
+Application for viewing, creating, or processing 3-D graphics.
 
-=item C<Clock>
+=item C<Scanning;Graphics>
 
-=item C<TextEditor>
+Tool to scan a file/text.
+
+=item C<OCR;Scanning;Graphics>
+
+Optical character recognition application.
+
+=item C<Photography;Graphics>
+
+=item C<Photography;Office>
+
+Camera tools, etc.
+
+=item C<Publishing;Graphics>
+
+=item C<Publishing;Office>
+
+Desktop publishing applications and colour management tools.
+
+=item C<Viewer;Graphics>
+
+=item C<Viewer;Office>
+
+Tool to view e.g. a graphic or pdf file.
+
+=item C<TextTools;Utility>
+
+A text tool utility. (A category, really.)
+
+=item C<DesktopSettings;Settings>
+
+Configuration tool for the GUI.
+
+=item C<HardwareSettings;Settings>
+
+A tool to manage hardware components, like sound cards, video cards or
+printers.
+
+=item C<Printing;HardwareSettings;Settings>
+
+A tool to manage printers.
+
+=item C<PackageManager;Settings>
+
+A package manager application.
+
+=item C<Dialup;Network>
+
+A dial-up program.
+
+=item C<InstantMessaging;Network>
+
+An instant messaging client.
+
+=item C<Chat;Network>
+
+A chat client.
+
+=item C<IIRCClient;Network>
+
+An IRC (Internet Relay Chat) client.
+
+=item C<Feed;Network>
+
+RSS, podcast and other subscription based contents.
+
+=item C<FileTransfer;Network>
+
+Tools like FTP or P2P programs.
+
+=item C<HamRadio;Network>
+
+Tools like FTP or P2P programs.
+
+=item C<News;Network>
+
+A news reader or a news ticker.
+
+=item C<P2P;Network>
+
+A P2P program.
+
+=item C<RemoteAccess;Network>
+
+A tool to remotely manage your PC.
+
+=item C<Telephony;Network>
+
+Telephony via PC.
+
+=item C<TelephonyTools;Utility>
+
+Telephony tools, to dial a number, manage PBX, etc.
+
+=item C<VideoConference;Network>
+
+Video conference software.
+
+=item C<WebBrowser;Network>
+
+A web browser.
+
+=item C<WebDevelopment;Network>
+
+=item C<WebDevelopment;Development>
+
+A tool for web developers.
+
+=item C<Midi;Audio;AudioVideo>
+
+An app related to MIDI.
+
+=item C<Mixer;Audio;AudioVideo>
+
+Just a mixer.
+
+=item C<Sequencer;Audio;AudioVideo>
+
+A sequencer.
+
+=item C<Tuner;Audio;AudioVideo>
+
+A tuner.
+
+=item C<TV;Audio;AudioVideo>
+
+A TV application.
+
+=item C<AudioVideoEditing;Audio>
+
+=item C<AudioVideoEditing;Video>
+
+=item C<AudioVideoEditing;AudioVideo>
+
+Application to edit audio/video files.
+
+=item C<Player;Audio>
+
+=item C<Player;Video>
+
+=item C<Player;AudioVideo>
+
+Application to play audio/video files.
+
+=item C<Recorder;Audio>
+
+=item C<Recorder;Video>
+
+=item C<Recorder;AudioVideo>
+
+Application to record audio/video files.
+
+=item C<DiscBurning;AudioVideo>
+
+Application to burn a disc.
+
+=item C<Archiving;Utility>
+
+A tool to archive/backup data.
+
+=item C<Compression;Archiving;Utility>
+
+A tool to manage compressed data/archives.
+
+=item C<FileManager;FileTools;System>
+
+A file manager.
+
+=item C<TerminalEmulator;System>
+
+A terminal emulator application.
+
+=item C<Filesystem;System>
+
+A file system tool.
+
+=item C<Monitor;System>
+
+=item C<Monitor;Network>
+
+Monitor application/applet that monitors some resource or activity.
+
+=item C<Security;System>
+
+=item C<Security;Settings>
+
+A security tool.
+
+=item C<Accessibility;Settings>
+
+=item C<Accessibility;Utility>
+
+Accessibility.
+
+=item C<Calculator;Utility>
+
+A calculator.
+
+=item C<Clock;Utility>
+
+A clock application/applet.
+
+=item C<TextEditor;Utility>
+
+A text editor.
 
 =item C<Documentation>
+
+Help or documentation.
+
+=item C<Screensaver>
+
+A screen saver (launching this desktop entry should activate the screen
+saver).
+
+=item C<TrayIcon>
+
+An application that is primarily an icon for the "system tray" or
+"notification area" (apps that open a normal window and just happen to
+have a tray icon as well should not list this category).
+
+=item C<Applet>
+
+An applet that will run inside a panel or another such application,
+likely desktop specific.
+
+=item C<DockApp>
+
+A WindowMaker style dock application.
+
+=item C<Shell>
+
+A shell (an actual specific shell such as bash or tcsh, not a
+TerminalEmulator).
 
 =back
 
