@@ -134,39 +134,62 @@ The following XDG categories are recognized and tracked by the program:
 
 =item C<Building;Development>
 
-A tool to build applications.
+A tool to build applications.  One mime type is
+F<application/x-cmakecache>.
 
 =item C<Debugger;Development>
 
 A tool to debug applications.
+No known mime type.
 
 =item C<IDE;Development>
 
 Integrated Development Environment (IDE) application.
+Some mime types are
+F<text/x-chdr>,
+F<text/x-csrc>,
+F<text/x-c++hdr>,
+F<text/x-c++src>,
+F<text/x-java>,
+F<text/x-dsrc>,
+F<text/x-pascal>,
+F<text/x-perl>,
+F<text/x-python>.
 
 =item C<GUIDesigner;Development>
 
 A GUI designer application.
+Some mime types are
+F<application/x-designer>,
+F<application/x-fluid>.
 
 =item C<Profiling;Development>
 
 A profiling tool.
+No commonly known tools or mime types.
 
 =item C<RevisionControl;Development>
 
 Applications like cvs or subversion.
+No commonly known mime types.  Some examples are F<bzr-explorer.desktop> and
+there should be a F<gitk.desktop>.
 
 =item C<Translation;Development>
 
 A translation tool.
+Only tool I know of is F<linguist.desktop> with mime types
+F<text/vnd.trolltech.linguist> and F<application/x-linguist>.
 
 =item C<Calendar;Office>
 
 Calendar application.
+Only application I know that is marked like this is F<etm.desktop> with
+no mime types.
 
 =item C<ContactManager;Office>
 
 Address books, contact lists, LDIF file manipulation.
+No commonly known applications or mime types.  But surely an LDIF file would do.
 
 =item C<Database;Office>
 
@@ -175,22 +198,48 @@ Address books, contact lists, LDIF file manipulation.
 =item C<Database;AudioVideo>
 
 Application to manage a database.
+Applications are F<base.desktop> with mime types
+F<application/vnd.oasis.opendocument.database> and
+F<application/vnd.sun.xml.base>;
+and F<gmdb.desktop>, with mime types
+F<application/vnd.ms-access>,
+F<application/x-msaccess>,
+F<application/msaccess>,
+F<application/vnd.msaccess>,
+F<application/mdb>,
+F<application/x-mdb>.
 
 =item C<Dictionary;Office>
 
 =item C<Dictionary;TextTools>
 
 A dictionary.
+No commonly known applications or mime types.
 
 =item C<Chart;Office>
 
 Chart application.
+No commonly known applications or mime types.
 
 =item C<Email;Office>
 
 =item C<Email;Network>
 
 Email application.
+
+=item C<FlowChart;Office>
+
+A flowchart application.
+
+=item C<PDA;Office>
+
+Tool to manage your PDA.
+
+=item C<ProjectManagement;Office>
+
+=item C<ProjectManagement;Development>
+
+Project management application.
 
 =item C<Presentation;Office>
 
