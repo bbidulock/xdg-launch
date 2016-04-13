@@ -1,7 +1,7 @@
 
 ## xdg-launch
 
-Package xdg-launch-0.8.24 was released under GPL license 2016-04-11.
+Package xdg-launch-0.8.29 was released under GPL license 2016-04-12.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -17,7 +17,7 @@ wrapper scripts.
 
 ### Release
 
-This is the `xdg-launch-0.8.24` package, released 2016-04-11.  This release,
+This is the `xdg-launch-0.8.29` package, released 2016-04-12.  This release,
 and the latest version, can be obtained from the GitHub repository at
 https://github.com/bbidulock/xdg-launch, using a command such as:
 

@@ -135,50 +135,45 @@ The following XDG categories are recognized and tracked by the program:
 =item C<Building;Development>
 
 A tool to build applications.  One mime type is
-F<application/x-cmakecache>.
+F<application/x-cmakecache>, but it is application specific, so
+B<xdg-prefs> only tracks these applications by category.
 
 =item C<Debugger;Development>
 
-A tool to debug applications.
-No known mime type.
+A tool to debug applications.  No known mime type.  These applications
+are only tracked by category.
 
 =item C<IDE;Development>
 
-Integrated Development Environment (IDE) application.
-Some mime types are
-F<text/x-chdr>,
-F<text/x-csrc>,
-F<text/x-c++hdr>,
-F<text/x-c++src>,
-F<text/x-java>,
-F<text/x-dsrc>,
-F<text/x-pascal>,
-F<text/x-perl>,
-F<text/x-python>.
+Integrated Development Environment (IDE) application.  Some mime types
+are F<text/x-chdr>, F<text/x-csrc>, F<text/x-c++hdr>, F<text/x-c++src>,
+F<text/x-java>, F<text/x-dsrc>, F<text/x-pascal>, F<text/x-perl>,
+F<text/x-python>.  These applications have a wide range of mime types,
+so they are only tracked by category.
 
 =item C<GUIDesigner;Development>
 
-A GUI designer application.
-Some mime types are
-F<application/x-designer>,
-F<application/x-fluid>.
+A GUI designer application.  Some mime types are
+F<application/x-designer>, F<application/x-fluid>; however, these mime
+types are application specific so they are only tracked by category.
 
 =item C<Profiling;Development>
 
-A profiling tool.
-No commonly known tools or mime types.
+A profiling tool.  No commonly known tools or mime types.  These
+applications are only tracked by category.
 
 =item C<RevisionControl;Development>
 
-Applications like cvs or subversion.
-No commonly known mime types.  Some examples are F<bzr-explorer.desktop> and
-there should be a F<gitk.desktop>.
+Applications like cvs or subversion.  No commonly known mime types.
+Some examples are F<bzr-explorer.desktop> and there should be a
+F<gitk.desktop>.  These applications are only tracked by category.
 
 =item C<Translation;Development>
 
-A translation tool.
-Only tool I know of is F<linguist.desktop> with mime types
-F<text/vnd.trolltech.linguist> and F<application/x-linguist>.
+A translation tool.  Only tool I know of is F<linguist.desktop> with
+mime types F<text/vnd.trolltech.linguist> and F<application/x-linguist>;
+however, these mime types are application specific, so they are only
+tracked by category.
 
 =item C<Calendar;Office>
 
@@ -711,6 +706,30 @@ A text tool utility. (A category, really.)
 =item C<DesktopSettings;Settings>
 
 Configuration tool for the GUI.
+	lxsession-edit.desktop
+/usr/share/xde/applications/lxsession-edit.desktop
+	qt4config.desktop
+/usr/share/xde/applications/qt4config.desktop
+	lxsession-default-apps.desktop
+/usr/share/xde/applications/lxsession-default-apps.desktop
+	exo-preferred-applications.desktop
+	ControlPanel.desktop
+	thunar-volman-settings.desktop
+	mate-notification-properties.desktop
+	mate-window-properties.desktop
+	lxappearance.desktop
+	gtk-theme-switch2.desktop
+	obconf.desktop
+	tint2conf.desktop
+	mate-appearance-properties.desktop
+	libsmfm-pref-apps.desktop
+	thunar-settings.desktop
+	elementary_config.desktop
+	gtk-chtheme.desktop
+	pcmanfm-desktop-pref.desktop
+	stuurman-desktop-pref.desktop
+	libfm-pref-apps.desktop
+	gtk2_prefs.desktop
 
 =item C<HardwareSettings;Settings>
 
@@ -720,92 +739,197 @@ printers.
 =item C<Printing;HardwareSettings;Settings>
 
 A tool to manage printers.
+Applications are F<cups.desktop>,
+F<redhat-system-config-printer.desktop> and
+F<system-config-printer.desktop>.  There are no commonly known mime
+types.
 
 =item C<PackageManager;Settings>
 
 A package manager application.
+F<xfp.desktop> with mime types
+F<application/x-deb>,
+F<application/x-debian-package>,
+F<application/x-rpm>.
 
 =item C<Dialup;Network>
 
 A dial-up program.
+F<mandriva-tightvnc.desktop> with no mime types.
 
 =item C<InstantMessaging;Network>
 
 An instant messaging client.
+F<empathy.desktop> with no mime types.
 
 =item C<Chat;Network>
 
 A chat client.
+No commonly known applications or mime types.
 
-=item C<IIRCClient;Network>
+=item C<IRCClient;Network>
 
 An IRC (Internet Relay Chat) client.
+F<hexchat.desktop> with mime types
+F<x-scheme-handler/irc> and
+F<x-scheme-handler/ircs>.
 
 =item C<Feed;Network>
 
 RSS, podcast and other subscription based contents.
+No commonly known applications or mime types.
 
 =item C<FileTransfer;Network>
 
 Tools like FTP or P2P programs.
+F<filezilla.desktop> and F<gftp.desktop> but no commonly known mime
+types. (But I don't have a  bittorrent client installed.)
 
 =item C<HamRadio;Network>
 
 Tools like FTP or P2P programs.
+No commonly known applications or mime types.
 
 =item C<News;Network>
 
 A news reader or a news ticker.
+No commonly known applications or mime types.
 
 =item C<P2P;Network>
 
 A P2P program.
+No commonly known applications or mime types.
 
 =item C<RemoteAccess;Network>
 
 A tool to remotely manage your PC.
+F<remmina.desktop>,
+F<telnet.desktop>,
+F<mandriva-tightvnc.desktop>,
+F<innovidata-opennx-wizard.desktop>,
+F<bssh.desktop>,
+F<x11vnc.desktop>,
+F<ssvnc.desktop>,
+F<putty.desktop>,
+F<vncviewer.desktop>,
+F<innovidata-opennx-admin.desktop>,
+F<bvnc.desktop>,
+F<innovidata-opennx.desktop>,
+F<gdmflexiserver-xnest.desktop> with no mime types.
 
 =item C<Telephony;Network>
 
 Telephony via PC.
+F<ekiga.desktop> with no mime types.
 
 =item C<TelephonyTools;Utility>
 
 Telephony tools, to dial a number, manage PBX, etc.
+No commonly known applications or mime types.
 
 =item C<VideoConference;Network>
 
 Video conference software.
+No commonly known applications or mime types.
 
 =item C<WebBrowser;Network>
 
 A web browser.
+F<chromium.desktop> with mime types,
+F<text/html>,
+F<text/xml>,
+F<application/xhtml+xml>,
+F<text/mml>,
+F<x-scheme-handler/http>,
+F<x-scheme-handler/https>,
+F<dillo.desktop> with no mime types,
+F<elinks.desktop> with mime types,
+F<text/html>,
+F<eric6_webbrowser.desktop> with mime types,
+F<text/html>,
+F<text/xml>,
+F<application/xhtml+xml>,
+F<x-scheme-handler/http>,
+F<x-scheme-handler/https>,
+F<firefox.desktop> with mime types,
+F<text/html>,
+F<text/xml>,
+F<application/xhtml+xml>,
+F<application/xml>,
+F<application/rss+xml>,
+F<application/rdf+xml>,
+F<application/vnd.mozilla.xul+xml>,
+F<text/mml>,
+F<x-scheme-handler/http>,
+F<x-scheme-handler/https>,
+F<x-scheme-handler/ftp>,
+F<javaws.desktop> with mime types,
+F<application/x-java-jnlp-file>,
+F<links.desktop> with no mime types,
+F<lynx.desktop> with no mime types,
+F<midori.desktop> with mime types,
+F<text/html>,
+F<application/xhtml+xml>,
+F<x-scheme-handler/http>,
+F<x-scheme-handler/https>,
+F<x-scheme-handler/geo>,
+F<image/svg+xml>,
+F<midori-private.desktop> with mime types,
+F<MozillaFirefox.desktop> with mime types,
+F<text/html>,
+F<text/xml>,
+F<application/xhtml+xml>,
+F<application/vnd.mozilla.xul+xml>,
+F<text/mml>,
+F<application/x-xpinstall>,
+F<mozilla-firefox.desktop> with mime types,
+F<text/html>,
+F<text/xml>,
+F<application/xhtml+xml>,
+F<application/xml>,
+F<application/rss+xml>,
+F<application/rdf+xml>,
+F<application/vnd.mozilla.xul+xml>,
+F<text/mml>,
+F<x-scheme-handler/http>,
+F<x-scheme-handler/https>.
 
 =item C<WebDevelopment;Network>
 
 =item C<WebDevelopment;Development>
 
 A tool for web developers.
+No commonly known applications or mime types.
 
 =item C<Midi;Audio;AudioVideo>
 
 An app related to MIDI.
+No commonly known applications or mime types.
 
 =item C<Mixer;Audio;AudioVideo>
 
 Just a mixer.
+F<alsamixer.desktop>,
+F<alsavolume.desktop>,
+F<aumix.desktop>,
+F<ffadomixer.desktop>,
+F<pavucontrol.desktop>,
+F<pnmixer.desktop>, with no mime types.
 
 =item C<Sequencer;Audio;AudioVideo>
 
 A sequencer.
+No commonly known applications or mime types.
 
 =item C<Tuner;Audio;AudioVideo>
 
 A tuner.
+No commonly known applications or mime types.
 
 =item C<TV;Audio;AudioVideo>
 
 A TV application.
+Too many to list.  Every video player.
 
 =item C<AudioVideoEditing;Audio>
 
@@ -814,6 +938,23 @@ A TV application.
 =item C<AudioVideoEditing;AudioVideo>
 
 Application to edit audio/video files.
+These entries are not putting themselves in the right categories.
+F<audacity.desktop> with mime types,
+F<application/ogg>,
+F<audio/basic>,
+F<audio/mpeg>,
+F<audio/x-aiff>,
+F<audio/x-mp3>,
+F<audio/x-wav>,
+F<application/x-audacity-project>,
+F<kdenlive.desktop> with mime types,
+F<application/x-kdenlive>,
+F<openshot.desktop> with mime types,
+F<application/vnd.openshot-project>,
+F<org.kde.kdenlive.desktop> with mime types,
+F<application/x-kdenlive>,
+F<stopmotion.desktop> with mime types,
+F<application/x-stopmotion>.
 
 =item C<Player;Audio>
 
@@ -822,6 +963,7 @@ Application to edit audio/video files.
 =item C<Player;AudioVideo>
 
 Application to play audio/video files.
+Too many to list.  Every audio and video player.
 
 =item C<Recorder;Audio>
 
@@ -830,26 +972,226 @@ Application to play audio/video files.
 =item C<Recorder;AudioVideo>
 
 Application to record audio/video files.
+F<org.gnome.Cheese.desktop> with no mime types.
 
 =item C<DiscBurning;AudioVideo>
 
 Application to burn a disc.
+F<brasero.desktop> with mime types,
+F<application/x-cd-image>,
+F<application/x-cdrdao-toc>,
+F<application/x-cue>,
+F<application/x-toc>,
+F<audio/x-scpls>,
+F<audio/x-ms-asx>,
+F<audio/x-mp3-playlist>,
+F<audio/x-mpegurl>,
+F<application/x-brasero>,
+F<x-content/audio-cdda>,
+F<x-content/video-dvd>,
+F<x-content/video-vcd>,
+F<x-content/video-svcd>,
+F<x-content/image-picturecd>,
+F<simpleburn.desktop> with no mime types,
+F<xfburn.desktop> with mime types,
+F<application/x-cd-image>.
 
 =item C<Archiving;Utility>
 
 A tool to archive/backup data.
+F<deja-dup.desktop> with no mime types,
+F<deja-dup-monitor.desktop> with no mime types,
+F<deja-dup-preferences.desktop> with no mime types,
+F<file-roller.desktop> with mime types,
+F<application/x-7z-compressed>,
+F<application/x-7z-compressed-tar>,
+F<application/x-ace>,
+F<application/x-alz>,
+F<application/x-ar>,
+F<application/x-arj>,
+F<application/x-bzip>,
+F<application/x-bzip-compressed-tar>,
+F<application/x-bzip1>,
+F<application/x-bzip1-compressed-tar>,
+F<application/x-cabinet>,
+F<application/x-cbr>,
+F<application/x-cbz>,
+F<application/x-cd-image>,
+F<application/x-compress>,
+F<application/x-compressed-tar>,
+F<application/x-cpio>,
+F<application/x-deb>,
+F<application/x-ear>,
+F<application/x-ms-dos-executable>,
+F<application/x-gtar>,
+F<application/x-gzip>,
+F<application/x-gzpostscript>,
+F<application/x-java-archive>,
+F<application/x-lha>,
+F<application/x-lhz>,
+F<application/x-lzip>,
+F<application/x-lzip-compressed-tar>,
+F<application/x-lzma>,
+F<application/x-lzma-compressed-tar>,
+F<application/x-lzop>,
+F<application/x-lzop-compressed-tar>,
+F<application/x-rar>,
+F<application/x-rar-compressed>,
+F<application/x-rpm>,
+F<application/x-rzip>,
+F<application/x-tar>,
+F<application/x-tarz>,
+F<application/x-stuffit>,
+F<application/x-war>,
+F<application/x-xz>,
+F<application/x-xz-compressed-tar>,
+F<application/x-zip>,
+F<application/x-zip-compressed>,
+F<application/x-zoo>,
+F<application/zip>,
+F<flburn.desktop> with no mime types,
+F<gnome-file-roller.desktop> with mime types,
+F<application/x-7z-compressed>,
+F<application/x-7z-compressed-tar>,
+F<application/x-ace>,
+F<application/x-alz>,
+F<application/x-ar>,
+F<application/x-arj>,
+F<application/x-bzip>,
+F<application/x-bzip-compressed-tar>,
+F<application/x-bzip1>,
+F<application/x-bzip1-compressed-tar>,
+F<application/x-cabinet>,
+F<application/x-cbr>,
+F<application/x-cbz>,
+F<application/x-cd-image>,
+F<application/x-compress>,
+F<application/x-compressed-tar>,
+F<application/x-cpio>,
+F<application/x-deb>,
+F<application/x-ear>,
+F<application/x-ms-dos-executable>,
+F<application/x-gtar>,
+F<application/x-gzip>,
+F<application/x-gzpostscript>,
+F<application/x-java-archive>,
+F<application/x-lha>,
+F<application/x-lhz>,
+F<application/x-lrzip>,
+F<application/x-lrzip-compressed-tar>,
+F<application/x-lzip>,
+F<application/x-lzip-compressed-tar>,
+F<application/x-lzma>,
+F<application/x-lzma-compressed-tar>,
+F<application/x-lzop>,
+F<application/x-lzop-compressed-tar>,
+F<application/x-ms-wim>,
+F<application/x-rar>,
+F<application/x-rar-compressed>,
+F<application/x-rpm>,
+F<application/x-rzip>,
+F<application/x-tar>,
+F<application/x-tarz>,
+F<application/x-stuffit>,
+F<application/x-war>,
+F<application/x-xz>,
+F<application/x-xz-compressed-tar>,
+F<application/x-zip>,
+F<application/x-zip-compressed>,
+F<application/x-zoo>,
+F<application/zip>,
+F<roller.desktop> with no mime types,
+F<xarchiver.desktop> with mime types,
+F<application/x-arj>,
+F<application/arj>,
+F<application/x-bzip>,
+F<application/x-bzip-compressed-tar>,
+F<application/x-gzip>,
+F<application/x-rar>,
+F<application/x-rar-compressed>,
+F<application/x-tar>,
+F<application/x-zip>,
+F<application/x-zip-compressed>,
+F<application/zip>,
+F<application/x-7z-compressed>,
+F<application/x-compressed-tar>,
+F<application/x-bzip2>,
+F<application/x-bzip2-compressed-tar>,
+F<application/x-lzma>,
+F<application/x-lzma-compressed-tar>,
+F<application/x-lzop>,
+F<application/x-lzop-compressed-tar>,
+F<application/x-xz>,
+F<application/x-xz-compressed-tar>,
+F<application/x-deb>,
+F<application/x-rpm>,
+F<xfburn.desktop> with mime types,
+F<application/x-cd-image>.
 
 =item C<Compression;Archiving;Utility>
 
 A tool to manage compressed data/archives.
+F<file-roller.desktop> with mime types as above,
+F<gnome-file-roller.desktop> with mime types as above.
 
 =item C<FileManager;FileTools;System>
 
 A file manager.
+F<caja.desktop> with no mime types,
+F<emelfm2.desktop> with mime types,
+F<inode/directory>,
+F<inode/mount-point>,
+F<enlightenment_filemanager.desktop> with mime types,
+F<inode/directory>,
+F<fluff.desktop> with no mime types,
+F<mandriva-rox.desktop> with no mime types,
+F<mc.desktop> with no mime types,
+F<PathFinder.desktop> with no mime types,
+F<pcmanfm.desktop> with mime types,
+F<inode/directory>,
+F<rox.desktop> with no mime types,
+F<rox-filer.desktop> with no mime types,
+F<spacefm.desktop> with mime types,
+F<inode/directory>,
+F<inode/mount-point>,
+F<x-scheme-handler/ssh>,
+F<x-scheme-handler/smb>,
+F<x-scheme-handler/nfs>,
+F<x-scheme-handler/ftp>,
+F<stuurman.desktop> with mime types,
+F<x-directory/normal>,
+F<inode/directory>,
+F<Thunar.desktop> with no mime types,
+F<Thunar-folder-handler.desktop> with mime types,
+F<x-directory/gnome-default-handler>,
+F<x-directory/normal>,
+F<inode/directory>,
+F<vifm.desktop> with mime types,
+F<inode/directory>,
+F<xfe.desktop> with mime types,
+F<text/plain>.
 
 =item C<TerminalEmulator;System>
 
 A terminal emulator application.
+F<aterm.desktop>,
+F<eterm.desktop>,
+F<fedora-xterm.desktop>,
+F<gksu.desktop>,
+F<lxterminal.desktop>,
+F<mageia-xterm.desktop>,
+F<mandriva-xterm.desktop>,
+F<pterm.desktop>,
+F<roxterm.desktop>,
+F<rpmforge-rxvt-unicode.desktop>,
+F<terminal-as-root-(gksu).desktop>,
+F<terminals.desktop>,
+F<urxvtc.desktop>,
+F<urxvt.desktop>,
+F<urxvt-tabbed.desktop>,
+F<uxterm.desktop>,
+F<xterm.desktop>,
+F<xterm-(unicode).desktop>: all with no mime types.
 
 =item C<Filesystem;System>
 
