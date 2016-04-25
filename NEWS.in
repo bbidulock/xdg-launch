@@ -3,9 +3,86 @@
 Release @PACKAGE@-@VERSION@ released @DATE@
 -------------------------------------------
 
-git shortlog -e -n -w80,6,8 0.3...0.4
+git shortlog -e -n -w80,6,8 0.7...0.8
 
-Brian Bidulock <bidulock@openss7.org> (106):
+Brian Bidulock <bidulock@openss7.org> (30):
+      start documenting xdg-types
+      working up xde-types manual page
+      working up xde-types manual page
+      working up xde-types manual page
+      add examples to xdg-which
+      first cut of xdg-types
+      overload xdg-which too
+      working up mime output
+      check for gio/glib2 anyway
+      use gio to output types if available
+      option updates
+      update usage output
+      document todo
+      update TODO
+      document xdg-prefs tool
+      working up manpage
+      working up tool docs
+      not limitations
+      not limitations
+      building up xdg-find documentation
+      working up xdg-find app
+      working up xdg-prefs
+      working up xdg-prefs
+      fill out xdg-find functions
+      conditionally compile tools requiring gio-unix-2.0
+      document categories
+      more category descriptions
+      more category documentation
+      more category updates
+      more doc updates
+
+
+Release xdg-launch-0.8
+----------------------
+
+git shortlog -e -n -w80,6,8 0.7...0.8
+
+Brian Bidulock <bidulock@openss7.org> (3):
+      add guard timer
+      update README.md
+      update release files
+
+
+Release xdg-launch-0.7
+----------------------
+
+git shortlog -e -n -w80,6,8 0.6...0.7
+
+Brian Bidulock <bidulock@openss7.org> (2):
+      add wait for audio server
+      update release files
+
+
+Release xdg-launch-0.6
+----------------------
+
+git shortlog -e -n -w80,6,8 0.5...0.6
+
+Brian Bidulock <bidulock@openss7.org> (10):
+      minor update to build system
+      add xdg-list manual page
+      correct printf type
+      add xdg-list program
+      first working xdg-list
+      list in wrong place
+      document output of xdg-list
+      support all option
+      add options to documentation
+      update release files
+
+
+Release xdg-launch-0.5
+----------------------
+
+git shortlog -e -n -w80,6,8 0.4...0.5
+
+Brian Bidulock <bidulock@openss7.org> (107):
       add xdg-entry command
       typo
       add todo items
@@ -112,8 +189,10 @@ Brian Bidulock <bidulock@openss7.org> (106):
       update desktop files
       update release files
       adjust paths in scripts for distcheck
+      updated NEWS file
 
-'
+
+
 Release xdg-launch-0.4
 ----------------------
 
