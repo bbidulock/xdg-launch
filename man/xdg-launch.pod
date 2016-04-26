@@ -6,18 +6,27 @@ xdg-launch - an XDG compliant startup notification launcher
 
 =head1 SYNOPSIS
 
-B<xdg-launch> [I<OPTIONS>] [I<APPID> [I<FILE>|I<URL>]]
+B<xdg-launch> [I<OPTIONS>] [I<APPSPEC>] [I<FILE>|I<URL>]
 
 B<xdg-launch> [I<OPTIONS>] -c I<command and arguments>
 
 =head1 DESCRIPTION
 
 B<xdg-launch> is a C<C> language program that can be used to launch XDG
-desktop applications with startup notification.
+desktop applications with startup notification.  Applications can be
+launched by application id, mime type, menu category or command line.  A
+file or URL can optionally be provided.
 
 =head1 ARGUMENTS
 
 The program accepts the following arguments:
+
+=over
+
+=item I<APPSPEC> = {I<APPID>|I<MIMETYPE>|I<CATEGORY>}
+
+Specifies the XDG desktop application to launch.  The application
+specifier, I<APPSPEC>, can be one of the following:
 
 =over
 
@@ -49,8 +58,36 @@ contain at least one C</> and start with either a C</> or a C<.>.
 
 =back
 
-Providing a non-option application identifier argument is mandatory
-unless the B<--exec> or B<--appid> options are specified.
+The application identifier, I<APPID>, can alternately be specified as an
+option argument using the B<--appid> option.
+
+=item I<MIMETYPE>
+
+A registered mime type of the form "I<type>B</>I<subtype>".  This
+corresponds to the mime type of a file or scheme handler that will
+identify the application to launch.
+
+The mime type, I<MIMETYPE>, can alternatively be specified as an option
+argument using the B<--mimetype> option.  Where the mime type would
+conflict with an existing I<APPID>, it must be specified with the
+B<--mimetype> option.
+
+=item I<CATEGORY>
+
+An XDG menu specification category that identifies the application to
+launch.
+
+The XDG menu specification category, I<CATEGORY>, can alternatively be
+specified as an option argument using the B<--category> option.  Where
+the category would conflict with an existing I<APPID>, it must be
+specified with the B<--category> option.
+
+=back
+
+Providing a non-option application specifier argument is mandatory
+unless the B<--exec>, B<--appid>, B<--mimetype> or B<--category> options
+are specified, in which case it should not be specified as a non-option
+argument.
 
 =item I<FILE>
 
