@@ -84,7 +84,7 @@ contain wild cards (i.e. it cannot contain C<*>).
 =head1 OPTIONS
 
 The options that are detailed below are recognized by B<xdg-prefs>.
-B<xdg-which> uses L<getopt_long_only(3)>, so unambiguous abbreviations
+B<xdg-prefs> uses L<getopt_long_only(3)>, so unambiguous abbreviations
 of long options and long options with a single dash are also supported.
 
 =head2 COMMAND OPTIONS
@@ -94,20 +94,40 @@ command mode:
 
 =over
 
-=item B<-p>, B<--pref> [--] I<APPID> [I<TYPE> [...]]
+=item B<-p>, B<--pref> [--] I<APPID>[;...] [I<TYPE> [...]]
 
 Specifies that I<APPID> is to be used as the default or preferred
-application for I<TYPE>.
+application for I<TYPE>.  When additional application identifiers,
+I<APPID>, are specified, separated by semicolons (C<;>), the application
+identifiers specify the order or preference applications for the mime
+types or categories, I<TYPE>.
+
+When no mime types nor categories are specified, the mime types and
+categories for which to set the application identifier will be taken
+from the application's F<.desktop> file.
 
 =item B<-e>, B<--exec> [--] I<TYPE>
 
+Execute the preferred application corresponding to the specified mime
+type or category, I<TYPE>.  It is an error when no application has been
+assigned to the specified I<TYPE>.
+
 =item B<-l>, B<--list> [--] I<TYPE> [...]
+
+List the preferred applications (by application identifier)
+corresponding to the specified mime types or categories, I<TYPE>.
 
 =item B<-h>, B<--help>, B<-H>, B<-?>, B<--?>
 
+Prints usage information to standard output and exits.
+
 =item B<-V>, B<--version>
 
+Prints detailed version information and exits.
+
 =item B<-C>, B<--copying>
+
+Prints detailed copying permissions and exits.
 
 =back
 
@@ -123,10 +143,19 @@ When listing, launching or setting preferred applications, use the
 recommended application instead of the default application for the given
 type.
 
+=item B<-t>, B<--textonly>
+
+When listing, launching or setting preferred applications, only list,
+launch or set applications that run in a terminal.
+
 =back
 
 
 =head1 XDG CATEGORIES
+
+In the category listings below, the more specific category is listed
+first and then the more general categories are listed following a
+semicolon.
 
 The following XDG categories are recognized and tracked by the program:
 
@@ -705,36 +734,45 @@ A text tool utility. (A category, really.)
 
 =item C<DesktopSettings;Settings>
 
-Configuration tool for the GUI.
-	lxsession-edit.desktop
-/usr/share/xde/applications/lxsession-edit.desktop
-	qt4config.desktop
-/usr/share/xde/applications/qt4config.desktop
-	lxsession-default-apps.desktop
-/usr/share/xde/applications/lxsession-default-apps.desktop
-	exo-preferred-applications.desktop
-	ControlPanel.desktop
-	thunar-volman-settings.desktop
-	mate-notification-properties.desktop
-	mate-window-properties.desktop
-	lxappearance.desktop
-	gtk-theme-switch2.desktop
-	obconf.desktop
-	tint2conf.desktop
-	mate-appearance-properties.desktop
-	libsmfm-pref-apps.desktop
-	thunar-settings.desktop
-	elementary_config.desktop
-	gtk-chtheme.desktop
-	pcmanfm-desktop-pref.desktop
-	stuurman-desktop-pref.desktop
-	libfm-pref-apps.desktop
-	gtk2_prefs.desktop
+Configuration tool for the GUI.  Example applications are:
+F<lxsession-edit.desktop>,
+F<qt4config.desktop>,
+F<lxsession-default-apps.desktop>,
+F<exo-preferred-applications.desktop>,
+F<ControlPanel.desktop>,
+F<thunar-volman-settings.desktop>,
+F<mate-notification-properties.desktop>,
+F<mate-window-properties.desktop>,
+F<lxappearance.desktop>,
+F<gtk-theme-switch2.desktop>,
+F<obconf.desktop>,
+F<tint2conf.desktop>,
+F<mate-appearance-properties.desktop>,
+F<libsmfm-pref-apps.desktop>,
+F<thunar-settings.desktop>,
+F<elementary_config.desktop>,
+F<gtk-chtheme.desktop>,
+F<pcmanfm-desktop-pref.desktop>,
+F<stuurman-desktop-pref.desktop>,
+F<libfm-pref-apps.desktop> and
+F<gtk2_prefs.desktop>.
 
 =item C<HardwareSettings;Settings>
 
 A tool to manage hardware components, like sound cards, video cards or
-printers.
+printers.  This is really a category and cannot have a preferred
+application by category.  Example applications are:
+F<cups.desktop>,
+F<ffadomixer.desktop>,
+F<grandr.desktop>,
+F<lxkb-config.desktop>,
+F<lxrandr.desktop>,
+F<mate-display-properties.desktop>,
+F<mate-keyboard.desktop>,
+F<mate-settings-mouse.desktop>,
+F<redhat-system-config-printer.desktop>,
+F<system-config-printer.desktop> and
+F<xde-input.desktop>.  There are no commonly known mime types.
 
 =item C<Printing;HardwareSettings;Settings>
 
@@ -742,7 +780,7 @@ A tool to manage printers.
 Applications are F<cups.desktop>,
 F<redhat-system-config-printer.desktop> and
 F<system-config-printer.desktop>.  There are no commonly known mime
-types.
+types, so preferred applications are tracked by category only.
 
 =item C<PackageManager;Settings>
 
@@ -760,7 +798,9 @@ F<mandriva-tightvnc.desktop> with no mime types.
 =item C<InstantMessaging;Network>
 
 An instant messaging client.
-F<empathy.desktop> with no mime types.
+F<empathy.desktop> with no mime types;
+F<pidgin.desktop> with no mime types.  These applications are only
+tracked by category.
 
 =item C<Chat;Network>
 
@@ -1196,51 +1236,224 @@ F<xterm-(unicode).desktop>: all with no mime types.
 =item C<Filesystem;System>
 
 A file system tool.
+Applications are:
+F<gparted.desktop> and
+F<Thunar-bulk-rename.desktop>, with no mime types.
 
 =item C<Monitor;System>
 
 =item C<Monitor;Network>
 
 Monitor application/applet that monitors some resource or activity.
+Applications are:
+F<boinc.desktop>,
+F<boinc-manager.desktop>,
+F<bonobo-browser.desktop>,
+F<etherape.desktop>,
+F<ettercap.desktop>,
+F<gsmartcontrol.desktop>,
+F<lxtask.desktop>,
+F<manage-print-jobs.desktop>,
+F<mandriva-xkill.desktop>,
+F<print-applet.desktop>,
+F<redhat-manage-print-jobs.desktop>,
+F<redhat-print-applet.desktop>,
+F<wireshark-gtk.desktop> with mime types
+F<application/vnd.tcpdump.pcap>,
+F<application/x-pcapng>,
+F<application/x-snoop>,
+F<application/x-iptrace>,
+F<application/x-lanalyzer>,
+F<application/x-nettl>,
+F<application/x-radcom>,
+F<application/x-etherpeek>,
+F<application/x-visualnetworks>,
+F<application/x-netinstobserver>,
+F<application/x-5view> and
+F<application/x-tektronix-rf5>;
+F<xdg-assist.desktop>,
+F<xdg-monitor.desktop>,
+F<xload.desktop>,
+F<xsensors.desktop>,
+F<zenmap.desktop> and
+F<zenmap-root.desktop>.
+This is really more of a category as the monitors are for various
+purposes.
 
 =item C<Security;System>
 
 =item C<Security;Settings>
 
-A security tool.
+A security tool. Applications are:
+F<ettercap.desktop> with no mime types; and
+F<fwbuilder.desktop> with mime type
+F<text/x-xml-fwbuilder>.  This is more of a category than a preferred
+application type.
 
 =item C<Accessibility;Settings>
 
 =item C<Accessibility;Utility>
 
-Accessibility.
+Accessibility.  Applications are F<dasher.desktop> with no mime types.
 
 =item C<Calculator;Utility>
 
-A calculator.
+A calculator.  Applications are:
+F<calcoo.desktop>,
+F<gcalctool.desktop>,
+F<calculator.desktop>,
+F<gnome-gcalctool.desktop> and
+F<xcalc.desktop>: all with no known mime types.  These applications are
+tracked only by category.
 
 =item C<Clock;Utility>
 
-A clock application/applet.
+A clock application/applet.  Applications are:
+F<wmitime.desktop>.  Strangely there are many more clock applications,
+but they do not have the appropriate categories set.  There are no
+known mime types.  These applications are only tracked by category.
 
 =item C<TextEditor;Utility>
 
 A text editor.
 
+F<adie.desktop> with mime types
+F<application/x-shellscript>,
+F<text/english>,
+F<text/plain>,
+F<text/x-c>,
+F<text/x-c++>,
+F<text/x-c++hdr>,
+F<text/x-chdr>,
+F<text/x-c++src>,
+F<text/x-csrc>,
+F<text/x-java>,
+F<text/x-makefile>,
+F<text/x-moc>,
+F<text/x-pascal>,
+F<text/x-tcl> and
+F<text/x-tex>;
+F<bvi.desktop> with mime types
+F<application/octet-stream>;
+F<bviplus.desktop> with mime types
+F<application/octet-stream>;
+F<fltk-editor.desktop>,
+F<gedit.desktop> with mime types
+F<application/x-shellscript>,
+F<text/plain>,
+F<text/x-c>,
+F<text/x-c++>,
+F<text/x-c++hdr>,
+F<text/x-chdr>,
+F<text/x-c++src>,
+F<text/x-csrc>,
+F<text/x-java>,
+F<text/x-makefile>,
+F<text/x-moc>,
+F<text/x-pascal>,
+F<text/x-tcl> and
+F<text/x-tex>;
+F<gvim.desktop> with mime types
+F<application/x-shellscript>,
+F<text/english>,
+F<text/plain>,
+F<text/x-c>,
+F<text/x-c++>,
+F<text/x-chdr>,
+F<text/x-c++hdr>,
+F<text/x-csrc>,
+F<text/x-c++src>,
+F<text/x-java>,
+F<text/x-makefile>,
+F<text/x-moc>,
+F<text/x-pascal>,
+F<text/x-tcl> and
+F<text/x-tex>;
+F<mcedit.desktop>,
+F<nano.desktop>,
+F<vi.desktop> with mime types
+F<application/x-shellscript>,
+F<text/english>,
+F<text/plain>,
+F<text/x-c>,
+F<text/x-c++>,
+F<text/x-chdr>,
+F<text/x-c++hdr>,
+F<text/x-csrc>,
+F<text/x-c++src>,
+F<text/x-java>,
+F<text/x-makefile>,
+F<text/x-moc>,
+F<text/x-pascal>,
+F<text/x-tcl> and
+F<text/x-tex>;
+F<vim.desktop> with mime types
+F<application/x-shellscript>,
+F<text/english>,
+F<text/plain>,
+F<text/x-c>,
+F<text/x-c++>,
+F<text/x-chdr>,
+F<text/x-c++hdr>,
+F<text/x-csrc>,
+F<text/x-c++src>,
+F<text/x-java>,
+F<text/x-makefile>,
+F<text/x-moc>,
+F<text/x-pascal>,
+F<text/x-tcl> and
+F<text/x-tex>;
+F<xedit.desktop> and
+F<xfw.desktop> with mime type
+F<text/plain>.
+
 =item C<Documentation>
 
-Help or documentation.
+Help or documentation. Applications are:
+F<assistant.desktop> with mime type
+F<application/x-assistant>;
+F<mate-user-guide.desktop>,
+F<TUV.desktop> and
+F<yelp.desktop> with mime types
+F<application/docbook+xml>,
+F<x-scheme-handler/ghelp>,
+F<x-scheme-handler/help>,
+F<x-scheme-handler/info> and
+F<x-scheme-handler/man>.  These applications are better tracked by mime
+type than by category (which is quite general).
 
 =item C<Screensaver>
 
 A screen saver (launching this desktop entry should activate the screen
-saver).
+saver).  Strangely, this category is not associated with the many screen
+savers loaded on my Arch Linux system.  These must be tracked by
+category; however, correction of F<.desktop> files to include this
+category is necessary.
 
 =item C<TrayIcon>
 
 An application that is primarily an icon for the "system tray" or
 "notification area" (apps that open a normal window and just happen to
 have a tray icon as well should not list this category).
+
+Example applications are:
+F<alltray.desktop>,
+F<cbatticon.desktop>,
+F<dhcpcd-gtk.desktop>,
+F<fbxkb.desktop>,
+F<ftmenu.desktop>,
+F<gatotray.desktop>,
+F<moc-tray.desktop>,
+F<peksystray.desktop>,
+F<pnmixer.desktop>,
+F<sbxkb.desktop>,
+F<sd-applet.desktop>,
+F<stalonetray.desktop>,
+F<wmsystemtray.desktop>,
+F<xdg-monitor.desktop> and
+F<xdg-traymenu.desktop>.
+This is really a general category and there are no tracked preferred
+applications in this category.
 
 =item C<Applet>
 
@@ -1249,12 +1462,86 @@ likely desktop specific.
 
 =item C<DockApp>
 
-A WindowMaker style dock application.
+A WindowMaker style dock application.  Example applications:
+F<allin1.desktop>,
+F<AlsaMixer.app.desktop>,
+F<asclock.desktop>,
+F<asclock-gtk.desktop>,
+F<asclock-xlib.desktop>,
+F<bubblemon.desktop>,
+F<flipse.desktop>,
+F<lal.desktop>,
+F<peksystray.desktop>,
+F<volume-app.desktop>,
+F<wmacpi.desktop>,
+F<wmappl.desktop>,
+F<wmauda.desktop>,
+F<wmbatteries.desktop>,
+F<wmbattery.desktop>,
+F<wmbiff.desktop>,
+F<wmBinClock.desktop>,
+F<wmblob.desktop>,
+F<wmblueclock.desktop>,
+F<wmbluecpu.desktop>,
+F<wmbluegpu.desktop>,
+F<wmbluemem.desktop>,
+F<wmbubble.desktop>,
+F<wmbutton.desktop>,
+F<wmcalc.desktop>,
+F<wmCalClock.desktop>,
+F<wmCalClockKbd.desktop>,
+F<wmcdplay.desktop>,
+F<wmcliphist.desktop>,
+F<wmclock.desktop>,
+F<wmclockmon.desktop>,
+F<wmcore.desktop>,
+F<wmcpu.desktop>,
+F<wmcpuload.desktop>,
+F<wmcpumon.desktop>,
+F<wmdiskmon.desktop>,
+F<wmfire.desktop>,
+F<wmforkplop.desktop>,
+F<wmfrog.desktop>,
+F<wmgtemp.desktop>,
+F<wmifinfo.desktop>,
+F<wmifs.desktop>,
+F<wminet.desktop>,
+F<wmitime.desktop>,
+F<wmmail.desktop>,
+F<wmmaiload.desktop>,
+F<wmMand.desktop>,
+F<wmmixer.desktop>,
+F<wmMoonClock.desktop>,
+F<wmnd.desktop>,
+F<wmnet.desktop>,
+F<wmsmixer.desktop>,
+F<wmstickynotes.desktop>,
+F<wmsysmon.desktop>,
+F<wmsystemtray.desktop>,
+F<wmsystray.desktop>,
+F<wmtime.desktop>,
+F<wmtimer.desktop>,
+F<wmtop.desktop>,
+F<wmtrash.desktop>,
+F<wmudmount.desktop>,
+F<wmwave.desktop>,
+F<wmWeather.desktop>,
+F<wmweather+.desktop>,
+F<wmwifi.desktop> and
+F<wmwork.desktop>.
+
+This is really a general category and preferred applications are not
+tracked in this category.
 
 =item C<Shell>
 
 A shell (an actual specific shell such as bash or tcsh, not a
 TerminalEmulator).
+
+Applications are:
+F<tkwish8.6.desktop>.
+
+The preferred shell should be set by other means.
 
 =back
 
