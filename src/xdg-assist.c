@@ -79,6 +79,7 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <execinfo.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -92,48 +93,82 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
+#ifdef DESKTOP_NOTIFICATIONS
+#include <libnotify/notify.h>
+#endif
+#ifdef SYSTEM_TRAY_STATUS_ICON
+#include <gtk/gtk.h>
+#endif
 
-#define DPRINTF(_args...) do { if (options.debug > 0) { \
+#if defined DESKTOP_NOTIFICATIONS || defined SYSTEM_TRAY_STATUS_ICON
+#undef HAVE_GLIB_EVENT_LOOP
+#define HAVE_GLIB_EVENT_LOOP 1
+#endif
+
+#if defined SYSTEM_TRAY_STATUS_ICON
+#undef HAVE_GTK
+#define HAVE_GTK 1
+#endif
+
+#define XPRINTF(_args...) do { } while (0)
+
+#define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
 		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args); } } while (0)
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
 		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args);   } while (0)
+		fprintf(stderr, _args); fflush(stderr); } while (0)
 
-#define OPRINTF(_args...) do { if (options.debug > 0 || options.output > 1) { \
+#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output >= _num) { \
 		fprintf(stderr, "I: "); \
-		fprintf(stderr, _args); } } while (0)
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
-#define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
+#define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
-					} } while (0)
+		fflush(stderr); } } while (0)
+
+void
+dumpstack(const char *file, const int line, const char *func)
+{
+	void *buffer[32];
+	int nptr;
+	char **strings;
+	int i;
+
+	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
+		for (i = 0; i < nptr; i++)
+			fprintf(stderr, "E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+}
 
 const char *program = NAME;
 
 typedef enum {
-	EXEC_MODE_MONITOR = 0,
-	EXEC_MODE_REPLACE,
-	EXEC_MODE_QUIT,
-	EXEC_MODE_HELP,
-	EXEC_MODE_VERSION,
-	EXEC_MODE_COPYING
-} ExecMode;
+	CommandDefault = 0,
+	CommandMonitor,
+	CommandReplace,
+	CommandQuit,
+	CommandHelp,
+	CommandVersion,
+	CommandCopying,
+} Command;
 
 typedef struct {
 	int debug;
 	int output;
-	int foreground;
-	long guardtime;
-	ExecMode exec_mode;
+	Bool background;
+	unsigned long guard;
+	unsigned long persist;
+	Command command;
 } Options;
 
 Options options = {
 	.debug = 0,
 	.output = 1,
-	.foreground = 0,
-	.guardtime = 15000,
-	.exec_mode = EXEC_MODE_MONITOR,
+	.background = True,
+	.guard = 15000,
+	.persist = 1000,
+	.command = CommandDefault,
 };
 
 static const char *StartupNotifyFields[] = {
@@ -161,6 +196,30 @@ static const char *StartupNotifyFields[] = {
 	NULL
 };
 
+typedef enum {
+	FIELD_OFFSET_LAUNCHER,
+	FIELD_OFFSET_LAUNCHEE,
+	FIELD_OFFSET_SEQUENCE,
+	FIELD_OFFSET_ID,
+	FIELD_OFFSET_NAME,
+	FIELD_OFFSET_ICON,
+	FIELD_OFFSET_BIN,
+	FIELD_OFFSET_DESCRIPTION,
+	FIELD_OFFSET_WMCLASS,
+	FIELD_OFFSET_SILENT,
+	FIELD_OFFSET_APPLICATION_ID,
+	FIELD_OFFSET_DESKTOP,
+	FIELD_OFFSET_SCREEN,
+	FIELD_OFFSET_MONITOR,
+	FIELD_OFFSET_TIMESTAMP,
+	FIELD_OFFSET_PID,
+	FIELD_OFFSET_HOSTNAME,
+	FIELD_OFFSET_COMMAND,
+	FIELD_OFFSET_ACTION,
+	FIELD_OFFSET_FILE,
+	FIELD_OFFSET_URL,
+} FieldOffset;
+
 struct fields {
 	char *launcher;
 	char *launchee;
@@ -185,8 +244,6 @@ struct fields {
 	char *url;
 };
 
-struct fields fields = { NULL, };
-
 typedef enum {
 	StartupNotifyIdle,
 	StartupNotifyNew,
@@ -198,6 +255,7 @@ typedef struct _Client Client;
 
 typedef struct _Sequence {
 	struct _Sequence *next;
+	int refs;
 	StartupNotifyState state;
 	Client *client;
 	Bool changed;
@@ -214,9 +272,16 @@ typedef struct _Sequence {
 		unsigned pid;
 		unsigned sequence;
 	} n;
+#ifdef DESKTOP_NOTIFICATIONS
+	NotifyNotification *notification;
+#endif					/* DESKTOP_NOTIFICATIONS */
+#ifdef SYSTEM_TRAY_STATUS_ICON
+	GtkStatusIcon *status;
+#endif					/* SYSTEM_TRAY_STATUS_ICON */
+#ifdef HAVE_GLIB_EVENT_LOOP
+	gint timer;
+#endif					/* HAVE_GLIB_EVENT_LOOP */
 } Sequence;
-
-Sequence *sequences;
 
 typedef struct {
 	Window origin;	    /* origin of message sequence */
@@ -224,7 +289,7 @@ typedef struct {
 	int len;	    /* number of message bytes */
 } Message;
 
-static const char *DesktopEntryFields[] = {
+const char *DesktopEntryFields[] = {
 	"Type",
 	"Name",
 	"Comment",
@@ -261,55 +326,96 @@ struct entry {
 
 struct entry entry = { NULL, };
 
-Display *dpy = NULL;
-int screen;
-Window root;
-
-struct _Client {
-	int screen;
-	Window win;
-	Window time_win;
-	Client *next;
-	Bool breadcrumb;
-	Bool new;
-	Time active_time;
-	Time focus_time;
-	Time user_time;
-	pid_t pid;
-	char *startup_id;
-	char **command;
-	char *name;
-	char *hostname;
-	XClassHint ch;
-	XWMHints *wmh;
-};
-
-Client *clients = NULL;
-
 typedef struct {
+	int screen;			/* screen number */
+	Window root;			/* root window of screen */
+	Window owner;			/* _XDG_ASSIST_S%d selection owner (theirs) */
+	Window selwin;			/* _XDG_ASSIST_S%d selection window (ours) */
 	Window netwm_check;		/* _NET_SUPPORTING_WM_CHECK or None */
 	Window winwm_check;		/* _WIN_SUPPORTING_WM_CHECK or None */
 	Window motif_check;		/* _MOTIF_MW_INFO window or None */
 	Window maker_check;		/* _WINDOWMAKER_NOTICEBOARD or None */
 	Window icccm_check;		/* WM_S%d selection owner or root */
-	Window redir_check;
-	Window stray_owner;		/* _NET_WM_SYSTEM_TRAY_S%d owner */
+	Window redir_check;		/* set to root when SubstructureRedirect */
+	Window stray_owner;		/* _NET_SYSTEM_TRAY_S%d owner */
 	Window pager_owner;		/* _NET_DESKTOP_LAYOUT_S%d owner */
 	Window compm_owner;		/* _NET_WM_CM_S%d owner */
-	Window shelp_owner;		/* _XDG_ASSIST_S%d owner */
-} WindowManager;
+	Atom icccm_atom;		/* WM_S%d atom for this screen */
+	Atom stray_atom;		/* _NET_SYSTEM_TRAY_S%d atom this screen */
+	Atom pager_atom;		/* _NET_DESKTOP_LAYOUT_S%d atom this screen */
+	Atom compm_atom;		/* _NET_WM_CM_S%d atom this screen */
+	Atom slctn_atom;		/* _XDG_ASSIST_S%d atom this screen */
+	Client *clients;		/* clients for this screen */
+	Sequence *sequences;		/* sequences for this screen */
+} XdgScreen;
 
-WindowManager wm;
+XdgScreen *screens;
 
+Display *dpy = NULL;
+int nscr;
+XdgScreen *scr;
+
+typedef struct {
+	unsigned long state;
+	Window icon_window;
+} XWMState;
+
+enum {
+	XEMBED_MAPPED = (1 << 0),
+};
+
+typedef struct {
+	unsigned long version;
+	unsigned long flags;
+} XEmbedInfo;
+
+struct _Client {
+	Client *next;			/* next client in list */
+	Sequence *seq;			/* associated startup sequence */
+	int screen;			/* screen number */
+	Window win;			/* client window */
+	Window time_win;		/* client time window */
+	Window transient_for;		/* transient for */
+	Window leader;			/* client leader window */
+	Window group;			/* client group window */
+	Bool dockapp;			/* client is a dock app */
+	Bool statusicon;		/* client is a status icon */
+	Bool breadcrumb;		/* for traversing list */
+	Bool managed;			/* managed by window manager */
+	Bool listed;			/* listed by window manager */
+	Bool new;			/* brand new */
+	Time active_time;		/* last time active */
+	Time focus_time;		/* last time focused */
+	Time user_time;			/* last time used */
+	Time map_time;			/* last time window was mapped */
+	Time last_time;			/* last time something happened to this window */
+	pid_t pid;			/* process id */
+	char *startup_id;		/* startup id (property) */
+	char **command;			/* command */
+	char *name;			/* window name */
+	char *hostname;			/* client machine */
+	char *client_id;		/* session management id */
+	char *role;			/* session management role */
+	XClassHint ch;			/* class hint */
+	XWMHints *wmh;			/* window manager hints */
+	XWMState *wms;			/* window manager state */
+	XEmbedInfo *xei;		/* _XEMBED_INFO property */
+};
+
+Time current_time = CurrentTime;
 Time last_user_time = CurrentTime;
-Time launch_time = CurrentTime;
 
 Atom _XA_KDE_WM_CHANGE_STATE;
 Atom _XA_MANAGER;
 Atom _XA_MOTIF_WM_INFO;
 Atom _XA_NET_ACTIVE_WINDOW;
 Atom _XA_NET_CLIENT_LIST;
+Atom _XA_NET_CLIENT_LIST_STACKING;
+Atom _XA_NET_CLOSE_WINDOW;
 Atom _XA_NET_CURRENT_DESKTOP;
+Atom _XA_NET_MOVERESIZE_WINDOW;
+Atom _XA_NET_REQUEST_FRAME_EXTENTS;
+Atom _XA_NET_RESTACK_WINDOW;
 Atom _XA_NET_STARTUP_ID;
 Atom _XA_NET_STARTUP_INFO;
 Atom _XA_NET_STARTUP_INFO_BEGIN;
@@ -318,19 +424,43 @@ Atom _XA_NET_SUPPORTING_WM_CHECK;
 Atom _XA_NET_VIRTUAL_ROOTS;
 Atom _XA_NET_VISIBLE_DESKTOPS;
 Atom _XA_NET_WM_ALLOWED_ACTIONS;
+Atom _XA_NET_WM_FULLSCREEN_MONITORS;
+Atom _XA_NET_WM_ICON_GEOMETRY;
+Atom _XA_NET_WM_ICON_NAME;
+Atom _XA_NET_WM_MOVERESIZE;
+Atom _XA_NET_WM_NAME;
 Atom _XA_NET_WM_PID;
 Atom _XA_NET_WM_STATE;
 Atom _XA_NET_WM_STATE_FOCUSED;
+Atom _XA_NET_WM_STATE_HIDDEN;
 Atom _XA_NET_WM_USER_TIME;
 Atom _XA_NET_WM_USER_TIME_WINDOW;
+Atom _XA_NET_WM_VISIBLE_ICON_NAME;
+Atom _XA_NET_WM_VISIBLE_NAME;
+Atom _XA_SM_CLIENT_ID;
 Atom _XA__SWM_VROOT;
 Atom _XA_TIMESTAMP_PROP;
+Atom _XA_WIN_APP_STATE;
 Atom _XA_WIN_CLIENT_LIST;
+Atom _XA_WIN_CLIENT_MOVING;
 Atom _XA_WINDOWMAKER_NOTICEBOARD;
+Atom _XA_WIN_FOCUS;
+Atom _XA_WIN_HINTS;
+Atom _XA_WIN_LAYER;
 Atom _XA_WIN_PROTOCOLS;
+Atom _XA_WIN_STATE;
 Atom _XA_WIN_SUPPORTING_WM_CHECK;
 Atom _XA_WIN_WORKSPACE;
+Atom _XA_WM_CHANGE_STATE;
+Atom _XA_WM_CLIENT_LEADER;
+Atom _XA_WM_DELETE_WINDOW;
+Atom _XA_WM_PROTOCOLS;
+Atom _XA_WM_SAVE_YOURSELF;
 Atom _XA_WM_STATE;
+Atom _XA_WM_WINDOW_ROLE;
+Atom _XA_XEMBED;
+Atom _XA_XEMBED_INFO;
+Atom _XA_UTF8_STRING;
 Atom _XA_NET_SYSTEM_TRAY_ORIENTATION;
 Atom _XA_NET_SYSTEM_TRAY_VISUAL;
 Atom _XA_NET_DESKTOP_LAYOUT;
@@ -338,76 +468,198 @@ Atom _XA_XDG_ASSIST_CMD;
 Atom _XA_XDG_ASSIST_CMD_QUIT;
 Atom _XA_XDG_ASSIST_CMD_REPLACE;
 
-static Bool handle_MANAGER(XEvent *, Client *);
-static Bool handle_MOTIF_WM_INFO(XEvent *, Client *);
-static Bool handle_NET_ACTIVE_WINDOW(XEvent *, Client *);
-static Bool handle_NET_CLIENT_LIST(XEvent *, Client *);
-static Bool handle_NET_STARTUP_INFO_BEGIN(XEvent *, Client *);
-static Bool handle_NET_STARTUP_INFO(XEvent *, Client *);
-static Bool handle_NET_SUPPORTED(XEvent *, Client *);
-static Bool handle_NET_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static Bool handle_NET_WM_STATE(XEvent *, Client *);
-static Bool handle_NET_WM_USER_TIME(XEvent *, Client *);
-static Bool handle_WIN_CLIENT_LIST(XEvent *, Client *);
-static Bool handle_WINDOWMAKER_NOTICEBOARD(XEvent *, Client *);
-static Bool handle_WIN_PROTOCOLS(XEvent *, Client *);
-static Bool handle_WIN_SUPPORTING_WM_CHECK(XEvent *, Client *);
-static Bool handle_WM_CLIENT_MACHINE(XEvent *, Client *);
-static Bool handle_WM_COMMAND(XEvent *, Client *);
-static Bool handle_WM_HINTS(XEvent *, Client *);
-static Bool handle_WM_STATE(XEvent *, Client *);
-static Bool handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *, Client *);
-static Bool handle_NET_SYSTEM_TRAY_VISUAL(XEvent *, Client *);
-static Bool handle_NET_DESKTOP_LAYOUT(XEvent *, Client *);
+static void pc_handle_MOTIF_WM_INFO(XPropertyEvent *, Client *);
+static void pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent *, Client *);
+static void pc_handle_NET_CLIENT_LIST(XPropertyEvent *, Client *);
+static void pc_handle_NET_CLIENT_LIST_STACKING(XPropertyEvent *, Client *);
+static void pc_handle_NET_STARTUP_ID(XPropertyEvent *, Client *);
+static void pc_handle_NET_SUPPORTED(XPropertyEvent *, Client *);
+static void pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_FULLSCREEN_MONITORS(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_ICON_GEOMETRY(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_ICON_NAME(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_NAME(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_PID(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_STATE(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_USER_TIME(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *, Client *);
+static void pc_handle_SM_CLIENT_ID(XPropertyEvent *, Client *);
+static void pc_handle_TIMESTAMP_PROP(XPropertyEvent *, Client *);
+static void pc_handle_WIN_APP_STATE(XPropertyEvent *, Client *);
+static void pc_handle_WIN_CLIENT_LIST(XPropertyEvent *, Client *);
+static void pc_handle_WIN_CLIENT_MOVING(XPropertyEvent *, Client *);
+static void pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent *, Client *);
+static void pc_handle_WIN_FOCUS(XPropertyEvent *, Client *);
+static void pc_handle_WIN_HINTS(XPropertyEvent *, Client *);
+static void pc_handle_WIN_LAYER(XPropertyEvent *, Client *);
+static void pc_handle_WIN_PROTOCOLS(XPropertyEvent *, Client *);
+static void pc_handle_WIN_STATE(XPropertyEvent *, Client *);
+static void pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *, Client *);
+static void pc_handle_WIN_WORKSPACE(XPropertyEvent *, Client *);
+static void pc_handle_WM_CLASS(XPropertyEvent *, Client *);
+static void pc_handle_WM_CLIENT_LEADER(XPropertyEvent *, Client *);
+static void pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *, Client *);
+static void pc_handle_WM_COMMAND(XPropertyEvent *, Client *);
+static void pc_handle_WM_HINTS(XPropertyEvent *, Client *);
+static void pc_handle_WM_ICON_NAME(XPropertyEvent *, Client *);
+static void pc_handle_WM_ICON_SIZE(XPropertyEvent *, Client *);
+static void pc_handle_WM_NAME(XPropertyEvent *, Client *);
+static void pc_handle_WM_NORMAL_HINTS(XPropertyEvent *, Client *);
+static void pc_handle_WM_PROTOCOLS(XPropertyEvent *, Client *);
+static void pc_handle_WM_SIZE_HINTS(XPropertyEvent *, Client *);
+static void pc_handle_WM_STATE(XPropertyEvent *, Client *);
+static void pc_handle_WM_TRANSIENT_FOR(XPropertyEvent *, Client *);
+static void pc_handle_WM_WINDOW_ROLE(XPropertyEvent *, Client *);
+static void pc_handle_WM_ZOOM_HINTS(XPropertyEvent *, Client *);
+static void pc_handle_XEMBED_INFO(XPropertyEvent *, Client *);
+static void pc_handle_NET_SYSTEM_TRAY_ORIENTATION(XPropertyEvent *, Client *);
+static void pc_handle_NET_SYSTEM_TRAY_VISUAL(XPropertyEvent *, Client *);
+static void pc_handle_NET_DESKTOP_LAYOUT(XPropertyEvent *, Client *);
+
+static void cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_MANAGER(XClientMessageEvent *, Client *);
+static void cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_CLOSE_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *, Client *);
+static void cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *, Client *);
+static void cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *, Client *);
+static void cm_handle_NET_STARTUP_INFO(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_WIN_LAYER(XClientMessageEvent *, Client *);
+static void cm_handle_WIN_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_WIN_WORKSPACE(XClientMessageEvent *, Client *);
+static void cm_handle_WM_CHANGE_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_WM_PROTOCOLS(XClientMessageEvent *, Client *);
+static void cm_handle_WM_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_XEMBED(XClientMessageEvent *, Client *);
+
+typedef void (*pc_handler_t) (XPropertyEvent *, Client *);
+typedef void (*cm_handler_t) (XClientMessageEvent *, Client *);
 
 struct atoms {
 	char *name;
 	Atom *atom;
-	Bool (*handler) (XEvent *, Client *);
+	pc_handler_t pc_handler;
+	cm_handler_t cm_handler;
 	Atom value;
 } atoms[] = {
 	/* *INDENT-OFF* */
-	/* name					global					handler					atom value		*/
-	/* ----					------					-------					----------		*/
-	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,		NULL,					None			},
-	{ "MANAGER",				&_XA_MANAGER,				&handle_MANAGER,			None			},
-	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,			&handle_MOTIF_WM_INFO,			None			},
-	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,			&handle_NET_ACTIVE_WINDOW,		None			},
-	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,			&handle_NET_CLIENT_LIST,		None			},
-	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,		NULL,					None			},
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,			NULL,					None			},
-	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,		&handle_NET_STARTUP_INFO_BEGIN,		None			},
-	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,			&handle_NET_STARTUP_INFO,		None			},
-	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,			&handle_NET_SUPPORTED,			None			},
-	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,		&handle_NET_SUPPORTING_WM_CHECK,	None			},
-	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,			NULL,					None			},
-	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,		NULL,					None			},
-	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,		NULL,					None			},
-	{ "_NET_WM_PID",			&_XA_NET_WM_PID,			NULL,					None			},
-	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,		NULL,					None			},
-	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,			&handle_NET_WM_STATE,			None			},
-	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,		NULL,					None			},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,			&handle_NET_WM_USER_TIME,		None			},
-	{ "__SWM_VROOT",			&_XA__SWM_VROOT,			NULL,					None			},
-	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,			NULL,					None			},
-	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,			&handle_WIN_CLIENT_LIST,		None			},
-	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,		&handle_WINDOWMAKER_NOTICEBOARD,	None			},
-	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,			&handle_WIN_PROTOCOLS,			None			},
-	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,		&handle_WIN_SUPPORTING_WM_CHECK,	None			},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,			NULL,					None			},
-	{ "WM_CLIENT_MACHINE",			NULL,					&handle_WM_CLIENT_MACHINE,		XA_WM_CLIENT_MACHINE	},
-	{ "WM_COMMAND",				NULL,					&handle_WM_COMMAND,			XA_WM_COMMAND		},
-	{ "WM_HINTS",				NULL,					&handle_WM_HINTS,			XA_WM_HINTS		},
-	{ "WM_STATE",				&_XA_WM_STATE,				&handle_WM_STATE,			None			},
-	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,	&handle_NET_SYSTEM_TRAY_ORIENTATION,	None			},
-	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,		&handle_NET_SYSTEM_TRAY_VISUAL,		None			},
-	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,		&handle_NET_DESKTOP_LAYOUT,		None			},
-	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,		NULL,					None			},
-	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,		NULL,					None			},
-	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,			NULL,					None			},
-	{ NULL,					NULL,					NULL,					None			}
+	/* name					global				pc_handler				cm_handler				atom value		*/
+	/* ----					------				----------				----------				---------		*/
+	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					&cm_handle_KDE_WM_CHANGE_STATE,		None			},
+	{ "MANAGER",				&_XA_MANAGER,			NULL,					&cm_handle_MANAGER,			None			},
+	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&pc_handle_MOTIF_WM_INFO,		NULL,					None			},
+	{ "_NET_ACTIVE_WINDOW",			&_XA_NET_ACTIVE_WINDOW,		&pc_handle_NET_ACTIVE_WINDOW,		&cm_handle_NET_ACTIVE_WINDOW,		None			},
+	{ "_NET_CLIENT_LIST",			&_XA_NET_CLIENT_LIST,		&pc_handle_NET_CLIENT_LIST,		NULL,					None			},
+	{ "_NET_CLIENT_LIST_STACKING",		&_XA_NET_CLIENT_LIST_STACKING,	&pc_handle_NET_CLIENT_LIST_STACKING,	NULL,					None			},
+	{ "_NET_CLOSE_WINDOW",			&_XA_NET_CLOSE_WINDOW,		NULL,					&cm_handle_NET_CLOSE_WINDOW,		None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	NULL,					NULL,					None			},
+	{ "_NET_MOVERESIZE_WINDOW",		&_XA_NET_MOVERESIZE_WINDOW,	NULL,					&cm_handle_NET_MOVERESIZE_WINDOW,	None			},
+	{ "_NET_REQUEST_FRAME_EXTENTS",		&_XA_NET_REQUEST_FRAME_EXTENTS,	NULL,					&cm_handle_NET_REQUEST_FRAME_EXTENTS,	None			},
+	{ "_NET_RESTACK_WINDOW",		&_XA_NET_RESTACK_WINDOW,	NULL,					&cm_handle_NET_RESTACK_WINDOW,		None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		&pc_handle_NET_STARTUP_ID,		NULL,					None			},
+	{ "_NET_STARTUP_INFO_BEGIN",		&_XA_NET_STARTUP_INFO_BEGIN,	NULL,					&cm_handle_NET_STARTUP_INFO_BEGIN,	None			},
+	{ "_NET_STARTUP_INFO",			&_XA_NET_STARTUP_INFO,		NULL,					&cm_handle_NET_STARTUP_INFO,		None			},
+	{ "_NET_SUPPORTED",			&_XA_NET_SUPPORTED,		&pc_handle_NET_SUPPORTED,		NULL,					None			},
+	{ "_NET_SUPPORTING_WM_CHECK",		&_XA_NET_SUPPORTING_WM_CHECK,	&pc_handle_NET_SUPPORTING_WM_CHECK,	NULL,					None			},
+	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					NULL,					None			},
+	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					NULL,					None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	&pc_handle_NET_WM_ALLOWED_ACTIONS,	&cm_handle_NET_WM_ALLOWED_ACTIONS,	None			},
+	{ "_NET_WM_FULLSCREEN_MONITORS",	&_XA_NET_WM_FULLSCREEN_MONITORS,&pc_handle_NET_WM_FULLSCREEN_MONITORS,	&cm_handle_NET_WM_FULLSCREEN_MONITORS,	None			},
+	{ "_NET_WM_ICON_GEOMETRY",		&_XA_NET_WM_ICON_GEOMETRY,	&pc_handle_NET_WM_ICON_GEOMETRY,	NULL,					None			},
+	{ "_NET_WM_ICON_NAME",			&_XA_NET_WM_ICON_NAME,		&pc_handle_NET_WM_ICON_NAME,		NULL,					None			},
+	{ "_NET_WM_MOVERESIZE",			&_XA_NET_WM_MOVERESIZE,		NULL,					&cm_handle_NET_WM_MOVERESIZE,		None			},
+	{ "_NET_WM_NAME",			&_XA_NET_WM_NAME,		&pc_handle_NET_WM_NAME,			NULL,					None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		&pc_handle_NET_WM_PID,			NULL,					None			},
+	{ "_NET_WM_STATE_FOCUSED",		&_XA_NET_WM_STATE_FOCUSED,	NULL,					NULL,					None			},
+	{ "_NET_WM_STATE_HIDDEN",		&_XA_NET_WM_STATE_HIDDEN,	NULL,					NULL,					None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&pc_handle_NET_WM_STATE,		&cm_handle_NET_WM_STATE,		None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	&pc_handle_NET_WM_USER_TIME_WINDOW,	NULL,					None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&pc_handle_NET_WM_USER_TIME,		NULL,					None			},
+	{ "_NET_WM_VISIBLE_ICON_NAME",		&_XA_NET_WM_VISIBLE_ICON_NAME,	&pc_handle_NET_WM_VISIBLE_ICON_NAME,	NULL,					None			},
+	{ "_NET_WM_VISIBLE_NAME",		&_XA_NET_WM_VISIBLE_NAME,	&pc_handle_NET_WM_VISIBLE_NAME,		NULL,					None			},
+	{ "SM_CLIENT_ID",			&_XA_SM_CLIENT_ID,		&pc_handle_SM_CLIENT_ID,		NULL,					None			},
+	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					NULL,					None			},
+	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		&pc_handle_TIMESTAMP_PROP,		NULL,					None			},
+	{ "_WIN_APP_STATE",			&_XA_WIN_APP_STATE,		&pc_handle_WIN_APP_STATE,		NULL,					None			},
+	{ "_WIN_CLIENT_LIST",			&_XA_WIN_CLIENT_LIST,		&pc_handle_WIN_CLIENT_LIST,		NULL,					None			},
+	{ "_WIN_CLIENT_MOVING",			&_XA_WIN_CLIENT_MOVING,		&pc_handle_WIN_CLIENT_MOVING,		NULL,					None			},
+	{ "_WINDOWMAKER_NOTICEBOARD",		&_XA_WINDOWMAKER_NOTICEBOARD,	&pc_handle_WINDOWMAKER_NOTICEBOARD,	NULL,					None			},
+	{ "_WIN_FOCUS",				&_XA_WIN_FOCUS,			&pc_handle_WIN_FOCUS,			NULL,					None			},
+	{ "_WIN_HINTS",				&_XA_WIN_HINTS,			&pc_handle_WIN_HINTS,			NULL,					None			},
+	{ "_WIN_LAYER",				&_XA_WIN_LAYER,			&pc_handle_WIN_LAYER,			&cm_handle_WIN_LAYER,			None			},
+	{ "_WIN_PROTOCOLS",			&_XA_WIN_PROTOCOLS,		&pc_handle_WIN_PROTOCOLS,		NULL,					None			},
+	{ "_WIN_STATE",				&_XA_WIN_STATE,			&pc_handle_WIN_STATE,			&cm_handle_WIN_STATE,			None			},
+	{ "_WIN_SUPPORTING_WM_CHECK",		&_XA_WIN_SUPPORTING_WM_CHECK,	&pc_handle_WIN_SUPPORTING_WM_CHECK,	NULL,					None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		&cm_handle_WIN_WORKSPACE,		None			},
+	{ "WM_CHANGE_STATE",			&_XA_WM_CHANGE_STATE,		NULL,					&cm_handle_WM_CHANGE_STATE,		None			},
+	{ "WM_CLASS",				NULL,				&pc_handle_WM_CLASS,			NULL,					XA_WM_CLASS		},
+	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,		&pc_handle_WM_CLIENT_LEADER,		NULL,					None			},
+	{ "WM_CLIENT_MACHINE",			NULL,				&pc_handle_WM_CLIENT_MACHINE,		NULL,					XA_WM_CLIENT_MACHINE	},
+	{ "WM_COMMAND",				NULL,				&pc_handle_WM_COMMAND,			NULL,					XA_WM_COMMAND		},
+	{ "WM_DELETE_WINDOW",			&_XA_WM_DELETE_WINDOW,		NULL,					NULL,					None			},
+	{ "WM_HINTS",				NULL,				&pc_handle_WM_HINTS,			NULL,					XA_WM_HINTS		},
+	{ "WM_ICON_NAME",			NULL,				&pc_handle_WM_ICON_NAME,		NULL,					XA_WM_ICON_NAME		},
+	{ "WM_ICON_SIZE",			NULL,				&pc_handle_WM_ICON_SIZE,		NULL,					XA_WM_ICON_SIZE		},
+	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
+	{ "WM_NORMAL_HINTS",			NULL,				&pc_handle_WM_NORMAL_HINTS,		NULL,					XA_WM_NORMAL_HINTS	},
+	{ "WM_PROTOCOLS",			&_XA_WM_PROTOCOLS,		&pc_handle_WM_PROTOCOLS,		&cm_handle_WM_PROTOCOLS,		None			},
+	{ "WM_SAVE_YOURSELF",			&_XA_WM_SAVE_YOURSELF,		NULL,					NULL,					None			},
+	{ "WM_SIZE_HINTS",			NULL,				&pc_handle_WM_SIZE_HINTS,		NULL,					XA_WM_SIZE_HINTS	},
+	{ "WM_STATE",				&_XA_WM_STATE,			&pc_handle_WM_STATE,			&cm_handle_WM_STATE,			None			},
+	{ "WM_TRANSIENT_FOR",			NULL,				&pc_handle_WM_TRANSIENT_FOR,		NULL,					XA_WM_TRANSIENT_FOR	},
+	{ "WM_WINDOW_ROLE",			&_XA_WM_WINDOW_ROLE,		&pc_handle_WM_WINDOW_ROLE,		NULL,					None			},
+	{ "WM_ZOOM_HINTS",			NULL,				&pc_handle_WM_ZOOM_HINTS,		NULL,					XA_WM_ZOOM_HINTS	},
+	{ "_XEMBED_INFO",			&_XA_XEMBED_INFO,		&pc_handle_XEMBED_INFO,			NULL,					None			},
+	{ "_XEMBED",				&_XA_XEMBED,			NULL,					&cm_handle_XEMBED,			None			},
+	{ "UTF8_STRING",			&_XA_UTF8_STRING,		NULL,					NULL,					None			},
+	{ "_NET_SYSTEM_TRAY_ORIENTATION",	&_XA_NET_SYSTEM_TRAY_ORIENTATION,&pc_handle_NET_SYSTEM_TRAY_ORIENTATION,NULL,					None			},
+	{ "_NET_SYSTEM_TRAY_VISUAL",		&_XA_NET_SYSTEM_TRAY_VISUAL,	&pc_handle_NET_SYSTEM_TRAY_VISUAL,	NULL,					None			},
+	{ "_NET_DESKTOP_LAYOUT",		&_XA_NET_DESKTOP_LAYOUT,	&pc_handle_NET_DESKTOP_LAYOUT,		NULL,					None			},
+	{ "_XDG_ASSIST_CMD_QUIT",		&_XA_XDG_ASSIST_CMD_QUIT,	NULL,					NULL,					None			},
+	{ "_XDG_ASSIST_CMD_REPLACE",		&_XA_XDG_ASSIST_CMD_REPLACE,	NULL,					NULL,					None			},
+	{ "_XDG_ASSIST_CMD",			&_XA_XDG_ASSIST_CMD,		NULL,					NULL,					None			},
+	{ NULL,					NULL,				NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
+
+/* These are listed in the order that we want them evaluated. */
+
+struct atoms wmprops[] = {
+	/* *INDENT-OFF* */
+	/* name					global				pc_handler				cm_handler				atom value		*/
+	/* ----					------				----------				----------				---------		*/
+	{ "WM_HINTS",				NULL,				&pc_handle_WM_HINTS,			NULL,					XA_WM_HINTS		},
+	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,		&pc_handle_WM_CLIENT_LEADER,		NULL,					None			},
+	{ "WM_STATE",				&_XA_WM_STATE,			&pc_handle_WM_STATE,			&cm_handle_WM_STATE,			None			},
+	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	&pc_handle_NET_WM_USER_TIME_WINDOW,	NULL,					None			},
+	{ "WM_CLIENT_MACHINE",			NULL,				&pc_handle_WM_CLIENT_MACHINE,		NULL,					XA_WM_CLIENT_MACHINE	},
+	{ "WM_COMMAND",				NULL,				&pc_handle_WM_COMMAND,			NULL,					XA_WM_COMMAND		},
+	{ "WM_WINDOW_ROLE",			&_XA_WM_WINDOW_ROLE,		&pc_handle_WM_WINDOW_ROLE,		NULL,					None			},
+	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		&pc_handle_NET_WM_PID,			NULL,					None			},
+	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&pc_handle_NET_WM_STATE,		&cm_handle_NET_WM_STATE,		None			},
+	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	&pc_handle_NET_WM_ALLOWED_ACTIONS,	&cm_handle_NET_WM_ALLOWED_ACTIONS,	None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		&pc_handle_NET_STARTUP_ID,		NULL,					None			},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&pc_handle_NET_WM_USER_TIME,		NULL,					None			},
+	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
+	{ "_NET_WM_NAME",			&_XA_NET_WM_NAME,		&pc_handle_NET_WM_NAME,			NULL,					None			},
+	{ "_NET_WM_ICON_NAME",			&_XA_NET_WM_ICON_NAME,		&pc_handle_NET_WM_ICON_NAME,		NULL,					None			},
+	{ NULL,					NULL,				NULL,					NULL,					None			}
+	/* *INDENT-ON* */
+};
+
+XContext PropertyContext;		/* atom to property handler context */
+XContext ClientMessageContext;		/* atom to client message handler context */
+XContext ScreenContext;			/* window to screen context */
+XContext ClientContext;			/* window to client context */
+XContext MessageContext;		/* window to message context */
 
 void
 intern_atoms()
@@ -415,6 +667,7 @@ intern_atoms()
 	int i, j, n;
 	char **atom_names;
 	Atom *atom_values;
+	struct atoms *atom;
 
 	for (i = 0, n = 0; atoms[i].name; i++)
 		if (atoms[i].atom)
@@ -430,6 +683,17 @@ intern_atoms()
 			*atoms[i].atom = atoms[i].value = atom_values[j++];
 	free(atom_names);
 	free(atom_values);
+	for (atom = wmprops; atom->name; atom++)
+		if (atom->atom)
+			atom->value = *(atom->atom);
+	for (atom = atoms; atom->name; atom++) {
+		if (atom->pc_handler)
+			XSaveContext(dpy, atom->value, PropertyContext,
+				     (XPointer) atom->pc_handler);
+		if (atom->cm_handler)
+			XSaveContext(dpy, atom->value, ClientMessageContext,
+				     (XPointer) atom->cm_handler);
+	}
 }
 
 int
@@ -448,30 +712,53 @@ handler(Display *display, XErrorEvent *xev)
 	return (0);
 }
 
-XContext ClientContext;	/* window to client context */
-XContext MessageContext; /* window to message context */
-
 Bool
-get_display()
+init_display()
 {
 	if (!dpy) {
+		int s;
+		char sel[64] = { 0, };
+
 		if (!(dpy = XOpenDisplay(0))) {
 			EPRINTF("cannot open display\n");
 			exit(EXIT_FAILURE);
 		}
 		XSetErrorHandler(handler);
-		for (screen = 0; screen < ScreenCount(dpy); screen++) {
-			root = RootWindow(dpy, screen);
-			XSelectInput(dpy, root,
-				     VisibilityChangeMask | StructureNotifyMask |
-				     SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask);
-		}
-		screen = DefaultScreen(dpy);
-		root = RootWindow(dpy, screen);
-		intern_atoms();
 
+		PropertyContext = XUniqueContext();
+		ClientMessageContext = XUniqueContext();
+		ScreenContext = XUniqueContext();
 		ClientContext = XUniqueContext();
 		MessageContext = XUniqueContext();
+
+		intern_atoms();
+
+		nscr = ScreenCount(dpy);
+		if (!(screens = calloc(nscr, sizeof(*screens)))) {
+			EPRINTF("no memory\n");
+			exit(EXIT_FAILURE);
+		}
+		for (s = 0, scr = screens; s < nscr; s++, scr++) {
+			scr->screen = s;
+			scr->root = RootWindow(dpy, s);
+			XSaveContext(dpy, scr->root, ScreenContext, (XPointer) scr);
+			XSelectInput(dpy, scr->root,
+				     VisibilityChangeMask | StructureNotifyMask |
+				     SubstructureNotifyMask |
+				     FocusChangeMask | PropertyChangeMask);
+			snprintf(sel, sizeof(sel), "WM_S%d", s);
+			scr->icccm_atom = XInternAtom(dpy, sel, False);
+			snprintf(sel, sizeof(sel), "_NET_SYSTEM_TRAY_S%d", s);
+			scr->stray_atom = XInternAtom(dpy, sel, False);
+			snprintf(sel, sizeof(sel), "_NET_DESKTOP_LAYOUT_S%d", s);
+			scr->pager_atom = XInternAtom(dpy, sel, False);
+			snprintf(sel, sizeof(sel), "_NET_WM_CM_S%d", s);
+			scr->compm_atom = XInternAtom(dpy, sel, False);
+			snprintf(sel, sizeof(sel), "_XDG_ASSIST_S%d", s);
+			scr->slctn_atom = XInternAtom(dpy, sel, False);
+		}
+		s = DefaultScreen(dpy);
+		scr = screens + s;
 	}
 	return (dpy ? True : False);
 }
@@ -498,12 +785,15 @@ get_cardinals(Window win, Atom prop, Atom type, long *n)
 	long *data = NULL;
 
       try_harder:
-	if (XGetWindowProperty(dpy, win, prop, 0L, num, False, type, &real, &format,
-			       &nitems, &after, (unsigned char **) &data) == Success
-	    && format != 0) {
+	if (XGetWindowProperty
+	    (dpy, win, prop, 0L, num, False, type, &real, &format, &nitems, &after,
+	     (unsigned char **) &data) == Success && format != 0) {
 		if (after) {
 			num += ((after + 1) >> 2);
-			XFree(data);
+			if (data) {
+				XFree(data);
+				data = NULL;
+			}
 			goto try_harder;
 		}
 		if ((*n = nitems) > 0)
@@ -566,6 +856,75 @@ get_atom(Window win, Atom prop, Atom type, Atom *atom_ret)
 	return get_cardinal(win, prop, type, (long *) atom_ret);
 }
 
+XWMState *
+XGetWMState(Display *d, Window win)
+{
+	Atom real;
+	int format;
+	unsigned long nitems, after, num = 2;
+	XWMState *wms = NULL;
+
+	if (XGetWindowProperty
+	    (d, win, _XA_WM_STATE, 0L, num, False, AnyPropertyType, &real, &format,
+	     &nitems, &after, (unsigned char **) &wms) == Success && format != 0) {
+		if (format != 32 || nitems < 2) {
+			if (wms) {
+				XFree(wms);
+				return NULL;
+			}
+		}
+		return wms;
+	}
+	return NULL;
+
+}
+
+XEmbedInfo *
+XGetEmbedInfo(Display *d, Window win)
+{
+	Atom real;
+	int format;
+	unsigned long nitems, after, num = 2;
+	XEmbedInfo *xei = NULL;
+
+	if (XGetWindowProperty
+	    (d, win, _XA_XEMBED_INFO, 0L, num, False, AnyPropertyType, &real, &format,
+	     &nitems, &after, (unsigned char **) &xei) == Success && format != 0) {
+		if (format != 32 || nitems < 2) {
+			if (xei) {
+				XFree(xei);
+				return NULL;
+			}
+		}
+		return xei;
+	}
+	return NULL;
+}
+
+Bool
+latertime(Time last, Time time)
+{
+	if (time == CurrentTime)
+		return False;
+	if (last == CurrentTime || (int) time - (int) last > 0)
+		return True;
+	return False;
+}
+
+void
+pushtime(Time *last, Time time)
+{
+	if (latertime(*last, time))
+		*last = time;
+}
+
+void
+pulltime(Time *last, Time time)
+{
+	if (!latertime(*last, time))
+		*last = time;
+}
+
 /** @brief Check for recursive window properties
   * @param atom - property name
   * @param type - property type
@@ -580,22 +939,24 @@ check_recursive(Atom atom, Atom type)
 	unsigned long *data = NULL;
 	Window check;
 
-	if (XGetWindowProperty(dpy, root, atom, 0L, 1L, False, type, &real,
-			       &format, &nitems, &after,
-			       (unsigned char **) &data) == Success && format != 0) {
+	if (XGetWindowProperty(dpy, scr->root, atom, 0L, 1L, False, type, &real, &format,
+				&nitems, &after, (unsigned char **) &data)
+	    == Success && format != 0) {
 		if (nitems > 0) {
-			if ((check = data[0]))
-				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
-			XFree(data);
-			data = NULL;
+			if ((check = data[0]) && check != scr->root)
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
+			if (data) {
+				XFree(data);
+				data = NULL;
+			}
 		} else {
 			if (data)
 				XFree(data);
 			return None;
 		}
-		if (XGetWindowProperty(dpy, check, atom, 0L, 1L, False, type, &real,
-				       &format, &nitems, &after,
-				       (unsigned char **) &data) == Success && format != 0) {
+		if (XGetWindowProperty
+		    (dpy, check, atom, 0L, 1L, False, type, &real, &format, &nitems,
+		     &after, (unsigned char **) &data) == Success && format != 0) {
 			if (nitems > 0) {
 				if (check != (Window) data[0]) {
 					XFree(data);
@@ -606,7 +967,8 @@ check_recursive(Atom atom, Atom type)
 					XFree(data);
 				return None;
 			}
-			XFree(data);
+			if (data)
+				XFree(data);
 		} else
 			return None;
 	} else
@@ -628,14 +990,14 @@ check_nonrecursive(Atom atom, Atom type)
 	unsigned long *data = NULL;
 	Window check = None;
 
-	OPRINTF("non-recursive check for atom 0x%lx\n", atom);
+	OPRINTF(1, "non-recursive check for atom 0x%lx\n", atom);
 
-	if (XGetWindowProperty(dpy, root, atom, 0L, 1L, False, type, &real,
-			       &format, &nitems, &after,
-			       (unsigned char **) &data) == Success && format != 0) {
+	if (XGetWindowProperty(dpy, scr->root, atom, 0L, 1L, False, type, &real, &format,
+				&nitems, &after, (unsigned char **) &data)
+			== Success && format != 0) {
 		if (nitems > 0) {
-			if ((check = data[0]))
-				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
+			if ((check = data[0]) && check != scr->root)
+				XSelectInput(dpy, check, PropertyChangeMask | StructureNotifyMask);
 		}
 		if (data)
 			XFree(data);
@@ -657,16 +1019,18 @@ check_supported(Atom protocols, Atom supported)
 	unsigned long *data = NULL;
 	Bool result = False;
 
-	OPRINTF("check for non-compliant NetWM\n");
+	OPRINTF(1, "check for non-compliant NetWM\n");
 
       try_harder:
-	if (XGetWindowProperty(dpy, root, protocols, 0L, num, False,
-			       XA_ATOM, &real, &format, &nitems, &after, (unsigned char **) &data)
-	    == Success && format != 0) {
+	if (XGetWindowProperty(dpy, scr->root, protocols, 0L, num, False, XA_ATOM, &real, &format,
+				&nitems, &after, (unsigned char **) &data) == Success && format) {
 		if (after) {
 			num += ((after + 1) >> 2);
-			XFree(data);
-			DPRINTF("trying harder with num = %lu\n", num);
+			if (data) {
+				XFree(data);
+				data = NULL;
+			}
+			DPRINTF(1, "trying harder with num = %lu\n", num);
 			goto try_harder;
 		}
 		if (nitems > 0) {
@@ -687,27 +1051,9 @@ check_supported(Atom protocols, Atom supported)
 	return result;
 }
 
-static Window
-check_anywm()
-{
-	if (wm.netwm_check)
-		return True;
-	if (wm.winwm_check)
-		return True;
-	if (wm.maker_check)
-		return True;
-	if (wm.motif_check)
-		return True;
-	if (wm.icccm_check)
-		return True;
-	if (wm.redir_check)
-		return True;
-	return False;
-}
-
 /** @brief Check for a non-compliant EWMH/NetWM window manager.
   *
-  * There are quite a few window managers that implement part of hte EWMH/NetWM
+  * There are quite a few window managers that implement part of the EWMH/NetWM
   * specification but do not fill out _NET_SUPPORTING_WM_CHECK.  This is a big
   * annoyance.  One way to test this is whether there is a _NET_SUPPORTED on the
   * root window that does not include _NET_SUPPORTING_WM_CHECK in its atom list.
@@ -725,7 +1071,7 @@ static Window
 check_netwm_supported()
 {
 	if (check_supported(_XA_NET_SUPPORTED, _XA_NET_SUPPORTING_WM_CHECK))
-		return root;
+		return scr->root;
 	return check_nonrecursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW);
 }
 
@@ -735,18 +1081,20 @@ static Window
 check_netwm()
 {
 	int i = 0;
-	Window win;
 
 	do {
-		if ((win = check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW)))
-			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	} while (i++ < 2 && !win);
-	win = win ?: check_netwm_supported();
-	if (win && win != wm.netwm_check)
-		DPRINTF("NetWM/EWMH changed from 0x%08lx to 0x%08lx\n", wm.netwm_check, win);
-	if (!win && wm.netwm_check)
-		DPRINTF("NetWM/EWMH removed from 0x%08lx\n", wm.netwm_check);
-	return (wm.netwm_check = win);
+		scr->netwm_check =
+		    check_recursive(_XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW);
+	} while (i++ < 2 && !scr->netwm_check);
+
+	if (scr->netwm_check && scr->netwm_check != scr->root) {
+		XSaveContext(dpy, scr->netwm_check, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->netwm_check,
+			     PropertyChangeMask | StructureNotifyMask);
+	} else
+		scr->netwm_check = check_netwm_supported();
+
+	return scr->netwm_check;
 }
 
 /** @brief Check for a non-compliant GNOME/WinWM window manager.
@@ -761,7 +1109,7 @@ static Window
 check_winwm_supported()
 {
 	if (check_supported(_XA_WIN_PROTOCOLS, _XA_WIN_SUPPORTING_WM_CHECK))
-		return root;
+		return scr->root;
 	return check_nonrecursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL);
 }
 
@@ -771,18 +1119,20 @@ static Window
 check_winwm()
 {
 	int i = 0;
-	Window win;
 
 	do {
-		if ((win = check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL)))
-			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	} while (i++ < 2 && !win);
-	win = win ?: check_winwm_supported();
-	if (win && win != wm.winwm_check)
-		DPRINTF("WinWM/WMH changed from 0x%08lx to 0x%08lx\n", wm.winwm_check, win);
-	if (!win && wm.winwm_check)
-		DPRINTF("WinWM/WMH removed from 0x%08lx\n", wm.winwm_check);
-	return (wm.winwm_check = win);
+		scr->winwm_check =
+		    check_recursive(_XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL);
+	} while (i++ < 2 && !scr->winwm_check);
+
+	if (scr->winwm_check && scr->winwm_check != scr->root) {
+		XSaveContext(dpy, scr->winwm_check, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->winwm_check,
+			     PropertyChangeMask | StructureNotifyMask);
+	} else
+		scr->winwm_check = check_winwm_supported();
+
+	return scr->winwm_check;
 }
 
 /** @brief Check for a WindowMaker compliant window manager.
@@ -791,17 +1141,18 @@ static Window
 check_maker()
 {
 	int i = 0;
-	Window win;
 
 	do {
-		if ((win = check_recursive(_XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW)))
-			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	} while (i++ < 2 && !win);
-	if (win && win != wm.maker_check)
-		DPRINTF("WindowMaker changed from 0x%08lx to 0x%08lx\n", wm.maker_check, win);
-	if (!win && wm.maker_check)
-		DPRINTF("WindowMaker removed from 0x%08lx\n", wm.maker_check);
-	return (wm.maker_check = win);
+		scr->maker_check =
+		    check_recursive(_XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW);
+	} while (i++ < 2 && !scr->maker_check);
+
+	if (scr->maker_check && scr->maker_check != scr->root) {
+		XSaveContext(dpy, scr->maker_check, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->maker_check,
+			     PropertyChangeMask | StructureNotifyMask);
+	}
+	return scr->maker_check;
 }
 
 /** @brief Check for an OSF/Motif compliant window manager.
@@ -811,20 +1162,19 @@ check_motif()
 {
 	int i = 0;
 	long *data, n = 0;
-	Window win = None;
 
 	do {
-		if ((data = get_cardinals(root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n))) {
-			if (n >= 2 && (win = data[1]))
-				XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-			XFree(data);
-		}
+		data = get_cardinals(scr->root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n);
 	} while (i++ < 2 && !data);
-	if (win && win != wm.motif_check)
-		DPRINTF("OSF/MOTIF changed from 0x%08lx to 0x%08lx\n", wm.motif_check, win);
-	if (!win && wm.motif_check)
-		DPRINTF("OSF/MOTIF removed from 0x%08lx\n", wm.motif_check);
-	return (wm.motif_check = win);
+
+	if (data && n >= 2)
+		scr->motif_check = data[1];
+	if (scr->motif_check && scr->motif_check != scr->root) {
+		XSaveContext(dpy, scr->motif_check, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->motif_check,
+			     PropertyChangeMask | StructureNotifyMask);
+		}
+	return scr->motif_check;
 }
 
 /** @brief Check for an ICCCM 2.0 compliant window manager.
@@ -832,19 +1182,14 @@ check_motif()
 static Window
 check_icccm()
 {
-	char buf[32];
-	Atom sel;
-	Window win;
+	scr->icccm_check = XGetSelectionOwner(dpy, scr->icccm_atom);
 
-	snprintf(buf, sizeof(buf), "WM_S%d", screen);
-	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel)))
-		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	if (win && win != wm.icccm_check)
-		DPRINTF("ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", wm.icccm_check, win);
-	if (!win && wm.icccm_check)
-		DPRINTF("ICCCM 2.0 WM removed from 0x%08lx\n", wm.icccm_check);
-	return (wm.icccm_check = win);
+	if (scr->icccm_check && scr->icccm_check != scr->root) {
+		XSaveContext(dpy, scr->icccm_check, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->icccm_check,
+			     PropertyChangeMask | StructureNotifyMask);
+	}
+	return scr->icccm_check;
 }
 
 /** @brief Check whether an ICCCM window manager is present.
@@ -856,17 +1201,14 @@ static Window
 check_redir()
 {
 	XWindowAttributes wa;
-	Window win = None;
 
-	OPRINTF("checking redirection for screen %d\n", screen);
-	if (XGetWindowAttributes(dpy, root, &wa))
+	OPRINTF(1, "checking direction for screen %d\n", scr->screen);
+
+	scr->redir_check = None;
+	if (XGetWindowAttributes(dpy, scr->root, &wa))
 		if (wa.all_event_masks & SubstructureRedirectMask)
-			win = root;
-	if (win && win != wm.redir_check)
-		DPRINTF("WM redirection changed from 0x%08lx to 0x%08lx\n", wm.redir_check, win);
-	if (!win && wm.redir_check)
-		DPRINTF("WM redirection removed from 0x%08lx\n", wm.redir_check);
-	return (wm.redir_check = win);
+			scr->redir_check = scr->root;
+	return scr->redir_check;
 }
 
 /** @brief Find window manager and compliance for the current screen.
@@ -874,71 +1216,42 @@ check_redir()
 static Bool
 check_window_manager()
 {
-	OPRINTF("checking wm compliance for screen %d\n", screen);
-	OPRINTF("checking redirection\n");
-	if (check_redir())
-		OPRINTF("redirection on window 0x%lx\n", wm.redir_check);
-	OPRINTF("checking ICCCM 2.0 compliance\n");
-	if (check_icccm())
-		OPRINTF("ICCCM 2.0 window 0x%lx\n", wm.icccm_check);
-	OPRINTF("checking OSF/Motif compliance\n");
-	if (check_motif())
-		OPRINTF("OSF/Motif window 0x%lx\n", wm.motif_check);
-	OPRINTF("checking WindowMaker compliance\n");
-	if (check_maker())
-		OPRINTF("WindowMaker window 0x%lx\n", wm.maker_check);
-	OPRINTF("checking GNOME/WMH compliance\n");
-	if (check_winwm())
-		OPRINTF("GNOME/WMH window 0x%lx\n", wm.winwm_check);
-	OPRINTF("checking NetWM/EWMH compliance\n");
-	if (check_netwm())
-		OPRINTF("NetWM/EWMH window 0x%lx\n", wm.netwm_check);
-	return check_anywm();
-}
+	Bool have_wm = False;
 
-static Bool
-handle_wmchange(XEvent *e, Client *c)
-{
-	if (!e || e->type == PropertyNotify)
-		if (!check_window_manager())
-			check_window_manager();
-	return True;
-}
+	OPRINTF(1, "checking wm compliance for screen %d\n", scr->screen);
 
-static Bool
-handle_WINDOWMAKER_NOTICEBOARD(XEvent *e, Client *c)
-{
-	return handle_wmchange(e, c);
-}
+	OPRINTF(1, "checking redirection\n");
+	if (check_redir()) {
+		have_wm = True;
+		OPRINTF(1, "redirection on window 0x%lx\n", scr->redir_check);
+	}
+	OPRINTF(1, "checking ICCCM 2.0 compliance\n");
+	if (check_icccm()) {
+		have_wm = True;
+		OPRINTF(1, "ICCCM 2.0 window 0x%lx\n", scr->icccm_check);
+	}
+	OPRINTF(1, "checking OSF/Motif compliance\n");
+	if (check_motif()) {
+		have_wm = True;
+		OPRINTF(1, "OSF/Motif window 0x%lx\n", scr->motif_check);
+	}
+	OPRINTF(1, "checking WindowMaker compliance\n");
+	if (check_maker()) {
+		have_wm = True;
+		OPRINTF(1, "WindowMaker window 0x%lx\n", scr->maker_check);
+	}
+	OPRINTF(1, "checking GNOME/WMH compliance\n");
+	if (check_winwm()) {
+		have_wm = True;
+		OPRINTF(1, "GNOME/WMH window 0x%lx\n", scr->winwm_check);
+	}
+	OPRINTF(1, "checking NetWM/EWMH compliance\n");
+	if (check_netwm()) {
+		have_wm = True;
+		OPRINTF(1, "NetWM/EWMH window 0x%lx\n", scr->netwm_check);
+	}
 
-static Bool
-handle_MOTIF_WM_INFO(XEvent *e, Client *c)
-{
-	return handle_wmchange(e, c);
-}
-
-static Bool
-handle_NET_SUPPORTING_WM_CHECK(XEvent *e, Client *c)
-{
-	return handle_wmchange(e, c);
-}
-
-static Bool
-handle_NET_SUPPORTED(XEvent *e, Client *c)
-{
-	return handle_wmchange(e, c);
-}
-
-static Bool
-handle_WIN_SUPPORTING_WM_CHECK(XEvent *e, Client *c)
-{
-	return handle_wmchange(e, c);
-}
-
-static Bool
-handle_WIN_PROTOCOLS(XEvent *e, Client *c)
-{
-	return handle_wmchange(e, c);
+	return have_wm;
 }
 
 /** @brief Check for a system tray.
@@ -946,110 +1259,89 @@ handle_WIN_PROTOCOLS(XEvent *e, Client *c)
 static Window
 check_stray()
 {
-	char buf[64];
-	Atom sel;
 	Window win;
 
-	snprintf(buf, sizeof(buf), "_NET_SYSTEM_TRAY_S%d", screen);
-	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel))) {
-		if (win != wm.stray_owner) {
+	if ((win = XGetSelectionOwner(dpy, scr->stray_atom))) {
+		if (win != scr->stray_owner) {
 			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-			DPRINTF("system tray changed from 0x%08lx to 0x%08lx\n", wm.stray_owner, win);
-			wm.stray_owner = win;
+			DPRINTF(1, "system tray changed from 0x%08lx to 0x%08lx\n", scr->stray_owner, win);
+			scr->stray_owner = win;
 		}
-	} else if (wm.stray_owner) {
-		DPRINTF("system tray removed from 0x%08lx\n", wm.stray_owner);
-		wm.stray_owner = None;
+	} else if (scr->stray_owner) {
+		DPRINTF(1, "system tray removed from 0x%08lx\n", scr->stray_owner);
+		scr->stray_owner = None;
 	}
-	return wm.stray_owner;
-}
-
-static Bool
-handle_NET_SYSTEM_TRAY_ORIENTATION(XEvent *e, Client *c)
-{
-	return False;
-}
-
-static Bool
-handle_NET_SYSTEM_TRAY_VISUAL(XEvent *e, Client *c)
-{
-	return False;
+	return scr->stray_owner;
 }
 
 static Window
 check_pager()
 {
-	char buf[64];
-	Atom sel;
 	Window win;
 	long *cards, n = 0;
 
-	snprintf(buf, sizeof(buf), "_NET_DESKTOP_LAYOUT_S%d", screen);
-	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel)))
+	if ((win = XGetSelectionOwner(dpy, scr->pager_atom)))
 		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 	/* selection only held while setting _NET_DESKTOP_LAYOUT */
-	if (!win && (cards = get_cardinals(root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
+	if (!win && (cards = get_cardinals(scr->root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
 	    && n >= 4) {
 		XFree(cards);
-		win = root;
+		win = scr->root;
 	}
-	if (win && win != wm.pager_owner)
-		DPRINTF("desktop pager changed from 0x%08lx to 0x%08lx\n", wm.pager_owner, win);
-	if (!win && wm.pager_owner)
-		DPRINTF("desktop pager removed from 0x%08lx\n", wm.pager_owner);
-	return (wm.pager_owner = win);
-}
-
-static Bool
-handle_NET_DESKTOP_LAYOUT(XEvent *e, Client *c)
-{
-	if (!e || e->type != PropertyNotify)
-		return False;
-	switch (e->xproperty.state) {
-	case PropertyNewValue:
-		if (!wm.pager_owner)
-			wm.pager_owner = root;
-		break;
-	case PropertyDelete:
-		if (wm.pager_owner &&  wm.pager_owner == root)
-			wm.pager_owner = None;
-		break;
-	}
-	return True;
+	if (win && win != scr->pager_owner)
+		DPRINTF(1, "desktop pager changed from 0x%08lx to 0x%08lx\n", scr->pager_owner, win);
+	if (!win && scr->pager_owner)
+		DPRINTF(1, "desktop pager removed from 0x%08lx\n", scr->pager_owner);
+	return (scr->pager_owner = win);
 }
 
 static Window
 check_compm()
 {
-	char buf[64];
-	Atom sel;
 	Window win;
 
-	snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", screen);
-	sel = XInternAtom(dpy, buf, True);
-	if ((win = XGetSelectionOwner(dpy, sel)))
+	if ((win = XGetSelectionOwner(dpy, scr->compm_atom)))
 		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	if (win && win != wm.compm_owner)
-		DPRINTF("composite manager changed from 0x%08lx to 0x%08lx\n", wm.compm_owner, win);
-	if (!win && wm.compm_owner)
-		DPRINTF("composite manager removed from 0x%08lx\n", wm.compm_owner);
-	return (wm.compm_owner = win);
+	if (win && win != scr->compm_owner)
+		DPRINTF(1, "composite manager changed from 0x%08lx to 0x%08lx\n", scr->compm_owner, win);
+	if (!win && scr->compm_owner)
+		DPRINTF(1, "composite manager removed from 0x%08lx\n", scr->compm_owner);
+	return (scr->compm_owner = win);
+}
+
+static void
+handle_wmchange()
+{
+	if (!check_window_manager())
+		check_window_manager();
+}
+
+static void
+pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	handle_wmchange();
+}
+
+static void
+pc_handle_MOTIF_WM_INFO(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	handle_wmchange();
 }
 
 Bool
-set_screen_of_root(Window sroot, int *screen)
+set_screen_of_root(Window sroot)
 {
 	int s;
 
-	for (s = 0; s < ScreenCount(dpy); s++) {
-		if ((root = RootWindow(dpy, s)) == sroot) {
-			*screen = s;
+	for (s = 0; s < nscr; s++) {
+		if (screens[s].root == sroot) {
+			scr = screens + s;
 			return True;
 		}
 	}
-	EPRINTF("Could not find screen for root 0x%lx!\n", sroot);
+	EPRINTF("could not find screen for root 0x%lx!\n", sroot);
 	return False;
 }
 
@@ -1061,12 +1353,12 @@ set_screen_of_root(Window sroot, int *screen)
 Window
 get_frame(Window win)
 {
-	Window frame = win, fparent, froot = None, *fchildren, *vroots, vroot = None;
+	Window frame = win, fparent, froot = None, *fchildren = NULL, *vroots, vroot = None;
 	unsigned int du;
 	long i, n = 0;
 
-	vroots = get_windows(root, _XA_NET_VIRTUAL_ROOTS, XA_WINDOW, &n);
-	get_window(root, _XA__SWM_VROOT, XA_WINDOW, &vroot);
+	vroots = get_windows(scr->root, _XA_NET_VIRTUAL_ROOTS, XA_WINDOW, &n);
+	get_window(scr->root, _XA__SWM_VROOT, XA_WINDOW, &vroot);
 
 	for (fparent = frame; fparent != froot; frame = fparent) {
 		if (!XQueryTree(dpy, frame, &froot, &fparent, &fchildren, &du)) {
@@ -1103,7 +1395,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen(int *screen)
+find_focus_screen()
 {
 	Window frame, froot;
 	int di;
@@ -1115,47 +1407,71 @@ find_focus_screen(int *screen)
 	if (!XGetGeometry(dpy, frame, &froot, &di, &di, &du, &du, &du, &du))
 		return False;
 
-	return set_screen_of_root(froot, screen);
+	return set_screen_of_root(froot);
 }
 
 Bool
-find_pointer_screen(int *screen)
+find_pointer_screen()
 {
 	Window proot = None, dw;
 	int di;
 	unsigned int du;
 
-	if (XQueryPointer(dpy, root, &proot, &dw, &di, &di, &di, &di, &du))
+	if (XQueryPointer(dpy, scr->root, &proot, &dw, &di, &di, &di, &di, &du))
 		return True;
-	return set_screen_of_root(proot, screen);
+	return set_screen_of_root(proot);
 }
 
 Bool
-find_window_screen(Window w, int *screen)
+find_window_screen(Window w)
 {
-	Window wroot, dw, *dwp;
+	Window wroot, dw, *dwp = NULL;
 	unsigned int du;
 
-	if (!XQueryTree(dpy, w, &wroot, &dw, &dwp, &du))
+	if (!XQueryTree(dpy, w, &wroot, &dw, &dwp, &du)) {
+		DPRINTF(1, "could not query tree for window 0x%lx\n", w);
 		return False;
+	}
 	if (dwp)
 		XFree(dwp);
 
-	return set_screen_of_root(wroot, screen);
+	return set_screen_of_root(wroot);
 }
 
+Bool
+find_screen(Window w)
+{
+	Client *c = NULL;
+
+	if (!XFindContext(dpy, w, ScreenContext, (XPointer *) &scr))
+		return True;
+	if (!XFindContext(dpy, w, ClientContext, (XPointer *) &c)) {
+		scr = screens + c->screen;
+		return True;
+	}
+	return find_window_screen(w);
+}
+
+Client *
+find_client_noscreen(Window w)
+{
+	Client *c = NULL;
+
+	if (!XFindContext(dpy, w, ClientContext, (XPointer *) &c))
+		scr = screens + c->screen;
+	return (c);
+}
 
 Client *
 find_client(Window w)
 {
 	Client *c = NULL;
 
-	if (XFindContext(dpy, w, ClientContext, (XPointer *) &c))
-		find_window_screen(w, &screen);
-	else {
-		screen = c->screen;
-		root = RootWindow(dpy, screen);
+	if (!XFindContext(dpy, w, ClientContext, (XPointer *) &c)) {
+		scr = screens + c->screen;
+		return (c);
 	}
+	find_screen(w);
 	return (c);
 }
 
@@ -1167,11 +1483,11 @@ Bool
 need_assistance()
 {
 	if (!check_netwm()) {
-		DPRINTF("Failed NetWM check!\n");
+		DPRINTF(1, "Failed NetWM check!\n");
 		return True;
 	}
 	if (!check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
-		DPRINTF("_NET_STARTUP_ID not supported\n");
+		DPRINTF(1, "_NET_STARTUP_ID not supported\n");
 		return True;
 	}
 	return False;
@@ -1242,8 +1558,8 @@ lookup_file(char *name)
 			return (path);
 		}
 		free(copy);
-		/* next look in fallback subdirectory of XDG_DATA_HOME and then
-		   each of the subdirectories in XDG_DATA_DIRS */
+		/* next look in fallback subdirectory of XDG_DATA_HOME and then each of
+		   the subdirectories in XDG_DATA_DIRS */
 		copy = strdup(home);
 		for (dirs = copy; !path && strlen(dirs);) {
 			char *p;
@@ -1347,18 +1663,14 @@ send_msg(char *msg)
 {
 	XEvent xev;
 	int l;
-	Window from;
 	char *p;
 
-	DPRINTF("Message is: '%s'\n", msg);
-
-	from =
-	    XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
+	DPRINTF(1, "Message to 0x%lx is: '%s'\n", scr->root, msg);
 
 	xev.type = ClientMessage;
 	xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
 	xev.xclient.display = dpy;
-	xev.xclient.window = from;
+	xev.xclient.window = scr->selwin;
 	xev.xclient.format = 8;
 
 	l = strlen((p = msg)) + 1;
@@ -1367,105 +1679,127 @@ send_msg(char *msg)
 		strncpy(xev.xclient.data.b, p, 20);
 		p += 20;
 		l -= 20;
-		XSendEvent(dpy, root, False, PropertyChangeMask, &xev);
+		/* just PropertyChange mask in the spec doesn't work :( */
+		if (!XSendEvent(dpy, scr->root, False, StructureNotifyMask |
+				SubstructureNotifyMask | SubstructureRedirectMask |
+				PropertyChangeMask, &xev))
+			EPRINTF("XSendEvent: failed!\n");
 		xev.xclient.message_type = _XA_NET_STARTUP_INFO;
 	}
-
-	XDestroyWindow(dpy, from);
 }
 
 struct {
 	char *label;
-	char **value;
+	FieldOffset offset;
 } labels[] = {
 	/* *INDENT-OFF* */
-	{ " NAME=",		&fields.name		},
-	{ " ICON=",		&fields.icon		},
-	{ " BIN=",		&fields.bin		},
-	{ " DESCRIPTION=",	&fields.description	},
-	{ " WMCLASS=",		&fields.wmclass		},
-	{ " SILENT=",		&fields.silent		},
-	{ " APPLICATION_ID=",	&fields.application_id	},
-	{ " DESKTOP=",		&fields.desktop		},
-	{ " SCREEN=",		&fields.screen		},
-	{ " MONITOR=",		&fields.monitor		},
-	{ " TIMESTAMP=",	&fields.timestamp	},
-	{ " PID=",		&fields.pid		},
-	{ " HOSTNAME=",		&fields.hostname	},
-	{ " COMMAND=",		&fields.command		},
-        { " ACTION=",           &fields.action          },
-	{ NULL,			NULL			}
+	{ " NAME=",		FIELD_OFFSET_NAME		},
+	{ " ICON=",		FIELD_OFFSET_ICON		},
+	{ " BIN=",		FIELD_OFFSET_BIN		},
+	{ " DESCRIPTION=",	FIELD_OFFSET_DESCRIPTION	},
+	{ " WMCLASS=",		FIELD_OFFSET_WMCLASS		},
+	{ " SILENT=",		FIELD_OFFSET_SILENT		},
+	{ " APPLICATION_ID=",	FIELD_OFFSET_APPLICATION_ID	},
+	{ " DESKTOP=",		FIELD_OFFSET_DESKTOP		},
+	{ " SCREEN=",		FIELD_OFFSET_SCREEN		},
+	{ " MONITOR=",		FIELD_OFFSET_MONITOR		},
+	{ " TIMESTAMP=",	FIELD_OFFSET_TIMESTAMP		},
+	{ " PID=",		FIELD_OFFSET_PID		},
+	{ " HOSTNAME=",		FIELD_OFFSET_HOSTNAME		},
+	{ " COMMAND=",		FIELD_OFFSET_COMMAND		},
+        { " ACTION=",           FIELD_OFFSET_ACTION		},
+	{ NULL,			FIELD_OFFSET_ID			}
 	/* *INDENT-ON* */
 };
 
 void
-add_field(char **p, char *label, char *value)
+add_field(Sequence *seq, char **p, char *label, FieldOffset offset)
 {
-	if (value) {
+	char *value;
+
+	if ((value = seq->fields[offset])) {
 		strcat(*p, label);
 		apply_quotes(p, value);
 	}
 }
 
 void
-add_fields(char *msg)
+add_fields(Sequence *seq, char *msg)
 {
 	int i;
 
 	for (i = 0; labels[i].label; i++)
-		add_field(&msg, labels[i].label, *labels[i].value);
+		add_field(seq, &msg, labels[i].label, labels[i].offset);
 }
 
+/** @brief send a 'new' startup notification message
+  * @param seq - sequence context for which to send new message
+  *
+  * We do not really use this in this program...
+  */
 void
-send_new()
+send_new(Sequence *seq)
 {
 	char *msg, *p;
 
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "new:");
-	add_field(&p, " ID=", fields.id);
-	add_fields(p);
+	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_fields(seq, p);
 	send_msg(msg);
 	free(msg);
+	seq->state = StartupNotifyNew;
 }
 
+/** @brief send a 'change' startup notification message
+  * @param seq - sequence context for which to send change message
+  *
+  * We do not really use this in this program...  However, we could use it to
+  * update information determined about the client (if a client is associated)
+  * before closing or waiting for the closure of the sequence.
+  */
 void
-send_change()
+send_change(Sequence *seq)
 {
 	char *msg, *p;
 
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "change:");
-	add_field(&p, " ID=", fields.id);
-	add_fields(p);
+	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_fields(seq, p);
 	send_msg(msg);
 	free(msg);
+	seq->state = StartupNotifyChanged;
 }
 
-void
-send_remove()
+/** @brief send a 'remove' startup notification message
+  * @param seq - sequence context for which to send remove message
+  *
+  * We only need the ID= field to send a remove message.  We do this to close a
+  * sequence that is awaiting the mapping of a window.
+  */
+static void
+send_remove(Sequence *seq)
 {
 	char *msg, *p;
 
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "remove:");
-	add_field(&p, " ID=", fields.id);
+	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
 	send_msg(msg);
 	free(msg);
+	seq->state = StartupNotifyComplete;
 }
 
-static void
-push_time(Time * accum, Time now)
-{
-	if (now == CurrentTime)
-		return;
-	else if (*accum == CurrentTime) {
-		*accum = now;
-		return;
-	} else if ((int) ((int) now - (int) *accum) > 0)
-		*accum = now;
-}
-
+/** @brief - get a proc file and read it into a buffer
+  * @param pid - process id for which to get the proc file
+  * @param name - name of the proc file
+  * @param size - return the size of the buffer
+  * @return char* - the buffer or NULL if it does not exist or error
+  *
+  * Used to get a proc file for a pid by name and read the entire file into a
+  * buffer.  Returns the buffer and the size of the buffer read.
+  */
 char *
 get_proc_file(pid_t pid, char *name, size_t *size)
 {
@@ -1504,6 +1838,17 @@ get_proc_file(pid_t pid, char *name, size_t *size)
 	return buf;
 }
 
+/** @brief get a process' startup id
+  * @param pid - pid of the process
+  * @return char* - startup id or NULL
+  *
+  * Gets the DESKTOP_STARTUP_ID environment variable for a given process from
+  * the environment file for the corresponding pid.  This only works when the
+  * pid is for a process on the same host as we are.
+  *
+  * /proc/%d/environ contains the evironment for the process.  The entries are
+  * separated by null bytes ('\0'), and there may be a null byte at the end.
+  */
 char *
 get_proc_startup_id(pid_t pid)
 {
@@ -1525,6 +1870,12 @@ get_proc_startup_id(pid_t pid)
 	return NULL;
 }
 
+/** @brief get the command of a process
+  * @param pid - pid of the process
+  * @return char* - the command or NULL
+  *
+  * Obtains the command line of a process.
+  */
 char *
 get_proc_comm(pid_t pid)
 {
@@ -1533,6 +1884,22 @@ get_proc_comm(pid_t pid)
 	return get_proc_file(pid, "comm", &size);
 }
 
+/** @brief get the executable of a process
+  * @param pid - pid of the process
+  * @return char* - the executable path or NULL
+  *
+  * Obtains the executable path (binary file) executed by a process, or NULL if
+  * there is no executable for the specified pid.  This uses the /proc/%d/exe
+  * symbolic link to the executable file.  The returned pointer belongs to the
+  * caller, and must be freed using free() when no longer in use.
+  *
+  * /proc/%d/exec is a symblolic link containing the actual pathname of the
+  * executed command.  This symbolic link can be dereference normally;
+  * attempting to open it will open the executable.  You can even execute the
+  * file to run another copy of the same executable as is being run by the
+  * process.  In a multithreaded process, the contents of this symblic link are
+  * not available if the main thread has already terminated.
+  */
 char *
 get_proc_exec(pid_t pid)
 {
@@ -1540,8 +1907,8 @@ get_proc_exec(pid_t pid)
 	char *file, *buf;
 	ssize_t size;
 
-	file = calloc(64, sizeof(*file));
-	snprintf(file, 64, "/proc/%d/exe", pid);
+	file = calloc(PATH_MAX + 1, sizeof(*file));
+	snprintf(file, PATH_MAX, "/proc/%d/exe", pid);
 	if (stat(file, &st)) {
 		free(file);
 		return NULL;
@@ -1556,6 +1923,20 @@ get_proc_exec(pid_t pid)
 	return buf;
 }
 
+/** @brief get the first argument of the command line for a process
+  * @param pid - pid of the process
+  * @return char* - the command line
+  *
+  * Obtains the arguments of the command line (argv) from the /proc/%d/cmdline
+  * file.  This file contains a list of null-terminated strings.  The pointer
+  * returned points to the first argument in the list.  The returned pointer
+  * belongs to the caller, and must be freed using free() when no longer in use.
+  *
+  * /proc/%d/cmdline holds the complete command line for the process, unless the
+  * process is a zombie.  In the later case there is nothing in this file: that
+  * is, a readon on this file will return 0 characters.  The command-line
+  * arguments appear in this file as a set of null ('\0') terminated strings.
+  */
 char *
 get_proc_argv0(pid_t pid)
 {
@@ -1564,56 +1945,61 @@ get_proc_argv0(pid_t pid)
 	return get_proc_file(pid, "cmdline", &size);
 }
 
-static Bool
-test_client(Client *c)
+/** @brief test a client against a startup notification sequence
+  * @param c - client to test
+  * @param seq - sequence against which to test
+  * @return Bool - True if the client matches the sequence, False otherwise
+  */
+Bool
+test_client(Client *c, Sequence *seq)
 {
 	pid_t pid;
 	char *str;
 
 	if (c->startup_id) {
-		if (!strcmp(c->startup_id, fields.id))
+		if (!strcmp(c->startup_id, seq->f.id))
 			return True;
 		else
 			return False;
 	}
-	if ((pid = c->pid) && (!c->hostname || strcmp(fields.hostname, c->hostname)))
+	if ((pid = c->pid) && (!c->hostname || strcmp(seq->f.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
-		if (strcmp(fields.id, str))
+		if (strcmp(seq->f.id, str))
 			return False;
 		else
 			return True;
 		free(str);
 	}
 	/* correct wmclass */
-	if (fields.wmclass) {
-		if (c->ch.res_name && !strcmp(fields.wmclass, c->ch.res_name))
+	if (seq->f.wmclass) {
+		if (c->ch.res_name && !strcmp(seq->f.wmclass, c->ch.res_name))
 			return True;
-		if (c->ch.res_class && !strcmp(fields.wmclass, c->ch.res_class))
+		if (c->ch.res_class && !strcmp(seq->f.wmclass, c->ch.res_class))
 			return True;
 	}
 	/* same process id */
-	if (pid && atoi(fields.pid) == pid)
+	if (pid && atoi(seq->f.pid) == pid)
 		return True;
 	/* same timestamp to the millisecond */
-	if (c->user_time && c->user_time == strtoul(fields.timestamp, NULL, 0))
+	if (c->user_time && c->user_time == strtoul(seq->f.timestamp, NULL, 0))
 		return True;
 	/* correct executable */
-	if (pid && fields.bin) {
+	if (pid && seq->f.bin) {
 		if ((str = get_proc_comm(pid)))
-			if (!strcmp(fields.bin, str)) {
+			if (!strcmp(seq->f.bin, str)) {
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_exec(pid)))
-			if (!strcmp(fields.bin, str)) {
+			if (!strcmp(seq->f.bin, str)) {
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_argv0(pid)))
-			if (!strcmp(fields.bin, str)) {
+			if (!strcmp(seq->f.bin, str)) {
 				free(str);
 				return True;
 			}
@@ -1625,36 +2011,327 @@ test_client(Client *c)
 	return False;
 }
 
+/** @brief assist some clients by adding information missing from window
+  *
+  * Some applications do not use a full toolkit and do not properly set all of
+  * the EWMH properties.  Once we have identified the startup sequence
+  * associated with a client, we can set infomration on the client from the
+  * startup notification sequence.
+  *
+  * Also do things like use /proc/[pid]/cmdline to set up WM_COMMAND if not
+  * present.
+  */
 void
 setup_client(Client *c)
 {
-	/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
+	Sequence *seq;
+	long data;
+
+	if (!(seq = c->seq))
+		return;
+
+	/* set up _NET_STARTUP_ID */
+	if (!c->startup_id && seq->f.id) {
+		XChangeProperty(dpy, c->win, _XA_NET_STARTUP_ID, _XA_UTF8_STRING, 8,
+				PropModeReplace, (unsigned char *) seq->f.id,
+				strlen(seq->f.id));
+	}
+
+	/* set up _NET_WM_PID */
+	if (!c->pid && seq->n.pid) {
+		data = seq->n.pid;
+		XChangeProperty(dpy, c->win, _XA_NET_WM_PID, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+		c->pid = seq->n.pid;
+	}
+
+	/* set up WM_CLIENT_MACHINE */
+	if (!c->hostname && seq->f.hostname) {
+		XChangeProperty(dpy, c->win, XA_WM_CLIENT_MACHINE, XA_STRING, 8,
+				PropModeReplace, (unsigned char *) seq->f.hostname,
+				strlen(seq->f.hostname));
+	}
+
+	/* set up WM_COMMAND */
+	if (c->pid && !c->command) {
+		char *string;
+		char buf[65] = { 0, };
+		size_t size;
+
+		gethostname(buf, sizeof(buf) - 1);
+		if ((c->hostname && !strcmp(buf, c->hostname)) ||
+		    (seq->f.hostname && !strcmp(buf, seq->f.hostname))) {
+			if ((string = get_proc_file(c->pid, "cmdline", &size))) {
+				XChangeProperty(dpy, c->win, XA_WM_COMMAND,
+						XA_STRING, 8, PropModeReplace,
+						(unsigned char *) string, size);
+				free(string);
+			}
+		}
+	}
 }
 
+static Sequence *ref_sequence(Sequence *seq);
+
+/** @brief find the startup sequence for a client
+  * @param c - client to lookup startup sequence for
+  * @return Sequence* - the found sequence or NULL if not found
+  */
+static Sequence *
+find_startup_seq(Client *c)
+{
+	Sequence *seq;
+
+	if ((seq = c->seq))
+		return seq;
+
+	/* search by startup id */
+	if (c->startup_id) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			if (!seq->f.id) {
+				EPRINTF("sequence with null id!\n");
+				continue;
+			}
+			if (!strcmp(c->startup_id, seq->f.id))
+				break;
+		}
+		if (!seq) {
+			DPRINTF(1, "cannot find startup id '%s'!\n", c->startup_id);
+			return (seq);
+		}
+		DPRINTF(1, "Found sequence by _NET_STARTUP_ID\n");
+		goto found_it;
+	}
+
+	/* search by wmclass */
+	if (c->ch.res_name || c->ch.res_class) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			const char *wmclass;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if ((wmclass = seq->f.wmclass)) {
+				if (c->ch.res_name && !strcasecmp(wmclass, c->ch.res_name))
+					break;
+				if (c->ch.res_class && !strcasecmp(wmclass, c->ch.res_class))
+					break;
+			}
+		}
+		if (seq) {
+			DPRINTF(1, "Found sequence by res_name or res_class\n");
+			goto found_it;
+		}
+	}
+
+	/* search by binary */
+	if (c->command) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			const char *binary;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if ((binary = seq->f.bin)) {
+				if (c->command[0] && !strcmp(binary, c->command[0]))
+					break;
+			}
+
+		}
+		if (seq) {
+			DPRINTF(1, "Found sequence by command\n");
+			goto found_it;
+		}
+	}
+
+	/* search by wmclass (this time case insensitive) */
+	if (c->ch.res_name || c->ch.res_class) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			const char *wmclass;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if ((wmclass = seq->f.wmclass)) {
+				if (c->ch.res_name
+				    && !strcasecmp(wmclass, c->ch.res_name))
+					break;
+				if (c->ch.res_class
+				    && !strcasecmp(wmclass, c->ch.res_class))
+					break;
+			}
+		}
+		if (seq) {
+			DPRINTF(1, "Found sequence by res_name or res_class\n");
+			goto found_it;
+		}
+	}
+
+	/* search by pid and hostname */
+	if (c->pid && c->hostname) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			const char *hostname;
+			pid_t pid;
+
+			if (seq->client)
+				continue;
+			if (seq->state == StartupNotifyComplete)
+				continue;
+			if (!(pid = seq->n.pid) || !(hostname = seq->f.hostname))
+				continue;
+			if (c->pid == pid && !strcmp(c->hostname, hostname))
+				break;
+		}
+		if (seq) {
+			DPRINTF(1, "Found sequence by pid and hostname\n");
+			goto found_it;
+		}
+	}
+	DPRINTF(1, "could not find startup ID for client\n");
+	return NULL;
+      found_it:
+	seq->client = c;
+	c->seq = ref_sequence(seq);
+	setup_client(c);
+	return (seq);
+}
+
+/** @brief detect whether a client is a dockapp
+  * @param c - client the check
+  * @return Bool - true if the client is a dockapp; false, otherwise.
+  */
+static Bool
+is_dockapp(Client *c)
+{
+	/* In an attempt to get around GTK+ >= 2.4.0 limitations, some GTK+ dock apps
+	   simply set the res_class to "DockApp". */
+	if (c->ch.res_class && !strcmp(c->ch.res_class, "DockApp"))
+		return True;
+	if (!c->wmh)
+		return False;
+	/* Many libxpm based dockapps use xlib to set the state hint correctly. */
+	if ((c->wmh->flags & StateHint) && c->wmh->initial_state == WithdrawnState)
+		return True;
+	/* Many dockapps that were based on GTK+ < 2.4.0 are having their initial_state
+	   changed to NormalState by GTK+ >= 2.4.0, so when the other flags are set,
+	   accept anyway (note that IconPositionHint is optional). */
+	if ((c->wmh->flags & ~IconPositionHint) ==
+	    (WindowGroupHint | StateHint | IconWindowHint))
+		return True;
+	return False;
+}
+
+/** @brief detect whether a client is a status icon
+  */
+Bool
+is_statusicon(Client *c)
+{
+	if (c->xei)
+		return True;
+	return False;
+}
+
+/** @brief update client from X server
+  * @param c - the client to update
+  *
+  * Updates the client from information and properties maintained by the X
+  * server.  Care should be taken that information that shoule be obtained from
+  * a group window is obtained from that window first and then overwritten by
+  * any information contained in the specific window.
+  */
 static void
 update_client(Client *c)
 {
-	long card;
+#if 1
+#if 1
+	struct atoms *atom;
+#endif
 
-	XGetClassHint(dpy, c->win, &c->ch);
+	XSaveContext(dpy, c->win, ScreenContext, (XPointer) scr);
+	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
+	XSelectInput(dpy, c->win,
+		     ExposureMask | VisibilityChangeMask | StructureNotifyMask |
+		     FocusChangeMask | PropertyChangeMask);
+
+#if 1
+	for (atom = wmprops; atom->name; atom++)
+		if (atom->pc_handler)
+			atom->pc_handler(NULL, c);
+#endif
+	c->new = False;
+#else
+	long card;
+	int count = 0;
+
+	if (c->wmh)
+		XFree(c->wmh);
+	c->group = None;
+	if ((c->wmh = XGetWMHints(dpy, c->win))) {
+		if (c->wmh->flags & WindowGroupHint)
+			c->group = c->wmh->window_group;
+		if (c->group == c->win)
+			c->group = None;
+	}
+
+	if (c->ch.res_name) {
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (!XGetClassHint(dpy, c->win, &c->ch) && c->group)
+		XGetClassHint(dpy, c->group, &c->ch);
+
 	XFetchName(dpy, c->win, &c->name);
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
 	    && c->time_win) {
 		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
 		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
 	}
-	c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE);
-	c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID);
-	if (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card))
-		c->pid = card;
 
+	if (c->hostname)
+		XFree(c->hostname);
+	if (!(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) && c->group)
+		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
+
+	if (c->command) {
+		XFreeStringList(c->command);
+		c->command = NULL;
+	}
+	if (!XGetCommand(dpy, c->win, &c->command, &count) && c->group)
+		XGetCommand(dpy, c->group, &c->command, &count);
+
+	free(c->startup_id);
+	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && c->group)
+		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
+
+	card = 0;
+	if (!get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) && c->group)
+		get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card);
+	c->pid = card;
+
+	find_startup_seq(c);
+#if 0
 	if (test_client(c))
 		setup_client(c);
-
+#endif
 	XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
-	XSelectInput(dpy, c->win, ExposureMask | VisibilityChangeMask |
-		     StructureNotifyMask | FocusChangeMask | PropertyChangeMask);
+	XSelectInput(dpy, c->win,
+		     ExposureMask | VisibilityChangeMask | StructureNotifyMask |
+		     FocusChangeMask | PropertyChangeMask);
+	if (c->group) {
+		XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->group,
+			     ExposureMask | VisibilityChangeMask | StructureNotifyMask |
+			     FocusChangeMask | PropertyChangeMask);
+	}
 	c->new = False;
+#endif
 }
 
 static Client *
@@ -1664,27 +2341,90 @@ add_client(Window win)
 
 	c = calloc(1, sizeof(*c));
 	c->win = win;
-	c->next = clients;
-	clients = c;
+	c->next = scr->clients;
+	scr->clients = c;
 	update_client(c);
 	c->new = True;
 	return (c);
 }
 
+static Sequence *unref_sequence(Sequence *seq);
+
 static void
 remove_client(Client *c)
 {
-	if (c->ch.res_name)
-		XFree(c->ch.res_name);
-	if (c->ch.res_class)
-		XFree(c->ch.res_class);
-	if (c->name)
-		XFree(c->name);
-	if (c->startup_id)
+	Window *winp;
+	int i;
+
+	PTRACE(5);
+	if (c->startup_id) {
+		DPRINTF(1, "Freeing: startup_id\n");
 		XFree(c->startup_id);
-	XDeleteContext(dpy, c->win, ClientContext);
-	if (c->time_win)
-		XDeleteContext(dpy, c->time_win, ClientContext);
+		c->startup_id = NULL;
+	}
+	if (c->command) {
+		DPRINTF(1, "Freeing: command\n");
+		XFreeStringList(c->command);
+		c->command = NULL;
+	}
+	if (c->name) {
+		DPRINTF(1, "Freeing: name\n");
+		XFree(c->name);
+		c->name = NULL;
+	}
+	if (c->hostname) {
+		DPRINTF(1, "Freeing: hostname\n");
+		XFree(c->hostname);
+		c->hostname = NULL;
+	}
+	if (c->client_id) {
+		DPRINTF(1, "Freeing: client_id\n");
+		XFree(c->client_id);
+		c->client_id = NULL;
+	}
+	if (c->role) {
+		DPRINTF(1, "Freeing: role\n");
+		XFree(c->role);
+		c->role = NULL;
+	}
+	if (c->ch.res_name) {
+		DPRINTF(1, "Freeing: ch.res_name\n");
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		DPRINTF(1, "Freeing: ch.res_class\n");
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (c->wmh) {
+		DPRINTF(1, "Freeing: wmh\n");
+		XFree(c->wmh);
+		c->wmh = NULL;
+	}
+	if (c->wms) {
+		DPRINTF(1, "Freeing: wms\n");
+		XFree(c->wms);
+		c->wms = NULL;
+	}
+	if (c->xei) {
+		DPRINTF(1, "Freeing: xei\n");
+		XFree(c->xei);
+		c->xei = NULL;
+	}
+	for (i = 0, winp = &c->win; i < 5; i++, winp++) {
+		if (*winp) {
+			XDeleteContext(dpy, *winp, ScreenContext);
+			XDeleteContext(dpy, *winp, ClientContext);
+			XSelectInput(dpy, *winp, NoEventMask);
+			*winp = None;
+		}
+	}
+	if (c->seq && c->seq->client == c) {
+		c->seq->client = NULL;
+		unref_sequence(c->seq);
+		c->seq = NULL;
+	}
 	free(c);
 }
 
@@ -1693,191 +2433,32 @@ del_client(Client *r)
 {
 	Client *c, **cp;
 
-	for (cp = &clients, c = *cp; c && c != r; cp = &c->next, c = *cp) ;
+	PTRACE(5);
+	for (cp = &scr->clients, c = *cp; c && c != r; cp = &c->next, c = *cp) ;
 	if (c == r)
 		*cp = c->next;
 	remove_client(r);
 }
 
-static Bool
-handle_WM_CLIENT_MACHINE(XEvent *e, Client *c)
-{
-	if (!c || e->type != PropertyNotify)
-		return False;
-	switch (e->xproperty.state) {
-	case PropertyNewValue:
-		break;
-	case PropertyDelete:
-		break;
-	}
-	return True;
-}
-
-static Bool
-handle_WM_COMMAND(XEvent *e, Client *c)
-{
-	if (!c || e->type != PropertyNotify)
-		return False;
-	switch (e->xproperty.state) {
-	case PropertyNewValue:
-		break;
-	case PropertyDelete:
-		break;
-	}
-	return True;
-}
-
-static Bool
-handle_WM_HINTS(XEvent *e, Client *c)
-{
-	Window grp = None;
-	Client *g = NULL;
-
-	if (!c || e->type != PropertyNotify)
-		return False;
-	switch (e->xproperty.state) {
-	case PropertyNewValue:
-		if (c->wmh)
-			XFree(c->wmh);
-		if ((c->wmh = XGetWMHints(dpy, c->win))) {
-			/* ensure that the group leader is also tracked */
-			if (c->wmh->flags & WindowGroupHint)
-				if ((grp = c->wmh->window_group) && grp != root)
-					if (XFindContext(dpy, grp, ClientContext, (XPointer *) &g))
-						add_client(grp);
-		}
-		break;
-	case PropertyDelete:
-		if (c->wmh) {
-			XFree(c->wmh);
-			c->wmh = NULL;
-		}
-		break;
-	}
-	return True;
-}
-
-static Bool
-handle_WM_STATE(XEvent *e, Client *c)
-{
-	long data;
-
-	if (!c || e->type != PropertyNotify)
-		return False;
-	if (get_cardinal(e->xany.window, _XA_WM_STATE, AnyPropertyType, &data)
-	    && data != WithdrawnState && !c)
-		c = add_client(e->xany.window);
-	return True;
-}
-
-static Bool
-handle_NET_WM_STATE(XEvent *e, Client *c)
-{
-	Atom *atoms = NULL;
-	long i, n;
-
-	if ((atoms = get_atoms(e->xany.window, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
-		if (!c)
-			c = add_client(e->xany.window);
-		for (i = 0; i < n; i++)
-			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
-				c->focus_time = e->xproperty.time;
-				break;
-			}
-		XFree(atoms);
-		return True;
-	}
-	return False;
-}
-
-/** @brief track the active window
-  * @param e - property notification event
-  * @param c - client associated with e->xany.window
+/** @brief update client from startup notification sequence
+  * @param seq - the sequence that has changed state
   *
-  * This handler tracks the _NET_ACTIVE_WINDOW property on the root window set
-  * by EWMH/NetWM compliant window managers to indicate the active window.  We
-  * keep track of the last time that each client window was active.
+  * Update the client associated with a startup notification sequence.
   */
-static Bool
-handle_NET_ACTIVE_WINDOW(XEvent *e, Client *c)
-{
-	Window active = None;
-
-	if (get_window(root, _XA_NET_ACTIVE_WINDOW, XA_WINDOW, &active) && active) {
-		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c) != Success)
-			c = add_client(active);
-		if (e)
-			c->active_time = e->xproperty.time;
-		return True;
-	}
-	return False;
-}
-
-static Bool
-handle_NET_WM_USER_TIME(XEvent *e, Client *c)
-{
-	if (c && get_time(e->xany.window, _XA_NET_WM_USER_TIME, XA_CARDINAL, &c->user_time)) {
-		push_time(&last_user_time, c->user_time);
-		return True;
-	}
-	return False;
-}
-
-static Bool
-handle_CLIENT_LIST(XEvent *e, Atom atom, Atom type)
-{
-	Window *list;
-	long i, n;
-	Client *c, **cp;
-
-	if ((list = get_windows(root, atom, type, &n))) {
-		for (c = clients; c; c->breadcrumb = False, c->new = False, c = c->next) ;
-		for (i = 0, c = NULL; i < n; c = NULL, i++) {
-			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) != Success)
-				c = add_client(list[i]);
-			c->breadcrumb = True;
-		}
-		XFree(list);
-		for (cp = &clients, c = *cp; c;) {
-			if (!c->breadcrumb) {
-				*cp = c->next;
-				remove_client(c);
-				c = *cp;
-			} else {
-				cp = &c->next;
-				c = *cp;
-			}
-		}
-		return True;
-	}
-	return False;
-}
-
-static Bool
-handle_NET_CLIENT_LIST(XEvent *e, Client *c)
-{
-	return handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
-}
-
-static Bool
-handle_WIN_CLIENT_LIST(XEvent *e, Client *c)
-{
-	return handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
-}
-
-static Bool
-handle_MANAGER(XEvent *e, Client *c)
-{
-	check_compm();
-	check_pager();
-	check_stray();
-	check_icccm();
-	return True;
-}
-
 static void
 update_startup_client(Sequence *seq)
 {
+	Client *c;
+
+	if (!(c = seq->client))
+		/* Note that we do not want to go searching for clients because any
+		   client that we would find at this point could get a false positive
+		   against an client that existed before the startup notification
+		   sequence.  We could use creation timestamps to filter out the false
+		   positives, but that is for later. */
+		return;
+	/* TODO: things to update are: _NET_WM_PID, WM_CLIENT_MACHINE, ...  Note that
+	   _NET_WM_STARTUP_ID should already be set. */
 }
 
 static void
@@ -1911,6 +2492,21 @@ free_sequence_fields(Sequence *seq)
 }
 
 static void
+show_sequence(Sequence *seq)
+{
+	char **label, **field;
+
+	if (options.debug < 1 && options.output < 2)
+		return;
+	for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+		if (*field)
+			fprintf(stderr, "%s=%s\n", *label, *field);
+		else
+			fprintf(stderr, "%s=\n", *label);
+	}
+}
+
+static void
 copy_sequence_fields(Sequence *old, Sequence *new)
 {
 	int i;
@@ -1922,6 +2518,8 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 		}
 	}
 	convert_sequence_fields(old);
+	OPRINTF(1, "Updated sequence fields:\n");
+	show_sequence(old);
 }
 
 static Sequence *
@@ -1929,47 +2527,179 @@ find_seq_by_id(char *id)
 {
 	Sequence *seq;
 
-	for (seq = sequences; seq; seq = seq->next)
+	for (seq = scr->sequences; seq; seq = seq->next)
 		if (!strcmp(seq->f.id, id))
 			break;
 	return (seq);
 }
 
 static void
-add_sequence(Sequence *seq)
+close_sequence(Sequence *seq)
 {
-	seq->next = sequences;
-	sequences = seq;
+#ifdef HAVE_GLIB_EVENT_LOOP
+	if (seq->timer) {
+		DPRINTF(1, "removing timer\n");
+		g_source_remove(seq->timer);
+		seq->timer = 0;
+	}
+#endif				/* HAVE_GLIB_EVENT_LOOP */
+#ifdef SYSTEM_TRAY_STATUS_ICON
+	if (seq->status) {
+		DPRINTF(1, "removing statusicon\n");
+		g_object_unref(G_OBJECT(seq->status));
+		seq->status = NULL;
+	}
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+#ifdef DESKTOP_NOTIFICATIONS
+	if (seq->notification) {
+		DPRINTF(1, "removing notificiation\n");
+		g_object_unref(G_OBJECT(seq->notification));
+		seq->notification = NULL;
+	}
+#endif				/* DESKTOP_NOTIFICATIONS */
 }
 
 static Sequence *
-remove_sequence(Sequence * del)
+unref_sequence(Sequence *seq)
+{
+	if (seq) {
+		if (--seq->refs <= 0) {
+			Sequence *s, **prev;
+
+			DPRINTF(1, "deleting sequence\n");
+			for (prev = &scr->sequences, s = *prev; s && s != seq;
+			     prev = &s->next, s = *prev) ;
+			if (s) {
+				*prev = s->next;
+				s->next = NULL;
+			}
+			close_sequence(seq);
+			free_sequence_fields(seq);
+			free(seq);
+			return (NULL);
+		} else
+			DPRINTF(1, "sequence still has %d references\n", seq->refs);
+	} else
+		EPRINTF("called with null pointer\n");
+	return (seq);
+}
+
+static Sequence *
+ref_sequence(Sequence *seq)
+{
+	if (seq)
+		++seq->refs;
+	return (seq);
+}
+
+static Sequence *
+remove_sequence(Sequence *del)
 {
 	Sequence *seq, **prev;
 
-	for (prev = &sequences, seq = *prev; seq && seq != del;
+	OPRINTF(1, "Removing sequence:\n");
+	show_sequence(del);
+	for (prev = &scr->sequences, seq = *prev; seq && seq != del;
 	     prev = &seq->next, seq = *prev) ;
 	if (seq) {
 		*prev = seq->next;
 		seq->next = NULL;
-		if (!seq->client) {
-			free_sequence_fields(seq);
-			free(seq);
-		}
+		close_sequence(seq);
+		unref_sequence(seq);
 	} else
 		EPRINTF("could not find sequence\n");
 	return (seq);
+}
+
+#ifdef DESKTOP_NOTIFICATIONS
+static NotifyNotification *create_notification(Sequence *seq);
+#endif				/* DESKTOP_NOTIFICATIONS */
+
+#ifdef HAVE_GLIB_EVENT_LOOP
+
+static gboolean
+sequence_timeout_callback(gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	if (seq->state == StartupNotifyComplete) {
+		remove_sequence(seq);
+		seq->timer = 0;
+		return FALSE;	/* stop timeout interval */
+	}
+	/* for now, just generate a remove message after the guard-time */
+	if (1) {
+		send_remove(seq);
+		seq->timer = 0;
+		return FALSE;	/* remove timeout source */
+	} else {
+#ifdef DESKTOP_NOTIFICATIONS
+#if 0
+		create_notification(seq);
+#else
+		(void) create_notification;
+#endif
+#endif				/* DESKTOP_NOTIFICATIONS */
+		return TRUE;	/* continue timeout interval */
+	}
+}
+
+#endif				/* HAVE_GLIB_EVENT_LOOP */
+
+#ifdef SYSTEM_TRAY_STATUS_ICON
+
+static GtkStatusIcon *create_statusicon(Sequence *seq);
+
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+
+/** @brief add a new startup notification sequence to list for screen
+  *
+  * When a startup notification sequence is added, it is because we have
+  * received a 'new:' or 'remove:' message.  What we want to do is to generate a
+  * status icon at this point that will be updated and removed as the startup
+  * notification sequence is changed or completed.  We add StartupNotifyComplete
+  * sequences that start with a 'remove:' message in case the 'new:' message is
+  * late.  We always add a guard timer so that the StartupNotifyComplete
+  * sequence will always be removed at some point.
+  */
+static void
+add_sequence(Sequence *seq)
+{
+	seq->refs = 1;
+	seq->client = NULL;
+	seq->next = scr->sequences;
+	scr->sequences = seq;
+	if (seq->state == StartupNotifyNew) {
+#ifdef SYSTEM_TRAY_STATUS_ICON
+#if 1
+		create_statusicon(seq);
+#else
+		(void)create_statusicon;
+#endif
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+	}
+#if 1
+#ifdef HAVE_GLIB_EVENT_LOOP
+	seq->timer =
+	    g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) seq);
+#endif				/* HAVE_GLIB_EVENT_LOOP */
+#else
+	(void) sequence_timeout_callback;
+#endif
+	OPRINTF(1, "Added sequence:\n");
+	show_sequence(seq);
 }
 
 static void
 process_startup_msg(Message *m)
 {
 	Sequence cmd = { NULL, }, *seq;
-	char *p = m->data, *k, *v, *q;
+	char *p = m->data, *k, *v, *q, *copy, *b;
 	const char **f;
 	int i;
 	int escaped, quoted;
 
+	DPRINTF(1, "Got message from 0x%lx: %s\n", m->origin, m->data);
 	if (!strncmp(p, "new:", 4)) {
 		cmd.state = StartupNotifyNew;
 	} else if (!strncmp(p, "change:", 7)) {
@@ -1986,9 +2716,9 @@ process_startup_msg(Message *m)
 		while (*p == ' ')
 			p++;
 		k = p;
-		if ((v = strchr(k, '=')) == NULL) {
+		if (!(v = strchr(k, '='))) {
 			free_sequence_fields(&cmd);
-			DPRINTF("mangled message\n");
+			DPRINTF(1, "mangled message\n");
 			return;
 		} else {
 			*v++ = '\0';
@@ -2007,7 +2737,7 @@ process_startup_msg(Message *m)
 					} else if (*p == '\0' || (*p == ' ' && !quoted)) {
 						if (quoted) {
 							free_sequence_fields(&cmd);
-							DPRINTF("mangled message\n");
+							DPRINTF(1, "mangled message\n");
 							return;
 						}
 						if (*p == ' ')
@@ -2028,38 +2758,80 @@ process_startup_msg(Message *m)
 	}
 	free(m->data);
 	free(m);
-	if (cmd.f.id == NULL) {
+	if (!cmd.f.id) {
 		free_sequence_fields(&cmd);
-		DPRINTF("message with no ID= field\n");
+		DPRINTF(1, "message with no ID= field\n");
 		return;
 	}
+	/* get information from ID */
+	do {
+		p = q = copy = strdup(cmd.f.id);
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!cmd.f.launcher)
+			cmd.f.launcher = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!cmd.f.launchee)
+			cmd.f.launchee = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.pid)
+			cmd.f.pid = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.sequence)
+			cmd.f.sequence = strdup(q);
+		q = p;
+		if (!(p = strstr(q, "_TIME")))
+			break;
+		*p++ = '\0';
+		if (!cmd.f.hostname)
+			cmd.f.hostname = strdup(q);
+		q = p + 4;
+		if (!cmd.f.timestamp)
+			cmd.f.timestamp = strdup(q);
+	} while (0);
+	free(copy);
 	/* get timestamp from ID if necessary */
-	if (cmd.f.timestamp == NULL
-		&& (p = strstr(cmd.f.id, "_TIME")) != NULL)
+	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
 		cmd.f.timestamp = strdup(p + 5);
 	convert_sequence_fields(&cmd);
-	if ((seq = find_seq_by_id(cmd.f.id)) == NULL) {
-		if (cmd.state != StartupNotifyNew) {
+	if (!(seq = find_seq_by_id(cmd.f.id))) {
+		switch (cmd.state) {
+		default:
 			free_sequence_fields(&cmd);
-			DPRINTF("message out of sequence\n");
+			DPRINTF(1, "message out of sequence\n");
 			return;
+		case StartupNotifyNew:
+		case StartupNotifyComplete:
+			break;
 		}
-		if ((seq = calloc(1, sizeof(*seq))) == NULL) {
+		if (!(seq = calloc(1, sizeof(*seq)))) {
 			free_sequence_fields(&cmd);
-			DPRINTF("no memory\n");
+			DPRINTF(1, "no memory\n");
 			return;
 		}
 		*seq = cmd;
 		add_sequence(seq);
-		seq->client = NULL;
-		seq->changed = False;
 		return;
 	}
 	switch (seq->state) {
 	case StartupNotifyIdle:
 		switch (cmd.state) {
 		case StartupNotifyIdle:
-			DPRINTF("message state error\n");
+			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
 			seq->state = StartupNotifyComplete;
@@ -2082,7 +2854,7 @@ process_startup_msg(Message *m)
 	case StartupNotifyNew:
 		switch (cmd.state) {
 		case StartupNotifyIdle:
-			DPRINTF("message state error\n");
+			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
 			seq->state = StartupNotifyComplete;
@@ -2100,7 +2872,7 @@ process_startup_msg(Message *m)
 	case StartupNotifyChanged:
 		switch (cmd.state) {
 		case StartupNotifyIdle:
-			DPRINTF("message state error\n");
+			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
 			seq->state = StartupNotifyComplete;
@@ -2123,16 +2895,17 @@ process_startup_msg(Message *m)
 	remove_sequence(seq);
 }
 
-static Bool
-handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
+static void
+cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *e, Client *c)
 {
 	Window from;
 	Message *m = NULL;
 	int len;
 
+	PTRACE(5);
 	if (!e || e->type != ClientMessage)
-		return False;
-	from = e->xclient.window;
+		return;
+	from = e->window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
 		m = calloc(1, sizeof(*m));
 		XSaveContext(dpy, from, MessageContext, (XPointer) m);
@@ -2142,38 +2915,37 @@ handle_NET_STARTUP_INFO_BEGIN(XEvent *e, Client *c)
 	m->data = calloc(21, sizeof(*m->data));
 	m->len = 0;
 	/* unpack data */
-	len = strnlen(e->xclient.data.b, 20);
-	strncat(m->data, e->xclient.data.b, 20);
+	len = strnlen(e->data.b, 20);
+	strncat(m->data, e->data.b, 20);
 	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
 	}
-	return True;
 }
 
-static Bool
-handle_NET_STARTUP_INFO(XEvent *e, Client *c)
+static void
+cm_handle_NET_STARTUP_INFO(XClientMessageEvent *e, Client *c)
 {
 	Window from;
 	Message *m = NULL;
 	int len;
 
+	PTRACE(5);
 	if (!e || e->type != ClientMessage)
-		return False;
-	from = e->xclient.window;
+		return;
+	from = e->window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
-		return False;
+		return;
 	m->data = realloc(m->data, m->len + 21);
 	/* unpack data */
-	len = strnlen(e->xclient.data.b, 20);
-	strncat(m->data, e->xclient.data.b, 20);
+	len = strnlen(e->data.b, 20);
+	strncat(m->data, e->data.b, 20);
 	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
 		process_startup_msg(m);
 	}
-	return True;
 }
 
 void
@@ -2189,21 +2961,1303 @@ clean_msgs(Window w)
 	free(m);
 }
 
-void
-handle_atom(XEvent *e, Client *c, Atom atom)
+/** @brief perform actions necessary for a newly managed client
+  * @param c - the client
+  * @param t - the time that the client was managed or CurrentTime when unknown
+  *
+  * The client has just become managed, so try to associated it with a startup
+  * notfication sequence if it has not already been associated.  If the client
+  * can be associated with a startup notification sequence, then terminate the
+  * sequence when it has WMCLASS set, or when SILENT is set (indicating no
+  * startup notification is pending).  Otherwise, wait for the sequence to
+  * complete on its own.
+  *
+  * If we cannot associated a sequence at this point, the launcher may be
+  * defective and only sent the startup notification after the client has
+  * already launched, so leave the client around for later checks.  We can
+  * compare the map_time of the client to the timestamp of a later startup
+  * notification to determine whether the startup notification should have been
+  * sent before the client mapped.
+  */
+static void
+managed_client(Client *c, Time t)
 {
-	struct atoms *a;
+	Sequence *seq = NULL;
 
-	for (a = atoms; a->atom; a++) {
-		if (a->value == atom) {
-			if (a->handler)
-				a->handler(e, c);
+	c->managed = True;
+	pulltime(&c->map_time, t ? : c->last_time);
+	if (!(seq = c->seq) && !(seq = find_startup_seq(c)))
+		return;
+	switch (seq->state) {
+	case StartupNotifyIdle:
+	case StartupNotifyComplete:
+		break;
+	case StartupNotifyNew:
+	case StartupNotifyChanged:
+		if (!seq->f.wmclass && !seq->n.silent)
+			/* We are expecting that the client will generate startup
+			   notification completion on its own, so let the timers run and
+			   wait for completion. */
+			return;
+		/* We are not expecting that the client will generate startup
+		   notification completion on its own.  Either we generate the completion 
+		   or wait for a supporting window manager to do so. */
+		send_remove(seq);
+		break;
+	}
+	/* FIXME: we can remove the startup notification and the client, but perhaps we
+	   will just wait for the client to be unmanaged or destroyed. */
+}
+
+static void
+unmanaged_client(Client *c)
+{
+	c->managed = False;
+	/* FIXME: we can remove the client and any associated startup notification. */
+}
+
+/** @brief handle a client list of windows
+  * @param e - PropertyNotify event that trigger the change
+  * @param atom - the client list atom
+  * @param type - the type of the list (XA_WINDOW or XA_CARDINAL)
+  *
+  * Process a changed client list.  Basically any client window that is on this
+  * list is managed if it was not previously managed.  Also, any client that was
+  * previously on the list is no longer managed when it does not appear on the
+  * list any more (unless it is a dockapp or a statusicon).
+  */
+static void
+pc_handle_CLIENT_LIST(XPropertyEvent *e, Atom atom, Atom type)
+{
+	Window *list;
+	long i, n;
+	Client *c, *cn;
+
+	PTRACE(5);
+	if ((list = get_windows(scr->root, atom, type, &n))) {
+		for (c = scr->clients; c;
+		     c->breadcrumb = False, c->new = False, c = c->next) ;
+		for (i = 0; i < n; i++) {
+			if (XFindContext(dpy, list[i], ClientContext, (XPointer *) &c) ==
+			    Success) {
+				c->breadcrumb = True;
+				c->listed = True;
+				managed_client(c, e ? e->time : CurrentTime);
+			}
+		}
+		XFree(list);
+		for (cn = scr->clients; (c = cn);) {
+			cn = c->next;
+			if (!c->breadcrumb && c->listed) {
+				c->listed = False;
+				unmanaged_client(c);
+			}
+		}
+	}
+}
+
+/** @brief track the active window
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  *
+  * This handler tracks the _NET_ACTIVE_WINDOW property on the root window set
+  * by EWMH/NetWM compliant window managers to indicate the active window.  We
+  * keep track of the last time that each client window was active.
+  */
+static void
+pc_handle_NET_ACTIVE_WINDOW(XPropertyEvent *e, Client *c)
+{
+	Window active = None;
+
+	PTRACE(5);
+	if (c || !e || e->window != scr->root || e->state == PropertyDelete)
+		return;
+	if (get_window(scr->root, _XA_NET_ACTIVE_WINDOW, XA_WINDOW, &active) && active) {
+		if (XFindContext(dpy, active, ClientContext, (XPointer *) &c) == Success) {
+			if (e)
+				pushtime(&c->active_time, e->time);
+			managed_client(c, e ? e->time : CurrentTime);
+		}
+	}
+}
+
+static void
+cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c)
+		return;
+	pushtime(&current_time, e->data.l[1]);
+	pushtime(&c->active_time, e->data.l[1]);
+	if (c->managed)
+		return;
+	EPRINTF("_NET_ACTIVE_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, e->data.l[1]);
+}
+
+static void
+pc_handle_NET_CLIENT_LIST(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (e && (e->window != scr->root || e->state == PropertyDelete))
+		return;
+	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
+}
+
+static void
+pc_handle_NET_CLIENT_LIST_STACKING(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (e && (e->window != scr->root || e->state == PropertyDelete))
+		return;
+	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST_STACKING, XA_WINDOW);
+}
+
+static void
+cm_handle_NET_CLOSE_WINDOW(XClientMessageEvent *e, Client *c)
+{
+	Time time;
+
+	PTRACE(5);
+	if (!c)
+		return;
+	time = e ? e->data.l[0] : CurrentTime;
+	pushtime(&current_time, time);
+	pushtime(&c->active_time, time);
+
+	if (c->managed)
+		return;
+	EPRINTF("_NET_CLOSE_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, time);
+}
+
+static void
+cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || c->managed)
+		return;
+	EPRINTF("_NET_MOVERESIZE_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
+}
+
+static void
+cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	/* This message, unlike others, is sent before a window is initially mapped
+	   (managed). */
+	if (!c || !c->managed)
+		return;
+	EPRINTF("_NET_REQUEST_FRAME_EXTENTS for managed window 0x%lx\n", e->window);
+}
+
+static void
+cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || c->managed)
+		return;
+	EPRINTF("_NET_RESTACK_WINDOW for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
+}
+
+static void
+pc_handle_NET_STARTUP_ID(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->startup_id) {
+		XFree(c->startup_id);
+		c->startup_id = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID)) && c->group)
+		c->startup_id = get_text(c->group, _XA_NET_STARTUP_ID);
+}
+
+static void
+pc_handle_NET_SUPPORTED(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	handle_wmchange();
+}
+
+static void
+pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	handle_wmchange();
+}
+
+static void
+pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_NET_WM_FULLSCREEN_MONITORS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_NET_WM_ICON_GEOMETRY(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_NET_WM_ICON_NAME(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c)
+		return;
+	EPRINTF("_NET_WM_MOVERSIZE for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
+}
+
+static void
+pc_handle_NET_WM_NAME(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_NET_WM_PID(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+/** @brief handle _NET_WM_STATE property change
+  *
+  * Unlike WM_STATE, it is ok for the client to set this property before mapping
+  * a window.  After the window is mapped it must be changd with the
+  * _NET_WM_STATE client message.  There are, however, two atoms in the state:
+  * _NET_WM_STATE_HIDDEN and _NET_WM_STATE_FOCUSED, that should be treated as
+  * read-only by clients and will, therefore, only be set by the window manager.
+  * When either of these atoms are set (or removed [TODO]), we should treat the
+  * window as managed if it has not already been managed.
+  *
+  * The window manager is the only one responsible for deleting the property,
+  * and WM-SPEC-1.5 says that it should be deleted whenever a window is
+  * withdrawn but left in place when the window manager shuts down, is replaced,
+  * or restarts.
+  */
+static void
+pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
+{
+	Atom *atoms = NULL;
+	long i, n;
+
+	PTRACE(5);
+	if (!c)
+		return;
+	if (e && e->state == PropertyDelete) {
+		/* only removed by window manager when window withdrawn */
+		unmanaged_client(c);
+		return;
+	}
+	if ((atoms = get_atoms(c->win, _XA_NET_WM_STATE, AnyPropertyType, &n))) {
+		for (i = 0; i < n; i++) {
+			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+				if (e)
+					pushtime(&c->focus_time, e->time);
+				if (!c->managed)
+					managed_client(c, e ? e->time : CurrentTime);
+			} else if (atoms[i] == _XA_NET_WM_STATE_HIDDEN) {
+				if (!c->managed)
+					managed_client(c, e ? e->time : CurrentTime);
+			}
+		}
+		XFree(atoms);
+		if (!c->managed)
+			managed_client(c, e ? e->time : CurrentTime);
+	}
+}
+
+/** @brief handle _NET_WM_STATE client message
+  *
+  * If the client sends _NET_WM_STATE client messages, the client thinks that
+  * the window is managed by the window manager because otherwise it would
+  * simply set the property itself.  Therefore, this client message indicates
+  * that the window should be managed if it has not already.
+  *
+  * Basically a client message is a client request to alter state while the
+  * window is mapped, so mark window managed if it is not already.
+  */
+static void
+cm_handle_NET_WM_STATE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || c->managed)
+		return;
+	EPRINTF("_NET_WM_STATE sent for unmanaged window 0x%lx\n", e->window);
+	managed_client(c, CurrentTime);
+}
+
+static void
+pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c)
+		return;
+	c->time_win = None;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)
+	    && c->time_win) {
+		Time time;
+
+		XSaveContext(dpy, c->time_win, ScreenContext, (XPointer) scr);
+		XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->time_win, StructureNotifyMask | PropertyChangeMask);
+
+		if (get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time)) {
+			pushtime(&c->user_time, time);
+			pushtime(&last_user_time, time);
+			pushtime(&current_time, time);
+		}
+	}
+
+}
+
+static void
+pc_handle_NET_WM_USER_TIME(XPropertyEvent *e, Client *c)
+{
+	Time time;
+
+	PTRACE(5);
+	if (!c || (e && e->state == PropertyDelete))
+		return;
+	if (get_time(c->time_win ? : c->win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time)) {
+		pushtime(&c->user_time, time);
+		pushtime(&last_user_time, time);
+		pushtime(&current_time, time);
+	}
+}
+
+/** @brief handle _NET_WM_VISIBLE_ICON_NAME property changes
+  *
+  * Only the window manager sets this property, so it being set indicates that
+  * the window is managed.
+  */
+static void
+pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *e, Client *c)
+{
+	char *name;
+
+	PTRACE(5);
+	if (!c || c->managed)
+		return;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(name = get_text(e->window, _XA_NET_WM_VISIBLE_ICON_NAME)))
+		return;
+	EPRINTF("_NET_WM_VISIBLE_ICON_NAME set unmanaged window 0x%lx\n", e->window);
+	managed_client(c, e ? e->time : CurrentTime);
+	XFree(name);
+}
+
+/** @brief handle _NET_WM_VISIBLE_NAME property changes
+  *
+  * Only the window manager sets this property, so it being set indicates that
+  * the window is managed.
+  */
+static void
+pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *e, Client *c)
+{
+	char *name;
+
+	PTRACE(5);
+	if (!c || c->managed)
+		return;
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(name = get_text(e->window, _XA_NET_WM_VISIBLE_NAME)))
+		return;
+	EPRINTF("_NET_WM_VISIBLE_NAME set unmanaged window 0x%lx\n", e->window);
+	managed_client(c, e ? e->time : CurrentTime);
+	XFree(name);
+}
+
+static void
+pc_handle_WIN_APP_STATE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WIN_CLIENT_LIST(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (e && (e->window != scr->root || e->state == PropertyDelete))
+		return;
+	pc_handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
+}
+
+static void
+pc_handle_WIN_CLIENT_MOVING(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WIN_FOCUS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WIN_HINTS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WIN_LAYER(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+cm_handle_WIN_LAYER(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WIN_PROTOCOLS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	handle_wmchange();
+}
+
+static void
+pc_handle_WIN_STATE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (e && e->state == PropertyDelete)
+		return;
+	/* Not like WM_STATE and _NET_WM_STATE */
+}
+
+static void
+cm_handle_WIN_STATE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	handle_wmchange();
+}
+
+static void
+pc_handle_WIN_WORKSPACE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+cm_handle_WIN_WORKSPACE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_SM_CLIENT_ID(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->client_id) {
+		XFree(c->client_id);
+		c->client_id = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(c->client_id = get_text(c->win, _XA_SM_CLIENT_ID)) && c->leader)
+		c->client_id = get_text(c->leader, _XA_SM_CLIENT_ID);
+	if (!(c->client_id) && c->group)
+		c->client_id = get_text(c->group, _XA_SM_CLIENT_ID);
+}
+
+static void
+pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->ch.res_name) {
+		XFree(c->ch.res_name);
+		c->ch.res_name = NULL;
+	}
+	if (c->ch.res_class) {
+		XFree(c->ch.res_class);
+		c->ch.res_class = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!XGetClassHint(dpy, c->win, &c->ch) && c->group)
+		XGetClassHint(dpy, c->group, &c->ch);
+	c->dockapp = is_dockapp(c);
+}
+
+static void
+cm_handle_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WM_CLIENT_LEADER(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	c->leader = None;
+	if (e && e->state == PropertyDelete)
+		return;
+	get_window(c->win, _XA_WM_CLIENT_LEADER, AnyPropertyType, &c->leader);
+}
+
+static void
+pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->hostname) {
+		XFree(c->hostname);
+		c->hostname = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!(c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE)) && c->group)
+		c->hostname = get_text(c->group, XA_WM_CLIENT_MACHINE);
+	if (!c->hostname && c->leader)
+		c->hostname = get_text(c->leader, XA_WM_CLIENT_MACHINE);
+	if (!c->hostname && c->transient_for)
+		c->hostname = get_text(c->transient_for, XA_WM_CLIENT_MACHINE);
+}
+
+static void
+pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	int count = 0;
+
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->command) {
+		XFreeStringList(c->command);
+		c->command = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if (!XGetCommand(dpy, c->win, &c->command, &count) && c->group)
+		XGetCommand(dpy, c->group, &c->command, &count);
+	if (!c->command && c->leader)
+		XGetCommand(dpy, c->leader, &c->command, &count);
+	if (!c->command && c->transient_for)
+		XGetCommand(dpy, c->transient_for, &c->command, &count);
+
+}
+
+static void
+pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->wmh) {
+		XFree(c->wmh);
+		c->wmh = NULL;
+		c->group = None;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	if ((c->wmh = XGetWMHints(dpy, c->win))) {
+		if (c->wmh->flags & WindowGroupHint)
+			c->group = c->wmh->window_group;
+		if (c->group == c->win)
+			c->group = None;
+		if (c->group && c->group != scr->root) {
+			XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
+			XSelectInput(dpy, c->group,
+				     ExposureMask | VisibilityChangeMask |
+				     StructureNotifyMask | FocusChangeMask |
+				     PropertyChangeMask);
+		}
+		c->dockapp = is_dockapp(c);
+	}
+}
+
+static void
+pc_handle_WM_ICON_NAME(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+}
+
+static void
+pc_handle_WM_ICON_SIZE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+}
+
+static void
+pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+}
+
+static void
+pc_handle_WM_NORMAL_HINTS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+}
+
+static void
+pc_handle_WM_PROTOCOLS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+}
+
+static void
+cm_handle_WM_PROTOCOLS(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WM_SIZE_HINTS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+}
+
+static void
+cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->wms) {
+		XFree(c->wms);
+		c->wms = NULL;
+	}
+	if (e && e->state == PropertyDelete) {
+		unmanaged_client(c);
+		return;
+	}
+	if (!(c->wms = XGetWMState(dpy, c->win))) {
+		/* XXX: about the only time this should happed would be if the window was 
+		   destroyed out from under us: check that.  We should get a
+		   DestroyNotify soon anyway. */
+		return;
+	}
+	if (c->managed) {
+		switch (c->wms->state) {
+		case WithdrawnState:
+			unmanaged_client(c);
+			break;
+		case NormalState:
+		case IconicState:
+		case ZoomState:
+		case InactiveState:
+		default:
+			/* This is merely a state transition between active states. */
+			break;
+		}
+	} else {
+		switch (c->wms->state) {
+		case WithdrawnState:
+			/* The window manager placed a WM_STATE of WithdrawnState on the
+			   window which probably means that it is a dock app that was
+			   just managed, but only for WindowMaker work-alikes. Otherwise, 
+			   per ICCCM, placing withdrawn state on the window means that it 
+			   is unmanaged. */
+			if ((c->dockapp = is_dockapp(c)) && scr->maker_check)
+				managed_client(c, e ? e->time : CurrentTime);
+			else
+				unmanaged_client(c);
+			break;
+		case NormalState:
+		case IconicState:
+		case ZoomState:
+		case InactiveState:
+		default:
+			/* The window manager place a WM_STATE of other than
+			   WithdrawnState on the window which means that it was just
+			   managed per ICCCM. */
+			managed_client(c, e ? e->time : CurrentTime);
 			break;
 		}
 	}
 }
 
-/** @brief handle monitoring events.
+static void
+cm_handle_WM_STATE(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_WM_TRANSIENT_FOR(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	c->transient_for = None;
+	if (e && e->state == PropertyDelete)
+		return;
+	get_window(c->win, XA_WM_TRANSIENT_FOR, AnyPropertyType, &c->transient_for);
+}
+
+static void
+pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->role) {
+		XFree(c->role);
+		c->role = NULL;
+	}
+	if (e && e->state == PropertyDelete)
+		return;
+	c->role = get_text(c->win, _XA_WM_WINDOW_ROLE);
+}
+
+static void
+pc_handle_WM_ZOOM_HINTS(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	/* we don't actually process zoom hints */
+}
+
+enum {
+	XEMBED_EMBEDDED_NOTIFY,
+	XEMBED_WINDOW_ACTIVATE,
+	XEMBED_WINDOW_DEACTIVATE,
+	XEMBED_REQUEST_FOCUS,
+	XEMBED_FOCUS_IN,
+	XEMBED_FOCUS_OUT,
+	XEMBED_FOCUS_NEXT,
+	XEMBED_FOCUS_PREV,
+	XEMBED_GRAB_KEY,
+	XEMBED_UNGRAB_KEY,
+	XEMBED_MODALITY_ON,
+	XEMBED_MODALITY_OFF,
+	XEMBED_REGISTER_ACCELERATOR,
+	XEMBED_UNREGISTER_ACCELERATOR,
+	XEMBED_ACTIVATE_ACCELERATOR,
+};
+
+/* detail for XEMBED_FOCUS_IN: */
+enum {
+	XEMBED_FOCUS_CURRENT,
+	XEMBED_FOCUS_FIRST,
+	XEMBED_FOCUS_LAST,
+};
+
+enum {
+	XEMBED_MODIFIER_SHIFT = (1 << 0),
+	XEMBED_MODIFIER_CONTROL = (1 << 1),
+	XEMBED_MODIFIER_ALT = (1 << 2),
+	XEMBED_MODIFIER_SUPER = (1 << 3),
+	XEMBED_MODIFIER_HYPER = (1 << 4),
+};
+
+enum {
+	XEMBED_ACCELERATOR_OVERLOADED = (1 << 0),
+};
+
+static void
+pc_handle_XEMBED_INFO(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->xei) {
+		XFree(c->xei);
+		c->xei = NULL;
+	}
+	if (e && e->state == PropertyDelete) {
+		c->statusicon = False;
+		return;
+	}
+	if ((c->xei = XGetEmbedInfo(dpy, c->win))) {
+		c->dockapp = False;
+		c->statusicon = True;
+		return;
+	}
+
+}
+
+/* Note:
+ *	xclient.data.l[0] = timestamp
+ *	xclient.data.l[1] = major opcode
+ *	xclient.data.l[2] = detail code
+ *	xclient.data.l[3] = data1
+ *	xclient.data.l[4] = data2
+ *
+ * Sent to target window with no event mask and propagation false.
+ */
+
+static void
+cm_handle_XEMBED(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+	if (!c || !e || e->type != ClientMessage)
+		return;
+	pushtime(&current_time, e->data.l[0]);
+	if (c->managed)
+		return;
+	switch (e->data.l[1]) {
+	case XEMBED_EMBEDDED_NOTIFY:
+		/* Sent from the embedder to the client on embedding, after reparenting
+		   and mapping the client's X window.  A client that receives this
+		   message knows that its window was embedded by an XEmbed site and not
+		   simply reparented by a window manager. The embedder's window handle is 
+		   in data1.  data2 is the protocol version in use. */
+		managed_client(c, e->data.l[0]);
+		return;
+	case XEMBED_WINDOW_ACTIVATE:
+	case XEMBED_WINDOW_DEACTIVATE:
+		/* Sent from embedder to client when the window becomes active or
+		   inactive (keyboard focus) */
+		break;
+	case XEMBED_REQUEST_FOCUS:
+		/* Sent from client to embedder to request keyboard focus. */
+		break;
+	case XEMBED_FOCUS_IN:
+	case XEMBED_FOCUS_OUT:
+		/* Sent from embedder to client when it gets or loses focus. */
+		break;
+	case XEMBED_FOCUS_NEXT:
+	case XEMBED_FOCUS_PREV:
+		/* Sent from the client to embedder at the end or start of tab chain. */
+		break;
+	case XEMBED_GRAB_KEY:
+	case XEMBED_UNGRAB_KEY:
+		/* Obsolete */
+		break;
+	case XEMBED_MODALITY_ON:
+	case XEMBED_MODALITY_OFF:
+		/* Sent from embedder to client when shadowed or released by a modal
+		   dialog. */
+		break;
+	case XEMBED_REGISTER_ACCELERATOR:
+	case XEMBED_UNREGISTER_ACCELERATOR:
+	case XEMBED_ACTIVATE_ACCELERATOR:
+		/* Sent from client to embedder to register an accelerator. 'detail' is
+		   the accelerator_id.  For register, data1 is the X key symbol, and
+		   data2 is a bitfield of modifiers. */
+		break;
+	}
+	/* XXX: there is a question whether we should manage the client here or not.
+	   These other messages indicate that we have probably missed a management event
+	   somehow, so mark it managed anyway. */
+	EPRINTF("_XEMBED message for unmanaged client 0x%lx\n", e->window);
+	managed_client(c, e->data.l[0]);
+}
+
+/** @brief handle MANAGER client message
+  *
+  * We are expecting MANAGER messages for two selections: WM_S%d and
+  * _NET_SYSTEM_TRAY_S%d which correspond to window manager and system tray,
+  * respectively.
+  */
+static void
+cm_handle_MANAGER(XClientMessageEvent *e, Client *c)
+{
+	Window owner;
+	Atom selection;
+	Time time;
+
+	PTRACE(5);
+	if (!e || e->format != 32)
+		return;
+	time = e->data.l[0];
+	selection = e->data.l[1];
+	owner = e->data.l[2];
+
+	(void) time; /* FIXME: use this somehow */
+
+	if (selection == scr->icccm_atom) {
+		if (owner && owner != scr->icccm_check) {
+			XSaveContext(dpy, owner, ScreenContext, (XPointer) scr);
+			XSelectInput(dpy, owner,
+				     StructureNotifyMask | PropertyChangeMask);
+			DPRINTF(1, "window manager changed from 0x%lx to 0x%lx\n",
+				scr->icccm_check, owner);
+			scr->icccm_check = owner;
+			handle_wmchange();
+		}
+	} else if (selection == scr->stray_atom) {
+		if (owner && owner != scr->stray_owner) {
+			XSaveContext(dpy, owner, ScreenContext, (XPointer) scr);
+			XSelectInput(dpy, owner,
+				     StructureNotifyMask | PropertyChangeMask);
+			DPRINTF(1, "system tray changed from 0x%lx to 0x%lx\n", scr->stray_owner,
+				owner);
+			scr->stray_owner = owner;
+			check_stray();
+		}
+	} else if (selection == scr->pager_atom) {
+		if (owner && owner != scr->pager_owner) {
+			XSaveContext(dpy, owner, ScreenContext, (XPointer) scr);
+			XSelectInput(dpy, owner,
+				     StructureNotifyMask | PropertyChangeMask);
+			DPRINTF(1, "pager changed from 0x%lx to 0x%lx\n", scr->pager_owner,
+				owner);
+			scr->pager_owner = owner;
+			check_pager();
+		}
+	} else if (selection == scr->compm_atom) {
+		if (owner && owner != scr->compm_owner) {
+			XSaveContext(dpy, owner, ScreenContext, (XPointer) scr);
+			XSelectInput(dpy, owner,
+				     StructureNotifyMask | PropertyChangeMask);
+			DPRINTF(1, "composite manager changed from 0x%lx to 0x%lx\n", scr->compm_owner,
+				owner);
+			scr->compm_owner = owner;
+			check_compm();
+		}
+	}
+}
+
+static void
+pc_handle_TIMESTAMP_PROP(XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_NET_SYSTEM_TRAY_ORIENTATION(XPropertyEvent *e, Client *c)
+{
+	return;
+}
+
+static void
+pc_handle_NET_SYSTEM_TRAY_VISUAL(XPropertyEvent *e, Client *c)
+{
+	return;
+}
+
+static void
+pc_handle_NET_DESKTOP_LAYOUT(XPropertyEvent *e, Client *c)
+{
+	if (!e || e->type != PropertyNotify)
+		return;
+	switch (e->state) {
+	case PropertyNewValue:
+		if (!scr->pager_owner)
+			scr->pager_owner = scr->root;
+		break;
+	case PropertyDelete:
+		if (scr->pager_owner &&  scr->pager_owner == scr->root)
+			scr->pager_owner = None;
+		break;
+	}
+	return;
+}
+
+void
+pc_handle_atom(XPropertyEvent *e, Client *c)
+{
+	pc_handler_t handle = NULL;
+
+	if (XFindContext(dpy, e->atom, PropertyContext, (XPointer *) &handle) == Success)
+		(*handle) (e, c);
+	else
+		DPRINTF(1, "no PropertyNotify handler for %s\n", XGetAtomName(dpy, e->atom));
+}
+
+void
+cm_handle_atom(XClientMessageEvent *e, Client *c)
+{
+	cm_handler_t handle = NULL;
+
+	if (XFindContext(dpy, e->message_type, ClientMessageContext, (XPointer *) &handle)
+	    == Success)
+		(*handle) (e, c);
+	else
+		DPRINTF(1, "no ClientMessage handler for %s\n", XGetAtomName(dpy, e->message_type));
+}
+
+void
+handle_property_event(XPropertyEvent *e)
+{
+	Client *c = NULL;
+
+	if (e)
+		pushtime(&current_time, e->time);
+	if (!find_screen(e->window))
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && e)
+		pushtime(&c->last_time, e->time);
+	pc_handle_atom(e, c);
+}
+
+void
+handle_focus_change_event(XFocusChangeEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* We missed a management event, so treat the window as managed
+		   now... */
+		managed_client(c, CurrentTime);
+}
+
+void
+handle_expose_event(XExposeEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* We missed a management event, so treat the window as managed
+		   now... */
+		managed_client(c, CurrentTime);
+}
+
+void
+handle_visibility_event(XVisibilityEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* We missed a management event, so treat the window as managed
+		   now. */
+		managed_client(c, CurrentTime);
+}
+
+void
+handle_create_window_event(XCreateWindowEvent *e)
+{
+	Client *c = NULL;
+
+	/* only interested in top-level windows that are not override redirect */
+	if (e->override_redirect)
+		return;
+	if (!find_screen(e->window)) {
+		EPRINTF("could not find screen for window 0x%lx\n", e->window);
+		return;
+	}
+	if (!(c = find_client(e->window)))
+		if (e->parent == scr->root)
+			c = add_client(e->window);
+}
+
+void
+handle_destroy_window_event(XDestroyWindowEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->event)) /* NOTE: e->window is destroyed */
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)))
+		del_client(c);
+	if (e->window == scr->stray_owner) {
+		DPRINTF(1, "system tray removed from 0x%08lx\n", scr->stray_owner);
+		scr->stray_owner = None;
+	} else if (e->window == scr->pager_owner) {
+		DPRINTF(1, "pager removed from 0x%08lx\n", scr->pager_owner);
+		scr->pager_owner = None;
+	} else if (e->window == scr->compm_owner) {
+		DPRINTF(1, "composite manager removed from 0x%08lx\n", scr->compm_owner);
+		scr->compm_owner = None;
+	}
+	clean_msgs(e->window);
+}
+
+void
+handle_map_event(XMapEvent *e)
+{
+	Client *c = NULL;
+
+	if (e->override_redirect)
+		return;
+	if (!find_screen(e->window))
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	if ((c = find_client_noscreen(e->window)) && !c->managed)
+		/* Not sure we should do this for anything but dockapps here...
+		   Window managers may map normal windows before setting the
+		   WM_STATE property, and system trays invariably map window
+		   before sending the _XEMBED message. */
+		if ((c->dockapp = is_dockapp(c)))
+			/* We missed a management event, so treat the window as
+			   managed now */
+			managed_client(c, CurrentTime);
+}
+
+void
+handle_unmap_event(XUnmapEvent *e)
+{
+	/* we can't tell much from a simple unmap event */
+}
+
+void
+handle_reparent_event(XReparentEvent *e)
+{
+	Client *c = NULL;
+
+	/* any top-level window that is reparented by the window manager should
+	   have WM_STATE set eventually (either before or after the reparenting), 
+	   or receive an _XEMBED client message it they are a status icon.  The
+	   exception is dock apps: some window managers reparent the dock app and 
+	   never set WM_STATE on it (even though WindowMaker does). */
+	if (e->override_redirect)
+		return;
+	if (!find_screen(e->window)) {
+		EPRINTF("could not find screen for window 0x%lx\n", e->window);
+		return;
+	}
+	if ((c = find_client(e->window)) && !c->managed) {
+		if (e->parent == scr->root)
+			/* reparented the wrong way */
+			return;
+		if ((c->statusicon = is_statusicon(c))) {
+			/* This is a status icon. */
+			if (scr->stray_owner)
+				/* Status icons will receive an _XEMBED message
+				   from the system tray when managed. */
+				return;
+			/* It is questionable whether status icons will be
+			   reparented at all when there is no system tray... */
+			EPRINTF("status icon 0x%lx reparented to 0x%lx\n",
+				e->window, e->parent);
+			return;
+		} else if (!(c->dockapp = is_dockapp(c))) {
+			/* This is a normal window. */
+			if (scr->redir_check)
+				/* We will receive WM_STATE property change when
+				   managed (if there is a window manager
+				   present). */
+				return;
+			/* It is questionable whether regular windows will be
+			   reparented at all when there is no window manager... */
+			EPRINTF("normal window 0x%lx reparented to 0x%lx\n",
+				e->window, e->parent);
+			return;
+		} else {
+			/* This is a dock app. */
+			if (scr->maker_check)
+				/* We will receive a WM_STATE property change
+				   when managed when a WindowMaker work-alike is
+				   present. */
+				return;
+			/* Non-WindowMaker window managers reparent dock apps
+			   without any further indication that the dock app has
+			   been managed. */
+			managed_client(c, CurrentTime);
+		}
+	}
+}
+
+void
+handle_configure_event(XConfigureEvent *e)
+{
+}
+
+void
+handle_client_message_event(XClientMessageEvent *e)
+{
+	Client *c = NULL;
+
+	if (!find_screen(e->window))
+		DPRINTF(1, "could not find screen for window 0x%lx\n", e->window);
+	c = find_client(e->window);
+	cm_handle_atom(e, c);
+}
+
+void
+handle_mapping_event(XMappingEvent *e)
+{
+}
+
+void
+handle_selection_clear(XSelectionClearEvent *e)
+{
+#if 0
+		int s;
+#endif
+
+		if (!find_screen(e->window)) {
+			EPRINTF("could not find screen for window 0x%lx\n", e->window);
+			return;
+		}
+		if (e->selection != scr->slctn_atom)
+			return;
+		if (e->window != scr->selwin)
+			return;
+		XDestroyWindow(dpy, scr->selwin);
+		scr->selwin = None;
+#if 0
+		for (s = 0; s < nscr; s++)
+			if (screens[s].selwin)
+				break;
+		if (s < nscr)
+			break;
+#endif
+		DPRINTF(1, "lost _XDG_ASSIST_S%d selection: exiting\n", scr->screen);
+		exit(EXIT_SUCCESS);
+}
+
+/** @brief handle monitoring events
   * @param e - X event to handle
   *
   * If the window manager has a client list, we can check for newly mapped
@@ -2217,59 +4271,388 @@ handle_atom(XEvent *e, Client *c, Atom atom)
 void
 handle_event(XEvent *e)
 {
-	Client *c;
-
 	switch (e->type) {
 	case PropertyNotify:
-		c = find_client(e->xproperty.window);
-		handle_atom(e, c, e->xproperty.atom);
+		XPRINTF("got PropertyNotify event\n");
+		handle_property_event(&e->xproperty);
 		break;
 	case FocusIn:
 	case FocusOut:
+		XPRINTF("got FocusIn/FocusOut event\n");
+		handle_focus_change_event(&e->xfocus);
+		break;
 	case Expose:
+		XPRINTF("got Expose event\n");
+		handle_expose_event(&e->xexpose);
+		break;
 	case VisibilityNotify:
+		XPRINTF("got VisibilityNotify event\n");
+		handle_visibility_event(&e->xvisibility);
 		break;
 	case CreateNotify:
-		if (!(c = find_client(e->xcreatewindow.window)))
-			c = add_client(e->xcreatewindow.window);
+		XPRINTF("got CreateNotify event\n");
+		handle_create_window_event(&e->xcreatewindow);
 		break;
 	case DestroyNotify:
-		if ((c = find_client(e->xdestroywindow.window)))
-			del_client(c);
-		else
-			clean_msgs(e->xdestroywindow.window);
+		XPRINTF("got DestroyNotify event\n");
+		handle_destroy_window_event(&e->xdestroywindow);
+		break;
+	case MapNotify:
+		XPRINTF("got MapNotify event\n");
+		handle_map_event(&e->xmap);
 		break;
 	case UnmapNotify:
-	case MapNotify:
+		XPRINTF("got UnmapNotify event\n");
+		handle_unmap_event(&e->xunmap);
+		break;
 	case ReparentNotify:
+		XPRINTF("got ReparentNotify event\n");
+		handle_reparent_event(&e->xreparent);
+		break;
 	case ConfigureNotify:
+		XPRINTF("got ConfigureNotify event\n");
+		handle_configure_event(&e->xconfigure);
 		break;
 	case ClientMessage:
-		c = find_client(e->xclient.window);
-		handle_atom(e, c, e->xclient.message_type);
+		XPRINTF("got ClientMessage event\n");
+		handle_client_message_event(&e->xclient);
 		break;
 	case MappingNotify:
+		XPRINTF("got MappingNotify event\n");
+		handle_mapping_event(&e->xmapping);
 		break;
 	default:
+		EPRINTF("unexpected xevent %d\n", (int) e->type);
+		break;
+	case SelectionClear:
+		XPRINTF("got SelectionClear event\n");
+		handle_selection_clear(&e->xselectionclear);
 		break;
 	}
 }
 
-/** @brief set up for an assist
+#ifdef SYSTEM_TRAY_STATUS_ICON
+
+static void
+icon_activate_cb(GtkStatusIcon *status, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+}
+
+static gboolean
+icon_button_press_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return FALSE;		/* propagate event */
+}
+
+static gboolean
+icon_button_release_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return FALSE;		/* propagate event */
+}
+
+static gboolean
+icon_popup_menu_cb(GtkStatusIcon *status, guint button, guint time, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return FALSE;		/* propagate event */
+}
+
+static gboolean
+icon_query_tooltip_cb(GtkStatusIcon *status, gint x, gint y, gboolean keyboard_mode,
+		      GtkTooltip *tooltip, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return TRUE;		/* show tooltip */
+}
+
+/** @brief process scroll event callback
+  * @param status - the GtkStatusIcon emitting the event
+  * @param event - the event that cause the callback
+  * @param data - client data, the Sequence pointer
   *
-  * We want to perform as much as possible in the master process before the
-  * acutal launch so that this information is immediately available to the child
-  * process before the launch.
+  * The scroll-event signal is emitted when a button in the 4 to 7 range is
+  * pressed.  Wheel mice are usually configured to generate button press events
+  * for buttons 4 and 5 when the wheel is turned.
+  */
+static gboolean
+icon_scroll_event_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return FALSE;		/* propagate event */
+}
+
+/** @brief process size changed event callback
+  * @param status - the GtkStatusIcon emmitting the event
+  * @param size - the size (in pixels) of the icon
+  * @param data - client data, the Sequence pointer
+  *
+  * Gets emitted when the size available for the image changes, e.g. because the
+  * notification area got resized.
+  */
+static gboolean
+icon_size_changed_cb(GtkStatusIcon *status, gint size, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	return FALSE;		/* did we scale the icon? otherwise GTK+ will scale */
+}
+
+/** @brief create a status icon for the startup sequence
+  * @param seq - the sequence for which to create the status icon
+  */
+static GtkStatusIcon *
+create_statusicon(Sequence *seq)
+{
+	GtkStatusIcon *status;
+
+	if ((status = seq->status))
+		return (status);
+	DPRINTF(1, "creating status icon...\n");
+	if (!(status = gtk_status_icon_new())) {
+		DPRINTF(1, "could not create status icon\n");
+		return (status);
+	}
+
+	/* If the sequence has an icon name, use that to set the status icon, otherwise
+	   use an application icon from stock. */
+	if (seq->f.icon) {
+		gtk_status_icon_set_from_icon_name(status, seq->f.icon);
+	} else {
+		gtk_status_icon_set_from_stock(status, "application");	/* FIXME */
+	}
+
+	{
+		GdkDisplay *display;
+		GdkScreen *screen;
+
+		/* The sequence always belongs to a particular screen, so set the screen
+		   for the status icon. */
+		display = gdk_display_get_default();
+		if (seq->f.screen) {
+			screen = gdk_display_get_screen(display, seq->n.screen);
+		} else {
+			screen = gdk_display_get_default_screen(display);
+		}
+		gtk_status_icon_set_screen(status, screen);
+	}
+	{
+		char *markup, *p;
+		int len, size = BUFSIZ;
+		char **label, **field;
+
+		p = markup = calloc(size + 1, sizeof(*markup));
+		for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+			if (!*field)
+				continue;
+			len = snprintf(p, size, "<b>%s</b>=%s\n", *label, *field);
+			if (len > size)
+				break;
+			p += len;
+			size -= len;
+		}
+
+		/* Set the tooltip text as markup */
+		if (markup)
+			gtk_status_icon_set_tooltip_markup(status, markup);
+	}
+	{
+		const char *title;
+
+		/* Set the statis icon title */
+		if (!(title = seq->f.description))
+			if (!(title = seq->f.name))
+				title = "Startup Notification";
+		gtk_status_icon_set_title(status, title);
+	}
+	{
+		const char *name;
+
+		/* Set the status icon name */
+		if (!(name = seq->f.name))
+			name = NAME;
+		gtk_status_icon_set_name(status, name);
+	}
+	g_signal_connect(G_OBJECT(status), "activate", G_CALLBACK(icon_activate_cb),
+			 (gpointer) seq);
+	g_signal_connect(G_OBJECT(status), "button-press-event",
+			 G_CALLBACK(icon_button_press_cb), (gpointer) seq);
+	g_signal_connect(G_OBJECT(status), "button-release-event",
+			 G_CALLBACK(icon_button_release_cb), (gpointer) seq);
+	g_signal_connect(G_OBJECT(status), "popup-menu", G_CALLBACK(icon_popup_menu_cb),
+			 (gpointer) seq);
+	g_signal_connect(G_OBJECT(status), "query_tooltip",
+			 G_CALLBACK(icon_query_tooltip_cb), (gpointer) seq);
+	g_signal_connect(G_OBJECT(status), "scroll-event",
+			 G_CALLBACK(icon_scroll_event_cb), (gpointer) seq);
+	g_signal_connect(G_OBJECT(status), "size-changed",
+			 G_CALLBACK(icon_size_changed_cb), (gpointer) seq);
+
+	gtk_status_icon_set_visible(status, TRUE);
+	return (seq->status = status);
+}
+
+#endif				/* SYSTEM_TRAY_STATUS_ICON */
+
+#ifdef DESKTOP_NOTIFICATIONS
+
+/** @brief update notifications
   */
 void
-setup_to_assist()
+update_notification(Sequence *seq)
 {
-	handle_NET_CLIENT_LIST(NULL, NULL);
-	handle_WIN_CLIENT_LIST(NULL, NULL);
-	handle_NET_ACTIVE_WINDOW(NULL, NULL);
-	if (fields.timestamp)
-		push_time(&launch_time, (Time) strtoul(fields.timestamp, NULL, 0));
+	/* FIXME */
 }
+
+gboolean
+check_notify(void)
+{
+	if (!notify_is_initted())
+		notify_init(NAME);
+	return notify_is_initted()? notify_get_server_info(NULL, NULL, NULL,
+							   NULL) : False;
+}
+
+/** @brief process a desktop notification action callback
+  * @param notify - the notification object
+  * @param action - the action ("kill" or "continue")
+  * @param data - pointer to startup notification sequence
+  */
+static void
+notify_action_callback(NotifyNotification *notify, char *action, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	if (action) {
+		if (!strcmp(action, "kill")) {
+		} else if (!strcmp(action, "continue")) {
+		}
+	}
+}
+
+static void
+notify_closed_callback(NotifyNotification *notify, gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+	gint reason;
+
+	reason = notify_notification_get_closed_reason(notify);
+	(void) reason;
+	/* FIXME: continue waiting */
+	/* But.... might want to do two different actions based on whether there was a
+	   timeout or the notification was explicitly closed by the user. If there was an 
+	   explicit close, we should probably continue waiting without further
+	   notifications, otherwise if it was a timeout we might only continue waiting
+	   for another cycle. */
+	g_object_unref(G_OBJECT(notify));
+}
+
+static gboolean
+notify_update_callback(gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+	NotifyNotification *notify;
+
+	if (!(notify = seq->notification)) {
+		unref_sequence(seq);
+		return FALSE;	/* remove timeout source */
+	}
+	update_notification(seq);
+	return TRUE;		/* continue timeout source */
+}
+
+static void
+put_sequence(gpointer data)
+{
+	Sequence *seq = (typeof(seq)) data;
+
+	unref_sequence(seq);
+}
+
+static Bool
+seq_can_kill(Sequence *seq)
+{
+	/* FIXME */
+	return False;
+}
+
+/** @brief create a desktop notification
+  * @param seq - startup notification sequence
+  *
+  * We create a desktop notification whenever a startup notification sequence
+  * persists for longer than the guard time without being completed.  Two
+  * actions can be taken: kill the process (if the process id is known and the
+  * host machine is the same as our host, or an XID is known that can be
+  * XKill'ed), or continue waiting.  The secnod action is to continue waiting
+  * and is the default if the desktop notification times out.
+  */
+static NotifyNotification *
+create_notification(Sequence *seq)
+{
+	NotifyNotification *notify;
+	char *summary, *body;
+
+	summary = "Application taking too long to start.";
+	/* TODO: create a nice body message describing which application is taking too
+	   long, how much time has elapsed since startup, and possibly other information. 
+	 */
+	body = NULL;
+	/* This is the icon theme icon name or filename.  Filenames should be avoided.
+	   This information comes from the ICON= field of the startup notification or can 
+	   be derived from the APPLICATION_ID= field of the startup notification, or
+	   could be a default application image. */
+	/* Note that if we put some information in the body (such as expired time) we
+	   might want to set a 1-second timeout and call notify_notification_update() on
+	   a one second basis. */
+	if (!(notify = seq->notification)) {
+		if (!(notify = notify_notification_new(summary, body, seq->f.icon))) {
+			DPRINTF(1, "could not create notification\n");
+			return (NULL);
+		}
+	} else {
+		notify_notification_update(notify, summary, body, seq->f.icon);
+		notify_notification_clear_hints(notify);
+		notify_notification_clear_actions(notify);
+	}
+	notify_notification_set_timeout(notify, NOTIFY_EXPIRES_DEFAULT);
+	notify_notification_set_category(notify, "some_category");	/* FIXME */
+	notify_notification_set_urgency(notify, NOTIFY_URGENCY_NORMAL);
+//      notify_notification_set_image_from_pixbuf(notify, seq->pixbuf);
+	notify_notification_set_hint(notify, "some_hint", NULL);	/* FIXME */
+	if (seq_can_kill(seq)) {
+		notify_notification_add_action(notify, "kill", "Kill",
+					       NOTIFY_ACTION_CALLBACK
+					       (notify_action_callback),
+					       (gpointer) ref_sequence(seq),
+					       put_sequence);
+		notify_notification_add_action(notify, "continue", "Continue",
+					       NOTIFY_ACTION_CALLBACK
+					       (notify_action_callback),
+					       (gpointer) ref_sequence(seq),
+					       put_sequence);
+	}
+	g_signal_connect(G_OBJECT(notify), "closed", G_CALLBACK(notify_closed_callback),
+			 (gpointer) seq);
+#define UPDATE_INTERVAL 2
+	g_timeout_add_seconds(UPDATE_INTERVAL, notify_update_callback, (gpointer) seq);
+	if (!notify_notification_show(notify, NULL)) {
+		DPRINTF(1, "could not show notification\n");
+		g_object_unref(G_OBJECT(notify));
+		seq->notification = NULL;
+		return (NULL);
+	}
+	seq->notification = notify;
+	return (notify);
+}
+
+#endif				/* DESKTOP_NOTIFICATIONS */
 
 int signum;
 
@@ -2279,88 +4662,291 @@ sighandler(int sig)
 	signum = sig;
 }
 
-/** @brief assist the window manager.
-  *
-  * Assist the window manager to do the right thing with respect to focus and
-  * with respect to positioning of the window on the correct monitor and the
-  * correct desktop.
-  */
-void
-assist()
+#ifdef HAVE_GLIB_EVENT_LOOP
+gboolean
+on_xfd_watch(GIOChannel *chan, GIOCondition cond, gpointer data)
 {
-	pid_t pid;
-
-	setup_to_assist();
-	XSync(dpy, False);
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
+	if (cond & (G_IO_NVAL | G_IO_HUP | G_IO_ERR)) {
+		EPRINTF("poll failed: %s %s %s\n", (cond & G_IO_NVAL) ? "NVAL" : "",
+			(cond & G_IO_HUP) ? "HUP" : "", (cond & G_IO_ERR) ? "ERR" : "");
 		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent returns with new connection */
-		XCloseDisplay(dpy);
-		return;
-	}
-	setsid();		/* become a session leader */
-	/* close files */
-	fclose(stdin);
-	/* fork once more for SVR4 */
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	} else if (pid != 0) {
-		/* parent exits */
-		exit(EXIT_SUCCESS);
-	}
-	/* release current directory */
-	if (chdir("/") < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	umask(0);		/* clear file creation mask */
-	/* continue on monitoring */
-	{
-		int xfd;
+	} else if (cond & (G_IO_IN | G_IO_PRI)) {
 		XEvent ev;
 
-		signal(SIGHUP, sighandler);
-		signal(SIGINT, sighandler);
-		signal(SIGTERM, sighandler);
-		signal(SIGQUIT, sighandler);
+		while (XPending(dpy) && running) {
+			XNextEvent(dpy, &ev);
+			XPRINTF("Handling Event\n");
+			handle_event(&ev);
+		}
+	}
+	return TRUE;		/* keep event source */
 
-		/* main event loop */
-		running = True;
-		XSync(dpy, False);
-		xfd = ConnectionNumber(dpy);
-		while (running) {
-			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+}
+#endif				/* HAVE_GLIB_EVENT_LOOP */
 
-			if (signum)
-				exit(EXIT_SUCCESS);
+static void
+main_loop(int argc, char *argv[])
+{
+#ifdef HAVE_GLIB_EVENT_LOOP
+	int xfd;
+	GIOChannel *chan;
+	gint mask = G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_PRI;
+	guint srce;
 
-			if (poll(&pfd, 1, -1) == -1) {
-				switch (errno) {
-				case EINTR:
-				case EAGAIN:
-				case ERESTART:
-					continue;
-				}
-				EPRINTF("poll: %s\n", strerror(errno));
-				fflush(stderr);
-				exit(EXIT_FAILURE);
+#ifdef HAVE_GTK
+	gtk_init(NULL, NULL);
+	gdk_error_trap_push();
+#endif
+
+	running = True;
+	XSync(dpy, False);
+	xfd = ConnectionNumber(dpy);
+	chan = g_io_channel_unix_new(xfd);
+	srce = g_io_add_watch(chan, mask, on_xfd_watch, NULL);
+	(void) srce;
+
+#ifdef HAVE_GTK
+	gtk_main();
+#else				/* HAVE_GTK */
+	{
+		GMainLoop *loop = g_main_loop_new(NULL, FALSE);
+
+		g_main_loop_run(loop);
+	}
+#endif				/* HAVE_GTK */
+#else				/* HAVE_GLIB_EVENT_LOOP */
+	int xfd;
+	XEvent ev;
+
+	signal(SIGHUP, sighandler);
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+	signal(SIGQUIT, sighandler);
+
+	/* main event loop */
+	running = True;
+	XSync(dpy, False);
+	xfd = ConnectionNumber(dpy);
+	while (running) {
+		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+
+		if (signum)
+			exit(EXIT_SUCCESS);
+
+		if (poll(&pfd, 1, -1) == -1) {
+			switch (errno) {
+			case EINTR:
+			case EAGAIN:
+			case ERESTART:
+				continue;
 			}
-			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-				EPRINTF("poll: error\n");
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-				}
+			EPRINTF("poll: %s\n", strerror(errno));
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
+			EPRINTF("poll: error\n");
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (pfd.revents & (POLLIN)) {
+			while (XPending(dpy) && running) {
+				XNextEvent(dpy, &ev);
+				handle_event(&ev);
 			}
 		}
 	}
+#endif				/* HAVE_GLIB_EVENT_LOOP */
+}
+
+/** @brief monitor startup and assist the window manager.
+  */
+static void
+do_monitor(int argc, char *argv[])
+{
+	if (options.background) {
+		pid_t pid;
+
+		if ((pid = fork()) < 0) {
+			EPRINTF("%s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		} else if (pid != 0) {
+			/* parent exits */
+			exit(EXIT_SUCCESS);
+		}
+		setsid();	/* become a session leader */
+		/* close files */
+		fclose(stdin);
+		/* fork once more for SVR4 */
+		if ((pid = fork()) < 0) {
+			EPRINTF("%s\n", strerror(errno));
+			exit(EXIT_SUCCESS);
+		} else if (pid != 0) {
+			/* parent exits */
+			exit(EXIT_SUCCESS);
+		}
+		/* release current directory */
+		if (chdir("/") < 0) {
+			EPRINTF("chdir: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		/* clear file creation mask */
+		umask(0);
+	}
+	handle_wmchange();
+	check_stray();
+	check_pager();
+	check_compm();
+	/* continue on monitoring */
+	main_loop(argc, argv);
+}
+
+static void
+announce_selection(void)
+{
+	XEvent ev;
+
+	ev.xclient.type = ClientMessage;
+	ev.xclient.serial = 0;
+	ev.xclient.send_event = False;
+	ev.xclient.display = dpy;
+	ev.xclient.window = scr->root;
+	ev.xclient.message_type = _XA_MANAGER;
+	ev.xclient.format = 32;
+	ev.xclient.data.l[0] = CurrentTime;	/* FIXME */
+	ev.xclient.data.l[1] = scr->slctn_atom;
+	ev.xclient.data.l[2] = scr->selwin;
+	ev.xclient.data.l[3] = 2;
+	ev.xclient.data.l[4] = 0;
+
+	XSendEvent(dpy, scr->root, False, StructureNotifyMask, (XEvent *) &ev);
+	XSync(dpy, False);
+}
+
+static Bool
+selectionreleased(Display *d, XEvent *e, XPointer arg)
+{
+	int *n = (typeof(n)) arg;
+
+	if (e->type != DestroyNotify)
+		return False;
+	if (XFindContext(d, e->xdestroywindow.window, ScreenContext, (XPointer *) &scr))
+		return False;
+	if (!scr->owner || scr->owner != e->xdestroywindow.window)
+		return False;
+	scr->owner = None;
+	*n = *n - 1;
+	return True;
+}
+
+/** @brief run without replacing a running instance
+  *
+  * This is performed by detecting owners of the _XDG_ASSIST_S%d selection for
+  * any screen and aborting when one exists.
+  */
+static void
+do_run(int argc, char *argv[])
+{
+	int s;
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		scr->selwin =
+		    XCreateSimpleWindow(dpy, scr->root, DisplayWidth(dpy, s),
+					DisplayHeight(dpy, s), 1, 1, 0, BlackPixel(dpy,
+										   s),
+					BlackPixel(dpy, s));
+		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
+
+		XGrabServer(dpy);
+		if (!(scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
+			XSetSelectionOwner(dpy, scr->slctn_atom, scr->selwin,
+					   CurrentTime);
+			XSync(dpy, False);
+		}
+		XUngrabServer(dpy);
+
+		if (scr->owner) {
+			EPRINTF("another instance is running on screen %d\n", s);
+			exit(EXIT_FAILURE);
+		}
+		announce_selection();
+	}
+	do_monitor(argc, argv);
+}
+
+/** @brief replace running instance with this one
+  *
+  * This is performed by detecting owners of the _XDG_ASSIST_S%d selection for
+  * each screen and setting the selection to our own window.  When the runing
+  * instance detects the selection clear event for a managed screen, it will
+  * destroy the selection window and exit when no more screens are managed.
+  */
+static void
+do_replace(int argc, char *argv[])
+{
+	int s, selcount = 0;
+	XEvent ev;
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		scr->selwin =
+		    XCreateSimpleWindow(dpy, scr->root, DisplayWidth(dpy, s),
+					DisplayHeight(dpy, s), 1, 1, 0, BlackPixel(dpy,
+										   s),
+					BlackPixel(dpy, s));
+		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
+
+		XGrabServer(dpy);
+		if ((scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
+			XSelectInput(dpy, scr->owner, StructureNotifyMask);
+			XSaveContext(dpy, scr->owner, ScreenContext, (XPointer) scr);
+			selcount++;
+		}
+		XSetSelectionOwner(dpy, scr->slctn_atom, scr->selwin, CurrentTime);
+		XSync(dpy, False);
+		XUngrabServer(dpy);
+
+		if (!scr->owner)
+			announce_selection();
+	}
+	while (selcount) {
+		XIfEvent(dpy, &ev, &selectionreleased, (XPointer) &selcount);
+		announce_selection();
+	}
+	do_monitor(argc, argv);
+}
+
+/** @brief ask running instance to quit
+  *
+  * This is performed by detecting owners of the _XDG_ASSIST_S%d selection for
+  * each screen and clearing the selection to None.  When the running instance
+  * detects the selection clear event for a managed screen, it will destroy
+  * the selection window and exit when no more screens are managed.
+  */
+static void
+do_quit(int argc, char *argv[])
+{
+	int s, selcount = 0;
+	XEvent ev;
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		XGrabServer(dpy);
+		if ((scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
+			XSelectInput(dpy, scr->owner, StructureNotifyMask);
+			XSaveContext(dpy, scr->owner, ScreenContext, (XPointer) scr);
+			XSetSelectionOwner(dpy, scr->slctn_atom, None, CurrentTime);
+			XSync(dpy, False);
+			selcount++;
+		}
+		XUngrabServer(dpy);
+	}
+	/* sure, wait for them all to destroy */
+	while (selcount)
+		XIfEvent(dpy, &ev, &selectionreleased, (XPointer) &selcount);
 }
 
 static void
@@ -2473,9 +5059,12 @@ General Options:\n\
     -f, --foreground\n\
         run in the foreground for debugging (so that standard error\n\
         goes to the terminal)\n\
-    -g, --guard-time TIMEOUT\n\
+    -g, --guard TIMEOUT\n\
         amount of time, TIMEOUT, in milliseconds to wait for a\n\
         desktop application to launch [default: 15000]\n\
+    -p, --persist TIMEOUT\n\
+        amount of time, TIMEOUT, in milliseconds to persist in\n\
+        displaying feedback popup [default: 1000]\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -2487,8 +5076,11 @@ General Options:\n\
 int
 main(int argc, char *argv[])
 {
+	Command command = CommandDefault;
+
 	while (1) {
 		int c, val;
+		char *endptr = NULL;
 
 #ifdef _GNU_SOURCE
 		int option_index = 0;
@@ -2498,7 +5090,8 @@ main(int argc, char *argv[])
 			{"replace",	no_argument,		NULL, 'r'},
 			{"quit",	no_argument,		NULL, 'q'},
 			{"foreground",	no_argument,		NULL, 'f'},
-			{"guard-time",	required_argument,	NULL, 'g'},
+			{"guard",	required_argument,	NULL, 'g'},
+			{"persist",	required_argument,	NULL, 'p'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -2510,10 +5103,10 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "mrqfg:D::v::hVCH?",
-				     long_options, &option_index);
+		c = getopt_long_only(argc, argv, "mrqfg:p:D::v::hVCH?", long_options,
+				&option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getop(argc, argv, "mrqfg:DvhVC?");
+		c = getop(argc, argv, "mrqfg:p:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1) {
 			if (options.debug)
@@ -2524,71 +5117,88 @@ main(int argc, char *argv[])
 		case 0:
 			goto bad_usage;
 		case 'm':	/* -m, --monitor */
-			if (options.exec_mode != EXEC_MODE_MONITOR)
+			if (options.command != CommandDefault)
 				goto bad_command;
-			options.exec_mode = EXEC_MODE_MONITOR;
+			options.command = CommandMonitor;
+			if (command == CommandDefault)
+				command = CommandMonitor;
 			break;
 		case 'r':	/* -r, --replace */
-			if (options.exec_mode != EXEC_MODE_MONITOR && options.exec_mode != EXEC_MODE_REPLACE)
+			if (options.command != CommandDefault)
 				goto bad_command;
-			options.exec_mode = EXEC_MODE_REPLACE;
+			options.command = CommandReplace;
+			if (command == CommandDefault)
+				command = CommandReplace;
 			break;
 		case 'q':	/* -q, --quit */
-			if (options.exec_mode != EXEC_MODE_MONITOR && options.exec_mode != EXEC_MODE_QUIT)
+			if (options.command != CommandDefault)
 				goto bad_command;
-			options.exec_mode = EXEC_MODE_QUIT;
+			options.command = CommandQuit;
+			if (command == CommandDefault)
+				command = CommandQuit;
 			break;
 		case 'f':	/* -f, --foreground */
-			options.foreground = 1;
+			options.background = False;
+			if (!options.debug)
+				options.debug++;
 			break;
-		case 'g':	/* -g, --guard-time TIMEOUT */
-			if (optarg == NULL)
-				options.guardtime = 15000;
+		case 'g':	/* -g, --guard TIMEOUT */
+			if (!optarg)
+				options.guard = 15000;
 			else {
-				if ((val = strtol(optarg, NULL, 0)) < 0)
+				if ((val = strtol(optarg, &endptr, 0)) < 0)
 					goto bad_option;
-				options.guardtime = val;
+				if (!endptr || *endptr)
+					goto bad_option;
+				options.guard = val;
+			}
+			break;
+		case 'p':	/* -p, --persist TIMEOUT */
+			if (!optarg)
+				options.persist = 1000;
+			else {
+				if ((val = strtol(optarg, &endptr, 0)) < 0)
+					goto bad_option;
+				if (!endptr || *endptr)
+					goto bad_option;
+				options.persist = val;
 			}
 			break;
 
 		case 'D':	/* -D, --debug [level] */
-			if (options.debug)
-				fprintf(stderr, "%s: increasing debug verbosity\n", argv[0]);
-			if (optarg == NULL) {
+			DPRINTF(1, "%s: increasing debug verbosity\n", argv[0]);
+			if (!optarg) {
 				options.debug++;
 			} else {
-				if ((val = strtol(optarg, NULL, 0)) < 0)
+				if ((val = strtol(optarg, &endptr, 0)) < 0)
+					goto bad_option;
+				if (!endptr || *endptr)
 					goto bad_option;
 				options.debug = val;
 			}
 			break;
 		case 'v':	/* -v, --verbose [level] */
-			if (options.debug)
-				fprintf(stderr, "%s: increasing output verbosity\n", argv[0]);
-			if (optarg == NULL) {
+			DPRINTF(1, "%s: increasing output verbosity\n", argv[0]);
+			if (!optarg) {
 				options.output++;
 				break;
 			}
-			if ((val = strtol(optarg, NULL, 0)) < 0)
+			if ((val = strtol(optarg, &endptr, 0)) < 0)
+				goto bad_option;
+			if (!endptr || *endptr)
 				goto bad_option;
 			options.output = val;
 			break;
 		case 'h':	/* -h, --help */
 		case 'H':	/* -H, --? */
-			if (options.debug)
-				fprintf(stderr, "%s: printing help message\n", argv[0]);
-			help(argc, argv);
-			exit(EXIT_SUCCESS);
+			command = CommandHelp;
+			break;
 		case 'V':	/* -V, --version */
-			if (options.debug)
-				fprintf(stderr, "%s: printing version message\n", argv[0]);
-			version(argc, argv);
-			exit(EXIT_SUCCESS);
+			command = CommandVersion;
+			break;
 		case 'C':	/* -C, --copying */
-			if (options.debug)
-				fprintf(stderr, "%s: printing copying message\n", argv[0]);
-			copying(argc, argv);
-			exit(EXIT_SUCCESS);
+			command = CommandCopying;
+			break;
 		case '?':
 		default:
 		      bad_option:
@@ -2620,17 +5230,39 @@ main(int argc, char *argv[])
 	}
 	if (optind < argc)
 		goto bad_nonopt;
-	if (options.output > 1) {
-		const char **lp;
-		char **ep;
-
-		OPRINTF("Entries from file:\n");
-		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
-			if (*ep)
-				OPRINTF("%-24s = %s\n", *lp, *ep);
+	switch (command) {
+	case CommandDefault:
+	case CommandMonitor:
+		if (!init_display())
+			exit(EXIT_FAILURE);
+		do_run(argc, argv);
+		break;
+	case CommandReplace:
+		if (!init_display())
+			exit(EXIT_FAILURE);
+		do_replace(argc, argv);
+		break;
+	case CommandQuit:
+		if (!init_display())
+			exit(EXIT_FAILURE);
+		do_quit(argc, argv);
+		break;
+	case CommandHelp:
+		DPRINTF(1, "%s: printing help message\n", argv[0]);
+		help(argc, argv);
+		break;
+	case CommandVersion:
+		DPRINTF(1, "%s: printing version message\n", argv[0]);
+		version(argc, argv);
+		break;
+	case CommandCopying:
+		DPRINTF(1, "%s: printing copying message\n", argv[0]);
+		copying(argc, argv);
+		break;
+	default:
+		usage(argc, argv);
+		exit(EXIT_FAILURE);
 	}
-	get_display();
-	assist();
 	exit(EXIT_SUCCESS);
 }
 
