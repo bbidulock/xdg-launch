@@ -6,6 +6,5 @@ dist_applications_DATA = \
 	xdg-assist.desktop
 
 dist_autostart_DATA = \
-	xdg-monitor.desktop \
 	xdg-assist.desktop
 
