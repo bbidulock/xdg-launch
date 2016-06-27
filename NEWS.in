@@ -3,9 +3,9 @@
 Release @PACKAGE@-@VERSION@ released @DATE@
 -------------------------------------------
 
-git shortlog -e -n -w80,6,8 0.7...0.8
+git shortlog -e -n -w80,6,8 0.8...0.9
 
-Brian Bidulock <bidulock@openss7.org> (30):
+Brian Bidulock <bidulock@openss7.org> (36):
       start documenting xdg-types
       working up xde-types manual page
       working up xde-types manual page
@@ -36,6 +36,12 @@ Brian Bidulock <bidulock@openss7.org> (30):
       more category documentation
       more category updates
       more doc updates
+      update NEWS
+      document mime types and categories
+      working up manpage
+      rationalize xdg-assist and monitor
+      only autostart xdg-assist
+      update release files
 
 
 Release xdg-launch-0.8
