@@ -120,7 +120,7 @@
 		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } while (0)
 
-#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output >= _num) { \
+#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
 		fprintf(stderr, "I: "); \
 		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
@@ -128,7 +128,7 @@
 		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
 		fflush(stderr); } } while (0)
 
-#define CPRINTF(_num, c, _args...) do { if (options.output >= _num) { \
+#define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
 		fprintf(stdout, "C: client 0x%lx ", c->win); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
@@ -400,6 +400,7 @@ struct _Client {
 	Time map_time;			/* last time window was mapped */
 	Time last_time;			/* last time something happened to this window */
 	pid_t pid;			/* process id */
+	int desktop;			/* desktop of window */
 	char *startup_id;		/* startup id (property) */
 	char **command;			/* command */
 	char *name;			/* window name */
@@ -448,6 +449,7 @@ Atom _XA_NET_WM_USER_TIME;
 Atom _XA_NET_WM_USER_TIME_WINDOW;
 Atom _XA_NET_WM_VISIBLE_ICON_NAME;
 Atom _XA_NET_WM_VISIBLE_NAME;
+Atom _XA_NET_WM_DESKTOP;
 Atom _XA_SM_CLIENT_ID;
 Atom _XA__SWM_VROOT;
 Atom _XA_TIMESTAMP_PROP;
@@ -497,6 +499,7 @@ static void pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_USER_TIME(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_DESKTOP(XPropertyEvent *, Client *);
 static void pc_handle_SM_CLIENT_ID(XPropertyEvent *, Client *);
 static void pc_handle_TIMESTAMP_PROP(XPropertyEvent *, Client *);
 static void pc_handle_WIN_APP_STATE(XPropertyEvent *, Client *);
@@ -543,6 +546,7 @@ static void cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent *, Client *);
 static void cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *, Client *);
 static void cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *, Client *);
 static void cm_handle_NET_WM_STATE(XClientMessageEvent *, Client *);
+static void cm_handle_NET_WM_DESKTOP(XClientMessageEvent *, Client *);
 static void cm_handle_WIN_LAYER(XClientMessageEvent *, Client *);
 static void cm_handle_WIN_STATE(XClientMessageEvent *, Client *);
 static void cm_handle_WIN_WORKSPACE(XClientMessageEvent *, Client *);
@@ -596,6 +600,7 @@ struct atoms {
 	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&pc_handle_NET_WM_USER_TIME,		NULL,					None			},
 	{ "_NET_WM_VISIBLE_ICON_NAME",		&_XA_NET_WM_VISIBLE_ICON_NAME,	&pc_handle_NET_WM_VISIBLE_ICON_NAME,	NULL,					None			},
 	{ "_NET_WM_VISIBLE_NAME",		&_XA_NET_WM_VISIBLE_NAME,	&pc_handle_NET_WM_VISIBLE_NAME,		NULL,					None			},
+	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,		&pc_handle_NET_WM_DESKTOP,		&cm_handle_NET_WM_DESKTOP,		None			},
 	{ "SM_CLIENT_ID",			&_XA_SM_CLIENT_ID,		&pc_handle_SM_CLIENT_ID,		NULL,					None			},
 	{ "__SWM_VROOT",			&_XA__SWM_VROOT,		NULL,					NULL,					None			},
 	{ "_TIMESTAMP_PROP",			&_XA_TIMESTAMP_PROP,		&pc_handle_TIMESTAMP_PROP,		NULL,					None			},
@@ -658,6 +663,8 @@ struct atoms wmprops[] = {
 	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		&pc_handle_NET_WM_PID,			NULL,					None			},
 	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&pc_handle_NET_WM_STATE,		&cm_handle_NET_WM_STATE,		None			},
 	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	&pc_handle_NET_WM_ALLOWED_ACTIONS,	&cm_handle_NET_WM_ALLOWED_ACTIONS,	None			},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		&cm_handle_WIN_WORKSPACE,		None			},
+	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,		&pc_handle_NET_WM_DESKTOP,		&cm_handle_NET_WM_DESKTOP,		None			},
 	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		&pc_handle_NET_STARTUP_ID,		NULL,					None			},
 	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&pc_handle_NET_WM_USER_TIME,		NULL,					None			},
 	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
@@ -2052,6 +2059,7 @@ setup_client(Client *c)
 {
 	Sequence *seq;
 	long data;
+	Bool need_change = False;
 
 	if (!(seq = c->seq))
 		return;
@@ -2101,6 +2109,51 @@ setup_client(Client *c)
 			}
 		}
 	}
+	if (!seq->f.bin && c->command && c->command[0]) {
+		seq->f.bin = strdup(c->command[0]);
+		need_change = True;
+	}
+	if (!seq->f.description && c->name) {
+		seq->f.description = strdup(c->name);
+		need_change = True;
+	}
+	if (!seq->f.wmclass && (c->ch.res_name || c->ch.res_class)) {
+		if (c->ch.res_class) {
+			seq->f.wmclass = strdup(c->ch.res_class);
+			need_change = True;
+		} else if (c->ch.res_name) {
+			seq->f.wmclass = strdup(c->ch.res_name);
+			need_change = True;
+		}
+	}
+	if (!seq->f.desktop && c->desktop) {
+		char buf[65] = { 0, };
+
+		snprintf(buf, sizeof(buf), "%d", c->desktop - 1);
+		seq->f.desktop = strdup(buf);
+		need_change = True;
+	}
+	if (!seq->f.screen) {
+		char buf[65] = { 0, };
+
+		snprintf(buf, sizeof(buf), "%d", c->screen);
+		seq->f.screen = strdup(buf);
+		need_change = True;
+	}
+	if (!seq->f.pid && c->pid) {
+		char buf[65] = { 0, };
+
+		snprintf(buf, sizeof(buf), "%d", c->pid);
+		seq->f.pid = strdup(buf);
+		need_change = True;
+	}
+	if (!seq->f.hostname && c->hostname) {
+		seq->f.hostname = strdup(c->hostname);
+		need_change = True;
+	}
+	/* FIXME: need to do MONITOR= and COMMAND= */
+	if (need_change)
+		send_change(seq);
 }
 
 static Sequence *ref_sequence(Sequence *seq);
@@ -2715,20 +2768,20 @@ sequence_timeout_callback(gpointer data)
 		return FALSE;	/* stop timeout interval */
 	}
 	/* for now, just generate a remove message after the guard time */
-	if (1) {
+	if (options.assist) {
 		send_remove(seq);
 		seq->timer = 0;
 		return FALSE;	/* remove timeout source */
-	} else {
+	} else if (options.notify) {
 #ifdef DESKTOP_NOTIFICATIONS
-#if 0
+#if 1
 		create_notification(seq);
 #else
 		(void) create_notification;
 #endif
 #endif				/* DESKTOP_NOTIFICATIONS */
-		return TRUE;	/* continue timeout interval */
 	}
+	return TRUE;	/* continue timeout interval */
 }
 
 #endif				/* HAVE_GLIB_EVENT_LOOP */
@@ -3091,7 +3144,8 @@ managed_client(Client *c, Time t)
 		/* We are not expecting that the client will generate startup
 		   notification completion on its own.  Either we generate the completion 
 		   or wait for a supporting window manager to do so. */
-		send_remove(seq);
+		if (options.assist)
+			send_remove(seq);
 		break;
 	}
 	/* FIXME: we can remove the startup notification and the client, but perhaps we
@@ -3564,6 +3618,38 @@ pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *e, Client *c)
 }
 
 static void
+pc_handle_NET_WM_DESKTOP(XPropertyEvent *e, Client *c)
+{
+	long desktop = 0;
+
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->desktop) {
+		CPRINTF(1, c, "forgetting _NET_WM_DESKTOP\n");
+		c->desktop = 0;
+	}
+	if (e && e->state == PropertyDelete) {
+		CPRINTF(1, c, "deleted _NET_WM_DESKTOP\n");
+		return;
+	}
+	if (!c->desktop && c->win)
+		if (get_cardinal(c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
+			c->desktop = desktop + 1;
+	if (!c->desktop && c->group)
+		if (get_cardinal(c->group, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
+			c->desktop = desktop + 1;
+	if (c->desktop)
+		CPRINTF(1, c, "_NET_WM_DESKTOP = %d\n", c->desktop - 1);
+}
+
+static void
+cm_handle_NET_WM_DESKTOP(XClientMessageEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
 pc_handle_WIN_APP_STATE(XPropertyEvent *e, Client *c)
 {
 	PTRACE(5);
@@ -3642,7 +3728,27 @@ pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_WORKSPACE(XPropertyEvent *e, Client *c)
 {
+	long desktop = 0;
+
 	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (c->desktop) {
+		CPRINTF(1, c, "forgetting _WIN_WORKSPACE\n");
+		c->desktop = 0;
+	}
+	if (e && e->state == PropertyDelete) {
+		CPRINTF(1, c, "deleted _WIN_WORKSPACE\n");
+		return;
+	}
+	if (!c->desktop && c->win)
+		if (get_cardinal(c->win, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
+			c->desktop = desktop + 1;
+	if (!c->desktop && c->group)
+		if (get_cardinal(c->group, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
+			c->desktop = desktop + 1;
+	if (c->desktop)
+		CPRINTF(1, c, "_WIN_WORKSPACE = %d\n", c->desktop - 1);
 }
 
 static void
@@ -3777,7 +3883,7 @@ pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 	if (!c->command && c->transient_for)
 		XGetCommand(dpy, c->transient_for, &c->command, &count);
 	if (c->command) {
-		if (options.output >= 1) {
+		if (options.output > 1) {
 			CPRINTF(1, c, "WM_COMMAND");
 			for (i = 0; i < count; i++)
 				fprintf(stdout, " '%s'", c->command[i]);
