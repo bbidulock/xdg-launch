@@ -697,11 +697,7 @@ get_text(Window win, Atom prop)
 	XTextProperty tp = { NULL, };
 
 	XGetTextProperty(dpy, win, &tp, prop);
-	if (tp.value) {
-		tp.value[tp.nitems + 1] = '\0';
-		return (char *) tp.value;
-	}
-	return NULL;
+	return (char *)tp.value;
 }
 
 static long *
