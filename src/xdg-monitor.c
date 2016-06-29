@@ -79,6 +79,7 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <wordexp.h>
 #include <execinfo.h>
 
 #include <X11/Xatom.h>
@@ -129,7 +130,7 @@
 		fflush(stderr); } } while (0)
 
 #define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
-		fprintf(stdout, "C: client 0x%lx ", c->win); \
+		fprintf(stdout, "C: 0x%08lx client ", c->win); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 void
@@ -403,6 +404,7 @@ struct _Client {
 	int desktop;			/* desktop of window */
 	char *startup_id;		/* startup id (property) */
 	char **command;			/* command */
+	int count;			/* count of words in command */
 	char *name;			/* window name */
 	char *icon_name;		/* icon name */
 	char *hostname;			/* client machine */
@@ -744,6 +746,10 @@ init_display()
 			exit(EXIT_FAILURE);
 		}
 		XSetErrorHandler(handler);
+
+#ifdef DESKTOP_NOTIFICATIONS
+		notify_init(NAME);
+#endif
 
 		PropertyContext = XUniqueContext();
 		ClientMessageContext = XUniqueContext();
@@ -1830,8 +1836,8 @@ get_proc_file(pid_t pid, char *name, size_t *size)
 	FILE *f;
 	size_t read, total;
 
-	file = calloc(64, sizeof(*file));
-	snprintf(file, 64, "/proc/%d/%s", pid, name);
+	file = calloc(PATH_MAX + 1, sizeof(*file));
+	snprintf(file, PATH_MAX, "/proc/%d/%s", pid, name);
 
 	if (stat(file, &st)) {
 		free(file);
@@ -1925,13 +1931,12 @@ get_proc_comm(pid_t pid)
 char *
 get_proc_exec(pid_t pid)
 {
-	struct stat st;
 	char *file, *buf;
 	ssize_t size;
 
 	file = calloc(PATH_MAX + 1, sizeof(*file));
 	snprintf(file, PATH_MAX, "/proc/%d/exe", pid);
-	if (stat(file, &st)) {
+	if (access(file, R_OK)) {
 		free(file);
 		return NULL;
 	}
@@ -1971,8 +1976,12 @@ get_proc_argv0(pid_t pid)
   * @param c - client to test
   * @param seq - sequence against which to test
   * @return Bool - True if the client matches the sequence, False otherwise
+  *
+  * We should only test windows that are considered managed and that have not
+  * yet been counted as belonging to the application.  Returns True if the
+  * properties of the window match the application launch sequence.
   */
-Bool
+static Bool
 test_client(Client *c, Sequence *seq)
 {
 	pid_t pid;
@@ -1980,59 +1989,102 @@ test_client(Client *c, Sequence *seq)
 
 	CPRINTF(1, c, "seq '%s': testing\n", seq->f.id);
 
-	if (c->startup_id) {
-		CPRINTF(1, c, "comparing '%s' and '%s'\n", c->startup_id, seq->f.id);
-		if (!strcmp(c->startup_id, seq->f.id))
+	if (seq->f.id && c->startup_id) {
+		if (strcmp(c->startup_id, seq->f.id)) {
+			CPRINTF(1, c, "has different startup id %s\n", c->startup_id);
+			return False;
+		} else {
+			CPRINTF(1, c, "has same startup id %s\n", c->startup_id);
 			return True;
+		}
+	} else
+		CPRINTF(1, c, "cannot test startup id\n");
+	/* correct hostname */
+	if (seq->f.hostname && c->hostname && strcasecmp(seq->f.hostname, c->hostname)) {
+		CPRINTF(1, c, "has different hostname %s\n", c->hostname);
 		return False;
-	}
+	} else
+		CPRINTF(1, c, "cannot test hostname\n");
 	if ((pid = c->pid) && (!c->hostname || strcmp(seq->f.hostname, c->hostname)))
 		pid = 0;
 	if (pid && (str = get_proc_startup_id(pid))) {
 		CPRINTF(1, c, "comparing '%s' and '%s'\n", str, seq->f.id);
 		if (strcmp(seq->f.id, str)) {
+			CPRINTF(1, c, "has different startup id %s\n", str);
 			free(str);
 			return False;
+		} else {
+			CPRINTF(1, c, "has same startup id %s\n", str);
+			free(str);
+			return True;
 		}
-		free(str);
-		return True;
-	}
+	} else
+		CPRINTF(1, c, "cannot test process startup_id\n");
 	/* correct wmclass */
 	if (seq->f.wmclass) {
-		CPRINTF(1, c, "comparing '%s' and '%s'\n", c->ch.res_name, seq->f.wmclass);
-		if (c->ch.res_name && !strcmp(seq->f.wmclass, c->ch.res_name))
+		if (c->ch.res_name && !strcasecmp(seq->f.wmclass, c->ch.res_name)) {
+			CPRINTF(1, c, "has comparable resource name: %s ~ %s\n", seq->f.wmclass,
+				c->ch.res_name);
 			return True;
-		CPRINTF(1, c, "comparing '%s' and '%s'\n", c->ch.res_class, seq->f.wmclass);
-		if (c->ch.res_class && !strcmp(seq->f.wmclass, c->ch.res_class))
+		}
+		if (c->ch.res_class && !strcasecmp(seq->f.wmclass, c->ch.res_class)) {
+			CPRINTF(1, c, "has comparable resource class: %s ~ %s\n", seq->f.wmclass,
+				c->ch.res_class);
 			return True;
-	}
-	CPRINTF(1, c, "comparing [%d] and [%d]\n", (int) pid, (int) seq->n.pid);
+		}
+	} else
+		CPRINTF(1, c, "cannot test WM_CLASS\n");
 	/* same process id */
-	if (pid && seq->n.pid == pid)
+	if (pid && seq->n.pid == pid) {
+		CPRINTF(1, c, "has correct pid %d\n", pid);
 		return True;
-	CPRINTF(1, c, "comparing {%lu} and {%lu}\n", (ulong) c->user_time, (ulong) seq->n.timestamp);
+	}
 	/* same timestamp to the millisecond */
-	if (c->user_time && c->user_time == seq->n.timestamp)
+	if (c->user_time && c->user_time == seq->n.timestamp) {
+		CPRINTF(1, c, "has identical user time %lu\n", c->user_time);
 		return True;
+	}
+	/* correct command */
+	if (c->command && seq->f.command) {
+		int i;
+		wordexp_t we = { 0, };
+
+		if (wordexp(seq->f.command, &we, 0) == 0) {
+			if (we.we_wordc != c->count) {
+				CPRINTF(1, c, "has different command word count %d != %d\n",
+					c->count, (int) we.we_wordc);
+				wordfree(&we);
+				return False;
+			}
+			for (i = 0; i < c->count; i++)
+				if (strcmp(we.we_wordv[i], c->command[i])) {
+					CPRINTF(1, c, "has different command\n");
+					wordfree(&we);
+					return False;
+				}
+			wordfree(&we);
+			return True;
+		}
+	}
 	/* correct executable */
 	if (pid && seq->f.bin) {
 		if ((str = get_proc_comm(pid)))
-			CPRINTF(1, c, "comparing '%s' and '%s'\n", str, seq->f.bin);
 			if (!strcmp(seq->f.bin, str)) {
+				CPRINTF(1, c, "has same binary %s\n", str);
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_exec(pid)))
-			CPRINTF(1, c, "comparing '%s' and '%s'\n", str, seq->f.bin);
 			if (!strcmp(seq->f.bin, str)) {
+				CPRINTF(1, c, "has same binary %s\n", str);
 				free(str);
 				return True;
 			}
 		free(str);
 		if ((str = get_proc_argv0(pid)))
-			CPRINTF(1, c, "comparing '%s' and '%s'\n", str, seq->f.bin);
 			if (!strcmp(seq->f.bin, str)) {
+				CPRINTF(1, c, "has same binary %s\n", str);
 				free(str);
 				return True;
 			}
@@ -2046,6 +2098,10 @@ test_client(Client *c, Sequence *seq)
 
 /** @brief assist some clients by adding information missing from window
   *
+  * Setting up the client consists of setting some EWMH and other properties on
+  * the (group or leader) window.  Because we can get here for tool wait, we
+  * must check whether assistance is desired.
+  *
   * Some applications do not use a full toolkit and do not properly set all of
   * the EWMH properties.  Once we have identified the startup sequence
   * associated with a client, we can set infomration on the client from the
@@ -2058,7 +2114,6 @@ void
 setup_client(Client *c)
 {
 	Sequence *seq;
-	long data;
 	Bool need_change = False;
 
 	if (!(seq = c->seq))
@@ -2068,55 +2123,102 @@ setup_client(Client *c)
 		return;
 	/* set up _NET_STARTUP_ID */
 	if (!c->startup_id && seq->f.id) {
-		CPRINTF(1, c, "setting _NET_STARTUP_ID to '%s'\n", seq->f.id);
-		XChangeProperty(dpy, c->win, _XA_NET_STARTUP_ID, _XA_UTF8_STRING, 8,
-				PropModeReplace, (unsigned char *) seq->f.id,
-				strlen(seq->f.id));
-	}
+		XTextProperty xtp = { 0, };
+		char *list[2] = { NULL, };
+		int count = 1;
+		Window win = c->group ? : c->win;
 
+		CPRINTF(1, c, "(0x%08lx)_NET_STARTUP_ID <- %s\n", win, seq->f.id);
+		list[0] = seq->f.id;
+		Xutf8TextListToTextProperty(dpy, list, count, XUTF8StringStyle, &xtp);
+		XSetTextProperty(dpy, win, &xtp, _XA_NET_STARTUP_ID);
+		if (xtp.value)
+			XFree(xtp.value);
+	}
 	/* set up _NET_WM_PID */
 	if (!c->pid && seq->n.pid) {
-		CPRINTF(1, c, "setting _NET_WM_PID to [%d]\n", seq->n.pid);
-		data = seq->n.pid;
-		XChangeProperty(dpy, c->win, _XA_NET_WM_PID, XA_CARDINAL, 32,
+		long data = seq->n.pid;
+		Window win = c->group ? : c->win;
+
+		CPRINTF(1, c, "(0x%08lx)_NET_WM_PID <- %ld\n", win, data);
+		XChangeProperty(dpy, win, _XA_NET_WM_PID, XA_CARDINAL, 32,
 				PropModeReplace, (unsigned char *) &data, 1);
 		c->pid = seq->n.pid;
 	}
+	/* set up _NET_WM_USER_TIME */
+	if (!c->user_time && seq->f.timestamp && seq->n.timestamp) {
+		long data = seq->n.timestamp;
+		Window win = c->time_win ? : c->win;
 
+		CPRINTF(1, c, "(0x%08lx)_NET_WM_USER_TIME <- %ld\n", win, data);
+		XChangeProperty(dpy, win, _XA_NET_WM_USER_TIME, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+		c->user_time = seq->n.timestamp;
+	}
+	/* set up _NET_WM_DESKTOP */
+	if (seq->f.desktop) {
+		long data = seq->n.desktop;
+
+		CPRINTF(1, c, "(0x%08lx)_NET_WM_DESKTOP <- %ld\n", c->win, data);
+		XChangeProperty(dpy, c->win, _XA_NET_WM_DESKTOP, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+	}
 	/* set up WM_CLIENT_MACHINE */
 	if (!c->hostname && seq->f.hostname) {
-		CPRINTF(1, c, "setting WM_CLIENT_MACHINE to '%s'\n", seq->f.hostname);
-		XChangeProperty(dpy, c->win, XA_WM_CLIENT_MACHINE, XA_STRING, 8,
-				PropModeReplace, (unsigned char *) seq->f.hostname,
-				strlen(seq->f.hostname));
-	}
+		XTextProperty xtp = { 0, };
+		char *list[2] = { NULL, };
+		int count = 1;
+		Window win = c->group ? : c->win;
 
+		CPRINTF(1, c, "(0x%08lx)WM_CLIENT_MACHINE <- %s\n", win, seq->f.hostname);
+		list[0] = seq->f.hostname;
+		XStringListToTextProperty(list, count, &xtp);
+		if (xtp.value) {
+			XSetWMClientMachine(dpy, win, &xtp);
+			XFree(xtp.value);
+		}
+	}
 	/* set up WM_COMMAND */
-	if (c->pid && !c->command) {
+	if (!c->command && seq->f.command) {
+		wordexp_t we = { 0, };
+		Window win = c->leader ? : c->win;
+
+		CPRINTF(1, c, "(0x%08lx)WM_COMMAND <- %s\n", win, seq->f.command);
+		if (wordexp(seq->f.command, &we, 0) == 0) {
+			XSetCommand(dpy, win, we.we_wordv, we.we_wordc);
+			wordfree(&we);
+		}
+	} else
+		/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
+	if (!c->command && c->pid) {
 		char *string;
 		char buf[65] = { 0, };
 		size_t size;
+		Window win = c->leader ? : c->win;
 
 		gethostname(buf, sizeof(buf) - 1);
 		if ((c->hostname && !strcmp(buf, c->hostname)) ||
 		    (seq->f.hostname && !strcmp(buf, seq->f.hostname))) {
 			if ((string = get_proc_file(c->pid, "cmdline", &size))) {
-				CPRINTF(1, c, "setting WM_COMMAND to '%s'\n", string);
-				XChangeProperty(dpy, c->win, XA_WM_COMMAND,
+				CPRINTF(1, c, "(0x%08lx)WM_COMMAND <- %s\n", win, string);
+				XChangeProperty(dpy, win, XA_WM_COMMAND,
 						XA_STRING, 8, PropModeReplace,
 						(unsigned char *) string, size);
 				free(string);
 			}
 		}
 	}
+	/* change BIN= */
 	if (!seq->f.bin && c->command && c->command[0]) {
 		seq->f.bin = strdup(c->command[0]);
 		need_change = True;
 	}
+	/* change DESCRIPTION= */
 	if (!seq->f.description && c->name) {
 		seq->f.description = strdup(c->name);
 		need_change = True;
 	}
+	/* change WMCLASS= */
 	if (!seq->f.wmclass && (c->ch.res_name || c->ch.res_class)) {
 		if (c->ch.res_class) {
 			seq->f.wmclass = strdup(c->ch.res_class);
@@ -2126,6 +2228,7 @@ setup_client(Client *c)
 			need_change = True;
 		}
 	}
+	/* change DESKTOP= */
 	if (!seq->f.desktop && c->desktop) {
 		char buf[65] = { 0, };
 
@@ -2133,6 +2236,7 @@ setup_client(Client *c)
 		seq->f.desktop = strdup(buf);
 		need_change = True;
 	}
+	/* change SCREEN= */
 	if (!seq->f.screen) {
 		char buf[65] = { 0, };
 
@@ -2140,6 +2244,7 @@ setup_client(Client *c)
 		seq->f.screen = strdup(buf);
 		need_change = True;
 	}
+	/* change PID= */
 	if (!seq->f.pid && c->pid) {
 		char buf[65] = { 0, };
 
@@ -2147,6 +2252,7 @@ setup_client(Client *c)
 		seq->f.pid = strdup(buf);
 		need_change = True;
 	}
+	/* change HOSTNAME= */
 	if (!seq->f.hostname && c->hostname) {
 		seq->f.hostname = strdup(c->hostname);
 		need_change = True;
@@ -2342,7 +2448,7 @@ is_statusicon(Client *c)
   * @param c - the client to update
   *
   * Updates the client from information and properties maintained by the X
-  * server.  Care should be taken that information that shoule be obtained from
+  * server.  Care should be taken that information that should be obtained from
   * a group window is obtained from that window first and then overwritten by
   * any information contained in the specific window.
   */
@@ -3863,7 +3969,7 @@ static void
 pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 {
 	PTRACE(5);
-	int count = 0, i;
+	int i;
 
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -3871,21 +3977,24 @@ pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "freeing old WM_COMMAND\n");
 		XFreeStringList(c->command);
 		c->command = NULL;
+		c->count = 0;
 	}
 	if (e && e->state == PropertyDelete) {
 		CPRINTF(1, c, "deleted WM_COMMAND\n");
 		return;
 	}
-	if (!XGetCommand(dpy, c->win, &c->command, &count) && c->group)
-		XGetCommand(dpy, c->group, &c->command, &count);
+	if (!c->command && c->win)
+		XGetCommand(dpy, c->win, &c->command, &c->count);
+	if (!c->command && c->group)
+		XGetCommand(dpy, c->group, &c->command, &c->count);
 	if (!c->command && c->leader)
-		XGetCommand(dpy, c->leader, &c->command, &count);
+		XGetCommand(dpy, c->leader, &c->command, &c->count);
 	if (!c->command && c->transient_for)
-		XGetCommand(dpy, c->transient_for, &c->command, &count);
+		XGetCommand(dpy, c->transient_for, &c->command, &c->count);
 	if (c->command) {
 		if (options.output > 1) {
 			CPRINTF(1, c, "WM_COMMAND");
-			for (i = 0; i < count; i++)
+			for (i = 0; i < c->count; i++)
 				fprintf(stdout, " '%s'", c->command[i]);
 			fprintf(stdout, "\n");
 		}
