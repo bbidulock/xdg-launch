@@ -358,6 +358,9 @@ typedef struct {
 	Atom slctn_atom;		/* _XDG_MONITOR_S%d atom this screen */
 	Client *clients;		/* clients for this screen */
 	Sequence *sequences;		/* sequences for this screen */
+	Bool net_wm_user_time;		/* _NET_WM_USER_TIME is supported */
+	Bool net_startup_id;		/* _NET_STARTUP_ID is supported */
+	Bool net_startup_info;		/* _NET_STARTUP_INFO is supported */
 } XdgScreen;
 
 XdgScreen *screens;
@@ -385,6 +388,7 @@ struct _Client {
 	Sequence *seq;			/* associated startup sequence */
 	int screen;			/* screen number */
 	Window win;			/* client window */
+	Window icon_win;		/* icon window */
 	Window time_win;		/* client time window */
 	Window transient_for;		/* transient for */
 	Window leader;			/* client leader window */
@@ -393,8 +397,10 @@ struct _Client {
 	Bool statusicon;		/* client is a status icon */
 	Bool breadcrumb;		/* for traversing list */
 	Bool managed;			/* managed by window manager */
+	Bool mapped;			/* set when client mapped */
 	Bool listed;			/* listed by window manager */
 	Bool new;			/* brand new */
+	Bool request;			/* frame extents requested */
 	Time active_time;		/* last time active */
 	Time focus_time;		/* last time focused */
 	Time user_time;			/* last time used */
@@ -438,6 +444,7 @@ Atom _XA_NET_SUPPORTING_WM_CHECK;
 Atom _XA_NET_VIRTUAL_ROOTS;
 Atom _XA_NET_VISIBLE_DESKTOPS;
 Atom _XA_NET_WM_ALLOWED_ACTIONS;
+Atom _XA_NET_WM_FRAME_EXTENTS;
 Atom _XA_NET_WM_FULLSCREEN_MONITORS;
 Atom _XA_NET_WM_ICON_GEOMETRY;
 Atom _XA_NET_WM_ICON_NAME;
@@ -491,6 +498,7 @@ static void pc_handle_NET_STARTUP_ID(XPropertyEvent *, Client *);
 static void pc_handle_NET_SUPPORTED(XPropertyEvent *, Client *);
 static void pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_FRAME_EXTENTS(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_FULLSCREEN_MONITORS(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_ICON_GEOMETRY(XPropertyEvent *, Client *);
 static void pc_handle_NET_WM_ICON_NAME(XPropertyEvent *, Client *);
@@ -589,6 +597,7 @@ struct atoms {
 	{ "_NET_VIRUAL_ROOTS",			&_XA_NET_VIRTUAL_ROOTS,		NULL,					NULL,					None			},
 	{ "_NET_VISIBLE_DESKTOPS",		&_XA_NET_VISIBLE_DESKTOPS,	NULL,					NULL,					None			},
 	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	&pc_handle_NET_WM_ALLOWED_ACTIONS,	&cm_handle_NET_WM_ALLOWED_ACTIONS,	None			},
+	{ "_NET_WM_FRAME_EXTENTS",		&_XA_NET_WM_FRAME_EXTENTS,	&pc_handle_NET_WM_FRAME_EXTENTS,	NULL,					None			},
 	{ "_NET_WM_FULLSCREEN_MONITORS",	&_XA_NET_WM_FULLSCREEN_MONITORS,&pc_handle_NET_WM_FULLSCREEN_MONITORS,	&cm_handle_NET_WM_FULLSCREEN_MONITORS,	None			},
 	{ "_NET_WM_ICON_GEOMETRY",		&_XA_NET_WM_ICON_GEOMETRY,	&pc_handle_NET_WM_ICON_GEOMETRY,	NULL,					None			},
 	{ "_NET_WM_ICON_NAME",			&_XA_NET_WM_ICON_NAME,		&pc_handle_NET_WM_ICON_NAME,		NULL,					None			},
@@ -657,22 +666,25 @@ struct atoms wmprops[] = {
 	{ "WM_HINTS",				NULL,				&pc_handle_WM_HINTS,			NULL,					XA_WM_HINTS		},
 	{ "WM_CLIENT_LEADER",			&_XA_WM_CLIENT_LEADER,		&pc_handle_WM_CLIENT_LEADER,		NULL,					None			},
 	{ "WM_TRANSIENT_FOR",			NULL,				&pc_handle_WM_TRANSIENT_FOR,		NULL,					XA_WM_TRANSIENT_FOR	},
-	{ "WM_STATE",				&_XA_WM_STATE,			&pc_handle_WM_STATE,			&cm_handle_WM_STATE,			None			},
 	{ "_NET_WM_USER_TIME_WINDOW",		&_XA_NET_WM_USER_TIME_WINDOW,	&pc_handle_NET_WM_USER_TIME_WINDOW,	NULL,					None			},
+	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		&pc_handle_NET_STARTUP_ID,		NULL,					None			},
 	{ "WM_CLIENT_MACHINE",			NULL,				&pc_handle_WM_CLIENT_MACHINE,		NULL,					XA_WM_CLIENT_MACHINE	},
-	{ "WM_COMMAND",				NULL,				&pc_handle_WM_COMMAND,			NULL,					XA_WM_COMMAND		},
-	{ "WM_WINDOW_ROLE",			&_XA_WM_WINDOW_ROLE,		&pc_handle_WM_WINDOW_ROLE,		NULL,					None			},
 	{ "_NET_WM_PID",			&_XA_NET_WM_PID,		&pc_handle_NET_WM_PID,			NULL,					None			},
+	{ "WM_CLASS",				NULL,				&pc_handle_WM_CLASS,			NULL,					XA_WM_CLASS		},
+	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&pc_handle_NET_WM_USER_TIME,		NULL,					None			},
+	{ "WM_COMMAND",				NULL,				&pc_handle_WM_COMMAND,			NULL,					XA_WM_COMMAND		},
+	{ "WM_STATE",				&_XA_WM_STATE,			&pc_handle_WM_STATE,			&cm_handle_WM_STATE,			None			},
 	{ "_NET_WM_STATE",			&_XA_NET_WM_STATE,		&pc_handle_NET_WM_STATE,		&cm_handle_NET_WM_STATE,		None			},
 	{ "_NET_WM_ALLOWED_ACTIONS",		&_XA_NET_WM_ALLOWED_ACTIONS,	&pc_handle_NET_WM_ALLOWED_ACTIONS,	&cm_handle_NET_WM_ALLOWED_ACTIONS,	None			},
-	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		&cm_handle_WIN_WORKSPACE,		None			},
-	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,		&pc_handle_NET_WM_DESKTOP,		&cm_handle_NET_WM_DESKTOP,		None			},
-	{ "_NET_STARTUP_ID",			&_XA_NET_STARTUP_ID,		&pc_handle_NET_STARTUP_ID,		NULL,					None			},
-	{ "_NET_WM_USER_TIME",			&_XA_NET_WM_USER_TIME,		&pc_handle_NET_WM_USER_TIME,		NULL,					None			},
+	{ "_NET_WM_VISIBLE_NAME",		&_XA_NET_WM_VISIBLE_NAME,	&pc_handle_NET_WM_VISIBLE_NAME,		NULL,					None			},
+	{ "_NET_WM_VISIBLE_ICON_NAME",		&_XA_NET_WM_VISIBLE_ICON_NAME,	&pc_handle_NET_WM_VISIBLE_ICON_NAME,	NULL,					None			},
+	{ "_NET_WM_FRAME_EXTENTS",		&_XA_NET_WM_FRAME_EXTENTS,	&pc_handle_NET_WM_FRAME_EXTENTS,	NULL,					None			},
 	{ "WM_NAME",				NULL,				&pc_handle_WM_NAME,			NULL,					XA_WM_NAME		},
+	{ "WM_WINDOW_ROLE",			&_XA_WM_WINDOW_ROLE,		&pc_handle_WM_WINDOW_ROLE,		NULL,					None			},
 	{ "_NET_WM_NAME",			&_XA_NET_WM_NAME,		&pc_handle_NET_WM_NAME,			NULL,					None			},
 	{ "_NET_WM_ICON_NAME",			&_XA_NET_WM_ICON_NAME,		&pc_handle_NET_WM_ICON_NAME,		NULL,					None			},
-	{ "WM_CLASS",				NULL,				&pc_handle_WM_CLASS,			NULL,					XA_WM_CLASS		},
+	{ "_WIN_WORKSPACE",			&_XA_WIN_WORKSPACE,		&pc_handle_WIN_WORKSPACE,		&cm_handle_WIN_WORKSPACE,		None			},
+	{ "_NET_WM_DESKTOP",			&_XA_NET_WM_DESKTOP,		&pc_handle_NET_WM_DESKTOP,		&cm_handle_NET_WM_DESKTOP,		None			},
 	{ NULL,					NULL,				NULL,					NULL,					None			}
 	/* *INDENT-ON* */
 };
@@ -1267,12 +1279,26 @@ check_window_manager()
 		have_wm = True;
 		OPRINTF(1, "GNOME/WMH window 0x%lx\n", scr->winwm_check);
 	}
+	scr->net_wm_user_time = False;
+	scr->net_startup_id = False;
+	scr->net_startup_info = False;
 	OPRINTF(1, "checking NetWM/EWMH compliance\n");
 	if (check_netwm()) {
 		have_wm = True;
 		OPRINTF(1, "NetWM/EWMH window 0x%lx\n", scr->netwm_check);
+		if (check_supported(_XA_NET_SUPPORTED, _XA_NET_WM_USER_TIME)) {
+			OPRINTF(1, "_NET_WM_USER_TIME supported\n");
+			scr->net_wm_user_time = True;
+		}
+		if (check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
+			OPRINTF(1, "_NET_STARTUP_ID supported\n");
+			scr->net_startup_id = True;
+		}
+		if (check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_INFO)) {
+			OPRINTF(1, "_NET_STARTUP_INFO supported\n");
+			scr->net_startup_info = True;
+		}
 	}
-
 	return have_wm;
 }
 
@@ -1506,6 +1532,13 @@ find_client(Window w)
 /*
  * Check whether the window manager needs assitance: return True when it needs assistance
  * and False otherwise.
+ *
+ * When the WM supports _NET_STARTUP_ID and _NET_WM_USER_TIME, it should be able
+ * to get its own timestamps out of _NET_STARTUP_ID.  When the WM supports
+ * _NET_STARTUP_INFO(_BEGIN), it should be able to intercept its own startup
+ * notification messages to at least determine the desktop/workspace upon which
+ * the window should start in addition to the above; also, it should be able to
+ * determine from WMCLASS= which messages belong to which newly mapped window.
  */
 Bool
 need_assistance()
@@ -1972,6 +2005,35 @@ get_proc_argv0(pid_t pid)
 	return get_proc_file(pid, "cmdline", &size);
 }
 
+Bool
+samehost(const char *dom1, const char *dom2)
+{
+	const char *str;
+	char c;
+
+	if (!dom1 || !dom2)
+		return False;
+	if (!strcasecmp(dom1, dom2))
+		return True;
+	if (((str = strcasestr(dom1, dom2)) == dom1) && (!(c = *(str + strlen(dom2))) || c == '.'))
+		return True;
+	if (((str = strcasestr(dom2, dom1)) == dom2) && (!(c = *(str + strlen(dom1))) || c == '.'))
+		return True;
+	return False;
+}
+
+Bool
+islocalhost(const char *host)
+{
+	char buf[65] = { 0, };
+
+	if (!host)
+		return False;
+	if (gethostname(buf, sizeof(buf) - 1))
+		return False;
+	return samehost(buf, host);
+}
+
 /** @brief test a client against a startup notification sequence
   * @param c - client to test
   * @param seq - sequence against which to test
@@ -1988,7 +2050,7 @@ test_client(Client *c, Sequence *seq)
 	char *str;
 
 	CPRINTF(1, c, "seq '%s': testing\n", seq->f.id);
-
+	/* correct _NET_WM_STARTUP_ID */
 	if (seq->f.id && c->startup_id) {
 		if (strcmp(c->startup_id, seq->f.id)) {
 			CPRINTF(1, c, "has different startup id %s\n", c->startup_id);
@@ -2000,13 +2062,31 @@ test_client(Client *c, Sequence *seq)
 	} else
 		CPRINTF(1, c, "cannot test startup id\n");
 	/* correct hostname */
-	if (seq->f.hostname && c->hostname && strcasecmp(seq->f.hostname, c->hostname)) {
-		CPRINTF(1, c, "has different hostname %s\n", c->hostname);
-		return False;
+	if (seq->f.hostname && c->hostname) {
+		/* check exact and subdomain mismatch */
+		if (!samehost(seq->f.hostname, c->hostname)) {
+			CPRINTF(1, c, "has different hostname %s !~ %s\n", c->hostname,
+				seq->f.hostname);
+			return False;
+		}
+		CPRINTF(1, c, "has comparable hostname %s ~ %s\n", c->hostname, seq->f.hostname);
+		/* same process id (on same host) */
+		if (c->pid && seq->n.pid && (c->pid == seq->n.pid)) {
+			CPRINTF(1, c, "has correct pid %d\n", c->pid);
+			return True;
+		}
+		CPRINTF(1, c, "has different pid %d\n", c->pid);
+		/* incorrect pid is not conclusive */
 	} else
 		CPRINTF(1, c, "cannot test hostname\n");
-	if ((pid = c->pid) && (!c->hostname || strcmp(seq->f.hostname, c->hostname)))
+	pid = c->pid;
+	/* is pid on localhost? */
+	if (pid && !islocalhost(c->hostname)) {
+		CPRINTF(1, c, "cannot test local pid\n");
 		pid = 0;
+	} else
+		CPRINTF(1, c, "can test local pid\n");
+	/* is environment DESKTOP_STARTUP_ID correct? */
 	if (pid && (str = get_proc_startup_id(pid))) {
 		CPRINTF(1, c, "comparing '%s' and '%s'\n", str, seq->f.id);
 		if (strcmp(seq->f.id, str)) {
@@ -2034,11 +2114,6 @@ test_client(Client *c, Sequence *seq)
 		}
 	} else
 		CPRINTF(1, c, "cannot test WM_CLASS\n");
-	/* same process id */
-	if (pid && seq->n.pid == pid) {
-		CPRINTF(1, c, "has correct pid %d\n", pid);
-		return True;
-	}
 	/* same timestamp to the millisecond */
 	if (c->user_time && c->user_time == seq->n.timestamp) {
 		CPRINTF(1, c, "has identical user time %lu\n", c->user_time);
@@ -2050,21 +2125,23 @@ test_client(Client *c, Sequence *seq)
 		wordexp_t we = { 0, };
 
 		if (wordexp(seq->f.command, &we, 0) == 0) {
-			if (we.we_wordc != c->count) {
-				CPRINTF(1, c, "has different command word count %d != %d\n",
-					c->count, (int) we.we_wordc);
-				wordfree(&we);
-				return False;
-			}
-			for (i = 0; i < c->count; i++)
-				if (strcmp(we.we_wordv[i], c->command[i])) {
-					CPRINTF(1, c, "has different command\n");
+			if (we.we_wordc == c->count) {
+				for (i = 0; i < c->count; i++)
+					if (strcmp(we.we_wordv[i], c->command[i]))
+						break;
+				if (i == c->count) {
+					CPRINTF(1, c, "has same command\n");
 					wordfree(&we);
-					return False;
+					return True;
 				}
+			}
 			wordfree(&we);
-			return True;
 		}
+		CPRINTF(1, c, "has different command\n");
+		/* NOTE: there are cases where the command associated with a window is
+		   different from the launch command: in particular, where the launch
+		   command is a script or program that 'exec's another.  Therefore, the
+		   command being different may be a false negative. */
 	}
 	/* correct executable */
 	if (pid && seq->f.bin) {
@@ -2096,6 +2173,68 @@ test_client(Client *c, Sequence *seq)
 	return False;
 }
 
+static Sequence *ref_sequence(Sequence *seq);
+
+/** @brief perform a quick assist on the client and window manager
+  * @param c - the client to assist
+  * @param seq - the startup notification sequence associated with the client
+  *
+  * Some client window properties need to be set before the window is mapped;
+  * otherwise, the window manager may not do the right thing.  We set them in
+  * order of priority (valuable before mapping), with ones that do not really
+  * need to be set before the window is mapped last.  If the window manager does
+  * not require assistance, it is most important to set up _NET_STARTUP_ID;
+  * otherwise, it is most important to set up _NET_WM_USER_TIME and
+  * _NET_WM_DESKTOP, as these are required before the window is mapped; the most
+  * important of these being _NET_WM_USER_TIME.  If _NET_WM_DESKTOP is set and a
+  * WM_STATE property exists afterward, a client message should be sent to the
+  * root for the window manager that switches the window to that desktop.
+  */
+void
+assist_client(Client *c, Sequence *seq)
+{
+	long data;
+
+	if (c->seq) {
+		EPRINTF("client already set up!\n");
+		return;
+	}
+	c->seq = ref_sequence(seq);
+
+	if (!options.assist)
+		return;
+	/* set up _NET_STARTUP_ID */
+	if (seq->f.id && !c->startup_id) {
+		XTextProperty xtp = { 0, };
+		char *list[2] = { NULL, };
+		int count = 1;
+
+		CPRINTF(1, c, "(0x%08lx)_NET_STARTUP_ID <- %s\n", c->group, seq->f.id);
+		list[0] = seq->f.id;
+		Xutf8TextListToTextProperty(dpy, list, count, XUTF8StringStyle, &xtp);
+		XSetTextProperty(dpy, c->group, &xtp, _XA_NET_STARTUP_ID);
+		c->startup_id = (char *) xtp.value;
+	}
+	/* set up _NET_WM_USER_TIME */
+	if (scr->netwm_check && seq->f.timestamp && (data = seq->n.timestamp)) {
+		CPRINTF(1, c, "(0x%08lx)_NET_WM_USER_TIME <- %ld\n", c->time_win, data);
+		XChangeProperty(dpy, c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+	}
+	/* set up _NET_WM_DESKTOP and _WIN_WORKSPACE */
+	if (seq->f.desktop && scr->netwm_check) {
+		data = seq->n.desktop;
+		CPRINTF(1, c, "(0x%08lx)_NET_WM_DESKTOP <- %ld\n", c->win, data);
+		XChangeProperty(dpy, c->win, _XA_NET_WM_DESKTOP, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+	} else if (seq->f.desktop && scr->winwm_check) {
+		data = seq->n.desktop;
+		CPRINTF(1, c, "(0x%08lx)_WIN_WORKSPACE <- %ld\n", c->win, data);
+		XChangeProperty(dpy, c->win, _XA_WIN_WORKSPACE, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+	}
+}
+
 /** @brief assist some clients by adding information missing from window
   *
   * Setting up the client consists of setting some EWMH and other properties on
@@ -2116,9 +2255,10 @@ setup_client(Client *c)
 	Sequence *seq;
 	Bool need_change = False;
 
+	PTRACE(5);
 	if (!(seq = c->seq))
 		return;
-
+	/* only if assitance was requested or necessary */
 	if (!options.assist)
 		return;
 	/* set up _NET_STARTUP_ID */
@@ -2135,18 +2275,9 @@ setup_client(Client *c)
 		if (xtp.value)
 			XFree(xtp.value);
 	}
-	/* set up _NET_WM_PID */
-	if (!c->pid && seq->n.pid) {
-		long data = seq->n.pid;
-		Window win = c->group ? : c->win;
-
-		CPRINTF(1, c, "(0x%08lx)_NET_WM_PID <- %ld\n", win, data);
-		XChangeProperty(dpy, win, _XA_NET_WM_PID, XA_CARDINAL, 32,
-				PropModeReplace, (unsigned char *) &data, 1);
-		c->pid = seq->n.pid;
-	}
 	/* set up _NET_WM_USER_TIME */
-	if (!c->user_time && seq->f.timestamp && seq->n.timestamp) {
+	if (seq->f.timestamp && seq->n.timestamp &&
+	    (!c->user_time || !latertime(c->user_time, seq->n.timestamp))) {
 		long data = seq->n.timestamp;
 		Window win = c->time_win ? : c->win;
 
@@ -2178,10 +2309,23 @@ setup_client(Client *c)
 			XFree(xtp.value);
 		}
 	}
+#if 0
+	/* not always true that launched PID and window's PID are the same */
+	/* set up _NET_WM_PID */
+	if (!c->pid && seq->n.pid) {
+		long data = seq->n.pid;
+		Window win = c->group ? : c->win;
+
+		CPRINTF(1, c, "(0x%08lx)_NET_WM_PID <- %ld\n", win, data);
+		XChangeProperty(dpy, win, _XA_NET_WM_PID, XA_CARDINAL, 32,
+				PropModeReplace, (unsigned char *) &data, 1);
+		c->pid = data;
+	}
+#endif
 	/* set up WM_COMMAND */
 	if (!c->command && seq->f.command) {
-		wordexp_t we = { 0, };
 		Window win = c->leader ? : c->win;
+		wordexp_t we = { 0, };
 
 		CPRINTF(1, c, "(0x%08lx)WM_COMMAND <- %s\n", win, seq->f.command);
 		if (wordexp(seq->f.command, &we, 0) == 0) {
@@ -2192,13 +2336,10 @@ setup_client(Client *c)
 		/* use /proc/[pid]/cmdline to set up WM_COMMAND if not present */
 	if (!c->command && c->pid) {
 		char *string;
-		char buf[65] = { 0, };
 		size_t size;
 		Window win = c->leader ? : c->win;
 
-		gethostname(buf, sizeof(buf) - 1);
-		if ((c->hostname && !strcmp(buf, c->hostname)) ||
-		    (seq->f.hostname && !strcmp(buf, seq->f.hostname))) {
+		if (islocalhost(c->hostname) || islocalhost(seq->f.hostname)) {
 			if ((string = get_proc_file(c->pid, "cmdline", &size))) {
 				CPRINTF(1, c, "(0x%08lx)WM_COMMAND <- %s\n", win, string);
 				XChangeProperty(dpy, win, XA_WM_COMMAND,
@@ -2260,9 +2401,9 @@ setup_client(Client *c)
 	/* FIXME: need to do MONITOR= and COMMAND= */
 	if (need_change)
 		send_change(seq);
+	/* Perform some checks on the information available in .desktop file vs. that
+	   which was discovered when the window was launched. */
 }
-
-static Sequence *ref_sequence(Sequence *seq);
 
 /** @brief find the startup sequence for a client
   * @param c - client to lookup startup sequence for
@@ -2444,6 +2585,28 @@ is_statusicon(Client *c)
 	return False;
 }
 
+static void
+recheck_client(Client *c)
+{
+	Sequence *seq;
+
+	PTRACE(5);
+	if (c->managed && c->mapped && !c->seq) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			if (test_client(c, seq)) {
+				CPRINTF(1, c, "--------------!\n");
+				CPRINTF(1, c, "IS THE ONE(tm)!\n");
+				CPRINTF(1, c, "--------------!\n");
+				if (options.assist) {
+					CPRINTF(1, c, "setting up\n");
+					setup_client(c);
+				} else
+					CPRINTF(1, c, "NOT setting up\n");
+			}
+		}
+	}
+}
+
 /** @brief update client from X server
   * @param c - the client to update
   *
@@ -2452,6 +2615,320 @@ is_statusicon(Client *c)
   * a group window is obtained from that window first and then overwritten by
   * any information contained in the specific window.
   */
+#if 1
+static void
+update_client(Client *c)
+{
+	long card = 0, n = -1, i;
+	Window win = None;
+	Time time = CurrentTime;
+	char *text = NULL;
+	Atom *atoms = NULL;
+	long mask =
+	    ExposureMask | VisibilityChangeMask | StructureNotifyMask |
+	    SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask;
+	Client *g = NULL;
+	Sequence *seq;
+
+	OPRINTF(1, "0x%08lx updating client\n", c->win);
+	XSaveContext(dpy, c->win, ScreenContext, (XPointer) scr);
+	/* first windows */
+	if (XFindContext(dpy, c->win, ClientContext, (XPointer *) &g)) {
+		XSaveContext(dpy, c->win, ClientContext, (XPointer) c);
+		XSelectInput(dpy, c->win, mask);
+	}
+	/* WM_HINTS: two things in which we are intrested is the group window (if any)
+	   and whether the client is a dock app or not. */
+	if (!c->wmh && (c->wmh = XGetWMHints(dpy, c->win))) {
+		if (c->wmh->flags & WindowGroupHint) {
+			if ((win = c->wmh->window_group) && win != scr->root) {
+				c->group = win;
+				CPRINTF(1, c, "has group window 0x%08lx\n", c->group);
+			}
+			if (XFindContext(dpy, c->group, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->group, mask);
+			}
+		}
+		c->icon_win = c->win;
+		if (c->wmh->flags & IconWindowHint) {
+			if ((win = c->wmh->icon_window)) {
+				c->icon_win = win;
+				CPRINTF(1, c, "has icon window 0x%08lx\n", c->icon_win);
+			}
+			if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->icon_win, mask);
+			}
+		}
+		if ((c->dockapp = is_dockapp(c)))
+			CPRINTF(1, c, "is a dock app\n");
+		else
+			CPRINTF(1, c, "is not a dock app\n");
+	}
+	/* WM_CLIENT_LEADER: determine whether there is a client leader window. */
+	if ((c->leader == c->win) &&
+	    (get_window(c->win, _XA_WM_CLIENT_LEADER, XA_WINDOW, &win) ||
+	     ((c->group != c->win) &&
+	      get_window(c->group, _XA_WM_CLIENT_LEADER, XA_WINDOW, &win)))) {
+		if (win && win != c->win) {
+			c->leader = win;
+			CPRINTF(1, c, "has lead window 0x%08lx\n", c->leader);
+			if (XFindContext(dpy, c->leader, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->leader, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->leader, mask);
+			}
+		}
+	}
+	/* WM_TRANSIENT_FOR: determine the window for which this one is transient */
+	if (!c->transient_for || !(c->transient_for == c->win)) {
+		c->transient_for = c->win;
+		get_window(c->win, XA_WM_TRANSIENT_FOR, AnyPropertyType, &win);
+		if (win && win != c->win) {
+			c->transient_for = win;
+			CPRINTF(1, c, "is transient for window 0x%08lx\n", c->transient_for);
+			if (XFindContext(dpy, c->transient_for, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->transient_for, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->transient_for, mask);
+			}
+		}
+	}
+	/* _NET_WM_USER_TIME_WINDOW: determine if there is a separate user time window. */
+	if (c->time_win == c->win &&
+	    (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win) ||
+	     ((c->group != c->win) &&
+	      get_window(c->group, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &win)))) {
+		if (win != c->win) {
+			c->time_win = win;
+			CPRINTF(1, c, "has time window 0x%08lx\n", c->time_win);
+			if (XFindContext(dpy, c->time_win, ClientContext, (XPointer *) &g)) {
+				XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
+				XSelectInput(dpy, c->time_win, mask);
+			}
+		}
+	}
+	/* _NET_STARTUP_ID */
+	if (!c->startup_id &&
+	    ((text = get_text(c->win, _XA_NET_STARTUP_ID)) ||
+	     ((c->group != c->win) &&
+	      (text = get_text(c->group, _XA_NET_STARTUP_ID))) ||
+	     ((c->leader != c->win) && (text = get_text(c->leader, _XA_NET_STARTUP_ID))))) {
+		c->startup_id = text;
+		CPRINTF(1, c, "has startup id %s\n", text);
+		if (!c->seq) {
+			for (seq = scr->sequences; seq; seq = seq->next) {
+				if (!seq->f.id)
+					continue;	/* safety */
+				if (!strcmp(c->startup_id, seq->f.id)) {
+					CPRINTF(1, c, "found sequence by _NET_STARTUP_ID\n");
+					assist_client(c, seq);
+					break;
+				}
+			}
+		}
+	}
+	/* WM_CLIENT_MACHINE: determine the host on which the client runs */
+	if (!c->hostname &&
+	    ((text = get_text(c->win, XA_WM_CLIENT_MACHINE)) ||
+	     ((c->group != c->win) &&
+	      (text = get_text(c->group, XA_WM_CLIENT_MACHINE))) ||
+	     ((c->leader != c->win) && (text = get_text(c->leader, XA_WM_CLIENT_MACHINE))))) {
+		c->hostname = text;
+		CPRINTF(1, c, "host %s\n", c->hostname);
+	}
+	/* _NET_WM_PID: determine whether a pid is associated with the client. */
+	if (!c->pid &&
+	    (get_cardinal(c->win, _XA_NET_WM_PID, XA_CARDINAL, &card) ||
+	     ((c->group != c->win) &&
+	      get_cardinal(c->group, _XA_NET_WM_PID, XA_CARDINAL, &card)) ||
+	     ((c->leader != c->win) &&
+	      get_cardinal(c->leader, _XA_NET_WM_PID, XA_CARDINAL, &card)))) {
+		char *str;
+
+		c->pid = card;
+		CPRINTF(1, c, "has pid %d\n", c->pid);
+		if (!c->seq && c->hostname) {
+			for (seq = scr->sequences; seq; seq = seq->next) {
+				if (!seq->f.pid || c->pid != seq->n.pid)
+					continue;
+				if (!seq->f.hostname)
+					continue;
+				if (samehost(seq->f.hostname, c->hostname)) {
+					CPRINTF(1, c, "found sequence by _NET_WM_PID\n");
+					assist_client(c, seq);
+					break;
+				}
+			}
+		}
+		if (!c->seq && islocalhost(c->hostname) && (str = get_proc_startup_id(c->pid))) {
+			for (seq = scr->sequences; seq; seq = seq->next) {
+				if (!seq->f.id)
+					continue;
+				if (!strcmp(seq->f.id, str)) {
+					CPRINTF(1, c, "found sequence by _NET_WM_PID\n");
+					assist_client(c, seq);
+					break;
+				}
+			}
+		}
+	}
+	/* WM_CLASS: determine the resource name and class */
+	if (!c->ch.res_name && !c->ch.res_class &&
+	    (XGetClassHint(dpy, c->win, &c->ch) ||
+	     ((c->group != c->win) && XGetClassHint(dpy, c->group, &c->ch)))) {
+		CPRINTF(1, c, "resource (%s,%s)\n", c->ch.res_name, c->ch.res_class);
+		if (!c->seq && (c->ch.res_name || c->ch.res_class)) {
+			for (seq = scr->sequences; seq; seq = seq->next) {
+				if (!seq->f.wmclass)
+					continue;
+				if ((c->ch.res_name &&
+				     !strcasecmp(seq->f.wmclass, c->ch.res_name)) ||
+				    (c->ch.res_class &&
+				     !strcasecmp(seq->f.wmclass, c->ch.res_class))) {
+					CPRINTF(1, c, "found sequence by WM_CLASS\n");
+					assist_client(c, seq);
+					break;
+				}
+			}
+		}
+	}
+	/* _NET_WM_USER_TIME */
+	if (!c->user_time && get_time(c->time_win, _XA_NET_WM_USER_TIME, XA_CARDINAL, &time)) {
+		CPRINTF(1, c, "has user time: %lu\n", time);
+		pushtime(&c->user_time, time);
+		pushtime(&last_user_time, c->user_time);
+		if (!c->seq && c->user_time) {
+			for (seq = scr->sequences; seq; seq = seq->next) {
+				if (!seq->f.timestamp)
+					continue;
+				if (c->user_time == seq->n.timestamp) {
+					CPRINTF(1, c, "found sequence by _NET_WM_USER_TIME\n");
+					assist_client(c, seq);
+					break;
+				}
+			}
+		}
+	}
+	/* WM_COMMAND */
+	if (!c->command &&
+	    (XGetCommand(dpy, c->win, &c->command, &c->count) ||
+	     ((c->group != c->win) &&
+	      XGetCommand(dpy, c->group, &c->command, &c->count)) ||
+	     ((c->leader != c->win) && XGetCommand(dpy, c->leader, &c->command, &c->count)))) {
+		if (options.debug >= 1 || options.output > 1) {
+			int i;
+
+			CPRINTF(1, c, "has command:");
+			for (i = 0; i < c->count; i++)
+				fprintf(stderr, " '%s'", c->command[i]);
+			fputs("\n", stderr);
+		}
+		if (!c->seq && c->command) {
+			for (seq = scr->sequences; seq; seq = seq->next) {
+				wordexp_t we = { 0, };
+
+				if (!seq->f.command)
+					continue;
+				if (!wordexp(seq->f.command, &we, 0)) {
+					if (we.we_wordc == c->count) {
+						int i;
+
+						for (i = 0; i < c->count; i++)
+							if (strcmp(we.we_wordv[i], c->command[i]))
+								break;
+						if (i == c->count) {
+							CPRINTF(1, c,
+								"found sequence by WM_COMMAND\n");
+							assist_client(c, seq);
+							wordfree(&we);
+							break;
+						}
+					}
+					wordfree(&we);
+				}
+			}
+		}
+
+	}
+	/* _NET_STARTUP_INFO BIN= field */
+	if (!c->seq && c->pid && c->hostname && islocalhost(c->hostname)) {
+		for (seq = scr->sequences; seq; seq = seq->next) {
+			char *str;
+
+			if (!seq->f.bin)
+				continue;
+			if ((str = get_proc_comm(c->pid)) && !strcmp(seq->f.bin, str)) {
+				CPRINTF(1, c, "found sequence by _NET_STARTUP_ID binary\n");
+				free(str);
+				assist_client(c, seq);
+				break;
+			}
+			free(str);
+			if ((str = get_proc_exec(c->pid)) && !strcmp(seq->f.bin, str)) {
+				CPRINTF(1, c, "found sequence by _NET_STARTUP_ID binary\n");
+				free(str);
+				assist_client(c, seq);
+				break;
+			}
+			free(str);
+			if ((str = get_proc_argv0(c->pid)) && !strcmp(seq->f.bin, str)) {
+				CPRINTF(1, c, "found sequence by _NET_STARTUP_ID binary\n");
+				free(str);
+				assist_client(c, seq);
+				break;
+			}
+			free(str);
+		}
+	}
+	/* The remaining propert gets are used to populate other information about the
+	   state of the client the must be refreshed after selecting for input on the
+	   window. */
+
+	/* WM_STATE */
+	if (!c->wms && (c->wms = XGetWMState(dpy, c->win))) {
+		if (c->wms->state != WithdrawnState || c->dockapp) {
+			c->managed = True;
+			c->mapped = True;
+			CPRINTF(1, c, "in managed and mapped state\n");
+		}
+	}
+	/* WM_NAME */
+	if (!c->name && XFetchName(dpy, c->win, &c->name)) {
+		CPRINTF(1, c, "named %s\n", c->name);
+	}
+	/* _NET_WM_STATE */
+	if ((atoms = get_atoms(c->win, _XA_NET_WM_STATE, XA_ATOM, &n))) {
+		for (i = 0; i < n; i++) {
+			if (atoms[i] == _XA_NET_WM_STATE_FOCUSED) {
+				CPRINTF(1, c, "is focussed\n");
+				c->managed = True;
+				c->mapped = True;
+				break;
+			}
+		}
+	}
+	/* _NET_WM_ALLOWED_ACTIONS */
+	/* _NET_WM_VISIBLE_NAME */
+	/* _NET_WM_VISIBLE_ICON_NAME */
+	/* WM_NAME */
+	/* WM_WINDOW_ROLE */
+	/* _NET_WM_NAME */
+	/* _NET_WM_ICON_NAME */
+	/* _NET_WM_DESKTOP or _WIN_WORKSPACE */
+	if (!c->desktop &&
+	    ((get_cardinal(c->win, _XA_NET_WM_DESKTOP, XA_CARDINAL, &card) ||
+	      get_cardinal(c->win, _XA_WIN_WORKSPACE, XA_CARDINAL, &card)) ||
+	     ((c->group != c->win) &&
+	      (get_cardinal(c->group, _XA_NET_WM_DESKTOP, XA_CARDINAL, &card) ||
+	       get_cardinal(c->group, _XA_WIN_WORKSPACE, XA_CARDINAL, &card))) ||
+	     ((c->leader != c->win) &&
+	      (get_cardinal(c->leader, _XA_NET_WM_DESKTOP, XA_CARDINAL, &card) ||
+	       get_cardinal(c->leader, _XA_WIN_WORKSPACE, XA_CARDINAL, &card))))) {
+		c->desktop = card + 1;
+		CPRINTF(1, c, "has desktop %d\n", c->desktop);
+	}
+}
+#else
 static void
 update_client(Client *c)
 {
@@ -2557,6 +3034,7 @@ update_client(Client *c)
 	c->new = False;
 #endif
 }
+#endif
 
 static Client *
 add_client(Window win)
@@ -2566,6 +3044,11 @@ add_client(Window win)
 	PTRACE(5);
 	c = calloc(1, sizeof(*c));
 	c->win = win;
+	c->group = win;
+	c->icon_win = win;
+	c->time_win = win;
+	c->leader = win;
+	c->transient_for = win;
 	c->next = scr->clients;
 	scr->clients = c;
 	update_client(c);
@@ -3228,12 +3711,19 @@ clean_msgs(Window w)
   * sent before the client mapped.
   */
 static void
-managed_client(Client *c, Time t)
+managed_client(Client *c, Time time)
 {
 	Sequence *seq = NULL;
 
-	c->managed = True;
-	pulltime(&c->map_time, t ? : c->last_time);
+	PTRACE(5);
+	if (!c) {
+		EPRINTF("null client!\n");
+		return;
+	}
+	if (!c->managed) {
+		c->managed = True;
+		pulltime(&c->map_time, time ? : c->last_time);
+	}
 	if (!(seq = c->seq) && !(seq = find_startup_seq(c)))
 		return;
 	switch (seq->state) {
@@ -3264,6 +3754,35 @@ unmanaged_client(Client *c)
 	c->managed = False;
 	/* FIXME: we can remove the client and any associated startup notification. */
 }
+
+void
+mapped_client(Client *c, Time time)
+{
+	PTRACE(5);
+	if (!c) {
+		EPRINTF("null client!\n");
+		return;
+	}
+	if (!c->mapped) {
+		c->mapped = True;
+		pulltime(&c->map_time, time ? : c->last_time);
+		CPRINTF(1, c, "mapped!\n");
+	}
+	if (!c->managed) {
+		c->managed = True;
+		pulltime(&c->map_time, time ? : c->last_time);
+		CPRINTF(1, c, "managed!\n");
+	}
+	recheck_client(c);
+}
+
+void
+unmapped_client(Client *c)
+{
+	c->mapped = False;
+	c->managed = False;
+}
+
 
 /** @brief handle a client list of windows
   * @param e - PropertyNotify event that trigger the change
@@ -3390,15 +3909,58 @@ cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *e, Client *c)
 	managed_client(c, CurrentTime);
 }
 
+/** @brief handle _NET_REQUEST_FRAME_EXTENTS ClientMessage event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This message, unlike others, is sent before a window is initially mapped
+  * (managed).  A client can send this message before a window is mapped to ask
+  * the window manager to set the _NET_WM_FRAME_EXTENTS property for the window.
+  * We log this fact so that we can tell whether the window was managed when the
+  * _NET_WM_FRAME_EXTENTS property is added to the window.
+  */
 static void
 cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *e, Client *c)
 {
 	PTRACE(5);
-	/* This message, unlike others, is sent before a window is initially mapped
-	   (managed). */
-	if (!c || !c->managed)
+	if (!c)
 		return;
-	DPRINTF(1, "_NET_REQUEST_FRAME_EXTENTS for managed window 0x%lx\n", e->window);
+	if (c->managed)
+		EPRINTF("_NET_REQUEST_FRAME_EXTENTS for managed window 0x%lx\n", e->window);
+	c->request = True;
+}
+
+/** @brief handle _NET_WM_FRAME_EXTENTS PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * The window manager sets this property, either when the window is managed or
+  * before it is managed when it has received a _NET_REQUEST_FRAME_EXTENTS for
+  * the window.  So, because of the timing, we cannot know that this property
+  * being set means anything unless we also track _NET_REQUEST_FRAME_EXTENTS for
+  * the client.
+  */
+static void
+pc_handle_NET_WM_FRAME_EXTENTS(XPropertyEvent *e, Client *c)
+{
+	long n = 0, *extents = NULL;
+
+	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (e && e->state == PropertyDelete) {
+		CPRINTF(1, c, "deleted _NET_WM_FRAME_EXTENTS\n");
+		/* only removed by window manager when window withdrawn */
+		// unmanaged_client(c);
+		return;
+	}
+	if ((extents = get_cardinals(c->win, _XA_NET_WM_FRAME_EXTENTS, AnyPropertyType, &n))) {
+		CPRINTF(1, c, "_NET_WM_FRAME_EXTENTS exists");
+		XFree(extents);
+		if (!c->managed && !c->request)
+			managed_client(c, e ? e->time : CurrentTime);
+		c->request = False;
+	}
 }
 
 static void
@@ -3411,6 +3973,20 @@ cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *e, Client *c)
 	managed_client(c, CurrentTime);
 }
 
+/** @brief handle _NET_STARTUP_ID PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * _NET_STARTUP_ID is placed on a primary window (often the group leader window
+  * from WM_HINTS or the session leader window from WM_CLIENT_LEADER) and can be
+  * used by the window manager to correlate the startup notification sequence
+  * (received in ClientMessage events) with the application windows.  Also, some
+  * information (launcher, launchee, binary, sequence and time) is codified into
+  * the identifier.  The addition of this property to a window indicates that it
+  * either participates fully in startup notification; or, it was assisted by a
+  * separate monitor or launcher application.  A recheck is required when the
+  * client has not already been assigned a sequence.
+  */
 static void
 pc_handle_NET_STARTUP_ID(XPropertyEvent *e, Client *c)
 {
@@ -3448,10 +4024,35 @@ pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 	handle_wmchange();
 }
 
+/** @brief handle _NET_WM_ALLOWED_ACTIONS PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This property is only set by the window manager, and then only when it has
+  * already been managed.  Setting of this property is an indication that the
+  * window manager has managed (or is about to manage) the window.
+  */
 static void
 pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *e, Client *c)
 {
+	Atom *atoms = NULL;
+	long n = 0;
+
 	PTRACE(5);
+	if (!c || (e && e->type != PropertyNotify))
+		return;
+	if (e && e->state == PropertyDelete) {
+		CPRINTF(1, c, "deleted _NET_WM_ALLOWED_ACTIONS\n");
+		/* only removed by window manager when window withdrawn */
+		unmanaged_client(c);
+		return;
+	}
+	if ((atoms = get_atoms(c->win, _XA_NET_WM_ALLOWED_ACTIONS, AnyPropertyType, &n))) {
+		CPRINTF(1, c, "_NET_WM_ALLOWED_ACTIONS exists\n");
+		XFree(atoms);
+		if (!c->managed)
+			managed_client(c, e ? e->time : CurrentTime);
+	}
 }
 
 static void
@@ -3478,6 +4079,12 @@ pc_handle_NET_WM_ICON_GEOMETRY(XPropertyEvent *e, Client *c)
 	PTRACE(5);
 }
 
+/** @brief handle _NET_WM_ICON_NAME PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This property is set by the client.  I don't know why I am tracking it.
+  */
 static void
 pc_handle_NET_WM_ICON_NAME(XPropertyEvent *e, Client *c)
 {
@@ -3510,6 +4117,15 @@ cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *e, Client *c)
 	managed_client(c, CurrentTime);
 }
 
+/** @brief handle _NET_WM_NAME PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This property is set by the client.  It can be used to update the
+  * DESCRIPTION= field of the startup notification when there is no description
+  * in the original notification (which I don't yet).  _NET_WM_NAME should take
+  * precedence over WM_NAME.
+  */
 static void
 pc_handle_NET_WM_NAME(XPropertyEvent *e, Client *c)
 {
@@ -3535,6 +4151,16 @@ pc_handle_NET_WM_NAME(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "_NET_WM_NAME %s\n", c->name);
 }
 
+/** @brief handle _NET_WM_PID PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This property identifies the process id (or process id of the primary
+  * thread) of the Linux process running the application.  It must be
+  * interpreted in conjunction with WM_CLIENT_MACHINE, because the PID is only
+  * significant when combined with the full-qualified hosthame.  A recheck is
+  * required when this property is added or changes.
+  */
 static void
 pc_handle_NET_WM_PID(XPropertyEvent *e, Client *c)
 {
@@ -3562,7 +4188,9 @@ pc_handle_NET_WM_PID(XPropertyEvent *e, Client *c)
 	c->pid = pid;
 }
 
-/** @brief handle _NET_WM_STATE property change
+/** @brief handle _NET_WM_STATE PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
   *
   * Unlike WM_STATE, it is ok for the client to set this property before mapping
   * a window.  After the window is mapped it must be changd with the
@@ -3633,6 +4261,18 @@ cm_handle_NET_WM_STATE(XClientMessageEvent *e, Client *c)
 	managed_client(c, CurrentTime);
 }
 
+/** @brief handle _NET_WM_USER_TIME_WINDOW PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * _NET_WM_USER_TIME_WINDOW is the window that is used to report user
+  * interaction time updates.  It is often placed in a separate window so that
+  * a manager can select input on the main window without receiving a large
+  * number of updates for _NET_WM_USER_TIME property (which is placed only on
+  * the _NET_WM_USER_TIME_WINDOW).  Because this property is primary and
+  * structural, a recheck of sequence will have to be done if there is not
+  * already a sequence assigned to the client.
+  */
 static void
 pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *e, Client *c)
 {
@@ -3663,6 +4303,18 @@ pc_handle_NET_WM_USER_TIME_WINDOW(XPropertyEvent *e, Client *c)
 	CPRINTF(1, c, "_NET_WM_USER_TIME_WINDOW = 0x%lx\n", c->time_win);
 }
 
+/** @brief handle _NET_WM_USER_TIME PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * _NET_WM_USER_TIME is partly input and partly output.  Often, when the client
+  * is startup notificaiton aware it initially places this parameter on the
+  * window intiialized to the timestamp from the startup notificaiton,   It can
+  * be used to match a startup-notification sequence.  A recheck is required
+  * when this property is added or changed.  When assisting the window manager
+  * and application, this is set to the timestamp of the startup notification
+  * identifier.
+  */
 static void
 pc_handle_NET_WM_USER_TIME(XPropertyEvent *e, Client *c)
 {
@@ -3679,7 +4331,9 @@ pc_handle_NET_WM_USER_TIME(XPropertyEvent *e, Client *c)
 	}
 }
 
-/** @brief handle _NET_WM_VISIBLE_ICON_NAME property changes
+/** @brief handle _NET_WM_VISIBLE_ICON_NAME PropertyNotify event
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
   *
   * Only the window manager sets this property, so it being set indicates that
   * the window is managed.
@@ -3701,7 +4355,9 @@ pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *e, Client *c)
 	XFree(name);
 }
 
-/** @brief handle _NET_WM_VISIBLE_NAME property changes
+/** @brief handle _NET_WM_VISIBLE_NAME PropertyNotify event
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
   *
   * Only the window manager sets this property, so it being set indicates that
   * the window is managed.
@@ -3723,10 +4379,27 @@ pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *e, Client *c)
 	XFree(name);
 }
 
+/** @brief handle _NET_WM_DESKTOP PropertyNotify event.
+  * @param e - property notification event
+  * @param c - client associated with e->xany.window
+  *
+  * This property property can be set either by the client (before mapping) or
+  * the window manager (after mapping).  Therefore it indicates nothing of the
+  * management of the client.
+  *
+  * Under startup notification, the client and window manager should respect the
+  * DESKTOP= field in the startup notification (that is, open the window on the
+  * desktop that was requested when launched).  Few clients it seems support
+  * this properly so the window manager must enforce it or we must enforce it
+  * here when the window manager won't.  This can be done by resetting this
+  * property when it changes before the window is managed, and forceably moving
+  * the window if it is on the wrong desktop when it becomes managed.
+  */
 static void
 pc_handle_NET_WM_DESKTOP(XPropertyEvent *e, Client *c)
 {
 	long desktop = 0;
+	Sequence *seq;
 
 	PTRACE(5);
 	if (!c || (e && e->type != PropertyNotify))
@@ -3739,12 +4412,24 @@ pc_handle_NET_WM_DESKTOP(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "deleted _NET_WM_DESKTOP\n");
 		return;
 	}
-	if (!c->desktop && c->win)
-		if (get_cardinal(c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
-			c->desktop = desktop + 1;
-	if (!c->desktop && c->group)
-		if (get_cardinal(c->group, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
-			c->desktop = desktop + 1;
+	/* change for unmanaged window with an associated sequence */
+	if (e && !c->managed && (seq = c->seq) && seq->state != StartupNotifyComplete
+	    && seq->f.desktop) {
+		get_cardinal(e->window, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop);
+		if (desktop != -1 && desktop != seq->n.desktop) {
+			desktop = seq->n.desktop;
+			XChangeProperty(dpy, e->window, _XA_NET_WM_DESKTOP, XA_CARDINAL, 32,
+					PropModeReplace, (unsigned char *) &desktop, 1);
+		}
+		c->desktop = desktop + 1;
+	} else {
+		if (!c->desktop && c->win)
+			if (get_cardinal(c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
+				c->desktop = desktop + 1;
+		if (!c->desktop && c->group)
+			if (get_cardinal(c->group, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
+				c->desktop = desktop + 1;
+	}
 	if (c->desktop)
 		CPRINTF(1, c, "_NET_WM_DESKTOP = %d\n", c->desktop - 1);
 }
@@ -3831,10 +4516,30 @@ pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 	handle_wmchange();
 }
 
+/** @brief handle _WIN_WORKSPACE PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This is a GNOME1/WMH property that sets the workspace (desktop) on which the
+  * client wants the window to appear when mapped and the workspace that it is
+  * actually on when the window is managed.
+  *
+  * Under startup notification, the client and window manager should respect the
+  * DESKTOP= field in the startup notification (that is, open the window on the
+  * desktop that was requested when launched).  Few clients it seems support
+  * this properly so the window manager must enforce it or we must enforce it
+  * here when the window manager won't.  This can be done by resetting this
+  * property when it changes before the window is managed, and forceably moving
+  * the window if it is on the wrong desktop when it becomes managed.
+  *
+  * Some window managers still support GNOME1/WMH at the same time as EWMH, so
+  * we should not act on all WinWMH properties, but this one we should.
+  */
 static void
 pc_handle_WIN_WORKSPACE(XPropertyEvent *e, Client *c)
 {
 	long desktop = 0;
+	Sequence *seq;
 
 	PTRACE(5);
 	if (!c || (e && e->type != PropertyNotify))
@@ -3847,12 +4552,24 @@ pc_handle_WIN_WORKSPACE(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "deleted _WIN_WORKSPACE\n");
 		return;
 	}
-	if (!c->desktop && c->win)
-		if (get_cardinal(c->win, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
-			c->desktop = desktop + 1;
-	if (!c->desktop && c->group)
-		if (get_cardinal(c->group, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
-			c->desktop = desktop + 1;
+	/* change for unmanaged window with an associated sequence */
+	if (e && !c->managed && (seq = c->seq) && seq->state != StartupNotifyComplete
+	    && seq->f.desktop) {
+		get_cardinal(e->window, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop);
+		if (desktop != -1 && desktop != seq->n.desktop) {
+			desktop = seq->n.desktop;
+			XChangeProperty(dpy, e->window, _XA_WIN_WORKSPACE, XA_CARDINAL, 32,
+					PropModeReplace, (unsigned char *) &desktop, 1);
+		}
+		c->desktop = desktop + 1;
+	} else {
+		if (!c->desktop && c->win)
+			if (get_cardinal(c->win, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
+				c->desktop = desktop + 1;
+		if (!c->desktop && c->group)
+			if (get_cardinal(c->group, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
+				c->desktop = desktop + 1;
+	}
 	if (c->desktop)
 		CPRINTF(1, c, "_WIN_WORKSPACE = %d\n", c->desktop - 1);
 }
@@ -3881,6 +4598,14 @@ pc_handle_SM_CLIENT_ID(XPropertyEvent *e, Client *c)
 		c->client_id = get_text(c->group, _XA_SM_CLIENT_ID);
 }
 
+/** @brief handle WM_CLASS PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * The WM_CLASS property contains the resource name and resource class
+  * associated with the window.  It is set on each and every window.  A recheck
+  * is required when the property is added or changed.
+  */
 static void
 pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
 {
@@ -3921,6 +4646,16 @@ cm_handle_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 }
 
+/** @brief handle WM_CLIENT_LEADER PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * WM_CLIENT_LEADER is the leader from a session management perspective. It is
+  * possibly where you will find WM_COMMAND, WM_CLIENT_MACHINE (not alway set
+  * per window).  Each window in this group should have its own WM_WINDOW_ROLE.
+  * Because this property is primary and structural, a recheck of sequence will
+  * have to be done if there is not already a sequence assigned to the client.
+  */
 static void
 pc_handle_WM_CLIENT_LEADER(XPropertyEvent *e, Client *c)
 {
@@ -3939,6 +4674,17 @@ pc_handle_WM_CLIENT_LEADER(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "WM_CLIENT_LEADER 0x%lx\n", c->leader);
 }
 
+/** @brief handle WM_TRANSIENT_FOR PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * WM_CLIENT_MACHINE identifies the hostname of the machine on which the client
+  * is running.  This was an original part of the X11R6 session management and
+  * can often appear on the client leader window.  Neverthless, is use is
+  * greatly expanded (e.g. used in _NET_WM_PID) and may appear on any window.
+  * Because this affects the interpretation of _NET_WM_PID, a recheck is
+  * required when this property changes.
+  */
 static void
 pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
 {
@@ -3965,6 +4711,17 @@ pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "WM_CLIENT_MACHINE %s\n", c->hostname);
 }
 
+/** @brief handle WM_COMMAND PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * WM_COMMAND is part of X11R6 session management and is often set on the
+  * WM_CLIENT_LEADER window instead of each application window.  This can differ
+  * from the command used by the launcher to start the application (if only
+  * becase a binary was 'exec'ed by a shell).  Nevertheless it is primary and a
+  * recheck will be done if there is not already a sequence assigned to the
+  * client.
+  */
 static void
 pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 {
@@ -4003,6 +4760,14 @@ pc_handle_WM_COMMAND(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "WM_COMMAND = '%s'\n", c->command[0]);
 }
 
+/** @brief handle WM_HINTS PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * WM_HINTS is a primary property that indicates the group structure and the
+  * group leader of a set of windows.  When this changes, we may need to recheck
+  * for a sequence (if one has not already been assigned.
+  */
 static void
 pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 {
@@ -4013,7 +4778,7 @@ pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "freeing old WM_HINTS\n");
 		XFree(c->wmh);
 		c->wmh = NULL;
-		c->group = None;
+		c->group = c->win;
 	}
 	if (e && e->state == PropertyDelete) {
 		CPRINTF(1, c, "deleted WM_HINTS\n");
@@ -4022,8 +4787,6 @@ pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 	if ((c->wmh = XGetWMHints(dpy, c->win))) {
 		if (c->wmh->flags & WindowGroupHint)
 			c->group = c->wmh->window_group;
-		if (c->group == c->win)
-			c->group = None;
 		if (c->group && c->group != scr->root) {
 			XSaveContext(dpy, c->group, ClientContext, (XPointer) c);
 			XSelectInput(dpy, c->group,
@@ -4055,6 +4818,15 @@ pc_handle_WM_ICON_SIZE(XPropertyEvent *e, Client *c)
 		return;
 }
 
+/** @brief handle WM_NAME PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This property is set by the client.  It can be used to update the
+  * DESCRIPTION= field of the startup notificiation when there is no description
+  * in the original notification (which I don't yet).  _NET_WM_NAME should be
+  * used in preference.
+  */
 static void
 pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
 {
@@ -4116,6 +4888,16 @@ cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 }
 
+/** @brief handle WM_STATE PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * WM_STATE is placed on a window by a window manager to indicate the managed
+  * state of the window.  All ICCCM 2.0 compliant window managers do this.  The
+  * appearance of this property indicates that the window is managed by the
+  * window manager; its remove, that it is unmanaged.  Our view of the state of
+  * the client is changed accordingly.
+  */
 static void
 pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 {
@@ -4209,6 +4991,14 @@ cm_handle_WM_STATE(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 }
 
+/** @brief handle WM_TRANSIENT_FOR PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * WM_TRANSIENT_FOR is the window for which the current window is transient.
+  * Because this property is primary and structural, a recheck of sequence will
+  * have to be done if there is not already a sequence assigned to the client.
+  */
 static void
 pc_handle_WM_TRANSIENT_FOR(XPropertyEvent *e, Client *c)
 {
@@ -4221,6 +5011,14 @@ pc_handle_WM_TRANSIENT_FOR(XPropertyEvent *e, Client *c)
 	get_window(c->win, XA_WM_TRANSIENT_FOR, AnyPropertyType, &c->transient_for);
 }
 
+/** @brief handle WM_WINDOW_ROLE PropertyNotify event.
+  * @param e - X event to handle (may be NULL)
+  * @param c - client for which to handle event (should not be NULL)
+  *
+  * This property is set by the client to identify a separate role for the
+  * window under X11R6 session management.  I don't really know why I'm tracking
+  * it.
+  */
 static void
 pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
 {
@@ -5231,6 +6029,8 @@ main_loop(int argc, char *argv[])
 static void
 do_monitor(int argc, char *argv[])
 {
+	int s;
+
 	if (!options.foreground) {
 		pid_t pid;
 
@@ -5260,10 +6060,15 @@ do_monitor(int argc, char *argv[])
 		/* clear file creation mask */
 		umask(0);
 	}
-	handle_wmchange();
-	check_stray();
-	check_pager();
-	check_compm();
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		handle_wmchange();
+		check_stray();
+		check_pager();
+		check_compm();
+	}
+	s = DefaultScreen(dpy);
+	scr = screens + s;
 	/* continue on monitoring */
 	main_loop(argc, argv);
 }
