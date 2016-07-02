@@ -5027,6 +5027,7 @@ assist()
 	if (pid) {
 		OPRINTF(1, "parent says child pid is %d\n", pid);
 		/* parent returns and launches */
+		setsid();
 		get_display();
 		return;
 	}
@@ -5127,6 +5128,7 @@ toolwait()
 	reset_pid(pid);
 	if (!pid) {
 		/* child returns and launches */
+		setsid();
 		get_display();
 		return;
 	}
@@ -5537,7 +5539,7 @@ void
 launch()
 {
 	size_t size;
-	char *disp, *cmd, *p;
+	char *disp, *p;
 	Bool change_only = False;
 
 	PTRACE(5);
@@ -5598,17 +5600,46 @@ launch()
 		}
 		execvp(eargv[0], eargv);
 	} else {
-		cmd = calloc(strlen(fields.command) + 32, sizeof(cmd));
-		strcat(cmd, "exec ");
-		strcat(cmd, fields.command);
+		wordexp_t we = { 0, };
+		int status;
+
+		if ((status = wordexp(fields.command, &we, 0)) != 0 || we.we_wordc < 1) {
+			switch(status) {
+			case WRDE_BADCHAR:
+				EPRINTF("adwm: bad character in command string: %s\n", fields.command);
+				break;
+			case WRDE_BADVAL:
+				EPRINTF("adwm: undefined variable substitution in command string: %s\n", fields.command);
+				break;
+			case WRDE_CMDSUB:
+				EPRINTF("adwm: command substitution in command string: %s\n", fields.command);
+				break;
+			case WRDE_NOSPACE:
+				EPRINTF("adwm: out of memory processing command string: %s\n", fields.command);
+				break;
+			case WRDE_SYNTAX:
+				EPRINTF("adwm: syntax error in command string: %s\n", fields.command);
+				break;
+			default:
+				EPRINTF("adwm: unknown error processing command string: %s\n", fields.command);
+				break;
+			}
+			wordfree(&we); /* necessary ??? */
+			if (options.info)
+				return;
+			exit(EXIT_FAILURE);
+		}
 		if (options.info) {
+			char **p;
+
 			fputs("Command would be:\n\n", stdout);
-			fprintf(stdout, "%s\n\n", cmd);
-			free(cmd);
+			for (p = &we.we_wordv[0]; p && *p; p++)
+				fprintf(stdout, "'%s' ", *p);
+			fputs("\n\n", stdout);
 			return;
 		}
-		OPRINTF(1, "Command is: '%s'\n", cmd);
-		execlp("/bin/sh", "sh", "-c", cmd, NULL);
+		OPRINTF(1, "Command is: '%s'\n", fields.command);
+		execvp(we.we_wordv[0], we.we_wordv);
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
