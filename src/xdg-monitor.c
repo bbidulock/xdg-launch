@@ -3108,8 +3108,8 @@ change_client(Client *c)
 					}
 					break;
 				}
-				CPRINTF(1, c, "[cc] --- SHUT IT DOWN ---\n");
 #if 0
+				CPRINTF(1, c, "[cc] --- SHUT IT DOWN ---\n");
 			}
 #endif
 		} else
