@@ -160,7 +160,6 @@ typedef struct {
 	Bool info;
 	Bool toolwait;
 	Bool assist;
-	Bool foreground;
 	unsigned long guard;
 	Command command;
 } Options;
@@ -174,7 +173,6 @@ Options options = {
 	.info = False,
 	.toolwait = False,
 	.assist = True,
-	.foreground = False,
 	.guard = 15000,
 	.command = CommandDefault,
 };
@@ -6471,36 +6469,6 @@ main_loop(int argc, char *argv[])
 static void
 do_monitor(int argc, char *argv[])
 {
-	if (!options.foreground) {
-		pid_t pid;
-
-		if ((pid = fork()) < 0) {
-			EPRINTF("%s\n", strerror(errno));
-			exit(EXIT_FAILURE);
-		} else if (pid != 0) {
-			/* parent exits */
-			DPRINTF(1, "parent exiting\n");
-			exit(EXIT_SUCCESS);
-		}
-		setsid();	/* become a session leader */
-		/* close files */
-		fclose(stdin);
-		/* fork once more for SVR4 */
-		if ((pid = fork()) < 0) {
-			EPRINTF("%s\n", strerror(errno));
-			exit(EXIT_SUCCESS);
-		} else if (pid != 0) {
-			/* parent exits */
-			exit(EXIT_SUCCESS);
-		}
-		/* release current directory */
-		if (chdir("/") < 0) {
-			EPRINTF("chdir: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		/* clear file creation mask */
-		umask(0);
-	}
 	/* continue on monitoring */
 	DPRINTF(1, "entering main loop\n");
 	main_loop(argc, argv);
@@ -6768,9 +6736,6 @@ Command Options:\n\
     -C, --copying\n\
         print copying permission and exit\n\
 General Options:\n\
-    -f, --foreground\n\
-        run in the foreground for debugging (so that standard error\n\
-        goes to the terminal) [default: false]\n\
     -g, --guard TIMEOUT\n\
         amount of time, TIMEOUT, in milliseconds to wait for a\n\
         desktop application to launch [default: 15000]\n\
@@ -6801,7 +6766,6 @@ main(int argc, char *argv[])
 			{"monitor",	no_argument,		NULL, 'm'},
 			{"replace",	no_argument,		NULL, 'r'},
 			{"quit",	no_argument,		NULL, 'q'},
-			{"foreground",	no_argument,		NULL, 'f'},
 			{"guard",	required_argument,	NULL, 'g'},
 			{"assist",	no_argument,		NULL, 'A'},
 
@@ -6815,10 +6779,10 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "mrqfg:AD::v::hVCH?", long_options,
+		c = getopt_long_only(argc, argv, "mrqg:AD::v::hVCH?", long_options,
 				     &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "mrqfg:ADvhVC?");
+		c = getopt(argc, argv, "mrqg:ADvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1) {
 			if (options.debug)
@@ -6848,9 +6812,6 @@ main(int argc, char *argv[])
 			options.command = CommandQuit;
 			if (command == CommandDefault)
 				command = CommandQuit;
-			break;
-		case 'f':	/* -f, --foreground */
-			options.foreground = options.foreground ? False : True;
 			break;
 		case 'g':	/* -g, --guard TIMEOUT */
 			if (!optarg)
