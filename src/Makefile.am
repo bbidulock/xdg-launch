@@ -3,8 +3,7 @@ AM_CFLAGS = $(DEBUG_CFLAGS)
 bin_PROGRAMS = \
 	xdg-launch \
 	xdg-assist \
-	xdg-list \
-	xdg-show
+	xdg-list
 
 EXTRA_PROGRAMS = \
 	xdg-types \
@@ -41,11 +40,6 @@ xdg_whereis_SOURCES = xdg-whereis.c
 
 xdg_list_CPPFLAGS = -DNAME=\"xde-list\"
 xdg_list_SOURCES = xdg-list.c
-
-xdg_show_CPPFLAGS = -DNAME=\"xde-show\"
-xdg_show_CFLAGS = $(AM_CFLAGS) $(X11_CFLAGS) $(GLIB2_CFLAGS)
-xdg_show_SOURCES = xdg-show.c
-xdg_show_LDADD = $(GLIB2_LIBS) $(X11_LIBS)
 
 xdg_types_CPPFLAGS = -DNAME=\"xde-types\"
 xdg_types_CFLAGS = $(AM_CFLAGS) $(GLIB2_CFLAGS)

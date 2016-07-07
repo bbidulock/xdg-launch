@@ -8,7 +8,6 @@ xdg_man_files = \
 	     xdg-whereis.man \
 	     xdg-which.man \
 	     xdg-entry.man \
-	     xdg-show.man \
 	     xdg-toolwait.man \
 	     xdg-list.man
 
@@ -31,7 +30,6 @@ EXTRA_DIST = \
 	     xdg-whereis.pod \
 	     xdg-which.pod \
 	     xdg-entry.pod \
-	     xdg-show.pod \
 	     xdg-toolwait.pod \
 	     xdg-list.pod \
 	     xdg-types.pod \
