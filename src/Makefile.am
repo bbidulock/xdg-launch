@@ -3,7 +3,6 @@ AM_CFLAGS = $(DEBUG_CFLAGS)
 bin_PROGRAMS = \
 	xdg-launch \
 	xdg-assist \
-	xdg-monitor \
 	xdg-which \
 	xdg-list \
 	xdg-show
@@ -30,11 +29,6 @@ xdg_assist_CPPFLAGS = -DNAME=\"xde-assist\"
 xdg_assist_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
 xdg_assist_SOURCES = xdg-assist.c
 xdg_assist_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
-
-xdg_monitor_CPPFLAGS = -DNAME=\"xde-monitor\"
-xdg_monitor_CFLAGS = $(AM_CFLAGS) $(GTK2_CFLAGS) $(NOTIFY_CFLAGS) $(X11_CFLAGS)
-xdg_monitor_SOURCES = xdg-monitor.c
-xdg_monitor_LDADD = $(GTK2_LIBS) $(NOTIFY_LIBS) $(X11_LIBS)
 
 xdg_which_CPPFLAGS = -DNAME=\"xde-which\"
 xdg_which_CFLAGS = $(AM_CFLAGS) $(GLIB2_CFLAGS)

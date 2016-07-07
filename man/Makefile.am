@@ -2,7 +2,6 @@
 xdg_man_files = \
 	     xdg-launch.man \
 	     xdg-assist.man \
-	     xdg-monitor.man \
 	     dmenu_launch.man \
 	     xdg-xsession.man \
 	     xdg-autostart.man \
@@ -26,7 +25,6 @@ CLEANFILES = $(xdg_man_files)
 EXTRA_DIST = \
 	     xdg-launch.pod \
 	     xdg-assist.pod \
-	     xdg-monitor.pod \
 	     dmenu_launch.pod \
 	     xdg-xsession.pod \
 	     xdg-autostart.pod \
