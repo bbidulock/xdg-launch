@@ -94,27 +94,9 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
-#ifdef RECENTLY_USED
+#ifdef GIO_GLIB2_SUPPORT
 #include <glib.h>
 #include <gio/gio.h>
-#endif
-#undef DESKTOP_NOTIFICATIONS
-#undef SYSTEM_TRAY_STATUS_ICON
-#ifdef DESKTOP_NOTIFICATIONS
-#include <libnotify/notify.h>
-#endif
-#ifdef SYSTEM_TRAY_STATUS_ICON
-#include <gtk/gtk.h>
-#endif
-
-#if defined DESKTOP_NOTIFICATIONS || defined SYSTEM_TRAY_STATUS_ICON
-#undef HAVE_GLIB_EVENT_LOOP
-#define HAVE_GLIB_EVENT_LOOP 1
-#endif
-
-#if defined SYSTEM_TRAY_STATUS_ICON
-#undef HAVE_GTK
-#define HAVE_GTK 1
 #endif
 
 #define XPRINTF(_args...) do { } while (0)
@@ -468,15 +450,9 @@ typedef struct _Sequence {
 		unsigned pid;
 		unsigned sequence;
 	} n;
-#ifdef DESKTOP_NOTIFICATIONS
-	NotifyNotification *notification;
-#endif					/* DESKTOP_NOTIFICATIONS */
-#ifdef SYSTEM_TRAY_STATUS_ICON
-	GtkStatusIcon *status;
-#endif					/* SYSTEM_TRAY_STATUS_ICON */
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 	gint timer;
-#endif					/* HAVE_GLIB_EVENT_LOOP */
+#endif					/* GIO_GLIB2_SUPPORT */
 } Sequence;
 
 Sequence *sequences;
@@ -940,10 +916,6 @@ get_display()
 		}
 		oldhandler = XSetErrorHandler(handler);
 		oldiohandler = XSetIOErrorHandler(iohandler);
-
-#ifdef DESKTOP_NOTIFICATIONS
-		notify_init(NAME);
-#endif
 
 		PropertyContext = XUniqueContext();
 		ClientMessageContext = XUniqueContext();
@@ -3143,20 +3115,6 @@ setup_client(Client *c)
 			}
 		}
 	}
-#if 0
-	/* not always true that launched PID and window's PID are the same */
-	/* set up _NET_WM_PID */
-	if (!c->pid && seq->n.pid) {
-		long data = seq->n.pid;
-
-		CPRINTF(1, c, "[sc] _NET_WM_PID <== %ld\n", data);
-		if (options.assist) {
-			XChangeProperty(dpy, c->win, _XA_NET_WM_PID, XA_CARDINAL, 32,
-					PropModeReplace, (unsigned char *) &data, 1);
-			c->pid = data;
-		}
-	}
-#endif
 	/* set up WM_COMMAND */
 	if (!c->command && (eargv || seq->f.command)) {
 		if (eargv)
@@ -4066,48 +4024,16 @@ find_seq_by_id(char *id)
 	return (seq);
 }
 
-#if defined(SYSTEM_TRAY_STATUS_ICON) || defined(DESKTOP_NOTIFICATIONS)
-static gboolean
-persist_timeout_callback(gpointer data)
-{
-	DPRINTF(1, "removing status icon or notification\n");
-	g_object_unref(G_OBJECT(data));
-	return FALSE;	/* remove timeout source */
-}
-#endif
-
 static void
 close_sequence(Sequence *seq)
 {
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 	if (seq->timer) {
 		DPRINTF(1, "removing timer\n");
 		g_source_remove(seq->timer);
 		seq->timer = 0;
 	}
-#endif				/* HAVE_GLIB_EVENT_LOOP */
-#ifdef SYSTEM_TRAY_STATUS_ICON
-	if (seq->status) {
-#if 1
-		g_timeout_add(options.persist, persist_timeout_callback, seq->status);
-#else
-		DPRINTF(1, "removing statusicon\n");
-		g_object_unref(G_OBJECT(seq->status));
-#endif
-		seq->status = NULL;
-	}
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
-#ifdef DESKTOP_NOTIFICATIONS
-	if (seq->notification) {
-#if 1
-		g_timeout_add(options.persist, persist_timeout_callback, seq->notification);
-#else
-		DPRINTF(1, "removing notificiation\n");
-		g_object_unref(G_OBJECT(seq->notification));
-#endif
-		seq->notification = NULL;
-	}
-#endif				/* DESKTOP_NOTIFICATIONS */
+#endif				/* GIO_GLIB2_SUPPORT */
 }
 
 static Sequence *
@@ -4165,11 +4091,7 @@ remove_sequence(Sequence *seq)
 	return unref_sequence(seq);
 }
 
-#ifdef DESKTOP_NOTIFICATIONS
-static NotifyNotification *create_notification(Sequence *seq);
-#endif				/* DESKTOP_NOTIFICATIONS */
-
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 
 static gboolean
 sequence_timeout_callback(gpointer data)
@@ -4186,25 +4108,11 @@ sequence_timeout_callback(gpointer data)
 		send_remove(seq);
 		seq->timer = 0;
 		return FALSE;	/* remove timeout source */
-	} else if (options.notify) {
-#ifdef DESKTOP_NOTIFICATIONS
-#if 1
-		create_notification(seq);
-#else
-		(void) create_notification;
-#endif
-#endif				/* DESKTOP_NOTIFICATIONS */
 	}
 	return TRUE;	/* continue timeout interval */
 }
 
-#endif				/* HAVE_GLIB_EVENT_LOOP */
-
-#ifdef SYSTEM_TRAY_STATUS_ICON
-
-static GtkStatusIcon *create_statusicon(Sequence *seq);
-
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
+#endif				/* GIO_GLIB2_SUPPORT */
 
 /** @brief add a new startup notification sequence to list for screen
   *
@@ -4246,25 +4154,9 @@ add_sequence(Sequence *seq)
 			free(path);
 		}
 	}
-	if (seq->state == StartupNotifyNew) {
-#ifdef SYSTEM_TRAY_STATUS_ICON
-#if 1
-		if (options.feedback)
-			create_statusicon(seq);
-#else
-		(void) create_statusicon;
-#endif
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
-	}
-#if 1
-#ifdef HAVE_GLIB_EVENT_LOOP
-	if (options.feedback)
-		seq->timer =
-		    g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) seq);
-#endif				/* HAVE_GLIB_EVENT_LOOP */
-#else
-	(void) sequence_timeout_callback;
-#endif
+#ifdef GIO_GLIB2_SUPPORT
+	seq->timer = g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) seq);
+#endif				/* GIO_GLIB2_SUPPORT */
 	if (options.output > 1)
 		show_sequence("Added sequence", seq);
 	if (options.info)
@@ -6501,10 +6393,6 @@ void
 handle_selection_clear(XSelectionClearEvent *e)
 {
 #if 0
-#if 0
-		int s;
-#endif
-
 		if (!find_screen(e->window)) {
 			DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
 			return;
@@ -6515,13 +6403,6 @@ handle_selection_clear(XSelectionClearEvent *e)
 			return;
 		XDestroyWindow(dpy, scr->selwin);
 		scr->selwin = None;
-#if 0
-		for (s = 0; s < nscr; s++)
-			if (screens[s].selwin)
-				break;
-		if (s < nscr)
-			break;
-#endif
 		DPRINTF(1, "lost " SELECTION_ATOM " selection: exiting\n", scr->screen);
 		exit(EXIT_SUCCESS);
 #endif
@@ -8077,7 +7958,7 @@ set_all()
 		set_id();
 }
 
-#ifdef RECENTLY_USED
+#ifdef GIO_GLIB2_SUPPORT
 
 char *
 get_mime_type(const char *uri)
@@ -8150,10 +8031,6 @@ put_recent_applications_xbel(char *filename)
 		/* XXX: can we set mime_type to NULL here? No mime type for Icon Naming
 		   Convention icons */
 		g_bookmark_file_set_icon(bookmark, options.uri, myseq.f.icon, NULL);
-#if 0
-	g_bookmark_file_set_added(bookmark, options.uri, -1);
-	g_bookmark_file_set_modified(bookmark, options.uri, -1);
-#endif
 	g_bookmark_file_set_visited(bookmark, options.uri, -1);
 	g_bookmark_file_add_application(bookmark, options.uri, "XDG Launcher", "xdg-launch %f");
 	g_bookmark_file_add_group(bookmark, options.uri, "Application");
@@ -8217,10 +8094,6 @@ put_recently_used_xbel(char *filename)
 		g_bookmark_file_set_mime_type(bookmark, options.url, mime);
 	free(mime);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
-#if 0
-	g_bookmark_file_set_added(bookmark, options.url, -1);
-	g_bookmark_file_set_modified(bookmark, options.url, -1);
-#endif
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	if (myseq.f.application_id) {
 		char *exec;
@@ -8666,7 +8539,7 @@ put_recently_used(char *filename)
 	(void) dummy;
 }
 
-#endif				/* RECENTLY_USED */
+#endif				/* GIO_GLIB2_SUPPORT */
 
 static void
 line_free(gpointer data)
@@ -8768,7 +8641,7 @@ put_history()
 {
 	put_line_history(options.runhist, myseq.f.command);
 	put_line_history(options.recapps, myseq.f.application_id);
-#ifdef RECENTLY_USED
+#ifdef GIO_GLIB2_SUPPORT
 	if (options.uri) {
 		if (options.url) {
 			put_recently_used(".recently-used");
@@ -8779,7 +8652,7 @@ put_history()
 		put_recent_applications_xbel("recently-used.xbel");
 		put_recent_applications_xbel("recent-applications.xbel");
 	}
-#endif				/* RECENTLY_USED */
+#endif				/* GIO_GLIB2_SUPPORT */
 }
 
 static void

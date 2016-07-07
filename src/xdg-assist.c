@@ -94,21 +94,9 @@
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
-#ifdef DESKTOP_NOTIFICATIONS
-#include <libnotify/notify.h>
-#endif
-#ifdef SYSTEM_TRAY_STATUS_ICON
-#include <gtk/gtk.h>
-#endif
-
-#if defined DESKTOP_NOTIFICATIONS || defined SYSTEM_TRAY_STATUS_ICON
-#undef HAVE_GLIB_EVENT_LOOP
-#define HAVE_GLIB_EVENT_LOOP 1
-#endif
-
-#if defined SYSTEM_TRAY_STATUS_ICON
-#undef HAVE_GTK
-#define HAVE_GTK 1
+#ifdef GIO_GLIB2_SUPPORT
+#include <glib.h>
+#include <gio/gio.h>
 #endif
 
 #define XPRINTF(_args...) do { } while (0)
@@ -172,11 +160,8 @@ typedef struct {
 	Bool info;
 	Bool toolwait;
 	Bool assist;
-	Bool feedback;
-	Bool notify;
 	Bool foreground;
 	unsigned long guard;
-	unsigned long persist;
 	Command command;
 } Options;
 
@@ -189,11 +174,8 @@ Options options = {
 	.info = False,
 	.toolwait = False,
 	.assist = True,
-	.feedback = False,
-	.notify = False,
 	.foreground = False,
 	.guard = 15000,
-	.persist = 1000,
 	.command = CommandDefault,
 };
 
@@ -339,15 +321,9 @@ typedef struct _Sequence {
 		unsigned pid;
 		unsigned sequence;
 	} n;
-#ifdef DESKTOP_NOTIFICATIONS
-	NotifyNotification *notification;
-#endif					/* DESKTOP_NOTIFICATIONS */
-#ifdef SYSTEM_TRAY_STATUS_ICON
-	GtkStatusIcon *status;
-#endif					/* SYSTEM_TRAY_STATUS_ICON */
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 	gint timer;
-#endif					/* HAVE_GLIB_EVENT_LOOP */
+#endif					/* GIO_GLIB2_SUPPORT */
 } Sequence;
 
 Sequence *sequences;
@@ -811,10 +787,6 @@ get_display()
 		}
 		oldhandler = XSetErrorHandler(handler);
 		oldiohandler = XSetIOErrorHandler(iohandler);
-
-#ifdef DESKTOP_NOTIFICATIONS
-		notify_init(NAME);
-#endif
 
 		PropertyContext = XUniqueContext();
 		ClientMessageContext = XUniqueContext();
@@ -3014,20 +2986,6 @@ setup_client(Client *c)
 			}
 		}
 	}
-#if 0
-	/* not always true that launched PID and window's PID are the same */
-	/* set up _NET_WM_PID */
-	if (!c->pid && seq->n.pid) {
-		long data = seq->n.pid;
-
-		CPRINTF(1, c, "[sc] _NET_WM_PID <== %ld\n", data);
-		if (options.assist) {
-			XChangeProperty(dpy, c->win, _XA_NET_WM_PID, XA_CARDINAL, 32,
-					PropModeReplace, (unsigned char *) &data, 1);
-			c->pid = data;
-		}
-	}
-#endif
 	/* set up WM_COMMAND */
 	if (!c->command && (eargv || seq->f.command)) {
 		if (eargv)
@@ -3937,48 +3895,16 @@ find_seq_by_id(char *id)
 	return (seq);
 }
 
-#if defined(SYSTEM_TRAY_STATUS_ICON) || defined(DESKTOP_NOTIFICATIONS)
-static gboolean
-persist_timeout_callback(gpointer data)
-{
-	DPRINTF(1, "removing status icon or notification\n");
-	g_object_unref(G_OBJECT(data));
-	return FALSE;	/* remove timeout source */
-}
-#endif
-
 static void
 close_sequence(Sequence *seq)
 {
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 	if (seq->timer) {
 		DPRINTF(1, "removing timer\n");
 		g_source_remove(seq->timer);
 		seq->timer = 0;
 	}
-#endif				/* HAVE_GLIB_EVENT_LOOP */
-#ifdef SYSTEM_TRAY_STATUS_ICON
-	if (seq->status) {
-#if 1
-		g_timeout_add(options.persist, persist_timeout_callback, seq->status);
-#else
-		DPRINTF(1, "removing statusicon\n");
-		g_object_unref(G_OBJECT(seq->status));
-#endif
-		seq->status = NULL;
-	}
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
-#ifdef DESKTOP_NOTIFICATIONS
-	if (seq->notification) {
-#if 1
-		g_timeout_add(options.persist, persist_timeout_callback, seq->notification);
-#else
-		DPRINTF(1, "removing notificiation\n");
-		g_object_unref(G_OBJECT(seq->notification));
-#endif
-		seq->notification = NULL;
-	}
-#endif				/* DESKTOP_NOTIFICATIONS */
+#endif				/* GIO_GLIB2_SUPPORT */
 }
 
 static Sequence *
@@ -4036,11 +3962,7 @@ remove_sequence(Sequence *seq)
 	return unref_sequence(seq);
 }
 
-#ifdef DESKTOP_NOTIFICATIONS
-static NotifyNotification *create_notification(Sequence *seq);
-#endif				/* DESKTOP_NOTIFICATIONS */
-
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 
 static gboolean
 sequence_timeout_callback(gpointer data)
@@ -4057,25 +3979,11 @@ sequence_timeout_callback(gpointer data)
 		send_remove(seq);
 		seq->timer = 0;
 		return FALSE;	/* remove timeout source */
-	} else if (options.notify) {
-#ifdef DESKTOP_NOTIFICATIONS
-#if 1
-		create_notification(seq);
-#else
-		(void) create_notification;
-#endif
-#endif				/* DESKTOP_NOTIFICATIONS */
 	}
 	return TRUE;	/* continue timeout interval */
 }
 
-#endif				/* HAVE_GLIB_EVENT_LOOP */
-
-#ifdef SYSTEM_TRAY_STATUS_ICON
-
-static GtkStatusIcon *create_statusicon(Sequence *seq);
-
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
+#endif				/* GIO_GLIB2_SUPPORT */
 
 /** @brief add a new startup notification sequence to list for screen
   *
@@ -4117,25 +4025,9 @@ add_sequence(Sequence *seq)
 			free(path);
 		}
 	}
-	if (seq->state == StartupNotifyNew) {
-#ifdef SYSTEM_TRAY_STATUS_ICON
-#if 1
-		if (options.feedback)
-			create_statusicon(seq);
-#else
-		(void) create_statusicon;
-#endif
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
-	}
-#if 1
-#ifdef HAVE_GLIB_EVENT_LOOP
-	if (options.feedback)
-		seq->timer =
-		    g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) seq);
-#endif				/* HAVE_GLIB_EVENT_LOOP */
-#else
-	(void) sequence_timeout_callback;
-#endif
+#ifdef GIO_GLIB2_SUPPORT
+	seq->timer = g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) seq);
+#endif				/* GIO_GLIB2_SUPPORT */
 	if (options.output > 1)
 		show_sequence("Added sequence", seq);
 	if (options.info)
@@ -6372,10 +6264,6 @@ void
 handle_selection_clear(XSelectionClearEvent *e)
 {
 #if 1
-#if 0
-		int s;
-#endif
-
 		if (!find_screen(e->window)) {
 			DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
 			return;
@@ -6386,13 +6274,6 @@ handle_selection_clear(XSelectionClearEvent *e)
 			return;
 		XDestroyWindow(dpy, scr->selwin);
 		scr->selwin = None;
-#if 0
-		for (s = 0; s < nscr; s++)
-			if (screens[s].selwin)
-				break;
-		if (s < nscr)
-			break;
-#endif
 		DPRINTF(1, "lost " SELECTION_ATOM " selection: exiting\n", scr->screen);
 		exit(EXIT_SUCCESS);
 #endif
@@ -6488,331 +6369,6 @@ handle_event(XEvent *e)
 	}
 }
 
-#ifdef SYSTEM_TRAY_STATUS_ICON
-
-static void
-icon_activate_cb(GtkStatusIcon *status, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-}
-
-static gboolean
-icon_button_press_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	return FALSE;		/* propagate event */
-}
-
-static gboolean
-icon_button_release_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	return FALSE;		/* propagate event */
-}
-
-static gboolean
-icon_popup_menu_cb(GtkStatusIcon *status, guint button, guint time, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	return FALSE;		/* propagate event */
-}
-
-static gboolean
-icon_query_tooltip_cb(GtkStatusIcon *status, gint x, gint y, gboolean keyboard_mode,
-		      GtkTooltip *tooltip, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	return TRUE;		/* show tooltip */
-}
-
-/** @brief process scroll event callback
-  * @param status - the GtkStatusIcon emitting the event
-  * @param event - the event that cause the callback
-  * @param data - client data, the Sequence pointer
-  *
-  * The scroll-event signal is emitted when a button in the 4 to 7 range is
-  * pressed.  Wheel mice are usually configured to generate button press events
-  * for buttons 4 and 5 when the wheel is turned.
-  */
-static gboolean
-icon_scroll_event_cb(GtkStatusIcon *status, GdkEvent *event, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	return FALSE;		/* propagate event */
-}
-
-/** @brief process size changed event callback
-  * @param status - the GtkStatusIcon emmitting the event
-  * @param size - the size (in pixels) of the icon
-  * @param data - client data, the Sequence pointer
-  *
-  * Gets emitted when the size available for the image changes, e.g. because the
-  * notification area got resized.
-  */
-static gboolean
-icon_size_changed_cb(GtkStatusIcon *status, gint size, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	return FALSE;		/* did we scale the icon? otherwise GTK+ will scale */
-}
-
-/** @brief create a status icon for the startup sequence
-  * @param seq - the sequence for which to create the status icon
-  */
-static GtkStatusIcon *
-create_statusicon(Sequence *seq)
-{
-	GtkStatusIcon *status;
-
-	if ((status = seq->status))
-		return (status);
-	DPRINTF(1, "creating status icon...\n");
-	if (!(status = gtk_status_icon_new())) {
-		DPRINTF(1, "could not create status icon\n");
-		return (status);
-	}
-
-	/* If the sequence has an icon name, use that to set the status icon, otherwise
-	   use an application icon from stock. */
-	if (seq->f.icon) {
-		gtk_status_icon_set_from_icon_name(status, seq->f.icon);
-	} else {
-		gtk_status_icon_set_from_stock(status, "application");	/* FIXME */
-	}
-
-	{
-		GdkDisplay *display;
-		GdkScreen *screen;
-
-		/* The sequence always belongs to a particular screen, so set the screen
-		   for the status icon. */
-		display = gdk_display_get_default();
-		if (seq->f.screen) {
-			screen = gdk_display_get_screen(display, seq->n.screen);
-		} else {
-			screen = gdk_display_get_default_screen(display);
-		}
-		gtk_status_icon_set_screen(status, screen);
-	}
-	{
-		char *markup, *p;
-		int len, size = BUFSIZ;
-		char **label, **field;
-
-		p = markup = calloc(size + 1, sizeof(*markup));
-		for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
-			if (!*field)
-				continue;
-			len = snprintf(p, size, "<b>%s</b>=%s\n", *label, *field);
-			if (len > size)
-				break;
-			p += len;
-			size -= len;
-		}
-
-		/* Set the tooltip text as markup */
-		if (markup) {
-			gtk_status_icon_set_tooltip_markup(status, markup);
-			free(markup);
-		}
-	}
-	{
-		const char *title;
-
-		/* Set the statis icon title */
-		if (!(title = seq->f.description))
-			if (!(title = seq->f.name))
-				title = "Startup Notification";
-		gtk_status_icon_set_title(status, title);
-	}
-	{
-		const char *name;
-
-		/* Set the status icon name */
-		if (!(name = seq->f.name))
-			name = NAME;
-		gtk_status_icon_set_name(status, name);
-	}
-	g_signal_connect(G_OBJECT(status), "activate", G_CALLBACK(icon_activate_cb),
-			 (gpointer) seq);
-	g_signal_connect(G_OBJECT(status), "button-press-event",
-			 G_CALLBACK(icon_button_press_cb), (gpointer) seq);
-	g_signal_connect(G_OBJECT(status), "button-release-event",
-			 G_CALLBACK(icon_button_release_cb), (gpointer) seq);
-	g_signal_connect(G_OBJECT(status), "popup-menu", G_CALLBACK(icon_popup_menu_cb),
-			 (gpointer) seq);
-	g_signal_connect(G_OBJECT(status), "query_tooltip",
-			 G_CALLBACK(icon_query_tooltip_cb), (gpointer) seq);
-	g_signal_connect(G_OBJECT(status), "scroll-event",
-			 G_CALLBACK(icon_scroll_event_cb), (gpointer) seq);
-	g_signal_connect(G_OBJECT(status), "size-changed",
-			 G_CALLBACK(icon_size_changed_cb), (gpointer) seq);
-
-	gtk_status_icon_set_visible(status, TRUE);
-	return (seq->status = status);
-}
-
-#endif				/* SYSTEM_TRAY_STATUS_ICON */
-
-#ifdef DESKTOP_NOTIFICATIONS
-
-/** @brief update notifications
-  */
-void
-update_notification(Sequence *seq)
-{
-	/* FIXME */
-}
-
-gboolean
-check_notify(void)
-{
-	if (!notify_is_initted())
-		notify_init(NAME);
-	return notify_is_initted()? notify_get_server_info(NULL, NULL, NULL,
-							   NULL) : False;
-}
-
-/** @brief process a desktop notification action callback
-  * @param notify - the notification object
-  * @param action - the action ("kill" or "continue")
-  * @param data - pointer to startup notification sequence
-  */
-static void
-notify_action_callback(NotifyNotification *notify, char *action, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	if (action) {
-		if (!strcmp(action, "kill")) {
-		} else if (!strcmp(action, "continue")) {
-		}
-	}
-}
-
-static void
-notify_closed_callback(NotifyNotification *notify, gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-	gint reason;
-
-	reason = notify_notification_get_closed_reason(notify);
-	(void) reason;
-	/* FIXME: continue waiting */
-	/* But.... might want to do two different actions based on whether there was a
-	   timeout or the notification was explicitly closed by the user. If there was an 
-	   explicit close, we should probably continue waiting without further
-	   notifications, otherwise if it was a timeout we might only continue waiting
-	   for another cycle. */
-	g_object_unref(G_OBJECT(notify));
-}
-
-static gboolean
-notify_update_callback(gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-	NotifyNotification *notify;
-
-	if (!(notify = seq->notification)) {
-		unref_sequence(seq);
-		return FALSE;	/* remove timeout source */
-	}
-	update_notification(seq);
-	return TRUE;		/* continue timeout source */
-}
-
-static void
-put_sequence(gpointer data)
-{
-	Sequence *seq = (typeof(seq)) data;
-
-	unref_sequence(seq);
-}
-
-static Bool
-seq_can_kill(Sequence *seq)
-{
-	/* FIXME */
-	return False;
-}
-
-/** @brief create a desktop notification
-  * @param seq - startup notification sequence
-  *
-  * We create a desktop notification whenever a startup notification sequence
-  * persists for longer than the guard time without being completed.  Two
-  * actions can be taken: kill the process (if the process id is known and the
-  * host machine is the same as our host, or an XID is known that can be
-  * XKill'ed), or continue waiting.  The secnod action is to continue waiting
-  * and is the default if the desktop notification times out.
-  */
-static NotifyNotification *
-create_notification(Sequence *seq)
-{
-	NotifyNotification *notify;
-	char *summary, *body;
-
-	summary = "Application taking too long to start.";
-	/* TODO: create a nice body message describing which application is taking too
-	   long, how much time has elapsed since startup, and possibly other information. 
-	 */
-	body = NULL;
-	/* This is the icon theme icon name or filename.  Filenames should be avoided.
-	   This information comes from the ICON= field of the startup notification or can 
-	   be derived from the APPLICATION_ID= field of the startup notification, or
-	   could be a default application image. */
-	/* Note that if we put some information in the body (such as expired time) we
-	   might want to set a 1-second timeout and call notify_notification_update() on
-	   a one second basis. */
-	if (!(notify = seq->notification)) {
-		if (!(notify = notify_notification_new(summary, body, seq->f.icon))) {
-			DPRINTF(1, "could not create notification\n");
-			return (NULL);
-		}
-	} else {
-		notify_notification_update(notify, summary, body, seq->f.icon);
-		notify_notification_clear_hints(notify);
-		notify_notification_clear_actions(notify);
-	}
-	notify_notification_set_timeout(notify, NOTIFY_EXPIRES_DEFAULT);
-	notify_notification_set_category(notify, "some_category");	/* FIXME */
-	notify_notification_set_urgency(notify, NOTIFY_URGENCY_NORMAL);
-//      notify_notification_set_image_from_pixbuf(notify, seq->pixbuf);
-	notify_notification_set_hint(notify, "some_hint", NULL);	/* FIXME */
-	if (seq_can_kill(seq)) {
-		notify_notification_add_action(notify, "kill", "Kill",
-					       NOTIFY_ACTION_CALLBACK
-					       (notify_action_callback),
-					       (gpointer) ref_sequence(seq),
-					       put_sequence);
-		notify_notification_add_action(notify, "continue", "Continue",
-					       NOTIFY_ACTION_CALLBACK
-					       (notify_action_callback),
-					       (gpointer) ref_sequence(seq),
-					       put_sequence);
-	}
-	g_signal_connect(G_OBJECT(notify), "closed", G_CALLBACK(notify_closed_callback),
-			 (gpointer) seq);
-#define UPDATE_INTERVAL 2
-	g_timeout_add_seconds(UPDATE_INTERVAL, notify_update_callback, (gpointer) seq);
-	if (!notify_notification_show(notify, NULL)) {
-		DPRINTF(1, "could not show notification\n");
-		g_object_unref(G_OBJECT(notify));
-		seq->notification = NULL;
-		return (NULL);
-	}
-	seq->notification = notify;
-	return (notify);
-}
-
-#endif				/* DESKTOP_NOTIFICATIONS */
-
 volatile int signum = 0;
 
 void
@@ -6821,7 +6377,7 @@ sighandler(int sig)
 	signum = sig;
 }
 
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 gboolean
 on_xfd_watch(GIOChannel *chan, GIOCondition cond, gpointer data)
 {
@@ -6841,21 +6397,17 @@ on_xfd_watch(GIOChannel *chan, GIOCondition cond, gpointer data)
 	return TRUE;		/* keep event source */
 
 }
-#endif				/* HAVE_GLIB_EVENT_LOOP */
+#endif				/* GIO_GLIB2_SUPPORT */
 
 static void
 main_loop(int argc, char *argv[])
 {
-#ifdef HAVE_GLIB_EVENT_LOOP
+#ifdef GIO_GLIB2_SUPPORT
 	int xfd;
 	GIOChannel *chan;
 	gint mask = G_IO_IN | G_IO_ERR | G_IO_HUP | G_IO_PRI;
 	guint srce;
-
-#ifdef HAVE_GTK
-	gtk_init(NULL, NULL);
-	gdk_error_trap_push();
-#endif
+	GMainLoop *loop;
 
 	running = True;
 	XSync(dpy, False);
@@ -6864,16 +6416,9 @@ main_loop(int argc, char *argv[])
 	srce = g_io_add_watch(chan, mask, on_xfd_watch, NULL);
 	(void) srce;
 
-#ifdef HAVE_GTK
-	gtk_main();
-#else				/* HAVE_GTK */
-	{
-		GMainLoop *loop = g_main_loop_new(NULL, FALSE);
-
-		g_main_loop_run(loop);
-	}
-#endif				/* HAVE_GTK */
-#else				/* HAVE_GLIB_EVENT_LOOP */
+	loop = g_main_loop_new(NULL, FALSE);
+	g_main_loop_run(loop);
+#else				/* GIO_GLIB2_SUPPORT */
 	int xfd;
 	XEvent ev;
 
@@ -6918,7 +6463,7 @@ main_loop(int argc, char *argv[])
 			}
 		}
 	}
-#endif				/* HAVE_GLIB_EVENT_LOOP */
+#endif				/* GIO_GLIB2_SUPPORT */
 }
 
 /** @brief monitor startup and assist the window manager.
@@ -7229,18 +6774,9 @@ General Options:\n\
     -g, --guard TIMEOUT\n\
         amount of time, TIMEOUT, in milliseconds to wait for a\n\
         desktop application to launch [default: 15000]\n\
-    -p, --persist TIMEOUT\n\
-        amount of time, TIMEOUT, in milliseconds to persist in\n\
-        displaying feedback popup [default: 1000]\n\
     -A, --assist\n\
         assist window managers by settting properties on\n\
         launched windows [default: true]\n\
-    -F, --feedback\n\
-        provide visual feedback to the user while applications\n\
-        are being launched [default: false]\n\
-    -N, --notify\n\
-        notify the user with notifications of excessive deslays\n\
-        in launching [default: false]\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -7267,10 +6803,7 @@ main(int argc, char *argv[])
 			{"quit",	no_argument,		NULL, 'q'},
 			{"foreground",	no_argument,		NULL, 'f'},
 			{"guard",	required_argument,	NULL, 'g'},
-			{"persist",	required_argument,	NULL, 'p'},
 			{"assist",	no_argument,		NULL, 'A'},
-			{"feedback",	no_argument,		NULL, 'F'},
-			{"notify",	no_argument,		NULL, 'N'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -7282,10 +6815,10 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "mrqfg:p:AFND::v::hVCH?", long_options,
+		c = getopt_long_only(argc, argv, "mrqfg:AD::v::hVCH?", long_options,
 				     &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "mrqfg:p:AFNDvhVC?");
+		c = getopt(argc, argv, "mrqfg:ADvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1) {
 			if (options.debug)
@@ -7330,25 +6863,8 @@ main(int argc, char *argv[])
 				options.guard = val;
 			}
 			break;
-		case 'p':	/* -p, --persist TIMEOUT */
-			if (!optarg)
-				options.persist = 1000;
-			else {
-				if ((val = strtol(optarg, &endptr, 0)) < 0)
-					goto bad_option;
-				if (!endptr || *endptr)
-					goto bad_option;
-				options.persist = val;
-			}
-			break;
 		case 'A':	/* -A, --assist */
 			options.assist = options.assist ? False : True;
-			break;
-		case 'F':	/* -F, --feedback */
-			options.feedback = options.feedback ? False : True;
-			break;
-		case 'N':	/* -N, --notify */
-			options.notify = options.notify ? False : True;
 			break;
 
 		case 'D':	/* -D, --debug [level] */
