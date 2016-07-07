@@ -938,6 +938,9 @@ get_display()
 				     ExposureMask | VisibilityChangeMask |
 				     StructureNotifyMask | SubstructureNotifyMask |
 				     FocusChangeMask | PropertyChangeMask);
+			scr->selwin =
+			    XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative,
+						ParentRelative);
 			snprintf(sel, sizeof(sel), "WM_S%d", s);
 			scr->icccm_atom = XInternAtom(dpy, sel, False);
 			snprintf(sel, sizeof(sel), "_NET_SYSTEM_TRAY_S%d", s);
