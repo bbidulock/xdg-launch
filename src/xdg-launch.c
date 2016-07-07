@@ -120,23 +120,23 @@
 #define XPRINTF(_args...) do { } while (0)
 
 #define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
-		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME ": D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
-		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME ": E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } while (0)
 
 #define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
-		fprintf(stderr, "I: "); \
-		fprintf(stderr, _args); fflush(stderr); } } while (0)
+		fprintf(stdout, NAME ": I: "); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 #define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
-		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME ": T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
 		fflush(stderr); } } while (0)
 
 #define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
-		fprintf(stdout, "C: 0x%08lx client (%c) ", c->win, c->managed ?  'M' : 'U'); \
+		fprintf(stdout, NAME ": C: 0x%08lx client (%c) ", c->win, c->managed ?  'M' : 'U'); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 void
@@ -149,10 +149,12 @@ dumpstack(const char *file, const int line, const char *func)
 
 	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
-			fprintf(stderr, "E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+			fprintf(stderr, NAME ": E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
 }
 
 const char *program = NAME;
+
+#define SELECTION_ATOM	"_XDG_LAUNCH_S%d"
 
 char **eargv = NULL;
 int eargc = 0;
@@ -324,6 +326,44 @@ Options defaults = {
 	.guard = 2,
 };
 
+static const char *DesktopEntryFields[] = {
+	"Type",
+	"Name",
+	"Comment",
+	"Icon",
+	"TryExec",
+	"Exec",
+	"Terminal",
+	"StartupNotify",
+	"StartupWMClass",
+	"SessionSetup",
+	"Categories",
+	"MimeType",
+	"AsRoot",
+	"AutostartPhase",
+	NULL
+};
+
+typedef struct _Entry {
+	char *path;
+	char *Type;
+	char *Name;
+	char *Comment;
+	char *Icon;
+	char *TryExec;
+	char *Exec;
+	char *Terminal;
+	char *StartupNotify;
+	char *StartupWMClass;
+	char *SessionSetup;
+	char *Categories;
+	char *MimeType;
+	char *AsRoot;
+	char *AutostartPhase;
+} Entry;
+
+Entry myent = { NULL, };
+
 static const char *StartupNotifyFields[] = {
 	"LAUNCHER",
 	"LAUNCHEE",
@@ -410,8 +450,11 @@ typedef struct _Sequence {
 	struct _Sequence *next;
 	int refs;
 	StartupNotifyState state;
-	Client *client;
-	Bool changed;
+	Bool removed;
+	Window from;
+	Window remover;
+	Window client;
+	Entry *e;
 	union {
 		char *fields[sizeof(struct fields) / sizeof(char *)];
 		struct fields f;
@@ -445,48 +488,11 @@ typedef struct {
 	int len;			/* number of message bytes */
 } Message;
 
-const char *DesktopEntryFields[] = {
-	"Type",
-	"Name",
-	"Comment",
-	"Icon",
-	"TryExec",
-	"Exec",
-	"Terminal",
-	"StartupNotify",
-	"StartupWMClass",
-	"SessionSetup",
-	"Categories",
-	"MimeType",
-	"AsRoot",
-	"AutostartPhase",
-	NULL
-};
-
-struct entry {
-	char *Type;
-	char *Name;
-	char *Comment;
-	char *Icon;
-	char *TryExec;
-	char *Exec;
-	char *Terminal;
-	char *StartupNotify;
-	char *StartupWMClass;
-	char *SessionSetup;
-	char *Categories;
-	char *MimeType;
-	char *AsRoot;
-	char *AutostartPhase;
-};
-
-struct entry entry = { NULL, };
-
 typedef struct {
 	int screen;			/* screen number */
 	Window root;			/* root window of screen */
-	Window owner;			/* _XDG_MONITOR_S%d selection owner (theirs) */
-	Window selwin;			/* _XDG_MONITOR_S%d selection window (ours) */
+	Window owner;			/* SELECTION_ATOM selection owner (theirs) */
+	Window selwin;			/* SELECTION_ATOM selection window (ours) */
 	Window netwm_check;		/* _NET_SUPPORTING_WM_CHECK or None */
 	Window winwm_check;		/* _WIN_SUPPORTING_WM_CHECK or None */
 	Window motif_check;		/* _MOTIF_MW_INFO window or None */
@@ -503,7 +509,7 @@ typedef struct {
 	Atom pager_atom;		/* _NET_DESKTOP_LAYOUT_S%d atom this screen */
 	Atom compm_atom;		/* _NET_WM_CM_S%d atom this screen */
 	Atom shelp_atom;		/* _XDG_ASSIST_S%d atom this screen */
-	Atom slctn_atom;		/* _XDG_MONITOR_S%d atom this screen */
+	Atom slctn_atom;		/* SELECTION_ATOM atom this screen */
 	Bool net_wm_user_time;		/* _NET_WM_USER_TIME is supported */
 	Bool net_startup_id;		/* _NET_STARTUP_ID is supported */
 	Bool net_startup_info;		/* _NET_STARTUP_INFO is supported */
@@ -918,6 +924,8 @@ iohandler(Display *display)
 int (*oldhandler) (Display *, XErrorEvent *) = NULL;
 int (*oldiohandler) (Display *) = NULL;
 
+static void init_screen();
+
 Bool
 get_display()
 {
@@ -968,8 +976,9 @@ get_display()
 			scr->compm_atom = XInternAtom(dpy, sel, False);
 			snprintf(sel, sizeof(sel), "_XDG_ASSIST_S%d", s);
 			scr->shelp_atom = XInternAtom(dpy, sel, False);
-			snprintf(sel, sizeof(sel), "_XDG_MONITOR_S%d", s);
+			snprintf(sel, sizeof(sel), SELECTION_ATOM, s);
 			scr->slctn_atom = XInternAtom(dpy, sel, False);
+			init_screen();
 		}
 		s = DefaultScreen(dpy);
 		scr = screens + s;
@@ -1614,6 +1623,17 @@ handle_wmchange()
 }
 
 static void
+init_screen()
+{
+	handle_wmchange();
+	check_stray();
+	check_pager();
+	check_compm();
+	check_audio();
+	check_shelp();
+}
+
+static void
 pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent *e, Client *c)
 {
 	PTRACE(5);
@@ -1938,7 +1958,7 @@ need_assistance()
 }
 
 int
-parse_file(char *path)
+parse_file(char *path, Entry *e)
 {
 	FILE *file;
 	char buf[4096], *p, *q;
@@ -1971,6 +1991,8 @@ parse_file(char *path)
 		EPRINTF("cannot open file '%s' for reading\n", path);
 		exit(EXIT_FAILURE);
 	}
+	free(e->path);
+	e->path = strdup(path);
 	while ((p = fgets(buf, sizeof(buf), file))) {
 		/* watch out for DOS formatted files */
 		if ((q = strchr(p, '\r')))
@@ -2005,8 +2027,8 @@ parse_file(char *path)
 
 		if (strstr(key, "Type") == key) {
 			if (strcmp(key, "Type") == 0) {
-				free(entry.Type);
-				entry.Type = strdup(val);
+				free(e->Type);
+				e->Type = strdup(val);
 				/* autodetect XSession */
 				if (!strcmp(val, "XSession") && !options.xsession)
 					options.xsession = True;
@@ -2015,8 +2037,8 @@ parse_file(char *path)
 			}
 		} else if (strstr(key, "Name") == key) {
 			if (strcmp(key, "Name") == 0) {
-				free(entry.Name);
-				entry.Name = strdup(val);
+				free(e->Name);
+				e->Name = strdup(val);
 				ok = 1;
 				continue;
 			}
@@ -2028,15 +2050,15 @@ parse_file(char *path)
 				if ((q = strchr(lang, '@')))
 					*q = '\0';
 				if (strcmp(lang, llang) == 0 || strcmp(lang, slang) == 0) {
-					free(entry.Name);
-					entry.Name = strdup(val);
+					free(e->Name);
+					e->Name = strdup(val);
 					ok = 1;
 				}
 			}
 		} else if (strstr(key, "Comment") == key) {
 			if (strcmp(key, "Comment") == 0) {
-				free(entry.Comment);
-				entry.Comment = strdup(val);
+				free(e->Comment);
+				e->Comment = strdup(val);
 				ok = 1;
 				continue;
 			}
@@ -2048,70 +2070,71 @@ parse_file(char *path)
 				if ((q = strchr(lang, '@')))
 					*q = '\0';
 				if (strcmp(lang, llang) == 0 || strcmp(lang, slang) == 0) {
-					free(entry.Comment);
-					entry.Comment = strdup(val);
+					free(e->Comment);
+					e->Comment = strdup(val);
 				}
 			}
 		} else if (strcmp(key, "Icon") == 0) {
-			free(entry.Icon);
-			entry.Icon = strdup(val);
+			free(e->Icon);
+			e->Icon = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "TryExec") == 0) {
-			if (!entry.TryExec)
-				entry.TryExec = strdup(val);
+			if (!e->TryExec)
+				e->TryExec = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Exec") == 0) {
-			free(entry.Exec);
-			entry.Exec = strdup(val);
+			free(e->Exec);
+			e->Exec = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Terminal") == 0) {
-			if (!entry.Terminal)
-				entry.Terminal = strdup(val);
+			if (!e->Terminal)
+				e->Terminal = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "StartupNotify") == 0) {
-			if (!entry.StartupNotify)
-				entry.StartupNotify = strdup(val);
+			if (!e->StartupNotify)
+				e->StartupNotify = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "StartupWMClass") == 0) {
-			if (!entry.StartupWMClass)
-				entry.StartupWMClass = strdup(val);
+			if (!e->StartupWMClass)
+				e->StartupWMClass = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Categories") == 0) {
-			if (!entry.Categories)
-				entry.Categories = strdup(val);
+			if (!e->Categories)
+				e->Categories = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "MimeType") == 0) {
-			if (!entry.MimeType)
-				entry.MimeType = strdup(val);
+			if (!e->MimeType)
+				e->MimeType = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "AsRoot") == 0) {
-			if (!entry.AsRoot)
-				entry.AsRoot = strdup(val);
+			if (!e->AsRoot)
+				e->AsRoot = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "X-KDE-RootOnly") == 0) {
-			if (!entry.AsRoot)
-				entry.AsRoot = strdup(val);
+			if (!e->AsRoot)
+				e->AsRoot = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "X-SuSE-YaST-RootOnly") == 0) {
-			if (!entry.AsRoot)
-				entry.AsRoot = strdup(val);
+			if (!e->AsRoot)
+				e->AsRoot = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "X-GNOME-Autostart-Phase") == 0) {
-			if (!entry.AutostartPhase) {
-				if (strcmp(val, "Applications") == 0)
-					entry.AutostartPhase = strdup("Application");
-				else
-					entry.AutostartPhase = strdup(val);
+			if (!e->AutostartPhase) {
+				if (strcmp(val, "Applications") == 0) {
+					e->AutostartPhase = strdup("Application");
+					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key, path);
+				} else
+					e->AutostartPhase = strdup(val);
 			}
 		} else if (strcmp(key, "X-KDE-autostart-phase") == 0) {
-			if (!entry.AutostartPhase) {
+			if (!e->AutostartPhase) {
 				switch (atoi(val)) {
 				case 0:
 				case 1:
-					entry.AutostartPhase = strdup("Initializing");
+					e->AutostartPhase = strdup("Initializing");
 					break;
 				case 2:
-					entry.AutostartPhase = strdup("Application");
+					e->AutostartPhase = strdup("Application");
 					break;
 				}
 			}
@@ -2133,11 +2156,11 @@ lookup_file(char *name)
 {
 	char *path = NULL, *appid;
 
-	appid = calloc(1024, sizeof(*appid));
-	strncat(appid, name, 1023);
+	appid = calloc(PATH_MAX + 1, sizeof(*appid));
+	strncat(appid, name, PATH_MAX);
 
 	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
-		strncat(appid, ".desktop", 1024);
+		strncat(appid, ".desktop", PATH_MAX);
 	if ((*appid != '/') && (*appid != '.')) {
 		char *home, *copy, *dirs, *env;
 
@@ -2190,7 +2213,7 @@ lookup_file(char *name)
 				path = strdup(dirs);
 				*dirs = '\0';
 			}
-			path = realloc(path, 4096);
+			path = realloc(path, PATH_MAX + 1);
 			if (options.autostart)
 				strcat(path, "/autostart/");
 			else if (options.xsession)
@@ -2235,7 +2258,7 @@ lookup_file(char *name)
 				path = strdup(dirs);
 				*dirs = '\0';
 			}
-			path = realloc(path, 4096);
+			path = realloc(path, PATH_MAX + 1);
 			strcat(path, "/fallback/");
 			strcat(path, appid);
 			if (access(path, R_OK)) {
@@ -2278,7 +2301,7 @@ lookup_file(char *name)
 				path = strdup(dirs);
 				*dirs = '\0';
 			}
-			path = realloc(path, 4096);
+			path = realloc(path, PATH_MAX + 1);
 			strcat(path, "/autostart/");
 			strcat(path, appid);
 			if (access(path, R_OK)) {
@@ -2337,8 +2360,10 @@ send_msg(char *msg)
 		return;
 	}
 
-	if (!(from = scr->selwin))
+	if (!(from = scr->selwin)) {
+		EPRINTF("no selection window, creating one!\n");
 		from = XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
+	}
 
 	xev.type = ClientMessage;
 	xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
@@ -2361,8 +2386,10 @@ send_msg(char *msg)
 	}
 
 	XSync(dpy, False);
-	if (from != scr->selwin)
+	if (from != scr->selwin) {
+		EPRINTF("no selection window, destroying one!\n");
 		XDestroyWindow(dpy, from);
+	}
 }
 
 struct {
@@ -2941,6 +2968,7 @@ assist_client(Client *c, Sequence *seq)
 		return;
 	}
 	c->seq = ref_sequence(seq);
+	seq->client = c->win;
 
 	/* set up _NET_STARTUP_ID */
 	if (seq->f.id && !c->startup_id) {
@@ -2982,6 +3010,61 @@ assist_client(Client *c, Sequence *seq)
 	}
 }
 
+static Bool is_dockapp(Client *c);
+static Bool is_trayicon(Client *c);
+
+static Bool
+same_client(Window a, Window b)
+{
+	if (!a || !b)
+		return False;
+	if (a == b)
+		return True;
+	if ((a&0xffff0000) == (b&0xffff0000))
+		return True;
+	return False;
+}
+
+static Bool
+msg_from_wm(Window w)
+{
+	if (same_client(w, scr->netwm_check))
+		goto yes;
+	if (same_client(w, scr->winwm_check))
+		goto yes;
+	if (same_client(w, scr->motif_check))
+		goto yes;
+	if (same_client(w, scr->icccm_check))
+		goto yes;
+	return False;
+yes:
+	return True;
+}
+
+static Bool
+msg_from_la(Window w)
+{
+	if (!same_client(w, scr->shelp_owner))
+		return False;
+	return True;
+}
+
+static Bool
+msg_from_me(Window w)
+{
+	if (!same_client(w, scr->selwin))
+		return False;
+	return True;
+}
+
+static Bool
+msg_from_ap(Window w, Window c)
+{
+	if (!same_client(w, c))
+		return False;
+	return True;
+}
+
 /** @brief assist some clients by adding information missing from window
   *
   * Setting up the client consists of setting some EWMH and other properties on
@@ -2999,12 +3082,14 @@ assist_client(Client *c, Sequence *seq)
 void
 setup_client(Client *c)
 {
+	Entry *e;
 	Sequence *seq;
 	Bool need_change = False;
 
 	PTRACE(5);
 	if (!(seq = c->seq))
 		return;
+	seq->client = c->win;
 	/* set up _NET_STARTUP_ID */
 	if (!c->startup_id && seq->f.id) {
 		XTextProperty xtp = { 0, };
@@ -3124,14 +3209,10 @@ setup_client(Client *c)
 		if (c->ch.res_class) {
 			seq->f.wmclass = strdup(c->ch.res_class);
 			CPRINTF(1, c, "[sc] %s WMCLASS=%s\n", seq->f.launcher, seq->f.wmclass);
-			if (seq->f.application_id)
-				CPRINTF(1, c, "[sc] add StartupWMClass=%s to %s\n", seq->f.wmclass, seq->f.application_id);
 			need_change = True;
 		} else if (c->ch.res_name) {
 			seq->f.wmclass = strdup(c->ch.res_name);
 			CPRINTF(1, c, "[sc] %s WMCLASS=%s\n", seq->f.launcher, seq->f.wmclass);
-			if (seq->f.application_id)
-				CPRINTF(1, c, "[sc] add StartupWMClass=%s to %s\n", seq->f.wmclass, seq->f.application_id);
 			need_change = True;
 		}
 	}
@@ -3177,8 +3258,86 @@ setup_client(Client *c)
 		if (options.assist)
 			send_change(seq);
 	}
+
 	/* Perform some checks on the information available in .desktop file vs. that
 	   which was discovered when the window was launched. */
+
+	if (!(e = seq->e))
+		return;
+
+	if (seq->state == StartupNotifyComplete) {
+		if (msg_from_wm(seq->remover)) {
+			CPRINTF(1, c, "[sc] window manager completed sequence %s\n", seq->f.id);
+			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
+				OPRINTF(0, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
+			}
+			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
+				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+			}
+		} else if (msg_from_la(seq->remover)) {
+			CPRINTF(1, c, "[sc] launch assistant completed sequence %s\n", seq->f.id);
+			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
+				OPRINTF(0, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
+			}
+			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
+				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+			}
+		} else if (msg_from_me(seq->remover)) {
+			CPRINTF(1, c, "[sc] completed sequence %s\n", seq->f.id);
+			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
+				OPRINTF(0, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
+			}
+			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
+				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+			}
+		} else if (msg_from_ap(seq->remover, c->win) || msg_from_ap(seq->from, c->win)) {
+			CPRINTF(1, c, "[sc] application completed sequence %s\n", seq->f.id);
+			if (!e->StartupNotify || strcmp(e->StartupNotify, "true")) {
+				OPRINTF(0, "add \"StartupNotify=true\" to %s\n", e->path);
+			}
+		} else {
+			CPRINTF(1, c, "[sc] unknown window 0x%08lx completed sequence %s\n", seq->from, seq->f.id);
+			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
+				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+			}
+		}
+	}
+
+	if (is_dockapp(c)) {
+		if (!e->Categories || !strstr(e->Categories, "DockApp")) {
+			OPRINTF(0, "add \"Categories=DockApp\" to %s\n", e->path);
+		}
+		if (options.autostart) {
+			if (e->AutostartPhase
+			    && strncmp(e->AutostartPhase, "Applications",
+				       strlen(e->AutostartPhase))) {
+				OPRINTF(0, "remove \"AutostartPhase=%s\" from %s\n",
+					e->AutostartPhase, e->path);
+			}
+		}
+	} else {
+		if (e->Categories && strstr(e->Categories, "DockApp")) {
+			OPRINTF(0, "remove \"Categories=DockApp\" from %s\n", e->path);
+
+		}
+	}
+	if (is_trayicon(c)) {
+		if (!e->Categories || !strstr(e->Categories, "TrayIcon")) {
+			OPRINTF(0, "add \"Categories=TrayIcon\" to %s\n", e->path);
+		}
+		if (options.autostart) {
+			if (e->AutostartPhase
+			    && strncmp(e->AutostartPhase, "Applications",
+				       strlen(e->AutostartPhase))) {
+				OPRINTF(0, "remove \"AutostartPhase=%s\" from %s\n",
+					e->AutostartPhase, e->path);
+			}
+		}
+	} else {
+		if (e->Categories && strstr(e->Categories, "TrayIcon")) {
+			OPRINTF(0, "remove \"Categories=TrayIcon\" from %s\n", e->path);
+		}
+	}
 }
 
 static void
@@ -3187,7 +3346,7 @@ change_client(Client *c)
 	Sequence *seq;
 
 	if (!(seq = c->seq)) {
-		CPRINTF(0, c, "[cc] called too soon!\n");
+		CPRINTF(1, c, "[cc] called too soon!\n");
 		return;
 	}
 	if (!c->counted) {
@@ -3272,8 +3431,8 @@ is_dockapp(Client *c)
 
 /** @brief detect whether a client is a status icon
   */
-Bool
-is_statusicon(Client *c)
+static Bool
+is_trayicon(Client *c)
 {
 	if (c->xei)
 		return True;
@@ -3288,14 +3447,14 @@ retest_client(Client *c)
 	PTRACE(5);
 	if (c->seq) {
 		if (c->need_retest) {
-			CPRINTF(0, c, "[rc] false alarm!\n");
+			CPRINTF(1, c, "[rc] false alarm!\n");
 			need_retests--;
 			c->need_retest = False;
 		}
 		return;
 	}
 	if (!c->need_retest) {
-		CPRINTF(0, c, "[rc] false alarm!\n");
+		CPRINTF(1, c, "[rc] false alarm!\n");
 		return;
 	}
 	for (seq = sequences; seq; seq = seq->next) {
@@ -3304,6 +3463,7 @@ retest_client(Client *c)
 			CPRINTF(1, c, "[rc] IS THE ONE(tm)!\n");
 			CPRINTF(1, c, "[rc] --------------!\n");
 			c->seq = ref_sequence(seq);
+			seq->client = c->win;
 			change_client(c);
 			break;
 		}
@@ -3403,7 +3563,7 @@ update_client(Client *c)
 	Sequence *seq;
 
 	if (!c->need_update) {
-		CPRINTF(0, c, "[uc] false alarm!\n");
+		CPRINTF(1, c, "[uc] false alarm!\n");
 		return;
 	}
 	need_retest(c);
@@ -3679,18 +3839,91 @@ get_client(Window win)
 	return (c);
 }
 
-static Sequence *unref_sequence(Sequence *seq);
-
 static void
-show_sequence(const char *prefix, Sequence *seq)
+show_entry(const char *prefix, Entry *e)
 {
-	char **label, **field;
+	const char **label;
+	char **entry;
 
 	if (options.debug < 2 && options.output < 2)
 		return;
 	if (prefix)
-		fprintf(stderr, "%s:\n", prefix);
-	for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+		fprintf(stderr, "\n%s from file %s\n", prefix, e->path);
+	for (label = DesktopEntryFields, entry = &e->Type; *label; label++, entry++)
+		if (*entry)
+			fprintf(stderr, "%-24s = %s\n", *label, *entry);
+	if (prefix)
+		fputs("\n", stderr);
+	fflush(stderr);
+}
+
+static void
+info_entry(const char *prefix, Entry *e)
+{
+	const char **label;
+	char **entry;
+
+	if (options.output < 1)
+		return;
+	if (prefix)
+		fprintf(stdout, "%s: from %s\n", prefix, e->path);
+	for (label = DesktopEntryFields, entry = &e->Type; *label; label++, entry++)
+		if (*entry)
+			fprintf(stdout, "%-24s = %s\n", *label, *entry);
+	if (prefix)
+		fputs("\n", stdout);
+	fflush(stdout);
+}
+
+static void
+free_entry(Entry *e)
+{
+	const char **label;
+	char **entry;
+
+	if (!e)
+		return;
+	for (label = DesktopEntryFields, entry = &e->Type; *label; label++, entry++) {
+		free(*entry);
+		*entry = NULL;
+	}
+	free(e->path);
+	e->path = NULL;
+	if (e != &myent)
+		free(e);
+}
+
+static Sequence *unref_sequence(Sequence *seq);
+static Bool msg_from_wm(Window w);
+static Bool msg_from_la(Window w);
+static Bool msg_from_me(Window w);
+static Bool msg_from_ap(Window w, Window c);
+
+static const char *
+show_source(Window w, Window c)
+{
+	if (msg_from_wm(w))
+		return ("window manager");
+	if (msg_from_la(w))
+		return ("launch assistant");
+	if (msg_from_me(w))
+		return (SELECTION_ATOM);
+	if (msg_from_ap(w, c))
+		return ("application");
+	return ("unknown source");
+}
+
+static void
+show_sequence(const char *prefix, Sequence *seq)
+{
+	const char **label;
+	char **field;
+
+	if (options.debug < 2 && options.output < 2)
+		return;
+	if (prefix)
+		fprintf(stderr, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
+	for (label = StartupNotifyFields, field = seq->fields; *label; label++, field++) {
 		if (*field)
 			fprintf(stderr, "%s=%s\n", *label, *field);
 		else
@@ -3702,13 +3935,14 @@ show_sequence(const char *prefix, Sequence *seq)
 static void
 info_sequence(const char *prefix, Sequence *seq)
 {
-	char **label, **field;
+	const char **label;
+	char **field;
 
 	if (options.output < 1)
 		return;
 	if (prefix)
-		fprintf(stdout, "%s:\n", prefix);
-	for (label = (char **)StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+		fprintf(stdout, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
+	for (label = StartupNotifyFields, field = seq->fields; *label; label++, field++) {
 		if (*field)
 			fprintf(stdout, "%s=%s\n", *label, *field);
 		else
@@ -3807,6 +4041,7 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 {
 	int i;
 
+	old->from = new->from;
 	for (i = 0; i < sizeof(old->f) / sizeof(char *); i++) {
 		if (new->fields[i]) {
 			free(old->fields[i]);
@@ -3891,7 +4126,10 @@ unref_sequence(Sequence *seq)
 			}
 			close_sequence(seq);
 			free_sequence_fields(seq);
-			free(seq);
+			free_entry(seq->e);
+			seq->e = NULL;
+			if (seq != &myseq)
+				free(seq);
 			return (NULL);
 		} else
 			DPRINTF(1, "sequence still has %d references\n", seq->refs);
@@ -3909,22 +4147,22 @@ ref_sequence(Sequence *seq)
 }
 
 static Sequence *
-remove_sequence(Sequence *del)
+remove_sequence(Sequence *seq)
 {
-	Sequence *seq, **prev;
-
+	if (seq->removed) {
+		OPRINTF(1, "==> originally removed by 0x%08lx (%s)\n", seq->remover,
+				show_source(seq->remover, seq->client));
+		OPRINTF(1, "==> redundant  removal by 0x%08lx (%s)\n", seq->from,
+				show_source(seq->from, seq->client));
+		return (NULL);
+	}
 	if (options.output > 1)
-		show_sequence("Removing sequence", del);
+		show_sequence("Removing sequence", seq);
 	if (options.info)
-		info_sequence("Removing sequence", del);
-	for (prev = &sequences, seq = *prev; seq && seq != del; prev = &seq->next, seq = *prev) ;
-	if (seq) {
-		*prev = seq->next;
-		seq->next = NULL;
-		unref_sequence(seq);
-	} else
-		EPRINTF("could not find sequence\n");
-	return (seq);
+		info_sequence("Removing sequence", seq);
+	seq->removed = True;
+	seq->remover = seq->from;
+	return unref_sequence(seq);
 }
 
 #ifdef DESKTOP_NOTIFICATIONS
@@ -3982,16 +4220,39 @@ static void
 add_sequence(Sequence *seq)
 {
 	seq->refs = 1;
-	seq->client = NULL;
+	seq->client = None;
 	seq->next = sequences;
 	sequences = seq;
+	if (!seq->e && islocalhost(seq->f.hostname)) {
+		char *path, *appid;
+
+		if (!(appid = seq->f.application_id) && seq->f.bin) {
+			appid = strrchr(seq->f.bin, '/');
+			appid = appid ? appid + 1 : seq->f.bin;
+		}
+		if ((path = lookup_file(appid))) {
+			DPRINTF(1, "found desktop file %s\n", path);
+			Entry *e = calloc(1, sizeof(*e));
+
+			if (!parse_file(path, e))
+				free_entry(e);
+			else {
+				seq->e = e;
+				if (options.output > 1)
+					show_entry("Parsed entries", e);
+				if (options.info)
+					info_entry("Parsed entries", e);
+			}
+			free(path);
+		}
+	}
 	if (seq->state == StartupNotifyNew) {
 #ifdef SYSTEM_TRAY_STATUS_ICON
 #if 1
 		if (options.feedback)
 			create_statusicon(seq);
 #else
-		(void)create_statusicon;
+		(void) create_statusicon;
 #endif
 #endif				/* SYSTEM_TRAY_STATUS_ICON */
 	}
@@ -4019,7 +4280,9 @@ process_startup_msg(Message *m)
 	int i;
 	int escaped, quoted;
 
-	DPRINTF(1, "Got message from 0x%08lx: %s\n", m->origin, m->data);
+	cmd.from = m->origin;
+	DPRINTF(1, "Got message from 0x%08lx (%s): %s\n", m->origin,
+		show_source(cmd.from, cmd.client), m->data);
 	if (!strncmp(p, "new:", 4)) {
 		cmd.state = StartupNotifyNew;
 	} else if (!strncmp(p, "change:", 7)) {
@@ -4122,6 +4385,8 @@ process_startup_msg(Message *m)
 		q = p + 4;
 		if (!cmd.f.timestamp)
 			cmd.f.timestamp = strdup(q);
+		if (!cmd.f.bin)
+			cmd.f.bin = strdup(cmd.f.launchee);
 	} while (0);
 	free(copy);
 	/* get timestamp from ID if necessary */
@@ -4145,7 +4410,6 @@ process_startup_msg(Message *m)
 		}
 		*seq = cmd;
 		add_sequence(seq);
-		seq->changed = False;
 		return;
 	}
 	switch (seq->state) {
@@ -4209,6 +4473,7 @@ process_startup_msg(Message *m)
 		break;
 	}
 	/* remove sequence */
+	copy_sequence_fields(seq, &cmd);
 	update_startup_client(seq);
 	remove_sequence(seq);
 }
@@ -4426,8 +4691,7 @@ remove_client(Client *c)
 	del_group(c, TransiGroup);
 	del_group(c, WindowGroup);
 	del_group(c, ClientGroup);
-	if (c->seq && c->seq->client == c) {
-		c->seq->client = NULL;
+	if (c->seq) {
 		unref_sequence(c->seq);
 		c->seq = NULL;
 	}
@@ -4508,7 +4772,7 @@ cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *e, Client *c)
 	pushtime(&c->active_time, e->data.l[1]);
 	if (c->mapped)
 		return;
-	CPRINTF(0, c, "[cm] _NET_ACTIVE_WINDOW for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_ACTIVE_WINDOW for unmanaged window 0x%08lx\n", e->window);
 	mapped_client(c, e->data.l[1]);
 }
 
@@ -4540,7 +4804,7 @@ cm_handle_NET_CLOSE_WINDOW(XClientMessageEvent *e, Client *c)
 
 	if (c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_CLOSE_WINDOW for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_CLOSE_WINDOW for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, time);
 }
 
@@ -4550,7 +4814,7 @@ cm_handle_NET_MOVERESIZE_WINDOW(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_MOVERESIZE_WINDOW for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_MOVERESIZE_WINDOW for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 }
 
@@ -4571,7 +4835,7 @@ cm_handle_NET_REQUEST_FRAME_EXTENTS(XClientMessageEvent *e, Client *c)
 	if (!c)
 		return;
 	if (c->managed)
-		CPRINTF(0, c, "[cm] _NET_REQUEST_FRAME_EXTENTS for managed window 0x%08lx\n", e->window);
+		CPRINTF(1, c, "[cm] _NET_REQUEST_FRAME_EXTENTS for managed window 0x%08lx\n", e->window);
 	c->request = True;
 }
 
@@ -4615,7 +4879,7 @@ cm_handle_NET_RESTACK_WINDOW(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_RESTACK_WINDOW for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_RESTACK_WINDOW for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 }
 
@@ -4700,7 +4964,7 @@ cm_handle_NET_WM_ALLOWED_ACTIONS(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_WM_ALLOWED_ACTIONS for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_WM_ALLOWED_ACTIONS for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -4726,7 +4990,7 @@ cm_handle_NET_WM_FULLSCREEN_MONITORS(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_WM_FULLSCREEN_MONITORS for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_WM_FULLSCREEN_MONITORS for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -4763,7 +5027,7 @@ cm_handle_NET_WM_MOVERESIZE(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_WM_MOVERSIZE for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_WM_MOVERSIZE for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 }
 
@@ -4906,7 +5170,7 @@ cm_handle_NET_WM_STATE(XClientMessageEvent *e, Client *c)
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_WM_STATE sent for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_WM_STATE sent for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 }
 
@@ -5088,7 +5352,7 @@ cm_handle_NET_WM_DESKTOP(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _NET_WM_DESKTOP for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _NET_WM_DESKTOP for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5137,7 +5401,7 @@ cm_handle_WIN_LAYER(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _WIN_LAYER for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _WIN_LAYER for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5160,7 +5424,7 @@ cm_handle_WIN_STATE(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] _WIN_STATE for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _WIN_STATE for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5217,7 +5481,7 @@ cm_handle_WIN_WORKSPACE(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[pc] _WIN_WORKSPACE for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[pc] _WIN_WORKSPACE for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5299,7 +5563,7 @@ cm_handle_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] WM_CHANGE_STATE for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] WM_CHANGE_STATE for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5539,7 +5803,7 @@ cm_handle_WM_PROTOCOLS(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] WM_PROTOCOLS for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] WM_PROTOCOLS for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5624,7 +5888,7 @@ cm_handle_WM_STATE(XClientMessageEvent *e, Client *c)
 #if 1
 	if (!c || c->managed)
 		return;
-	CPRINTF(0, c, "[cm] WM_STATE for unmanaged window 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] WM_STATE for unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, CurrentTime);
 #endif
 }
@@ -5827,7 +6091,7 @@ cm_handle_XEMBED(XClientMessageEvent *e, Client *c)
 	/* XXX: there is a question whether we should manage the client here or not.
 	   These other messages indicate that we have probably missed a management event
 	   somehow, so mark it managed anyway. */
-	CPRINTF(0, c, "[cm] _XEMBED message for unmanaged client 0x%08lx\n", e->window);
+	CPRINTF(1, c, "[cm] _XEMBED message for unmanaged client 0x%08lx\n", e->window);
 	managed_client(c, e->data.l[0]);
 }
 
@@ -6004,7 +6268,7 @@ handle_focus_change_event(XFocusChangeEvent *e)
 	if (!find_screen(e->window))
 		DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
 	if ((c = find_client_noscreen(e->window)) && !c->mapped) {
-		CPRINTF(0, c, "[fc] XFocusChangeEvent for unmapped window 0x%08lx\n", e->window);
+		CPRINTF(1, c, "[fc] XFocusChangeEvent for unmapped window 0x%08lx\n", e->window);
 		mapped_client(c, CurrentTime);
 	}
 }
@@ -6017,7 +6281,7 @@ handle_expose_event(XExposeEvent *e)
 	if (!find_screen(e->window))
 		DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
 	if ((c = find_client_noscreen(e->window)) && !c->mapped) {
-		CPRINTF(0, c, "[ee] XExposeEvent for unmapped window 0x%08lx\n", e->window);
+		CPRINTF(1, c, "[ee] XExposeEvent for unmapped window 0x%08lx\n", e->window);
 		mapped_client(c, CurrentTime);
 	}
 }
@@ -6029,7 +6293,7 @@ handle_expose_event(XExposeEvent *e)
   * managed.
   */
 void
-handle_visibility_event(XVisibilityEvent * e)
+handle_visibility_event(XVisibilityEvent *e)
 {
 	Client *c = NULL;
 
@@ -6037,7 +6301,7 @@ handle_visibility_event(XVisibilityEvent * e)
 		DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
 	if ((c = find_client_noscreen(e->window)) && !c->mapped
 	    && e->state != VisibilityFullyObscured) {
-		CPRINTF(0, c, "[ve] XVisibilityEvent for unmanaged window 0x%08lx\n", e->window);
+		CPRINTF(1, c, "[ve] XVisibilityEvent for unmanaged window 0x%08lx\n", e->window);
 		mapped_client(c, CurrentTime);
 	}
 }
@@ -6135,7 +6399,7 @@ handle_map_event(XMapEvent *e)
 			/* We missed a management event, so treat the window as
 			   managed now */
 			if (!c->mapped)
-				CPRINTF(0, c, "[me] XMapEvent for unmapped window 0x%08lx\n", e->window);
+				CPRINTF(1, c, "[me] XMapEvent for unmapped window 0x%08lx\n", e->window);
 			mapped_client(c, CurrentTime);
 		}
 	}
@@ -6172,7 +6436,7 @@ handle_reparent_event(XReparentEvent *e)
 		if (e->parent == scr->root)
 			/* reparented the wrong way */
 			return;
-		if ((c->statusicon = is_statusicon(c))) {
+		if ((c->statusicon = is_trayicon(c))) {
 			/* This is a status icon. */
 			if (scr->stray_owner)
 				/* Status icons will receive an _XEMBED message
@@ -6206,7 +6470,7 @@ handle_reparent_event(XReparentEvent *e)
 			   without any further indication that the dock app has
 			   been managed. */
 			if (!c->managed)
-				CPRINTF(0, c, "[re] XReparentEvent for unmanaged window 0x%08lx\n", e->window);
+				CPRINTF(1, c, "[re] XReparentEvent for unmanaged window 0x%08lx\n", e->window);
 			managed_client(c, CurrentTime);
 		}
 	}
@@ -6258,7 +6522,7 @@ handle_selection_clear(XSelectionClearEvent *e)
 		if (s < nscr)
 			break;
 #endif
-		DPRINTF(1, "lost _XDG_MONITOR_S%d selection: exiting\n", scr->screen);
+		DPRINTF(1, "lost " SELECTION_ATOM " selection: exiting\n", scr->screen);
 		exit(EXIT_SUCCESS);
 #endif
 }
@@ -6850,30 +7114,34 @@ wait_for_resource()
 		DPRINTF(1, "Cannot wait for resources when launching xsessions.\n");
 		return;
 	}
-	if (entry.AutostartPhase) {
+	if (myent.AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
-		if (strcmp(entry.AutostartPhase, "Initializing") == 0) {
+		if (strcmp(myent.AutostartPhase, "Initializing") == 0) {
 			/* Initializing: do not wait for anything. */
+			options.audio = False;
 			options.manager = False;
+			options.composite = False;
 			options.tray = False;
 			options.pager = False;
-			options.composite = False;
-		} else if (strcmp(entry.AutostartPhase, "WindowManager") == 0) {
-			/* WindowManager: do not wait for anything. */
+		} else if (strcmp(myent.AutostartPhase, "WindowManager") == 0) {
+			/* WindowManager: do not wait for anything, except perhaps audio. 
+			 */
 			options.manager = False;
+			options.composite = False;
 			options.tray = False;
 			options.pager = False;
-			options.composite = False;
-		} else if (strcmp(entry.AutostartPhase, "Panel") == 0) {
-			/* Panel: wait only for window manager (if requested?). */
+		} else if (strcmp(myent.AutostartPhase, "Panel") == 0) {
+			/* Panel: wait only for window and composite manager (if
+			   requested?). */
 			options.manager = True;
 			options.tray = False;
 			options.pager = False;
-		} else if (strcmp(entry.AutostartPhase, "Desktop") == 0) {
-			/* Desktop: wait only for window manager (if requested?). */
+		} else if (strcmp(myent.AutostartPhase, "Desktop") == 0) {
+			/* Desktop: wait only for window and composite manager (if
+			   requested?). */
 			options.manager = True;
-		} else if (strcmp(entry.AutostartPhase, "Application") == 0) {
+		} else if (strcmp(myent.AutostartPhase, "Application") == 0) {
 			/* Application(s): wait for window manager, others if requested. */
 			options.manager = True;
 		} else {
@@ -6882,37 +7150,39 @@ wait_for_resource()
 		}
 	} else if (options.autostart) {
 		options.manager = True;
-		if (entry.Categories) {
-			if (strstr(entry.Categories, "TrayIcon"))
+		if (myent.Categories) {
+			if (strstr(myent.Categories, "Audio"))
+				options.audio = True;
+			if (strstr(myent.Categories, "TrayIcon"))
 				options.tray = True;
-			if (strstr(entry.Categories, "DockApp"))
+			if (strstr(myent.Categories, "DockApp"))
 				options.manager = True;
-			if (strstr(entry.Categories, "SystemTray"))
+			if (strstr(myent.Categories, "SystemTray"))
 				options.tray = False;
 		}
 	}
 	if (options.xsession) {
 		/* Xsessions cannot wait (responsible for all). */
+		options.audio = False;
 		options.manager = False;
+		options.composite = False;
 		options.tray = False;
 		options.pager = False;
-		options.composite = False;
-		options.audio = False;
 	}
 
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
 	if (options.manager || options.tray || options.pager || options.composite || options.audio) {
+		if (options.audio)
+			wait_for_audio_server();
 		if (options.manager)
 			wait_for_window_manager();
+		if (options.composite)
+			wait_for_composite_manager();
 		if (options.tray)
 			wait_for_system_tray();
 		if (options.pager)
 			wait_for_desktop_pager();
-		if (options.composite)
-			wait_for_composite_manager();
-		if (options.audio)
-			wait_for_audio_server();
 	} else
 		DPRINTF(1, "No resource wait requested.\n");
 }
@@ -6993,8 +7263,8 @@ launch()
 	if (options.id)
 		change_only = True;
 
+	myseq.e = &myent;
 	add_sequence(&myseq);
-	ref_sequence(&myseq);
 	if (change_only)
 		send_change(&myseq);
 	else
@@ -7364,8 +7634,8 @@ set_name()
 	free(myseq.f.name);
 	if (options.name)
 		myseq.f.name = strdup(options.name);
-	else if (entry.Name)
-		myseq.f.name = strdup(entry.Name);
+	else if (myent.Name)
+		myseq.f.name = strdup(myent.Name);
 	else if (eargv)
 		myseq.f.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else
@@ -7379,8 +7649,8 @@ set_description()
 	free(myseq.f.description);
 	if (options.description)
 		myseq.f.description = strdup(options.description);
-	else if (entry.Comment)
-		myseq.f.description = strdup(entry.Comment);
+	else if (myent.Comment)
+		myseq.f.description = strdup(myent.Comment);
 	else
 		myseq.f.description = NULL;
 }
@@ -7395,8 +7665,8 @@ set_icon()
 	icon = calloc(512, sizeof(*icon));
 	if (options.icon)
 		strcat(icon, options.icon);
-	else if (entry.Icon)
-		strcat(icon, entry.Icon);
+	else if (myent.Icon)
+		strcat(icon, myent.Icon);
 	if ((p = strchr(icon, '/')) && p++)
 		memmove(icon, p, strlen(p) + 1);
 	if ((p = strstr(icon, ".xpm")) && *(p + 4) == '\0')
@@ -7437,8 +7707,8 @@ set_wmclass()
 	else if (eargv)
 		myseq.f.wmclass = (pos = strrchr(eargv[0], '/'))
 		    ? strdup(pos) : strdup(eargv[0]);
-	else if (entry.StartupWMClass)
-		myseq.f.wmclass = strdup(entry.StartupWMClass);
+	else if (myent.StartupWMClass)
+		myseq.f.wmclass = strdup(myent.StartupWMClass);
 	else
 		myseq.f.wmclass = NULL;
 	return myseq.f.wmclass;
@@ -7583,7 +7853,7 @@ set_command()
 	PTRACE(5);
 	free(myseq.f.command);
 	cmd = calloc(2048, sizeof(*cmd));
-	if (truth_value(entry.Terminal)) {
+	if (truth_value(myent.Terminal)) {
 		/* More to do here: if there is no wmclass set, and there is a
 		   application id, use that; otherwise, if there is a binary, use the
 		   binary name, and set the wmclass. */
@@ -7612,8 +7882,8 @@ set_command()
 	}
 	if (options.exec)
 		strncat(cmd, options.exec, 1024);
-	else if (entry.Exec)
-		strncat(cmd, entry.Exec, 1024);
+	else if (myent.Exec)
+		strncat(cmd, myent.Exec, 1024);
 	else if (!eargv) {
 		EPRINTF("cannot launch anything without a command\n");
 		exit(EXIT_FAILURE);
@@ -7629,7 +7899,7 @@ set_silent()
 {
 	PTRACE(5);
 	free(myseq.f.silent);
-	if (!truth_value(entry.StartupNotify) && !myseq.f.wmclass && !set_wmclass()) {
+	if (!truth_value(myent.StartupNotify) && !myseq.f.wmclass && !set_wmclass()) {
 		myseq.f.silent = calloc(64, sizeof(*myseq.f.silent));
 		snprintf(myseq.f.silent, 64, "%d", 1);
 	} else
@@ -7659,11 +7929,11 @@ set_bin()
 		myseq.f.bin = strndup(p, q - p);
 	else if (options.exec)
 		myseq.f.bin = first_word(options.exec);
-	else if (entry.TryExec)
-		myseq.f.bin = first_word(entry.TryExec);
-	else if (entry.Exec)
-		myseq.f.bin = first_word(entry.Exec);
-	else if (!truth_value(entry.Terminal) && (myseq.f.command || set_command()))
+	else if (myent.TryExec)
+		myseq.f.bin = first_word(myent.TryExec);
+	else if (myent.Exec)
+		myseq.f.bin = first_word(myent.Exec);
+	else if (!truth_value(myent.Terminal) && (myseq.f.command || set_command()))
 		myseq.f.bin = first_word(myseq.f.command);
 	else
 		myseq.f.bin = NULL;
@@ -7935,10 +8205,10 @@ put_recently_used_xbel(char *filename)
 
 	/* 2) append new information (url only) */
 	if (!(mime = get_mime_type(options.url))) {
-		if (entry.MimeType) {
+		if (myent.MimeType) {
 			char *p;
 
-			mime = strdup(entry.MimeType);
+			mime = strdup(myent.MimeType);
 			if ((p = strchr(mime, ';')))
 				*p = '\0';
 		}
@@ -7964,12 +8234,12 @@ put_recently_used_xbel(char *filename)
 		free(exec);
 	} else {
 		g_bookmark_file_add_application(bookmark, options.url,
-						myseq.f.bin ? : entry.Name, options.rawcmd);
+						myseq.f.bin ? : myent.Name, options.rawcmd);
 	}
-	if (entry.Categories) {
+	if (myent.Categories) {
 		char *p, *e, *groups;
 
-		groups = strdup(entry.Categories);
+		groups = strdup(myent.Categories);
 		e = groups + strlen(groups) + 1;
 		p = groups;
 		for (p = groups, *strchrnul(p, ';') = '\0'; p < e;
@@ -8354,8 +8624,8 @@ put_recently_used(char *filename)
 		used->private = TRUE;
 		if (!(used->mime = get_mime_type(options.url))) {
 			EPRINTF("could not get mime type for %s\n", options.url);
-			if (entry.MimeType) {
-				used->mime = strdup(entry.MimeType);
+			if (myent.MimeType) {
+				used->mime = strdup(myent.MimeType);
 				if ((p = strchr(used->mime, ';')))
 					*p = '\0';
 			} else
@@ -8365,10 +8635,10 @@ put_recently_used(char *filename)
 	} else
 		used = item->data;
 
-	if (entry.Categories) {
+	if (myent.Categories) {
 		char *grp, *p;
 
-		grp = strdup(entry.Categories);
+		grp = strdup(myent.Categories);
 		if ((p = strchr(grp, ';')))
 			*p = '\0';
 		if (!(item = g_list_find_custom(used->groups, grp, grps_match)))
@@ -9245,10 +9515,10 @@ main(int argc, char *argv[])
 		p = p ? p + 1 : eargv[0];
 		free(options.path);
 		if ((options.path = lookup_file(p))) {
-			if (!parse_file(options.path)) {
+			if (!parse_file(options.path, &myent)) {
 				free(options.path);
 				options.path = NULL;
-				entry.TryExec = strdup(eargv[0]);
+				myent.TryExec = strdup(eargv[0]);
 			}
 		}
 	} else if (options.appid) {
@@ -9257,7 +9527,7 @@ main(int argc, char *argv[])
 			EPRINTF("could not find file '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
-		if (!parse_file(options.path)) {
+		if (!parse_file(options.path, &myent)) {
 			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
@@ -9280,26 +9550,11 @@ main(int argc, char *argv[])
 			strcat(options.uri, options.path);
 		}
 	}
-	if (options.output > 1) {
-		const char **lp;
-		char **ep;
-
-		OPRINTF(1, "Entries from file:\n");
-		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
-			if (*ep)
-				OPRINTF(1, "%-24s = %s\n", *lp, *ep);
-	}
-	if (options.info) {
-		const char **lp;
-		char **ep;
-
-		fputs("Entries from file:\n\n", stdout);
-		for (lp = DesktopEntryFields, ep = &entry.Type; *lp; lp++, ep++)
-			if (*ep)
-				fprintf(stdout, "%-24s = %s\n", *lp, *ep);
-		fputs("\n", stdout);
-	}
-	if (!eargv && !options.exec && !entry.Exec) {
+	if (options.output > 1)
+		show_entry("Entries", &myent);
+	if (options.info)
+		info_entry("Entries", &myent);
+	if (!eargv && !options.exec && !myent.Exec) {
 		EPRINTF("no exec command\n");
 		exit(EXIT_FAILURE);
 	}
