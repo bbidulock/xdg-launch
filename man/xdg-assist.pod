@@ -31,19 +31,31 @@ the background).
 
 =over
 
-=item [B<-m>, B<--monitor>]
+=item [B<-a>, B<--assist>]
 
-Run as a monitoring process.  This is the default if no other command
-option is specified.
+Run as a startup notification assistant.  This is the default if no
+other command option is specified.  Only one instance of B<xdg-assist>
+can run as a launch assistant.
 
 =item B<-r>, B<--replace>
 
-Restart B<xdg-assist> by replacing the existing running process with the
-current one.
+Restart B<xdg-assist> by replacing the existing running launch assistant
+with the current one.
 
 =item B<-q>, B<--quit>
 
-Asks a running B<xdg-assist> process to stop.
+Asks a running B<xdg-assist> launch assistant process to stop.
+
+=item B<-m>, B<--monitor>
+
+Normally B<xdg-assist> will a single instance as a launch assistant.
+This option requests that B<xdg-assist> provide monitoring of startup
+notification only and that it not provide any assistance.  This is
+useful for running B<xdg-assist> with debugging and verbosity set high
+to observe and debug the startup notification process, so the debug and
+output levels are set to three (3).  Any number of instances can be run
+at the same time.  The B<--quit> option will not cause a monitor process
+to quit.
 
 =item B<-h>, B<--help>
 
@@ -63,15 +75,23 @@ Prints detailed copying permissions and exits.
 
 =over
 
-=item B<-f>, B<--foreground>
-
-Run B<xdg-assist> in the foreground for debugging (so that standard
-error goes to the terminal).
-
-=item B<-g>, B<--guard-time> I<TIMEOUT>
+=item B<-g>, B<--guard> I<TIMEOUT>
 
 Specifies the amount of time, I<TIMEOUT>, in milliseconds, that
-B<xdg-assist> will wait for a destop application to launch.
+B<xdg-assist> will wait for a desktop application to launch.  The
+default is 15000 milliseconds (15 seconds).
+
+=item B<-v>, B<--verbose> [I<LEVEL>]
+
+Print diagnostic information to standard error during operation.  This
+option can be repeated to increase the verbosity of output.  The default
+level is 1.
+
+=item B<-D>, B<--debug> [I<LEVEL>]
+
+Prints debugging information to standard error during operation.  This
+option can be repeated to increase the debugging level.  The default
+level is 0.
 
 =back
 
@@ -103,8 +123,9 @@ or the other), B<xdg-assist> will perform the following actions:
 
 =item 1.
 
-B<xdg-assist> forks a monitoring process, daemonizes it, placing it in
-the background.  This process will run until killed.
+B<xdg-assist> runs a launch assistant process.  This process will run
+until killed, or stopped using the B<--quit> or B<--replace> options on
+another invocation.
 
 =item 2.
 
@@ -152,6 +173,10 @@ This property will be populated with the startup id of the launched
 desktop application when it is missing.  (Very few applications in fact
 populate this property: not because their toolkits do not support it,
 but because the facility of the toolkit has not been invoked.)
+
+Note that the GTK2 toolkit always places this property on its leader
+window when the B<DESKTOP_STARTUP_ID> environment variable is present at
+startup (this is part of B<gtk_ini()>).
 
 =item B<_NET_WM_USER_TIME>
 

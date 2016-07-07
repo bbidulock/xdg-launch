@@ -143,9 +143,10 @@ int eargc = 0;
 
 typedef enum {
 	CommandDefault = 0,
-	CommandMonitor,
+	CommandAssist,
 	CommandReplace,
 	CommandQuit,
+	CommandMonitor,
 	CommandHelp,
 	CommandVersion,
 	CommandCopying,
@@ -6415,7 +6416,9 @@ main_loop(int argc, char *argv[])
 	(void) srce;
 
 	loop = g_main_loop_new(NULL, FALSE);
+	DPRINTF(1, "entering main loop\n");
 	g_main_loop_run(loop);
+	DPRINTF(1, "exitted main loop\n");
 #else				/* GIO_GLIB2_SUPPORT */
 	int xfd;
 	XEvent ev;
@@ -6430,6 +6433,7 @@ main_loop(int argc, char *argv[])
 	running = True;
 	XSync(dpy, False);
 	xfd = ConnectionNumber(dpy);
+	DPRINTF(1, "entering main loop\n");
 	while (running) {
 		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 
@@ -6461,18 +6465,8 @@ main_loop(int argc, char *argv[])
 			}
 		}
 	}
-#endif				/* GIO_GLIB2_SUPPORT */
-}
-
-/** @brief monitor startup and assist the window manager.
-  */
-static void
-do_monitor(int argc, char *argv[])
-{
-	/* continue on monitoring */
-	DPRINTF(1, "entering main loop\n");
-	main_loop(argc, argv);
 	DPRINTF(1, "exitted main loop\n");
+#endif				/* GIO_GLIB2_SUPPORT */
 }
 
 static void
@@ -6513,6 +6507,29 @@ selectionreleased(Display *d, XEvent *e, XPointer arg)
 	return True;
 }
 
+/** @brief run without taking the selection
+  *
+  * No SELECTION_ATOM is taken
+  */
+static void
+do_monitor(int argc, char *argv[])
+{
+	int s;
+
+	for (s = 0; s < nscr; s++) {
+		scr = screens + s;
+		scr->selwin =
+		    XCreateSimpleWindow(dpy, scr->root, DisplayWidth(dpy, s),
+					DisplayHeight(dpy, s), 1, 1, 0,
+					BlackPixel(dpy, s), BlackPixel(dpy, s));
+		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
+		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
+	}
+	s = DefaultScreen(dpy);
+	scr = screens + s;
+	main_loop(argc, argv);
+}
+
 /** @brief run without replacing a running instance
   *
   * This is performed by detecting owners of the SELECTION_ATOM selection for
@@ -6532,7 +6549,6 @@ do_run(int argc, char *argv[])
 		XSaveContext(dpy, scr->selwin, ScreenContext, (XPointer) scr);
 		XSelectInput(dpy, scr->selwin, StructureNotifyMask | PropertyChangeMask);
 
-#if 1
 		XGrabServer(dpy);
 		if (!(scr->owner = XGetSelectionOwner(dpy, scr->slctn_atom))) {
 			XSetSelectionOwner(dpy, scr->slctn_atom, scr->selwin, CurrentTime);
@@ -6545,11 +6561,10 @@ do_run(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 		announce_selection();
-#endif
 	}
 	s = DefaultScreen(dpy);
 	scr = screens + s;
-	do_monitor(argc, argv);
+	main_loop(argc, argv);
 }
 
 /** @brief replace running instance with this one
@@ -6594,7 +6609,7 @@ do_replace(int argc, char *argv[])
 		XIfEvent(dpy, &ev, &selectionreleased, (XPointer) &selcount);
 		announce_selection();
 	}
-	do_monitor(argc, argv);
+	main_loop(argc, argv);
 }
 
 /** @brief ask running instance to quit
@@ -6721,14 +6736,16 @@ Usage:\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 Command Options:\n\
-    [-m, --monitor]\n\
-        run as monitoring process, default if no other command\n\
-        option is specified\n\
+    [-a, --assist]\n\
+        run as a launch assistant process, default if no other\n\
+        command option is specified\n\
     -r, --replace\n\
         restart %1$s by replacing the existing running process\n\
         with the current one\n\
     -q, --quit\n\
         ask a running %1$s process to stop\n\
+    -m, --monitor\n\
+        run as a monitoring process only\n\
     -h, --help, -?, --?\n\
         print this usage information and exit\n\
     -V, --version\n\
@@ -6739,9 +6756,6 @@ General Options:\n\
     -g, --guard TIMEOUT\n\
         amount of time, TIMEOUT, in milliseconds to wait for a\n\
         desktop application to launch [default: 15000]\n\
-    -A, --assist\n\
-        assist window managers by settting properties on\n\
-        launched windows [default: true]\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -6766,8 +6780,8 @@ main(int argc, char *argv[])
 			{"monitor",	no_argument,		NULL, 'm'},
 			{"replace",	no_argument,		NULL, 'r'},
 			{"quit",	no_argument,		NULL, 'q'},
+			{"assist",	no_argument,		NULL, 'a'},
 			{"guard",	required_argument,	NULL, 'g'},
-			{"assist",	no_argument,		NULL, 'A'},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -6779,10 +6793,10 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "mrqg:AD::v::hVCH?", long_options,
+		c = getopt_long_only(argc, argv, "mrqg:aD::v::hVCH?", long_options,
 				     &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "mrqg:ADvhVC?");
+		c = getopt(argc, argv, "mrqg:aDvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1) {
 			if (options.debug)
@@ -6792,12 +6806,22 @@ main(int argc, char *argv[])
 		switch (c) {
 		case 0:
 			goto bad_usage;
+		case 'a':	/* -a, --assist */
+			if (options.command != CommandDefault)
+				goto bad_command;
+			options.command = CommandAssist;
+			if (command == CommandDefault)
+				command = CommandAssist;
+			break;
 		case 'm':	/* -m, --monitor */
 			if (options.command != CommandDefault)
 				goto bad_command;
 			options.command = CommandMonitor;
 			if (command == CommandDefault)
 				command = CommandMonitor;
+			options.assist = False;
+			options.debug = 3;
+			options.output = 3;
 			break;
 		case 'r':	/* -r, --replace */
 			if (options.command != CommandDefault)
@@ -6823,9 +6847,6 @@ main(int argc, char *argv[])
 					goto bad_option;
 				options.guard = val;
 			}
-			break;
-		case 'A':	/* -A, --assist */
-			options.assist = options.assist ? False : True;
 			break;
 
 		case 'D':	/* -D, --debug [level] */
@@ -6895,7 +6916,7 @@ main(int argc, char *argv[])
 		goto bad_nonopt;
 	switch (command) {
 	case CommandDefault:
-	case CommandMonitor:
+	case CommandAssist:
 		if (!get_display())
 			exit(EXIT_FAILURE);
 		do_run(argc, argv);
@@ -6909,6 +6930,11 @@ main(int argc, char *argv[])
 		if (!get_display())
 			exit(EXIT_FAILURE);
 		do_quit(argc, argv);
+		break;
+	case CommandMonitor:
+		if (!get_display())
+			exit(EXIT_FAILURE);
+		do_monitor(argc, argv);
 		break;
 	case CommandHelp:
 		DPRINTF(1, "%s: printing help message\n", argv[0]);
