@@ -1,11 +1,49 @@
 @PACKAGE@ -- history of user-visible changes.  @DATE@
 
-Release @PACKAGE@-@VERSION@ released @DATE@
--------------------------------------------
+Release xdg-launch-1.1 released 2016-07-08
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.0...1.1
+
+Brian Bidulock <bidulock@openss7.org> (6):
+      remove unusable xdg-monitor.desktop file
+      always run xdg-assist in the foreground
+      updates to xdg-assist
+      create selection window for each screen at startup
+      update release files
+      automatically generate GNU NEWS file from git
+
+
+Release xdg-launch-1.0 released 2016-07-07
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 0.9...1.0
+
+Brian Bidulock <bidulock@openss7.org> (16):
+      rationalize xdg-assist, monitor, show
+      tweaks to xdg-assist, show, monitor
+      make assist more consistent with launch
+      big workup of startup notification monitoring
+      do expansion and substitution on command
+      working well now
+      major rework of launch tools
+      some tweaks and twerks
+      final updates for startup notification
+      remove useless xdg-monitor (see xde-monitor)
+      disable extra libraries by default
+      disable extra libraries by default
+      throw away extra libraries
+      remove useless xdg-show (use xdg-assist w/ options)
+      update README files
+      update release files
+
+
+Release xdg-launch-0.9 released 2016-06-27
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.8...0.9
 
-Brian Bidulock <bidulock@openss7.org> (36):
+Brian Bidulock <bidulock@openss7.org> (37):
       start documenting xdg-types
       working up xde-types manual page
       working up xde-types manual page
@@ -42,10 +80,11 @@ Brian Bidulock <bidulock@openss7.org> (36):
       rationalize xdg-assist and monitor
       only autostart xdg-assist
       update release files
+      update release files
 
 
-Release xdg-launch-0.8
-----------------------
+Release xdg-launch-0.8 released 2016-03-29
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.7...0.8
 
@@ -55,8 +94,8 @@ Brian Bidulock <bidulock@openss7.org> (3):
       update release files
 
 
-Release xdg-launch-0.7
-----------------------
+Release xdg-launch-0.7 released 2016-03-26
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.6...0.7
 
@@ -65,8 +104,8 @@ Brian Bidulock <bidulock@openss7.org> (2):
       update release files
 
 
-Release xdg-launch-0.6
-----------------------
+Release xdg-launch-0.6 released 2016-03-17
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.5...0.6
 
@@ -83,8 +122,8 @@ Brian Bidulock <bidulock@openss7.org> (10):
       update release files
 
 
-Release xdg-launch-0.5
-----------------------
+Release xdg-launch-0.5 released 2016-01-07
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.4...0.5
 
@@ -198,12 +237,11 @@ Brian Bidulock <bidulock@openss7.org> (107):
       updated NEWS file
 
 
-
-Release xdg-launch-0.4
-----------------------
+Release xdg-launch-0.4 released 2015-05-23
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.3...0.4
-'
+
 Brian Bidulock <bidulock@openss7.org> (20):
       split up files into subdirectories
       add in XDE run history and recent apps files
@@ -227,8 +265,8 @@ Brian Bidulock <bidulock@openss7.org> (20):
       clock ticked over during release
 
 
-Release xdg-launch-0.3
-----------------------
+Release xdg-launch-0.3 released 2014-09-12
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.2...0.3
 
@@ -239,8 +277,8 @@ Brian Bidulock <bidulock@openss7.org> (4):
       add fallback directory to xdg-which
 
 
-Release xdg-launch-0.2
-----------------------
+Release xdg-launch-0.2 released 2014-07-02
+------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.1...0.2
 
@@ -306,10 +344,12 @@ Brian Bidulock <bidulock@openss7.org> (59):
       my bad
 
 
-Release xdg-launch-0.1
-----------------------
+Release xdg-launch-0.1 released 2014-01-12
+------------------------------------------
 
-This is the initial development release of @PACKAGE@.
+git shortlog -e -n -w80,6,8 0.1
+
+Brian Bidulock <bidulock@openss7.org> (1):
+      initial commit
 
 
-# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:
