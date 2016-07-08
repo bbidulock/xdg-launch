@@ -36,5 +36,5 @@ THANKS: THANKS.in
 TODO: TODO.in
 	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
 
-dist_noinst_SCRIPTS = autogen.sh configure.sh rebuild.sh
+dist_noinst_SCRIPTS = gennews.sh autogen.sh configure.sh rebuild.sh
 
