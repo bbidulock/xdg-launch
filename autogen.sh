@@ -8,7 +8,7 @@ if [ -z "$VERSION" ]; then
 	VERSION='1.1'
 	if [ -x "`which git 2>/dev/null`" -a -d .git ]; then
 		VERSION=$(git describe --tags|sed 's,[-_],.,g;s,\.g.*$,,')
-		DATE=$(git show -s --format=%ci HEAD|awk '{print$1}')
+		DATE=$(git show -s --format=%ci HEAD^{commit}|awk '{print$1}')
 		(
 		   echo -e "# created with git log --stat=76 -M -C|fmt -sct -w80\n"
 		   git log --stat=76 -M -C|fmt -sct -w80
@@ -16,7 +16,7 @@ if [ -z "$VERSION" ]; then
 		(
 		   echo "@PACKAGE@ -- authors file.  @DATE@"
 		   echo ""
-		   git log|grep '^Author:'|awk '{if(!authors[$0]){print$0;authors[$0]=1;}}'|tac
+		   git log|grep '^Author:'|awk '{if(!authors[$0]){print$0;authors[$0]=1;}}'
 		)>AUTHORS.in
 		(
 		   echo "@PACKAGE@ -- history of user-visible changes.  @DATE@"

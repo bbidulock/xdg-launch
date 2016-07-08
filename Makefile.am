@@ -15,7 +15,13 @@ AUTHORS.in:
 	( \
 	  echo "\@PACKAGE\@ -- authors file. \@DATE\@" ; \
 	  echo "" ; \
-	  git log|grep '^Author:'|awk '{if(!authors[$$0]){print$$0;authors[$$0]=1;}}'|tac \
+	  git log|grep '^Author:'|awk '{if(!authors[$$0]){print$$0;authors[$$0]=1;}}' \
+	)>$@
+
+NEWS.in:
+	( \
+	  echo "\@PACKAGE\@ -- history of user-visible changes.  \@DATE\@" ; \
+	  PACKAGE="@PACKAGE@" $(srcdir)/gennews.sh \
 	)>$@
 
 README.md: README.md.in
