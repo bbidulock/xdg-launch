@@ -2610,6 +2610,8 @@ test_client(Client *c, Sequence *seq)
 	if (seq->f.id && startup_id) {
 		if (strcmp(startup_id, seq->f.id)) {
 			CPRINTF(1, c, "[tc] has different startup id %s\n", startup_id);
+			/* NOTE: it is an absolute negative if we have a startup id and
+			   don't match on it. */
 			return False;
 		} else {
 			CPRINTF(1, c, "[tc] has same startup id %s\n", startup_id);
@@ -2635,7 +2637,8 @@ test_client(Client *c, Sequence *seq)
 	if (seq->f.hostname && hostname) {
 		/* check exact and subdomain mismatch */
 		if (!samehost(seq->f.hostname, hostname)) {
-			CPRINTF(1, c, "[tc] has different hostname %s !~ %s\n", hostname, seq->f.hostname);
+			CPRINTF(1, c, "[tc] has different hostname %s !~ %s\n", hostname,
+				seq->f.hostname);
 			return False;
 		}
 		CPRINTF(1, c, "[tc] has comparable hostname %s ~ %s\n", hostname, seq->f.hostname);
@@ -2686,13 +2689,13 @@ test_client(Client *c, Sequence *seq)
 	}
 	if (seq->f.wmclass) {
 		if (res_name && !strcasecmp(seq->f.wmclass, res_name)) {
-			CPRINTF(1, c, "[tc] has comparable resource name: %s ~ %s\n", seq->f.wmclass,
-				res_name);
+			CPRINTF(1, c, "[tc] has comparable resource name: %s ~ %s\n",
+				seq->f.wmclass, res_name);
 			return True;
 		}
 		if (res_class && !strcasecmp(seq->f.wmclass, res_class)) {
-			CPRINTF(1, c, "[tc] has comparable resource class: %s ~ %s\n", seq->f.wmclass,
-				res_class);
+			CPRINTF(1, c, "[tc] has comparable resource class: %s ~ %s\n",
+				seq->f.wmclass, res_class);
 			return True;
 		}
 	} else
@@ -2811,6 +2814,11 @@ assist_client(Client *c, Sequence *seq)
 	}
 	c->seq = ref_sequence(seq);
 	seq->client = c->win;
+
+	/* Some clients will post windows with startup notification identifiers that have 
+	   long expired (such as roxterm).  Never assist a completed sequence. */
+	if (seq->state == StartupNotifyComplete)
+		return;
 
 	/* set up _NET_STARTUP_ID */
 	if (seq->f.id && !c->startup_id) {
@@ -2931,6 +2939,12 @@ setup_client(Client *c)
 	PTRACE(5);
 	if (!(seq = c->seq))
 		return;
+
+	/* Some clients will post windows with startup notification identifiers that have 
+	   long expired (such as roxterm).  Never setup a completed sequence. */
+	if (seq->state == StartupNotifyComplete)
+		return;
+
 	seq->client = c->win;
 	/* set up _NET_STARTUP_ID */
 	if (!c->startup_id && seq->f.id) {
@@ -3389,6 +3403,7 @@ update_client(Client *c)
 	    SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask;
 	Client *tmp = NULL;
 	Sequence *seq;
+	Bool mismatch = False;
 
 	if (!c->need_update) {
 		CPRINTF(1, c, "[uc] false alarm!\n");
@@ -3412,7 +3427,8 @@ update_client(Client *c)
 				CPRINTF(1, c, "[uc] WM_HINTS icon_window = 0x%08lx\n", c->icon_win);
 			}
 			if (XFindContext(dpy, c->icon_win, ClientContext, (XPointer *) &tmp)) {
-				CPRINTF(1, c, "[uc] WM_HINTS icon_window = 0x%08lx (new)\n", c->icon_win);
+				CPRINTF(1, c, "[uc] WM_HINTS icon_window = 0x%08lx (new)\n",
+					c->icon_win);
 				XSaveContext(dpy, c->icon_win, ScreenContext, (XPointer) scr);
 				XSaveContext(dpy, c->icon_win, ClientContext, (XPointer) c);
 				XSelectInput(dpy, c->icon_win, mask);
@@ -3437,7 +3453,8 @@ update_client(Client *c)
 	if (get_window(c->win, _XA_NET_WM_USER_TIME_WINDOW, XA_WINDOW, &c->time_win)) {
 		CPRINTF(1, c, "[uc] _NET_WM_USER_TIME_WINDOW = 0x%08lx\n", c->time_win);
 		if (XFindContext(dpy, c->time_win, ClientContext, (XPointer *) &tmp)) {
-			CPRINTF(1, c, "[uc] _NET_WM_USER_TIME_WINDOW = 0x%08lx (new)\n", c->time_win);
+			CPRINTF(1, c, "[uc] _NET_WM_USER_TIME_WINDOW = 0x%08lx (new)\n",
+				c->time_win);
 			XSaveContext(dpy, c->time_win, ScreenContext, (XPointer) scr);
 			XSaveContext(dpy, c->time_win, ClientContext, (XPointer) c);
 			XSelectInput(dpy, c->time_win, mask);
@@ -3446,7 +3463,7 @@ update_client(Client *c)
 	/* _NET_STARTUP_ID */
 	if ((c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID))) {
 		CPRINTF(1, c, "[uc] _NET_STARTUP_ID = \"%s\"\n", c->startup_id);
-		if (!c->seq) {
+		if (!c->seq && !mismatch) {
 			for (seq = sequences; seq; seq = seq->next) {
 				if (!seq->f.id)
 					continue;	/* safety */
@@ -3456,6 +3473,11 @@ update_client(Client *c)
 					break;
 				}
 			}
+			/* NOTE: if we have a startup_id and don't match it is an
+			   absolute negative.  Don't perform any further checks if we did 
+			   not match on an existing startup_id. */
+			if (!c->seq)
+				mismatch = True;
 		}
 	}
 	/* WM_CLIENT_MACHINE: determine the host on which the client runs */
@@ -3467,7 +3489,7 @@ update_client(Client *c)
 
 		c->pid = card;
 		CPRINTF(1, c, "[uc] _NET_WM_PID = %d\n", c->pid);
-		if (!c->seq && c->hostname) {
+		if (!c->seq && !mismatch && c->hostname) {
 			for (seq = sequences; seq; seq = seq->next) {
 				if (!seq->f.pid || c->pid != seq->n.pid)
 					continue;
@@ -3480,7 +3502,8 @@ update_client(Client *c)
 				}
 			}
 		}
-		if (!c->seq && islocalhost(c->hostname) && (str = get_proc_startup_id(c->pid))) {
+		if (!c->seq && !mismatch && islocalhost(c->hostname)
+		    && (str = get_proc_startup_id(c->pid))) {
 			for (seq = sequences; seq; seq = seq->next) {
 				if (!seq->f.id)
 					continue;
@@ -3490,12 +3513,17 @@ update_client(Client *c)
 					break;
 				}
 			}
+			/* NOTE: if we have a startup_id and don't match it is an
+			   absolute negative.  Don't perform any further checks if we did 
+			   not match on an existing startup_id. */
+			if (!c->seq)
+				mismatch = True;
 		}
 	}
 	/* WM_CLASS: determine the resource name and class */
 	if (XGetClassHint(dpy, c->win, &c->ch)) {
 		CPRINTF(1, c, "[uc] WM_CLASS = (%s,%s)\n", c->ch.res_name, c->ch.res_class);
-		if (!c->seq && (c->ch.res_name || c->ch.res_class)) {
+		if (!c->seq && !mismatch && (c->ch.res_name || c->ch.res_class)) {
 			for (seq = sequences; seq; seq = seq->next) {
 				if (!seq->f.wmclass)
 					continue;
@@ -3515,7 +3543,7 @@ update_client(Client *c)
 		CPRINTF(1, c, "[uc] _NET_WM_USER_TIME = %lu\n", time);
 		pushtime(&c->user_time, time);
 		pushtime(&last_user_time, c->user_time);
-		if (!c->seq && c->user_time) {
+		if (!c->seq && !mismatch && c->user_time) {
 			for (seq = sequences; seq; seq = seq->next) {
 				if (!seq->f.timestamp)
 					continue;
@@ -3530,7 +3558,7 @@ update_client(Client *c)
 	/* WM_COMMAND */
 	if (XGetCommand(dpy, c->win, &c->command, &c->count)) {
 		CPRINTF(1, c, "[uc] WM_COMMAND = %s\n", show_command(c->command, c->count));
-		if (!c->seq && c->command) {
+		if (!c->seq && !mismatch && c->command) {
 			for (seq = sequences; seq; seq = seq->next) {
 				wordexp_t we = { 0, };
 
@@ -3558,7 +3586,7 @@ update_client(Client *c)
 
 	}
 	/* _NET_STARTUP_INFO BIN= field */
-	if (!c->seq && c->pid && c->hostname && islocalhost(c->hostname)) {
+	if (!c->seq && !mismatch && c->pid && c->hostname && islocalhost(c->hostname)) {
 		for (seq = sequences; seq; seq = seq->next) {
 			char *str;
 
@@ -3624,10 +3652,6 @@ update_client(Client *c)
 	/* _NET_WM_DESKTOP or _WIN_WORKSPACE */
 	if (get_cardinal(c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &card))
 		c->desktop = card + 1;
-	if (!c->desktop)
-		if (get_cardinal(c->win, _XA_WIN_WORKSPACE, AnyPropertyType, &card))
-			c->desktop = card + 1;
-
 	if (c->need_update) {
 		c->need_update = False;
 		need_updates--;
@@ -5102,7 +5126,7 @@ pc_handle_NET_WM_DESKTOP(XPropertyEvent *e, Client *c)
 	if (c->desktop && (!old || old != c->desktop)) {
 		if (old)
 			CPRINTF(1, c, "[pc] _NET_WM_DESKTOP was %ld\n", old - 1);
-		CPRINTF(1, c, "[pc] _NET_WM_DESKTOP = %d\n", c->desktop);
+		CPRINTF(1, c, "[pc] _NET_WM_DESKTOP = %d\n", c->desktop - 1);
 		/* TODO: check if this actually matches sequence if any */
 	}
 }
