@@ -1,5 +1,0 @@
-@PACKAGE@ -- acknowledgements file.  @DATE@
-
-Thanks to freedesktop.org for their excellent specifications.
-
-# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:

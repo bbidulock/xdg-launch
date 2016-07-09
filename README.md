@@ -1,3 +1,4 @@
+<!--| xdg-launch -- readme me first file.  2016-07-08 |-->
 
 ## xdg-launch
 
@@ -21,9 +22,7 @@ This is the `xdg-launch-1.2` package, released 2016-07-08.  This release,
 and the latest version, can be obtained from the GitHub repository at
 https://github.com/bbidulock/xdg-launch, using a command such as:
 
-```bash
-git clone https://github.com/bbidulock/xdg-launch.git
-```
+    git clone https://github.com/bbidulock/xdg-launch.git
 
 Please see the [NEWS](NEWS) file for release notes and history of user visible
 changes for the current version, and the [ChangeLog](ChangeLog) file for a more
@@ -39,19 +38,18 @@ appears below.
 This release is published under the GPL license that can be found in
 the file [COPYING](COPYING).
 
+
 ### Quick Start:
 
 The quickest and easiest way to get xdg-launch up and running is to run
 the following commands:
 
-```bash
-git clone https://github.com/bbidulock/xdg-launch.git xdg-launch
-cd xdg-launch
-./autogen.sh
-./configure --prefix=/usr --sysconfdir=/etc
-make V=0
-make DESTDIR="$pkgdir" install
-```
+    $> git clone https://github.com/bbidulock/xdg-launch.git xdg-launch
+    $> cd xdg-launch
+    $> ./autogen.sh
+    $> ./configure --prefix=/usr --sysconfdir=/etc
+    $> make V=0
+    $> make DESTDIR="$pkgdir" install
 
 This will configure, compile and install xdg-launch the quickest.  For
 those who would like to spend the extra 15 seconds reading `./configure
@@ -59,6 +57,7 @@ those who would like to spend the extra 15 seconds reading `./configure
 build.
 
 For general information on GNU's `./configure`, see the file [INSTALL](INSTALL).
+
 
 ### Running xdg-launch
 
@@ -118,3 +117,4 @@ the XDG desktop:
 
 Report issues to https://github.com/bbidulock/xdg-launch/issues.
 
+<!--| vim: set ft=markdown tw=72 nocin nosi fo+=tcqlorn: |-->

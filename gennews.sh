@@ -28,7 +28,7 @@ for o in $(git tag --sort=-creatordate) ""; do
 	title="Release ${PACKAGE}-$version released $date"
 	under=$(echo "$title"|sed 's,.,-,g')
 	cmd="git shortlog -e -n -w80,6,8 ${o}${o:+...}${t}"
-	echo -e "\n$title\n$under\n\n$cmd\n$(eval $cmd)\n"
+	echo -e "\n$title\n$under\n\n$cmd\n\n$(eval $cmd)\n"
 	t="$o"
 done
 

@@ -1,7 +1,6 @@
-xdg-launch -- read me first file.  2016-07-08
+<!--| xdg-launch -- readme me first file.  2016-07-08 |-->
 
-xdg-launch
-==========
+## xdg-launch
 
 Package xdg-launch-1.2 was released under GPL license 2016-07-08.
 
@@ -16,33 +15,31 @@ launched using the keyboard or root menu.  The source is hosted on
 just the xdg-launch program and manual page, as well as a handfull of
 wrapper scripts.
 
-Release
--------
+
+### Release
 
 This is the `xdg-launch-1.2` package, released 2016-07-08.  This release,
 and the latest version, can be obtained from the GitHub repository at
 https://github.com/bbidulock/xdg-launch, using a command such as:
 
-    $> git clone http://github.com/bbidulock/xdg-launch.git
+    git clone https://github.com/bbidulock/xdg-launch.git
 
-
-
-Please see the `NEWS' file for release notes and history of user visible
-changes for the current version, and the `ChangeLog' file for a more
-detailed history of implementation changes.  The `TODO' file lists
+Please see the [NEWS](NEWS) file for release notes and history of user visible
+changes for the current version, and the [ChangeLog](ChangeLog) file for a more
+detailed history of implementation changes.  The [TODO](TODO) file lists
 features not yet implemented and other outstanding items.
 
-Please see the `INSTALL' file for installation instructions.
+Please see the [INSTALL](INSTALL) file for installation instructions.
 
 When working from `git(1)', follow the instructions in this file.  An
 abbreviated installation procedure that works for most applications
 appears below.
 
 This release is published under the GPL license that can be found in
-the file `COPYING'.
+the file [COPYING](COPYING).
 
-Quick Start:
-------------
+
+### Quick Start:
 
 The quickest and easiest way to get xdg-launch up and running is to run
 the following commands:
@@ -50,7 +47,7 @@ the following commands:
     $> git clone https://github.com/bbidulock/xdg-launch.git xdg-launch
     $> cd xdg-launch
     $> ./autogen.sh
-    $> ./configure --prefix=/usr --mandir=/usr/share/man
+    $> ./configure --prefix=/usr --sysconfdir=/etc
     $> make V=0
     $> make DESTDIR="$pkgdir" install
 
@@ -59,10 +56,11 @@ those who would like to spend the extra 15 seconds reading `./configure
 --help`, some compile time options can be turned on and off before the
 build.
 
-For general information on GNU's `./configure`, see the file `INSTALL'.
+For general information on GNU's `./configure`, see the file
+[INSTALL](INSTALL).
 
-Running xdg-launch
------------------
+
+### Running xdg-launch
 
 Read the manual page after installation:
 
@@ -92,9 +90,9 @@ The following programs are included in xdg-launch:
 - xdg-which(1), xdg-whereis(1) -- Two little programs what parallel
   which(1) and whereis(1) for desktop entry files instead of binaries.
 
-- xdg-monitor(1) -- A program to monitor startup notification and
+- xdg-assist(1) -- A program to monitor startup notification and
   provide notification as programs start up and performs startup
-  notification completion of applications that do not complete.  This
+  notification completion of applications that do not complete.
   It also assists window managers with supporting startup notification
   and other EWMH/NetWM features.
 
@@ -116,9 +114,8 @@ the XDG desktop:
   or mime type.
 
 
-Issues
-------
+### Issues
 
-Report issues to (http://github.com/bbidulock/xdg-launch/issues).
+Report issues to https://github.com/bbidulock/xdg-launch/issues.
 
-# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:
+<!--| vim: set ft=markdown tw=72 nocin nosi fo+=tcqlorn: |-->

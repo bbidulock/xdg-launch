@@ -1,0 +1,2797 @@
+# created with git log --stat=76 -M -C|fmt -sct -w80
+
+commit 93f69fe214f7b71d9331e5ad3ef5a9a7dc22ddb5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jul 8 16:54:12 2016 -0600
+
+    update release files
+
+ NEWS.in   | 32 +++++++++++---------------------
+ README    |  4 ++--
+ README.md |  4 ++--
+ 3 files changed, 15 insertions(+), 25 deletions(-)
+
+commit 7406f39a4bf4b0348af112a244ee9f2382a9af3b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jul 8 16:48:39 2016 -0600
+
+    better automatic log generation
+
+ Makefile.am |  8 +++++++-
+ autogen.sh  |  4 ++--
+ gennews.sh  | 47 ++++++++++++++++++++++-------------------------
+ 3 files changed, 31 insertions(+), 28 deletions(-)
+
+commit 285c5dad6da1b02ff819a0b1e120cab4a319605c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jul 8 13:59:05 2016 -0600
+
+    be pedantic about startup id mismatches
+
+ src/xdg-assist.c | 62 ++++++++++++++++++++++++++++++++++++----------------
+ src/xdg-launch.c | 62 ++++++++++++++++++++++++++++++++++++----------------
+ 2 files changed, 86 insertions(+), 38 deletions(-)
+
+commit 01dfa838e7b9025611e189c8f9c3134a60aaa12c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jul 8 04:40:33 2016 -0600
+
+    update release files
+
+ NEWS.in   | 86 +++++++++++++++++++++++++++++++++++++++++++----------------
+ README    |  6 ++---
+ README.md |  4 +--
+ THANKS    |  2 +-
+ TODO      |  2 +-
+ 5 files changed, 70 insertions(+), 30 deletions(-)
+
+commit 29f3adb684f785399717c1c6dbfdbeec6637a2aa
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jul 8 04:35:21 2016 -0600
+
+    automatically generate GNU NEWS file from git
+
+ Makefile.am |  2 +-
+ autogen.sh  |  6 +++++-
+ gennews.sh  | 37 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 43 insertions(+), 2 deletions(-)
+
+commit 66ea21f5db4d269e589f69adfca632d32f27b772
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jul 8 02:25:23 2016 -0600
+
+    update release files
+
+ README    | 4 ++--
+ README.md | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+commit 39f9c306500910d0e59e3805ed986e0ff057570a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 17:03:38 2016 -0600
+
+    create selection window for each screen at startup
+
+    - the behaviour of creating a window to send a
+      startup new: message and then destroying it confuses
+      some of my other programs because it cannot find a
+      screen for the window
+
+    - creating it at startup and letting it die with the
+      program is a superior approach.
+
+ src/xdg-launch.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit c938770b62285080762ee838cc2f15bfb746b372
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 16:56:00 2016 -0600
+
+    updates to xdg-assist
+
+    - remove foreground option
+    - always runs in the foreground
+    - change the meanings of --monitor and --assist
+    - make --assist the command default'
+    - --monitor will set debug and output levels to 3
+    - updated manual page
+
+ man/xdg-assist.pod | 53 ++++++++++++++++++++++---------
+ src/xdg-assist.c   | 84 +++++++++++++++++++++++++++++++++-----------------
+ 2 files changed, 94 insertions(+), 43 deletions(-)
+
+commit 6bdeaec464d79b6489f51fdc16ae607fffb76e46
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 16:17:24 2016 -0600
+
+    always run xdg-assist in the foreground
+
+ src/xdg-assist.c | 43 ++-----------------------------------------
+ 1 file changed, 2 insertions(+), 41 deletions(-)
+
+commit b13f0adaa3318b76e2f8a067cbdc0bc5fef159d5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 08:10:28 2016 -0600
+
+    remove unusable xdg-monitor.desktop file
+
+ data/Makefile.am         |  1 -
+ data/xdg-monitor.desktop | 14 --------------
+ 2 files changed, 15 deletions(-)
+
+commit ff0f8571176a64b0a4b3bce8250c213fa236554e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 07:55:15 2016 -0600
+
+    update release files
+
+ README    | 66 ++++++++++++++++++++++++++++++++++++++++-------------------
+ README.md | 58 ++++++++++++++++++++++++++++++++++++++++++++++-----
+ THANKS    |  2 +-
+ TODO      |  2 +-
+ 4 files changed, 100 insertions(+), 28 deletions(-)
+
+commit 71f3320f929c8c1931b2c8288bed67f89de9f4f2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 07:51:08 2016 -0600
+
+    update README files
+
+ README.in    | 64 ++++++++++++++++++++++++++++++++++++++------------------
+ README.md.in | 54 ++++++++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 95 insertions(+), 23 deletions(-)
+
+commit f1ab8adf53b523252564e476192fffb0d472d325
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 07:27:28 2016 -0600
+
+    remove useless xdg-show (use xdg-assist w/ options)
+
+ .gitignore       |    2 -
+ man/Makefile.am  |    2 -
+ man/xdg-show.pod |  137 -
+ src/Makefile.am  |    8 +-
+ src/xdg-show.c   | 6971 --------------------------------------------------
+ 5 files changed, 1 insertion(+), 7119 deletions(-)
+
+commit 3c083cb33ac01f05b0bfc23ddfa9ef065f0dabb0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 07:24:01 2016 -0600
+
+    throw away extra libraries
+
+ configure.template |  38 +---
+ src/Makefile.am    |  17 +-
+ src/xdg-assist.c   | 528 ++----------------------------------------------
+ src/xdg-launch.c   | 155 ++------------
+ src/xdg-show.c     | 534 ++-----------------------------------------------
+ 5 files changed, 68 insertions(+), 1204 deletions(-)
+
+commit 89bc391f8b3032576810953b3abc19c905d4823e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 06:43:39 2016 -0600
+
+    disable extra libraries by default
+
+ configure.template | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+commit 7c46b59817d8a6ff1aa753c90549b772afb1090f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 06:41:54 2016 -0600
+
+    disable extra libraries by default
+
+ configure.template | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit aa7c6365143070a90f0394f4f9f36f08ccfbe95d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 06:38:42 2016 -0600
+
+    remove useless xdg-monitor (see xde-monitor)
+
+ .gitignore          |    2 -
+ man/Makefile.am     |    2 -
+ man/xdg-monitor.pod |  218 --
+ src/Makefile.am     |    6 -
+ src/xdg-monitor.c   | 7461 -----------------------------------------------
+ 5 files changed, 7689 deletions(-)
+
+commit ed5e95b6e076f49fcf075816360bffc2f9d08788
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 7 06:35:30 2016 -0600
+
+    final updates for startup notification
+
+ src/xdg-assist.c  | 607 +++++++++++++++++++++++++++++-------------
+ src/xdg-launch.c  | 717 ++++++++++++++++++++++++++++++++++----------------
+ src/xdg-monitor.c | 607 +++++++++++++++++++++++++++++-------------
+ src/xdg-show.c    | 613 +++++++++++++++++++++++++++++-------------
+ 4 files changed, 1779 insertions(+), 765 deletions(-)
+
+commit c16310693b97f38af48e2a03f1bfcf97dfab3a09
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jul 6 13:53:08 2016 -0600
+
+    some tweaks and twerks
+
+ src/xdg-assist.c  | 2 +-
+ src/xdg-launch.c  | 2 +-
+ src/xdg-monitor.c | 2 +-
+ src/xdg-show.c    | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+commit b52a3e82b8d097f5815e8dbb62eee58d109673d3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jul 6 13:41:36 2016 -0600
+
+    major rework of launch tools
+
+ src/xdg-assist.c  |  1719 +++++---
+ src/xdg-launch.c  | 10278 +++++++++++++++++++++++++++++-------------------
+ src/xdg-monitor.c |  1731 +++++---
+ src/xdg-show.c    |  1982 ++++++----
+ 4 files changed, 9661 insertions(+), 6049 deletions(-)
+
+commit 52133798a15a286bb89ba4639a39d7bb47294aed
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jul 5 13:01:08 2016 -0600
+
+    working well now
+
+ src/xdg-assist.c  | 1889 ++++++++++++++++++++++++++----------------------
+ src/xdg-monitor.c | 1889 ++++++++++++++++++++++++++----------------------
+ src/xdg-show.c    | 1903 +++++++++++++++++++++++++++----------------------
+ 3 files changed, 3163 insertions(+), 2518 deletions(-)
+
+commit 51328970f45c3aa3b976c83ded860286fcde3ed2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jul 2 12:58:08 2016 -0600
+
+    do expansion and substitution on command
+
+ src/xdg-launch.c | 47 +++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 39 insertions(+), 8 deletions(-)
+
+commit af96fb4585f2c8d19896ab5c5bc0cbaad5f303f0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jul 2 12:45:08 2016 -0600
+
+    big workup of startup notification monitoring
+
+ src/xdg-assist.c  | 963 +++++++++++++++++++++++++++++++++++++++++++++-----
+ src/xdg-launch.c  | 668 ++++++++++++++++++++++++++--------
+ src/xdg-monitor.c | 961 +++++++++++++++++++++++++++++++++++++++++++++----
+ src/xdg-show.c    | 961 +++++++++++++++++++++++++++++++++++++++++++++----
+ 4 files changed, 3171 insertions(+), 382 deletions(-)
+
+commit 806ee5e4e6af3f3d902ca7772929bf8240205e8b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 29 14:43:02 2016 -0600
+
+    make assist more consistent with launch
+
+ src/xdg-assist.c  | 225 ++++++++++++++-----
+ src/xdg-launch.c  | 599 +++++++++++++++++++++++++++++---------------------
+ src/xdg-monitor.c | 207 ++++++++++++-----
+ src/xdg-show.c    | 207 ++++++++++++-----
+ 4 files changed, 833 insertions(+), 405 deletions(-)
+
+commit 0cd90b7c38920e3d86a7fa1cee3fd87bba960e03
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 28 14:25:47 2016 -0600
+
+    tweaks to xdg-assist, show, monitor
+
+ src/xdg-assist.c  | 122 ++++++++++++++++++++++++++++++++++++++++++++++----
+ src/xdg-monitor.c | 122 ++++++++++++++++++++++++++++++++++++++++++++++----
+ src/xdg-show.c    | 122 ++++++++++++++++++++++++++++++++++++++++++++++----
+ 3 files changed, 342 insertions(+), 24 deletions(-)
+
+commit 1a99477a93ffad2410c4f2d9e8e911754892d2bd
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 28 10:49:29 2016 -0600
+
+    rationalize xdg-assist, monitor, show
+
+ src/xdg-assist.c  |  477 ++++++++++++++++++-----
+ src/xdg-launch.c  |    6 +-
+ src/xdg-monitor.c |  453 +++++++++++++++++-----
+ src/xdg-show.c    | 1006 ++++++++++++++++++++++++++++++++++---------------
+ 4 files changed, 1434 insertions(+), 508 deletions(-)
+
+commit 026cc0bdfecd54da79c4a2ba37b1a08c3f58b9cc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 27 15:36:34 2016 -0600
+
+    update release files
+
+ NEWS.in   | 10 ++++++++--
+ README    |  4 ++--
+ README.md |  4 ++--
+ 3 files changed, 12 insertions(+), 6 deletions(-)
+
+commit 7f169c1728ba4b63cdc16d9430509e1001d7f0a7
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 27 15:18:07 2016 -0600
+
+    update release files
+
+ README    | 6 +++---
+ README.md | 4 ++--
+ THANKS    | 2 +-
+ TODO      | 2 +-
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+
+commit 34ff074a49c9d07d523ef72e159c637a42827a33
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 27 15:15:56 2016 -0600
+
+    only autostart xdg-assist
+
+ data/Makefile.am | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit e3da08e2567f5550b1e6d74b3864303020ce1f16
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 27 15:15:43 2016 -0600
+
+    rationalize xdg-assist and monitor
+
+ src/Makefile.am   |    4 +-
+ src/xdg-assist.c  | 4328 +++++++++++++++++++++++++++++++++++++++----------
+ src/xdg-monitor.c |  654 +++++---
+ 3 files changed, 3912 insertions(+), 1074 deletions(-)
+
+commit 4db2cd38e765a0d5f4dfba2c6a8424e958e9122b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 18 23:22:01 2016 -0600
+
+    working up manpage
+
+ man/xdg-prefs.pod | 363 ++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 325 insertions(+), 38 deletions(-)
+
+commit d5ee1261c56ea6feafc6c87fa5be2cf1699f7f3e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Apr 26 12:00:00 2016 -0600
+
+    document mime types and categories
+
+ man/xdg-launch.pod | 45 +++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 41 insertions(+), 4 deletions(-)
+
+commit e850550d4b13d8a8a136f649fd2e71d06c517865
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 25 12:00:00 2016 -0600
+
+    update NEWS
+
+ NEWS.in | 85 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 82 insertions(+), 3 deletions(-)
+
+commit 0098d7c64c52dd0e3d9355ada161c0e3ea6e8d9f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Apr 13 02:45:02 2016 -0600
+
+    more doc updates
+
+ AUTHORS.in        |   1 +
+ README            |   6 +-
+ README.md         |   4 +-
+ THANKS            |   2 +-
+ TODO              |   2 +-
+ man/xdg-prefs.pod | 396 ++++++++++++++++++++++++++++++++++++++++++++++----
+ 6 files changed, 377 insertions(+), 34 deletions(-)
+
+commit 25d25b302211b1c80c4dcd558a2aba290ebf84e5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Apr 12 14:11:44 2016 -0600
+
+    more category updates
+
+ AUTHORS.in        |  1 -
+ man/xdg-prefs.pod | 63 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 63 insertions(+), 1 deletion(-)
+
+commit e5b74fac7ee22ae19b9e65c4239cfe8fc8998e38
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Apr 12 06:09:32 2016 -0600
+
+    more category documentation
+
+ man/xdg-prefs.pod | 347 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 346 insertions(+), 1 deletion(-)
+
+commit acdbe9ca9d18c43968852adc6909e4543461f2ee
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Apr 12 05:47:49 2016 -0600
+
+    more category descriptions
+
+ man/xdg-prefs.pod | 51 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 50 insertions(+), 1 deletion(-)
+
+commit 0afff00f828bf897d6b9ba01431c0139830d4134
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 23:44:30 2016 -0600
+
+    document categories
+
+ man/xdg-prefs.pod | 321 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 290 insertions(+), 31 deletions(-)
+
+commit ffe31e9b1ed9bf977f166c286263d9abf505e0d8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 23:01:49 2016 -0600
+
+    conditionally compile tools requiring gio-unix-2.0
+
+ README             |  4 ++--
+ README.md          |  4 ++--
+ configure.template |  7 +++++++
+ man/Makefile.am    |  6 +++++-
+ src/Makefile.am    | 15 +++++++++++----
+ 5 files changed, 27 insertions(+), 9 deletions(-)
+
+commit 9558dd89c42cf78419ad5192513809e39932f9fa
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 22:48:24 2016 -0600
+
+    fill out xdg-find functions
+
+ README          |  6 ++--
+ README.md       |  4 +--
+ THANKS          |  2 +-
+ TODO            |  2 +-
+ src/xdg-find.c  | 88 ++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ src/xdg-prefs.c |  2 ++
+ 6 files changed, 96 insertions(+), 8 deletions(-)
+
+commit 9f692abe21e9c75fa42cde482f99f095cf2d6afe
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 07:05:56 2016 -0600
+
+    working up xdg-prefs
+
+ src/xdg-prefs.c | 85 +++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 83 insertions(+), 2 deletions(-)
+
+commit 9fe5845d1192b4151953a01f94dab73f0d10b35d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 06:28:46 2016 -0600
+
+    working up xdg-prefs
+
+ man/xdg-prefs.pod | 119 ++++++++++++-
+ src/Makefile.am   |   8 +-
+ src/xdg-prefs.c   | 474 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 592 insertions(+), 9 deletions(-)
+
+commit c426fb43b14c5df8c9c30cdf9f5ee1425cad73f8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 01:27:57 2016 -0600
+
+    working up xdg-find app
+
+ man/xdg-find.pod  |   4 +
+ man/xdg-prefs.pod |  58 +++++
+ man/xdg-which.pod |   2 +
+ src/Makefile.am   |   8 +-
+ src/xdg-find.c    | 686 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 757 insertions(+), 1 deletion(-)
+
+commit ef492c5db66630914df3611116c8c684e369cd16
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 00:38:10 2016 -0600
+
+    building up xdg-find documentation
+
+ man/xdg-find.pod | 23 +++++++++++++++++++----
+ 1 file changed, 19 insertions(+), 4 deletions(-)
+
+commit 49be8565e44c348a20e5bf02526efe7ddd2758c5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 00:30:32 2016 -0600
+
+    not limitations
+
+ man/xdg-find.pod  | 62 +++++++++++++++++++++++++++++++++++++++++++++++----
+ man/xdg-which.pod |  8 +++----
+ 2 files changed, 62 insertions(+), 8 deletions(-)
+
+commit 19e5fa22655001cd848bc6ad90acdd62e0d94fc7
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 00:19:58 2016 -0600
+
+    not limitations
+
+ man/xdg-find.pod | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+commit 6bc9d3a514ef47d351b7a3c9ac8da649b8f72b67
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 00:18:34 2016 -0600
+
+    working up tool docs
+
+ .gitignore        |   2 +
+ man/Makefile.am   |   6 ++-
+ man/xdg-find.pod  | 109 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ man/xdg-prefs.pod |  70 ++++++++++++++++++++++++++++++--
+ 4 files changed, 181 insertions(+), 6 deletions(-)
+
+commit 203d6490083f1622768772b9bd75ed40cfb34f6d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 11 00:01:30 2016 -0600
+
+    working up manpage
+
+ man/xdg-prefs.pod | 54 +++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 50 insertions(+), 4 deletions(-)
+
+commit 117869e82714b008c266c04442acfd2dd8b9b4b4
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 23:18:26 2016 -0600
+
+    document xdg-prefs tool
+
+ .gitignore        |  2 ++
+ man/Makefile.am   |  6 ++--
+ man/xdg-prefs.pod | 83 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 89 insertions(+), 2 deletions(-)
+
+commit 571bcca6d530bd425884bd18981d9811d68f2756
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 22:52:08 2016 -0600
+
+    update TODO
+
+ TODO | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 39e21f8f3fe3ecd3af5206c5f871865cd7433806
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 22:51:42 2016 -0600
+
+    document todo
+
+ TODO.in | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit c4e3e724881edff8ce7c1187baeb60a8b4effb86
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 22:50:14 2016 -0600
+
+    update usage output
+
+ src/xdg-types.c |  8 ++++----
+ src/xdg-which.c | 10 ++++++----
+ 2 files changed, 10 insertions(+), 8 deletions(-)
+
+commit c722d9d44ea65c67c5b7c8577a7f4c607f39d8a9
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 22:47:34 2016 -0600
+
+    option updates
+
+ man/xdg-types.pod | 24 ++++++++++++++++++++----
+ man/xdg-which.pod | 15 ++++++++++-----
+ 2 files changed, 30 insertions(+), 9 deletions(-)
+
+commit 9200098bd61e67881e0ecea2c0eb80c0b33c5e98
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 19:38:25 2016 -0600
+
+    use gio to output types if available
+
+ README             |  4 ++--
+ README.md          |  4 ++--
+ configure.template |  6 +++---
+ src/Makefile.am    |  4 ++++
+ src/xdg-types.c    | 15 +++++++++++++++
+ src/xdg-which.c    | 15 +++++++++++++++
+ 6 files changed, 41 insertions(+), 7 deletions(-)
+
+commit cb6cffc74dac2db745253a56468820e2d1fb7c86
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 19:08:41 2016 -0600
+
+    check for gio/glib2 anyway
+
+ README             |  6 +++---
+ README.md          |  4 ++--
+ THANKS             |  2 +-
+ TODO               |  2 +-
+ configure.template | 11 +++++++++++
+ 5 files changed, 18 insertions(+), 7 deletions(-)
+
+commit 04de89f90057e6b0e5a25aebc007b31b1cffad80
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 19:00:03 2016 -0600
+
+    working up mime output
+
+ src/xdg-types.c | 7 +++++++
+ src/xdg-which.c | 7 +++++++
+ 2 files changed, 14 insertions(+)
+
+commit ae6be5f45d4a4d624438838cece29955bfb51737
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:58:15 2016 -0600
+
+    overload xdg-which too
+
+ src/xdg-types.c | 24 +++++++++++++++---------
+ src/xdg-which.c | 12 +++++++++---
+ 2 files changed, 24 insertions(+), 12 deletions(-)
+
+commit 1f20c6d8c62bb81d01e2c6566eda2c2c3c39ce6d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:46:35 2016 -0600
+
+    first cut of xdg-types
+
+ .gitignore      |   1 +
+ src/Makefile.am |   6 +-
+ src/xdg-types.c | 906 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 912 insertions(+), 1 deletion(-)
+
+commit 3df2c149777001aff4f468b9bb214fed130cc9c2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:39:28 2016 -0600
+
+    add examples to xdg-which
+
+ man/xdg-which.pod | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+commit 8900e8aa47163beb1a67f8f0211c9a21f2dbe1ea
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:32:06 2016 -0600
+
+    working up xde-types manual page
+
+ man/xdg-types.pod | 42 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 42 insertions(+)
+
+commit 029194757fe6cd50ff0c0e898b26cef7179bbf6a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:31:21 2016 -0600
+
+    working up xde-types manual page
+
+ man/xdg-types.pod | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+commit 85fccb49db34a0ae4ccd1300991790f08f5efbf7
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:30:46 2016 -0600
+
+    working up xde-types manual page
+
+ man/xdg-types.pod | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+commit ffe430fd9d14e6214470a57ed8f99ec941757adf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 10 18:30:00 2016 -0600
+
+    start documenting xdg-types
+
+ .gitignore        |  1 +
+ man/Makefile.am   |  6 ++--
+ man/xdg-types.pod | 89 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 94 insertions(+), 2 deletions(-)
+
+commit a7edfd0267aee74c8bb24bf968474bb429d559ab
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Mar 29 16:28:30 2016 -0600
+
+    update release files
+
+ README    |  6 +++---
+ README.md | 12 ++++++++----
+ THANKS    |  2 +-
+ TODO      |  2 +-
+ 4 files changed, 13 insertions(+), 9 deletions(-)
+
+commit 3804c2ec1e0a66e7a57b0d0aeac447f5952e4051
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Mar 29 16:26:00 2016 -0600
+
+    update README.md
+
+ README.md.in | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+commit ae8b1f48fca86e0f56d6e7b8346f70e2372b0014
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Mar 27 17:27:29 2016 -0600
+
+    add guard timer
+
+ man/xdg-launch.pod | 27 ++++++++++++++-------
+ src/xdg-launch.c   | 64 ++++++++++++++++++++++++++++++++++++--------------
+ 2 files changed, 64 insertions(+), 27 deletions(-)
+
+commit 569dfbbd56b65c59f700f996adfb4ab81aeb4c0f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Mar 26 07:51:30 2016 -0600
+
+    update release files
+
+ README    | 6 +++---
+ README.md | 4 ++--
+ THANKS    | 2 +-
+ TODO      | 2 +-
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+
+commit 799f3a2935e4b66ef4b4cae0598dfcc083eba33e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Mar 26 07:45:15 2016 -0600
+
+    add wait for audio server
+
+ man/xdg-launch.pod |  6 +++++
+ src/xdg-launch.c   | 71 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 70 insertions(+), 7 deletions(-)
+
+commit c88a35e2471fece0c9b7ca048994ca0e28bac182
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Mar 17 22:19:52 2016 -0600
+
+    update release files
+
+ README    | 6 +++---
+ README.md | 4 ++--
+ THANKS    | 2 +-
+ TODO      | 2 +-
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+
+commit 6739258be6f85f8721568c06b1011dc9b66cc471
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Mar 17 22:17:36 2016 -0600
+
+    add options to documentation
+
+ man/xdg-list.pod | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+commit 9df949dc2657e7b2929b9dde40dd082cea04d38a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Mar 17 22:17:21 2016 -0600
+
+    support all option
+
+ src/xdg-list.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+commit fff828d37ed973e8974fb24c6f6f8cb8a5931340
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Mar 17 22:07:52 2016 -0600
+
+    document output of xdg-list
+
+ man/xdg-list.pod | 50 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 50 insertions(+)
+
+commit 62a9062a2330df7cedf70d8de8846266b569fc49
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Mar 17 22:07:31 2016 -0600
+
+    list in wrong place
+
+ src/xdg-list.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+commit 9eee4898ef2c15bc0dddbd86aabab1de3bed9e05
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Mar 17 12:24:49 2016 -0600
+
+    first working xdg-list
+
+ README          |   6 +-
+ README.md       |   4 +-
+ THANKS          |   2 +-
+ TODO            |   2 +-
+ src/xdg-list.c  | 277 ++++++++++++++++++++++++++++++++++++++++++++++------
+ src/xdg-which.c |   1 +
+ 6 files changed, 253 insertions(+), 39 deletions(-)
+
+commit 76ab67df26277c76661a75455531efcb12cf028c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Mar 16 10:57:51 2016 -0600
+
+    add xdg-list program
+
+ src/Makefile.am |   4 +
+ src/xdg-list.c  | 901 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 905 insertions(+)
+
+commit d8f8be9a2d40c9a3baf40472c48c7ef41ac24955
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Mar 16 10:16:16 2016 -0600
+
+    correct printf type
+
+ src/xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 2f71a7d123ccb22a1e38cbfe84282b4c6abc542c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Mar 15 23:28:00 2016 -0600
+
+    add xdg-list manual page
+
+ .gitignore       |   2 +
+ README           |   6 +--
+ README.md        |   4 +-
+ THANKS           |   2 +-
+ TODO             |   2 +-
+ man/Makefile.am  |   6 ++-
+ man/xdg-list.pod | 129 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 142 insertions(+), 9 deletions(-)
+
+commit 2ef95ce272c5e511bf07258cd7b8adb7626df299
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Feb 14 01:39:16 2016 -0700
+
+    minor update to build system
+
+ Makefile.am  |  5 ++++-
+ README.md    | 68 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ README.md.in | 68 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ autogen.sh   | 24 +++++++++++---------
+ configure.sh |  8 +++----
+ rebuild.sh   |  4 ++--
+ 6 files changed, 160 insertions(+), 17 deletions(-)
+
+commit c6c3ba21c64ca27a200bc9a01e86ac086fe64d5f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 22:39:18 2016 -0700
+
+    updated NEWS file
+
+ NEWS.in | 221 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 221 insertions(+)
+
+commit 6ab358d4d01f9693544bdd7439855f0b3a6f63b4
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 22:30:49 2016 -0700
+
+    adjust paths in scripts for distcheck
+
+ src/xdg-autostart | 5 ++++-
+ src/xdg-entry     | 5 ++++-
+ src/xdg-toolwait  | 5 ++++-
+ src/xdg-xsession  | 5 ++++-
+ 4 files changed, 16 insertions(+), 4 deletions(-)
+
+commit 2c68d0e477af308b4ceae9829f60b28dfe67c064
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 22:10:05 2016 -0700
+
+    update release files
+
+ README | 6 +++---
+ THANKS | 2 +-
+ TODO   | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+commit 49e84897a030b768f4596dd74ed588c593fd8021
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 22:08:45 2016 -0700
+
+    update desktop files
+
+ data/Makefile.am         | 10 ++++++++--
+ data/xdg-assist.desktop  | 14 ++++++++++++++
+ data/xdg-monitor.desktop |  1 +
+ 3 files changed, 23 insertions(+), 2 deletions(-)
+
+commit 4c8caa8ce493128a88c2c86e16df496d55f06506
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 18:48:11 2016 -0700
+
+    remove startup-notification dependency
+
+    - code contains superior mecahnisms for startup notification
+      handling and there is no longer a need for dependency on
+      the startup-notification library
+
+ configure.template | 11 -----------
+ src/Makefile.am    |  8 ++++----
+ src/xdg-assist.c   | 25 -------------------------
+ src/xdg-monitor.c  |  4 ----
+ src/xdg-show.c     |  4 ----
+ 5 files changed, 4 insertions(+), 48 deletions(-)
+
+commit 50f3d0109dce130347205fe26798b61010d7c333
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 18:41:13 2016 -0700
+
+    remove startupnotification requirement from xdg-launch
+
+ src/Makefile.am  |   4 +-
+ src/xdg-launch.c | 261 ---------------------------------------------------
+ 2 files changed, 2 insertions(+), 263 deletions(-)
+
+commit 09ecae549ade53c683346a7b154123e22869ab5b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 18:37:33 2016 -0700
+
+    64-bit error
+
+ src/xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit fd4999a232ab072b6051fe4b5af77952dcc9ca93
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 17:08:13 2016 -0700
+
+    consider startup messages
+
+ .indent.pro      |   1 +
+ src/xdg-launch.c | 144 +++++++++++++++++++++++++++++++++++++--------------
+ 2 files changed, 107 insertions(+), 38 deletions(-)
+
+commit 3d791fdc318e179dec881800ff231f624356216c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 14:37:18 2016 -0700
+
+    typo
+
+ src/xdg-monitor.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 1a36dc13f592def9bba9838c219bfc91a6c525a0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 7 14:37:06 2016 -0700
+
+    wait until client mapped
+
+ src/xdg-launch.c | 117 +++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 89 insertions(+), 28 deletions(-)
+
+commit 0000ac814605220a0d3cb851b41c5c6d0cb1a124
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jan 6 22:46:05 2016 -0700
+
+    update release files
+
+ README |  6 +++---
+ THANKS |  2 +-
+ TODO   | 11 ++++++-----
+ 3 files changed, 10 insertions(+), 9 deletions(-)
+
+commit 6409d66d6a13adb797719a02f4db1c4371000f38
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jan 6 22:45:46 2016 -0700
+
+    downgrade error to debug
+
+ src/xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 2fad817d169fdd1894ae333b57facd402d21d63d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jan 6 22:28:35 2016 -0700
+
+    more props and leader window
+
+ src/xdg-launch.c | 70 +++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 59 insertions(+), 11 deletions(-)
+
+commit f0501620a4dc4bd94e8fdf72f118e7f37b214060
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jan 6 15:06:13 2016 -0700
+
+    two more WM only properties
+
+ src/xdg-launch.c | 82 ++++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 64 insertions(+), 18 deletions(-)
+
+commit f944ce0c028e1a29a5462adf26dee81338a71350
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jan 6 05:01:56 2016 -0700
+
+    works better
+
+ src/xdg-launch.c | 279 ++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 229 insertions(+), 50 deletions(-)
+
+commit 911f0ee544ffc0f0b274f2d79959e1c7499e28b0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 23:39:36 2016 -0700
+
+    error handling and indent
+
+ src/xdg-launch.c | 105 ++++++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 75 insertions(+), 30 deletions(-)
+
+commit e6b038159b4e46bb173a27b52f6ae7df26ef80b4
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 22:10:15 2016 -0700
+
+    use glib instead of gtk2 for RU
+
+ TODO.in            |    9 +-
+ configure.template |   11 -
+ src/Makefile.am    |    8 +-
+ src/xdg-launch.c   | 1028 +++++++++++-------------------------------------
+ 4 files changed, 247 insertions(+), 809 deletions(-)
+
+commit f09ff006a5a414b0ab2e9530e7a9da3a0a374bce
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 17:38:16 2016 -0700
+
+    factor client management
+
+ src/xdg-launch.c | 188 ++++++++++++++++++++++++++-------------------------
+ 1 file changed, 96 insertions(+), 92 deletions(-)
+
+commit f459193675069be55cf6cf798801a04ede9a2821
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 16:54:45 2016 -0700
+
+    better checking of properties
+
+ src/xdg-launch.c | 238 +++++++++++++++++++++++++++++++++------------------
+ 1 file changed, 153 insertions(+), 85 deletions(-)
+
+commit fa46ba10132cae0e6c1f4b7811c655a04e647318
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 12:07:57 2016 -0700
+
+    handle _NET_WM_STATE
+
+ src/xdg-launch.c | 47 +++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 37 insertions(+), 10 deletions(-)
+
+commit 4355517f22cbfdb5d44a8af9736c0096d27bb165
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 11:49:29 2016 -0700
+
+    better WM_CLIENT_MACHINE handling
+
+ src/xdg-launch.c | 24 +++++++++++++++++-------
+ 1 file changed, 17 insertions(+), 7 deletions(-)
+
+commit 5c4655ab72c7f984fb8dec5040d3a8c05561dd0a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 11:33:34 2016 -0700
+
+    handle client machine
+
+ src/xdg-launch.c | 34 +++++++++++++++++++++++++++++-----
+ 1 file changed, 29 insertions(+), 5 deletions(-)
+
+commit 47d2e2a1b1b9e20f8efe447f6cd695d96bfaa295
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 11:10:32 2016 -0700
+
+    handle WM_COMMAND
+
+ src/xdg-launch.c | 79 +++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 75 insertions(+), 4 deletions(-)
+
+commit 0f18bf5aea91fbf4c3faefb9af293dab379fb1be
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jan 5 08:48:10 2016 -0700
+
+    working up assist
+
+ src/xdg-launch.c | 122 +++++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 103 insertions(+), 19 deletions(-)
+
+commit 6edcb06511b2d8b5d402c310ae7a87d73b94daf3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 17:17:45 2016 -0700
+
+    more assist workup
+
+ src/xdg-launch.c | 103 ++++++++++++++++++++++++++++++++++-----------------
+ 1 file changed, 70 insertions(+), 33 deletions(-)
+
+commit 239b66fb7438044e438b80f666ff350c79a914cc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 16:56:00 2016 -0700
+
+    working up assist
+
+ src/xdg-launch.c | 24 ++++++++++++++----------
+ 1 file changed, 14 insertions(+), 10 deletions(-)
+
+commit 030d62e0a52644e0faab07d321d60abf08b52e7d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 11:27:11 2016 -0700
+
+    more assist
+
+ src/xdg-launch.c | 26 ++++++++++++++++++++++----
+ 1 file changed, 22 insertions(+), 4 deletions(-)
+
+commit fcf62dedf60d7a5e44b17f97d8ab6960b4cc3291
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 11:13:04 2016 -0700
+
+    working up assist
+
+ src/xdg-launch.c | 47 +++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 43 insertions(+), 4 deletions(-)
+
+commit 0fad4eb53cf1de29e2249914d4911e6b88821dbf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 10:32:25 2016 -0700
+
+    working up assist
+
+ src/xdg-launch.c | 74 +++++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 67 insertions(+), 7 deletions(-)
+
+commit 12bcc37dc3590ece70833d2c8a1eaa9c657a99c0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 09:40:18 2016 -0700
+
+    split out some event handling
+
+ src/xdg-launch.c | 171 ++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 141 insertions(+), 30 deletions(-)
+
+commit d9e27b3305960655718e9f362a9a723ab20e2052
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 08:02:39 2016 -0700
+
+    add assist option
+
+ man/xdg-launch.pod |  8 +++++
+ src/xdg-launch.c   | 80 +++++++++++++++++---------------------------------
+ 2 files changed, 35 insertions(+), 53 deletions(-)
+
+commit 4127ae81b043dcd143745ef8e1929c09fc1b8af8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 05:55:55 2016 -0700
+
+    start working up toolwait
+
+ src/xdg-launch.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+commit d9db80f5c7aecce08d310a5850d21fbd574a60c2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 05:49:57 2016 -0700
+
+    reorganize launch comments
+
+ src/xdg-launch.c | 62 ++++++++++++++++++++++++++++++----------------------
+ 1 file changed, 36 insertions(+), 26 deletions(-)
+
+commit 41c52018d495706ec5a3ecfcc3fa4415a363bf20
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 05:43:32 2016 -0700
+
+    document autostart phase
+
+ man/xdg-launch.pod | 51 ++++++++++++++++++++++++++++++++++++++++++++------
+ src/xdg-launch.c   |  9 +++++++++
+ 2 files changed, 54 insertions(+), 6 deletions(-)
+
+commit f8ee52845f6d6bac36b6ba8b114c37071e95767e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 05:24:18 2016 -0700
+
+    rationalize xdg-assist back to launch
+
+ src/xdg-assist.c | 352 ++++++++++++++++++++++++++-------------------------
+ src/xdg-launch.c |   2 +
+ 2 files changed, 180 insertions(+), 174 deletions(-)
+
+commit 002564248ac9bc97c325736313f26ee1190d6740
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 05:10:04 2016 -0700
+
+    skip meaningless clients
+
+ src/xdg-launch.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+commit d1f785621aa30b52077db94be3834664038939a1
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 04:54:49 2016 -0700
+
+    also check for helper
+
+ src/xdg-launch.c | 78 ++++++++++++++++++++++++++++++++--------------------
+ 1 file changed, 48 insertions(+), 30 deletions(-)
+
+commit 05f9df6fc542a9f1cd90b38b736e7b1eba47a6ec
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 4 00:22:00 2016 -0700
+
+    clean up wm checks a bit
+
+ src/xdg-launch.c | 147 ++++++++++++++++++++++++---------------------------
+ 1 file changed, 68 insertions(+), 79 deletions(-)
+
+commit 9d825a9fcd03ad282ab7503c8e6b9111a3a14b49
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 23:39:16 2016 -0700
+
+    make event handlers return Bool
+
+ src/xdg-launch.c | 149 +++++++++++++++++++++++++++++----------------------
+ 1 file changed, 85 insertions(+), 64 deletions(-)
+
+commit e1f6fcc4ed9d86ef5fcb70b5d85c47cdcf47f39f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 21:42:49 2016 -0700
+
+    set up for toolwait and assist
+
+ src/xdg-launch.c | 55 +++++++++++++++++++++++++++++++++++-----------------
+ 1 file changed, 37 insertions(+), 18 deletions(-)
+
+commit 2de7c4a04f39177756818a1ae0a17ba8879611ba
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 21:03:02 2016 -0700
+
+    update copyright headers
+
+ src/xdg-assist.c  | 6 +++---
+ src/xdg-launch.c  | 6 +++---
+ src/xdg-monitor.c | 6 +++---
+ src/xdg-show.c    | 6 +++---
+ src/xdg-which.c   | 6 +++---
+ 5 files changed, 15 insertions(+), 15 deletions(-)
+
+commit acc2d28bf54db398cba065a7eb742da3cf32705f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 20:57:10 2016 -0700
+
+    get some things working better
+
+ src/xdg-launch.c | 315 +++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 232 insertions(+), 83 deletions(-)
+
+commit 81ba030e8f6c47dd70ed6fdaeefe5be7a324597c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 15:27:39 2016 -0700
+
+    remove deprecated SessionSetup
+
+ src/xdg-launch.c | 39 ---------------------------------------
+ 1 file changed, 39 deletions(-)
+
+commit e454961e6633a769de9a7b75fa7460025ad76b7d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 15:27:21 2016 -0700
+
+    link assist with sn lib
+
+ src/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 173dcd1a36b9d082da8354dc08673ab64ace87bc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:57:00 2016 -0700
+
+    rationalize assist to launch
+
+ src/xdg-launch.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit f875592caa0142d0ac1afd656bbae68f398eeb94
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:56:51 2016 -0700
+
+    rationalize assist to launch
+
+ src/xdg-assist.c | 96 +++++++++++++++++++++++++++++++---------------------
+ 1 file changed, 57 insertions(+), 39 deletions(-)
+
+commit 6802941f3a8376c6b9f4ff5cc50c992b98a6c921
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:44:46 2016 -0700
+
+    remove useless global
+
+ src/xdg-launch.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit d3b12ffcbd499abef62c8f6a1c06113ae7986c70
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:42:12 2016 -0700
+
+    convert boolean options
+
+ src/xdg-launch.c | 77 ++++++++++++++++++++++++----------------------------
+ 1 file changed, 35 insertions(+), 42 deletions(-)
+
+commit 98c2f711fcf5c399b28ce07ac32232aa93207f78
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:38:22 2016 -0700
+
+    convert withdrawn option
+
+ src/xdg-launch.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+commit c06a4a31816b1b3557b52302492da081b8c880cf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:37:35 2016 -0700
+
+    convert mappings option
+
+ src/xdg-launch.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+commit 752cff066aca07a4f0b01a11a1c302cb02a32792
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:36:39 2016 -0700
+
+    convert timeout option
+
+ src/xdg-launch.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+commit 81aee63de19013b45f74c3b8a6f5827da4017248
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:35:41 2016 -0700
+
+    convert toolwait opiton
+
+ src/xdg-launch.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+commit 08606650052f81a75a9ed76a8ad2ec3eb5edc0cf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:34:47 2016 -0700
+
+    convert info option
+
+ src/xdg-launch.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+commit 6712266d86b0d43a9416d73118e6617e62998a12
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:33:35 2016 -0700
+
+    convert keep option
+
+ src/xdg-launch.c | 20 +++++++++-----------
+ 1 file changed, 9 insertions(+), 11 deletions(-)
+
+commit 55b5787d63dfe6bc8668ed01ec3911df142ab656
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:30:30 2016 -0700
+
+    convert xsession and autostart options
+
+ src/xdg-launch.c | 28 +++++++++++++---------------
+ 1 file changed, 13 insertions(+), 15 deletions(-)
+
+commit 210696bf9954851303200d8c11841d6675fccbfd
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:27:31 2016 -0700
+
+    convert keyboard and pointer options
+
+ src/xdg-launch.c | 30 ++++++++++++++++++------------
+ 1 file changed, 18 insertions(+), 12 deletions(-)
+
+commit 3115bdade97f1c1a5c4bfc8d74213d803dd3de02
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:23:23 2016 -0700
+
+    convert pid option
+
+ src/xdg-launch.c | 26 ++++++++++++++------------
+ 1 file changed, 14 insertions(+), 12 deletions(-)
+
+commit 0946087abcba8ebe95e8b5a06285120cc2e2456b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 06:16:53 2016 -0700
+
+    convert timestamp option
+
+ src/xdg-launch.c | 21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+commit a79ca1c1cf5306436c0e18f5bd1996e35ebc6e21
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 01:29:22 2016 -0700
+
+    more options conversion
+
+ src/xdg-launch.c | 188 +++++++++++++++++++++++++--------------------------
+ 1 file changed, 91 insertions(+), 97 deletions(-)
+
+commit 94bad11b61d92ec24bdae1aae9a8c02ec6b1e184
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 00:48:45 2016 -0700
+
+    convert some options fields
+
+ src/xdg-launch.c | 111 ++++++++++++++++++++++++++-------------------------
+ 1 file changed, 56 insertions(+), 55 deletions(-)
+
+commit 341ae197ad1d21c9297baef0a144cc3a53d409c8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 3 00:27:19 2016 -0700
+
+    rationalize launch to assist
+
+ src/xdg-assist.c | 389 +++++++++++++++++++++++++++++++++++++++------------
+ src/xdg-launch.c |  54 ++++++-
+ 2 files changed, 349 insertions(+), 94 deletions(-)
+
+commit 5b15ebb0c8e41fb44d74be61de95375169039946
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 16:26:30 2016 -0700
+
+    reorder final fields
+
+ src/xdg-launch.c | 22 ++++++++++++----------
+ 1 file changed, 12 insertions(+), 10 deletions(-)
+
+commit a67721d70cb92297c37d60db7c53e94696d5f118
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 02:51:43 2016 -0700
+
+    do not wait longer than 120 seconds
+
+ src/xdg-launch.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+commit f96f384010b09b08c943e90b2771768194cab5cf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 02:32:58 2016 -0700
+
+    consider _NET_DESKTOP_LAYOUT property
+
+ src/xdg-launch.c | 30 +++++++++++++++++++++++++++++-
+ 1 file changed, 29 insertions(+), 1 deletion(-)
+
+commit 2b73b7964410cee55afa4b5419cf5d48fe1e3aa8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 02:20:15 2016 -0700
+
+    check composite mgr and pager
+
+ src/xdg-launch.c | 51 +++++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 43 insertions(+), 8 deletions(-)
+
+commit a0e49c25886ecf892c5469197a29f26fb0045471
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 01:35:47 2016 -0700
+
+    recheck on MANAGER msg
+
+ src/xdg-launch.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit b5253d82ada14e2a6f0f7229b9c192f4346f850a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 01:34:04 2016 -0700
+
+    some factoring
+
+ src/xdg-launch.c | 182 +++++++++++++++++++++++----------------------------
+ 1 file changed, 83 insertions(+), 99 deletions(-)
+
+commit dea15aad5dee61a7694c23336cffe31d9098c5cc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 01:24:19 2016 -0700
+
+    also composite manager wait
+
+ src/xdg-launch.c | 31 ++++++++++++++++++++++++++++---
+ 1 file changed, 28 insertions(+), 3 deletions(-)
+
+commit c6a24bc734d8657587cdc0e1eee7d413284bdf36
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 01:15:07 2016 -0700
+
+    add wait for composite manager
+
+ man/xdg-launch.pod | 12 +++++++++---
+ src/xdg-launch.c   | 28 +++++++++++++++++++++-------
+ 2 files changed, 30 insertions(+), 10 deletions(-)
+
+commit 7bb50368a1fbfd4f9d5c60f46a475a76f8650733
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 01:05:52 2016 -0700
+
+    clean system tray info
+
+ src/xdg-launch.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+commit 6c4633b7b3e6998b9d90c25dc1be64912e3961b5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 01:02:34 2016 -0700
+
+    check for system tray
+
+ src/xdg-launch.c | 62 +++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 61 insertions(+), 1 deletion(-)
+
+commit 142965d984c4f354d0584ab2f5689a803c70b879
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 00:57:13 2016 -0700
+
+    more wm and tray checks
+
+ src/xdg-launch.c | 256 +++++++++++++++++++++++++++++----------------------
+ 1 file changed, 144 insertions(+), 112 deletions(-)
+
+commit d0a23d3abaea31f71a5eb77812f825509ed73904
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jan 2 00:08:42 2016 -0700
+
+    wait for window manager
+
+ src/xdg-launch.c | 66 +++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 42 insertions(+), 24 deletions(-)
+
+commit 252f47836984a25bbda54f2473306d4ac4df2739
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 23:50:52 2016 -0700
+
+    wait for wm event loop
+
+ src/xdg-launch.c | 85 ++++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 66 insertions(+), 19 deletions(-)
+
+commit 0ec3a3cbe513f371ee5e5cb79cc0c3505978db12
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 20:42:50 2016 -0700
+
+    new option functionality
+
+ src/xdg-launch.c | 48 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 48 insertions(+)
+
+commit 3f29969106ec1e36cfad44199b0f62c0c8102fb0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 20:31:01 2016 -0700
+
+    set up to monitor completion
+
+ src/xdg-launch.c | 65 +++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 62 insertions(+), 3 deletions(-)
+
+commit 91cbc4e1883725284b1b60907ec935cdf89fe05f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 20:08:03 2016 -0700
+
+    complete usage info
+
+ src/xdg-launch.c | 121 +++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 98 insertions(+), 23 deletions(-)
+
+commit c431c69d6fe60ed5a0535e118f2bd5af84f54d0b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:53:37 2016 -0700
+
+    process new options
+
+ src/xdg-launch.c | 56 +++++++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 49 insertions(+), 7 deletions(-)
+
+commit 9883f5c8bc1e1f70ca71988fcc30fc3d0b9eed9a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:45:49 2016 -0700
+
+    add parameters to options
+
+ src/xdg-launch.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+commit d07c98bafcb5646554f54220f9f7c07fefc244fa
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:40:51 2016 -0700
+
+    add new options
+
+ src/xdg-launch.c | 33 +++++++++++++++++++++++++++++++--
+ 1 file changed, 31 insertions(+), 2 deletions(-)
+
+commit 7df53e2848fa1d0f750cc04e52a3ed7efcf6cf9b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:33:31 2016 -0700
+
+    document toolwait
+
+ man/xdg-launch.pod | 109 ++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 108 insertions(+), 1 deletion(-)
+
+commit f1a0ca0dbb328d1ccf8b41000651e142d10a4fc3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:33:04 2016 -0700
+
+    ignore xdg-toolwait manpage
+
+ .gitignore | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 33650af3cbb17a4fb4e53b9b26d307ad9a99d574
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:32:49 2016 -0700
+
+    install xdg-toolwait script
+
+ src/Makefile.am | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+commit b5abdd4d3a89bc537d71e3d7413208d0487ffe00
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 19:32:25 2016 -0700
+
+    add xdg-toolwait script
+
+ src/xdg-toolwait | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit 3c217ee5b075e4e9793ba81c1468955e69388931
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 18:55:10 2016 -0700
+
+    build xdg-toolwait manpage
+
+ man/Makefile.am | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+commit 43c9d2a59aa26b695e5a5e693a468b9782221f2e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 18:54:13 2016 -0700
+
+    add xdg-toolwait manpage
+
+ man/xdg-toolwait.pod | 119 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 119 insertions(+)
+
+commit 0d3ab5de8a4f02963024cc3b75abf3c42ab95e18
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 15:57:49 2016 -0700
+
+    add some SEE ALSO sections
+
+ man/xdg-assist.pod  | 8 ++++++++
+ man/xdg-launch.pod  | 8 ++++++++
+ man/xdg-monitor.pod | 8 ++++++++
+ man/xdg-whereis.pod | 5 +++++
+ man/xdg-which.pod   | 5 +++++
+ 5 files changed, 34 insertions(+)
+
+commit b371aa8074c5ad38f9613d3cc92a57dc8208b098
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 15:54:17 2016 -0700
+
+    add BUGS section
+
+ man/dmenu_launch.pod  | 6 ++++++
+ man/xdg-assist.pod    | 5 +++++
+ man/xdg-autostart.pod | 6 ++++++
+ man/xdg-entry.pod     | 6 ++++++
+ man/xdg-launch.pod    | 6 ++++++
+ man/xdg-monitor.pod   | 6 ++++++
+ man/xdg-whereis.pod   | 6 ++++++
+ man/xdg-which.pod     | 6 ++++++
+ man/xdg-xsession.pod  | 6 ++++++
+ 9 files changed, 53 insertions(+)
+
+commit 23d6b38961a19b6ce1bd31e898ed749af9b06752
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 1 15:51:01 2016 -0700
+
+    spellcheck please
+
+ man/dmenu_launch.pod  | 4 ++--
+ man/xdg-assist.pod    | 4 ++--
+ man/xdg-autostart.pod | 4 ++--
+ man/xdg-entry.pod     | 4 ++--
+ man/xdg-launch.pod    | 4 ++--
+ man/xdg-monitor.pod   | 4 ++--
+ man/xdg-show.pod      | 2 +-
+ man/xdg-whereis.pod   | 4 ++--
+ man/xdg-which.pod     | 4 ++--
+ man/xdg-xsession.pod  | 4 ++--
+ 10 files changed, 19 insertions(+), 19 deletions(-)
+
+commit 88a0dbe7f4f2bee879e1ca7dbfbeaef38a9df6ed
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Dec 31 13:48:13 2015 -0700
+
+    remove redundnat CFLAGS
+
+ src/Makefile.am | 6 ------
+ 1 file changed, 6 deletions(-)
+
+commit 7c9e7d9468d458c47e2c6a8d80405b26d249f863
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Dec 31 13:46:23 2015 -0700
+
+    did not work
+
+ src/Makefile.am | 2 --
+ 1 file changed, 2 deletions(-)
+
+commit ea14ff0f49758507bde2c705919a82a793e954fc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Dec 31 13:45:15 2015 -0700
+
+    try to remove pthread library
+
+ src/Makefile.am | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit 9b841a743eaecf755e83b0345ee46a358c9f6de1
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Dec 31 13:41:35 2015 -0700
+
+    remove unnecessary libraries
+
+ src/Makefile.am | 24 ++++++++++++------------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+
+commit 95aa00d992abfaa3a6014a7a93ba776043e2d02c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Dec 31 12:53:23 2015 -0700
+
+    working up xdg-show
+
+ src/xdg-show.c | 131 ++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 125 insertions(+), 6 deletions(-)
+
+commit 5d0b28afa477ac0ff2df278137e75cc8593b3217
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 07:01:41 2015 -0700
+
+    working up xdg-show
+
+ README            |   6 +-
+ THANKS            |   2 +-
+ TODO              |   2 +-
+ configure.sh      |   8 +-
+ src/xdg-monitor.c | 418 +++++++++++++++++++++++++++++++-------------------
+ src/xdg-show.c    | 365 +++++++++++++++++++++++++++----------------
+ 6 files changed, 507 insertions(+), 294 deletions(-)
+
+commit 49ca83415fd2f6175128310afe2714728dc7ec82
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 01:55:10 2015 -0700
+
+    working up xdg-show
+
+ src/xdg-monitor.c |  45 +++++++++------
+ src/xdg-show.c    | 155 ++++++++++++++++++++++++++++++--------------------
+ 2 files changed, 122 insertions(+), 78 deletions(-)
+
+commit 4ccaebc2c11da753f3e2c313281cf731d1573809
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 01:36:07 2015 -0700
+
+    first cut at xdg-show
+
+ .gitignore      |    1 +
+ src/Makefile.am |    8 +-
+ src/xdg-show.c  | 4738 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 4746 insertions(+), 1 deletion(-)
+
+commit 8239c07f3c1223109dfd1e632204c9fb6d4a5bc3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 01:07:26 2015 -0700
+
+    more documentation
+
+ man/xdg-show.pod | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+commit 1426496336849a856073fb545cc1d020dcefb943
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 00:57:08 2015 -0700
+
+    document new xdg-show program
+
+ .gitignore       |   1 +
+ man/Makefile.am  |   6 ++-
+ man/xdg-show.pod | 121 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 126 insertions(+), 2 deletions(-)
+
+commit 5a3788e56947b165b93cc2cb1b6c8ff78b4fef84
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 00:31:11 2015 -0700
+
+    describe dmenu_launch better
+
+ man/dmenu_launch.pod | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+commit e272a9de3b1238e0e93b50f6ca6478b811bb1d0b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 00:30:50 2015 -0700
+
+    document programs in README
+
+ README    | 30 ++++++++++++++++++++++++++++++
+ README.in | 30 ++++++++++++++++++++++++++++++
+ 2 files changed, 60 insertions(+)
+
+commit 6e9eef2d50e01414bc22a6191fc84a0c79da0636
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Dec 29 00:30:24 2015 -0700
+
+    update TODO
+
+ TODO | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit f2a99b41ee33a558032b6df8bad45944e6f7183e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Dec 28 22:13:29 2015 -0700
+
+    always set wmclass for terminals
+
+ TODO.in            |  2 +-
+ man/xdg-launch.pod | 20 ++++++++++++++++++++
+ src/xdg-launch.c   | 26 ++++++++++++++++++++------
+ 3 files changed, 41 insertions(+), 7 deletions(-)
+
+commit 5e446546e25b3311c6d5b439c6579e50c65cf419
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Dec 28 21:00:23 2015 -0700
+
+    preliminary AsRoot support
+
+ src/xdg-launch.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+commit e2052e8935978f9f26f98aa61b34ce9084efdaa0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Dec 28 20:59:50 2015 -0700
+
+    add todo items
+
+ TODO    | 23 +++++++++++++++++------
+ TODO.in | 21 ++++++++++++++++-----
+ 2 files changed, 33 insertions(+), 11 deletions(-)
+
+commit d2a1e93ca9a5d165c486f063209b2c6d72594838
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jun 20 09:05:00 2015 -0600
+
+    typo
+
+ src/xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit dfe4f36470533d973f4e38a7d398a0a3dd6d4ba0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 18 22:35:51 2015 -0600
+
+    add xdg-entry command
+
+ .gitignore         |  40 ++++++------
+ README             |   3 +-
+ README.in          |   3 +-
+ man/Makefile.am    |   6 +-
+ man/xdg-entry.pod  |  28 +++++++++
+ man/xdg-launch.pod |   7 +++
+ src/Makefile.am    |   2 +-
+ src/xdg-entry      |   3 +
+ src/xdg-launch.c   | 164 +++++++++++++++++++++++++++++++------------------
+ 9 files changed, 172 insertions(+), 84 deletions(-)
+
+commit 6668df017c3c6b0a7aae138b012eb0c446fa4d78
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat May 23 01:36:09 2015 -0600
+
+    clock ticked over during release
+
+ README | 6 +++---
+ THANKS | 2 +-
+ TODO   | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+commit 454051fc8902b11661fa8edd1295d89321a74d42
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat May 23 01:32:14 2015 -0600
+
+    commit release files
+
+ README | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ THANKS |  2 +-
+ TODO   |  2 +-
+ 3 files changed, 71 insertions(+), 2 deletions(-)
+
+commit 7165cb4c17a1c7b77d641e19b4dd6842f42af77c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 20:41:00 2015 -0600
+
+    general comment
+
+ src/xdg-launch.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+commit 0eb31e5a84603bbaa2543a6a79f5ec4ee6ff7e17
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 20:27:42 2015 -0600
+
+    properly handle mime types using gio library
+
+ src/xdg-launch.c | 72 ++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 53 insertions(+), 19 deletions(-)
+
+commit 562dbf2de78fee377334f44417bc5ca9106f52d9
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 18:21:07 2015 -0600
+
+    relaunch recent files with xdg-lauch again
+
+ src/xdg-launch.c | 36 +++++++++++++++++++++++++++++-------
+ 1 file changed, 29 insertions(+), 7 deletions(-)
+
+commit 8dbfb70abf239505503ceb67549d16627b9e81de
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 17:54:25 2015 -0600
+
+    handle proper sizing and ageing of files
+
+ src/xdg-launch.c | 65 +++++++++++++++++++++++-----------------------------
+ 1 file changed, 29 insertions(+), 36 deletions(-)
+
+commit b564757ed36f11de4e7430e51a75e9dc612164a1
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 17:01:53 2015 -0600
+
+    first stab at complete recent file history
+
+ src/xdg-launch.c | 397 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 389 insertions(+), 8 deletions(-)
+
+commit a266028d815e4987c2d480503bcc541b7b90ef41
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 14:46:07 2015 -0600
+
+    more preparation for recently used files
+
+ src/xdg-launch.c | 75 +++++++++++++++++++++++++++++-----------------------
+ 1 file changed, 42 insertions(+), 33 deletions(-)
+
+commit a503e00b15c04281d5cca44497850d03008b8aa8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 13:50:56 2015 -0600
+
+    prepare to keep track of recent files
+
+ src/xdg-launch.c | 31 +++++++++++++++----------------
+ 1 file changed, 15 insertions(+), 16 deletions(-)
+
+commit 3411c5f99830821e7b7236c20e2653cb427d8c96
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 13:20:45 2015 -0600
+
+    get rid of some globals (they were problematic)
+
+ src/xdg-launch.c | 103 +++++++++++++++++----------------------------------
+ 1 file changed, 33 insertions(+), 70 deletions(-)
+
+commit ebd9d3d41b888700cae1e8fe1559707e46c50929
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 11:15:19 2015 -0600
+
+    non-gtk2 support for recently-used.xbel works
+
+ src/Makefile.am  |   2 +-
+ src/xdg-launch.c | 111 +++++++++++++++++++++++++++++++--------------------
+ 2 files changed, 68 insertions(+), 45 deletions(-)
+
+commit 7d8a53200f978082e308427f27afe33537daa4fe
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 22 01:08:09 2015 -0600
+
+    proper handling of xbel files with gtk2
+
+    - this is also a start for handling of xbel files
+      using just glib functions (and the simple xml
+      parser contained therein)
+
+ .indent.pro      | 435 ++++++++++++++++++--------------
+ src/xdg-launch.c | 682 ++++++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 872 insertions(+), 245 deletions(-)
+
+commit 8d3cb343a41146988b10bcd394fe825a0f88197b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 20 23:10:20 2015 -0600
+
+    handle ~/.recently-used file updates
+
+ src/xdg-launch.c | 283 +++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 265 insertions(+), 18 deletions(-)
+
+commit d6e85cac47549a7a26f44408e15e6e9590db5b81
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 20 21:27:56 2015 -0600
+
+    indent and prepare for recently-used
+
+ src/xdg-launch.c | 220 +++++++++++++++++++++++----------------------------
+ 1 file changed, 98 insertions(+), 122 deletions(-)
+
+commit 29bfad4e2115fcf48d83de99d492a2d7d926117a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 20 21:23:16 2015 -0600
+
+    get history working correctly
+
+ src/xdg-launch.c | 127 +++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 113 insertions(+), 14 deletions(-)
+
+commit 0fccacd0bfc38a930ed7e0b1a247e350d95647c7
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 20 18:39:26 2015 -0600
+
+    prepare to update history files
+
+ src/xdg-launch.c | 77 +++++++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 58 insertions(+), 19 deletions(-)
+
+commit c5e5787b6337724d904a0c70b3d2b54c3b61d4f4
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 20 17:44:50 2015 -0600
+
+    add provision for recently-used.xbel support
+
+ THANKS             |  2 +-
+ TODO               |  2 +-
+ configure.template | 11 +++++++++++
+ src/Makefile.am    |  4 ++--
+ src/xdg-launch.c   |  3 +++
+ 5 files changed, 18 insertions(+), 4 deletions(-)
+
+commit 2acd3101c53ba965c40130823ebb13950f5e4666
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 20 14:40:15 2015 -0600
+
+    working up recently used applications support
+
+ THANKS             |  2 +-
+ TODO               |  9 +++++-
+ configure.template | 11 ++++++++
+ src/Makefile.am    |  2 ++
+ src/xdg-launch.c   | 75 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ 5 files changed, 96 insertions(+), 3 deletions(-)
+
+commit 5ff9acaac48f77a788d5decf88059eee45014bb6
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue May 19 14:43:51 2015 -0600
+
+    add in XDE run history and recent apps files
+
+ TODO.in            |  7 ++++++
+ man/xdg-launch.pod | 45 +++++++++++++++++++++++++++++++++++++++
+ src/xdg-launch.c   | 58 +++++++++++++++++++++++++++++++++++++++++++++++---
+ 3 files changed, 107 insertions(+), 3 deletions(-)
+
+commit e67fdc011d0a4a996f953424581ae7e3c252f1e3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue May 19 01:48:59 2015 -0600
+
+    split up files into subdirectories
+
+ Makefile.am                                      | 84 ++++++--------------
+ THANKS                                           |  2 +-
+ THANKS => THANKS.in                              |  2 +-
+ TODO                                             |  2 +-
+ TODO => TODO.in                                  |  2 +-
+ autogen.sh                                       |  2 +
+ configure.template                               | 49 +++++++++---
+ data/Makefile.am                                 |  5 ++
+ .../dmenu_launch.desktop                         |  0
+ xdg-launch.desktop => data/xdg-launch.desktop    |  0
+ xdg-monitor.desktop => data/xdg-monitor.desktop  |  0
+ man/Makefile.am                                  | 39 +++++++++
+ dmenu_launch.pod => man/dmenu_launch.pod         |  0
+ xdg-assist.pod => man/xdg-assist.pod             |  0
+ xdg-autostart.pod => man/xdg-autostart.pod       |  0
+ xdg-launch.pod => man/xdg-launch.pod             |  0
+ xdg-monitor.pod => man/xdg-monitor.pod           |  0
+ xdg-whereis.pod => man/xdg-whereis.pod           |  0
+ xdg-which.pod => man/xdg-which.pod               |  0
+ xdg-xsession.pod => man/xdg-xsession.pod         |  0
+ rebuild.sh                                       |  2 +-
+ src/Makefile.am                                  | 38 +++++++++
+ dmenu_apps => src/dmenu_apps                     |  0
+ dmenu_launch => src/dmenu_launch                 |  0
+ xdg-assist.c => src/xdg-assist.c                 | 10 ++-
+ xdg-autostart => src/xdg-autostart               |  0
+ xdg-launch.c => src/xdg-launch.c                 | 10 ++-
+ xdg-monitor.c => src/xdg-monitor.c               | 10 ++-
+ xdg-whereis.c => src/xdg-whereis.c               |  0
+ xdg-which.c => src/xdg-which.c                   | 10 ++-
+ xdg-xsession => src/xdg-xsession                 |  0
+ 31 files changed, 181 insertions(+), 86 deletions(-)
+
+commit 4ee936c1082fac0e90ee269c5fe496eefc8328b0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Sep 12 20:23:42 2014 -0600
+
+    add fallback directory to xdg-which
+
+ xdg-which.c | 77 +++++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 75 insertions(+), 2 deletions(-)
+
+commit 9b33e07cfe3dfca781f930808ab77a64f8181a52
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Sep 11 18:15:33 2014 -0600
+
+    added xdg-which utility
+
+ .gitignore      |   4 +
+ .indent.pro     |   2 +-
+ Makefile.am     |  32 +-
+ rebuild.sh      |   9 +
+ xdg-launch.pod  |  23 +-
+ xdg-whereis.c   |   0
+ xdg-whereis.pod | 156 ++++++++++
+ xdg-which.c     | 828 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ xdg-which.pod   | 182 ++++++++++++
+ 9 files changed, 1209 insertions(+), 27 deletions(-)
+
+commit 20ca9be0cb7d4ff4ce546e44e12ba415299c3b73
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jul 2 19:11:28 2014 -0600
+
+    user persistent source window for messages
+
+ xdg-monitor.c | 9 +--------
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+
+commit 60da0c04c77344a334309ff727a6e8d97bec5208
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jul 2 19:06:14 2014 -0600
+
+    very unfortunate error after initial release
+
+ xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 709954322ac3ae94802deabd533c0fd2fb75e686
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jul 2 03:23:08 2014 -0600
+
+    my bad
+
+ xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit c9636820ad055176a776538e28facbc691711bfa
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jul 1 04:19:36 2014 -0600
+
+    rework assist logic
+
+ xdg-launch.c | 32 +++++++++++++++-----------------
+ 1 file changed, 15 insertions(+), 17 deletions(-)
+
+commit e4fb1056db2417339130d7a7d99fc9f22daca271
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 30 19:00:45 2014 -0600
+
+    autodetect XSessions
+
+ .gitignore   |  2 ++
+ xdg-launch.c | 13 ++++++++++++-
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+commit 80b28200edfe9a1841e76010160c295e57bf9b2c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 30 18:49:39 2014 -0600
+
+    add autostart launch behaviour
+
+ Makefile.am        |  18 +++--
+ xdg-autostart      |   3 +
+ xdg-autostart.pod  |  28 ++++++++
+ xdg-launch.c       | 174 +++++++++++++++++++++++++++++++++++--------------
+ xdg-launch.desktop |  13 ++++
+ xdg-launch.pod     |  29 +++++++--
+ xdg-monitor.c      |  36 +++++-----
+ xdg-xsession       |   3 +
+ xdg-xsession.pod   |  28 ++++++++
+ 9 files changed, 254 insertions(+), 78 deletions(-)
+
+commit f920395fe86bc3e967c0d7d44f28779e69f10070
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 26 06:03:11 2014 -0600
+
+    help the toolkit/window manager a bit
+
+ .gitignore    |  2 ++
+ xdg-monitor.c | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 65 insertions(+), 6 deletions(-)
+
+commit 9c2c2de56d7a8bc74ca2a6956734825350394901
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 26 06:02:37 2014 -0600
+
+    add XDG application and autostart files
+
+ Makefile.am          |  4 ++++
+ configure.template   |  6 ++++++
+ dmenu_launch.desktop | 11 +++++++++++
+ xdg-monitor.desktop  | 13 +++++++++++++
+ 4 files changed, 34 insertions(+)
+
+commit 5d5504112e0df4c2ccfaed093ef589836b415245
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 26 05:09:02 2014 -0600
+
+    for now, close after timeout
+
+ xdg-monitor.c | 29 +++++++++++++++++++++++++----
+ 1 file changed, 25 insertions(+), 4 deletions(-)
+
+commit 5bd6fbd35e9f52d33e849df1cd41ec354ca58288
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 26 04:54:36 2014 -0600
+
+    update documentation for xdg-monitor
+
+ xdg-monitor.pod | 32 ++++++++++++++++++++++++++++----
+ 1 file changed, 28 insertions(+), 4 deletions(-)
+
+commit 6ad0ed45bbaabd14bf3a0f9672f1ea824c6561bf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 26 00:31:30 2014 -0600
+
+    more corrections and debugging of xdg-monitor
+
+ xdg-monitor.c | 223 ++++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 167 insertions(+), 56 deletions(-)
+
+commit 2a4ceec2888e2ba8e1a17816fa9ec69153f167a5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 12:02:28 2014 -0600
+
+    some debugging
+
+ xdg-monitor.c | 261 ++++++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 206 insertions(+), 55 deletions(-)
+
+commit d13ca803e03451fdb42e3adf349c2adf51ed9a7c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 12:00:21 2014 -0600
+
+    add debug flags in for maintainer
+
+ configure.sh | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit f9cd68a05e883022ce62d31fb6b0bf92f73bfb74
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 11:59:02 2014 -0600
+
+    sending with propertychangemask just doesn't work
+
+ xdg-launch.c | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+commit b2da53fee884eaac26bea19e36938cfc3ae799f5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 05:33:10 2014 -0600
+
+    properly remove client
+
+ xdg-monitor.c | 67 +++++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 50 insertions(+), 17 deletions(-)
+
+commit a8beae6df33ac2ded3890e310ce28ce0032ea359
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 05:16:55 2014 -0600
+
+    create desktop notifications
+
+ xdg-monitor.c | 42 +++++++++++++++++++++++++++---------------
+ 1 file changed, 27 insertions(+), 15 deletions(-)
+
+commit 20b107862db4bd19da88bba05a78453901bfbc26
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 03:20:27 2014 -0600
+
+    add timeouts and status icon creation and destruction
+
+ xdg-monitor.c | 131 +++++++++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 96 insertions(+), 35 deletions(-)
+
+commit 211212a9cba526f16d80c5e0b389437c26d63eed
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 25 02:28:51 2014 -0600
+
+    fill out some state machine behavior
+
+ xdg-monitor.c | 208 ++++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 172 insertions(+), 36 deletions(-)
+
+commit 50c6651e085c4c93f678b39390d6f109bde8a90a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 19:10:34 2014 -0600
+
+    a few last missing client messages
+
+ xdg-monitor.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+commit d31a4b72fef651fb73b46465f9943fcf9ab81a68
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 18:49:11 2014 -0600
+
+    add some missing client messages
+
+ .indent.pro   |   2 +
+ xdg-monitor.c | 194 ++++++++++++++++++++++++++++++++++++++----------------
+ 2 files changed, 138 insertions(+), 58 deletions(-)
+
+commit 84179a9dafd0ce127f726ffab52260a2dded1251
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 18:22:41 2014 -0600
+
+    rework event handling
+
+ xdg-monitor.c | 637 ++++++++++++++++++++++++++++++------------------------
+ 1 file changed, 353 insertions(+), 284 deletions(-)
+
+commit 027c58a23a6b9e3fecd10e6547c237721f07bc9d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 13:20:11 2014 -0600
+
+    handle selection clear in xdg-monitor
+
+ xdg-monitor.c | 43 +++++++++++++++++++++++++++++--------------
+ 1 file changed, 29 insertions(+), 14 deletions(-)
+
+commit a2e3176366dbd8122101a4e012edc3e7d2325b77
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 13:02:50 2014 -0600
+
+    add selection functions to xdg-monitor
+
+ xdg-monitor.c | 378 +++++++++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 275 insertions(+), 103 deletions(-)
+
+commit b9e77c5372cd32883bace822b09bda324fdd4f9d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 11:35:27 2014 -0600
+
+    more rearrangements
+
+ xdg-monitor.c | 662 ++++++++++++++++++++++++++++++++++++++----------------
+ 1 file changed, 464 insertions(+), 198 deletions(-)
+
+commit ff3e8dabb59f56986b8bc466c4456973386b0c0a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 06:45:51 2014 -0600
+
+    move a few things around
+
+ xdg-monitor.c | 1640 +++++++++++++++++++++++++++--------------------------
+ 1 file changed, 828 insertions(+), 812 deletions(-)
+
+commit d500c22da4e37157f92f92dc0e6626319b0ed4b2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 24 06:11:11 2014 -0600
+
+    further workup of xdg-monitor
+
+ xdg-monitor.c | 638 ++++++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 502 insertions(+), 136 deletions(-)
+
+commit d3f43a99b1e6da185b9df2893584387e108501c0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 23 16:57:51 2014 -0600
+
+    working up state machine for xdg-monitor
+
+ xdg-monitor.c | 316 +++++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 264 insertions(+), 52 deletions(-)
+
+commit 15751221edddb193e0da1a07ce9fc98f2e3c1df1
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 23 10:49:20 2014 -0600
+
+    additional wm property handlers
+
+ xdg-monitor.c | 198 ++++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 164 insertions(+), 34 deletions(-)
+
+commit f6deee33ed014dfdf4b28ca14b9d6e9d838d6b87
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 23 08:17:00 2014 -0600
+
+    pull information from startup id where possible
+
+ xdg-monitor.c | 40 +++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 39 insertions(+), 1 deletion(-)
+
+commit f2ab365fcd8c1bf86b60ec48eef65761525267be
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jun 22 09:26:05 2014 -0600
+
+    working up xdg-launch
+
+ xdg-monitor.c | 128 +++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 126 insertions(+), 2 deletions(-)
+
+commit 7066528751fa6e23f05cff81d1e8e2b0991d5dd8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jun 22 07:05:31 2014 -0600
+
+    working up xdg-monitor
+
+ xdg-monitor.c | 76 ++++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 61 insertions(+), 15 deletions(-)
+
+commit c1c13a82df0e75bbdf1ca19845c1338a95b3a2b8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jun 22 02:03:34 2014 -0600
+
+    adding status icon and notification to xde-monitor
+
+ .indent.pro   |   9 +
+ xdg-monitor.c | 478 +++++++++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 450 insertions(+), 37 deletions(-)
+
+commit 2b3afa2bc88686a1577f37a12cd4ee3ddb5ad390
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jun 20 00:44:29 2014 -0600
+
+    add xdg-monitor
+
+ .gitignore                    |   1 +
+ Makefile.am                   |  34 +++++---
+ configure.template            |  22 ++++++
+ xdg-assist.c                  | 104 ++++++++++++------------
+ xdg-assist.c => xdg-monitor.c | 162 +++++++++++++++++++-------------------
+ 5 files changed, 181 insertions(+), 142 deletions(-)
+
+commit 390d098663240faea16ffd86afb62aaf264edc9b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 19 19:52:01 2014 -0600
+
+    start preparing to assist window manager in xdg-launch
+
+ xdg-launch.c | 392 ++++++++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 358 insertions(+), 34 deletions(-)
+
+commit 1a92bf79e3442831912d4fbdd13ba2eeac0d289c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 19 19:51:48 2014 -0600
+
+    add maintainer script
+
+ configure.sh | 38 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+
+commit 0b66aa61e7f786fa54051eaa11f484f1edfeb39f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jun 9 19:47:18 2014 -0600
+
+    working up startup notification assistance
+
+ xdg-assist.c   | 1291 +++++++++++++++++++++++++++++++++++++++-------------
+ xdg-assist.pod |    4 +-
+ xdg-launch.c   | 1095 +++++++++++++++++++++++++++++++++++++-------
+ 3 files changed, 1905 insertions(+), 485 deletions(-)
+
+commit 67366bc31fcd78903db028c8456bcd139e734cf8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed May 28 03:08:09 2014 -0600
+
+    install an X error handler
+
+ xdg-launch.c | 24 ++++++++++++++++++++----
+ 1 file changed, 20 insertions(+), 4 deletions(-)
+
+commit 8ca3da0e74e1bd66f5d77902298f8a633cdc7afe
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue May 27 05:53:30 2014 -0600
+
+    typo
+
+ xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 93f0296f4ab870b1472777ad2881cfcb7567af7a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue May 27 04:30:23 2014 -0600
+
+    two items done
+
+ TODO | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit 85b7c2ee5db029dbf0a01b8672f16c08238355fd
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue May 27 04:26:15 2014 -0600
+
+    enhancements
+
+     - support selecting desktop actions
+     - support launching xsessions
+     - allow StartupWMClass to be specified for terminal applications
+     - support SessionSetup for XSession [Window Manager] entries
+
+ TODO           |   2 +
+ xdg-launch.c   | 179 +++++++++++++++++++++++++++++++++++++++--------------
+ xdg-launch.pod | 147 ++++---------------------------------------
+ 3 files changed, 148 insertions(+), 180 deletions(-)
+
+commit ee3f8dfaee75e481b34f4a4224ff24ee21d691ad
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 2 04:38:19 2014 -0600
+
+    more ignores
+
+ .gitignore | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 50a43382dfd9dead304ba0624d9f112cf05273c3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri May 2 04:37:14 2014 -0600
+
+    appids with a / are relative to an app dir are permitted
+
+ TODO           | 4 ++++
+ xdg-launch.c   | 2 +-
+ xdg-launch.pod | 9 ++++++---
+ 3 files changed, 11 insertions(+), 4 deletions(-)
+
+commit bf2debb97047bb5faaf5684839c11b1d308c9d0b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 14 14:39:43 2014 -0600
+
+    add a dmenu utility called dmenu_launch
+
+ Makefile.am      |  14 ++-
+ dmenu_apps       |  18 ++++
+ dmenu_launch     |   2 +
+ dmenu_launch.pod |  33 +++++++
+ xdg-monitor.man  | 273 ---------------------------------------------------
+ 5 files changed, 64 insertions(+), 276 deletions(-)
+
+commit b10f62d783f6b8b3126fb266c7c85ecfb7ec5ef3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Apr 8 07:49:55 2014 -0600
+
+    better desktop entry parsing, added xdg-monitor manpage
+
+ Makefile.am     |  12 ++-
+ xdg-assist.pod  |   2 +-
+ xdg-launch.c    |   8 ++
+ xdg-launch.pod  |   2 +
+ xdg-monitor.man | 273 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ xdg-monitor.pod | 180 ++++++++++++++++++++++++++++++++++
+ 6 files changed, 473 insertions(+), 4 deletions(-)
+
+commit ec9e6b939de11b72667c22e777ebcce2aeeea57e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 6 10:02:06 2014 -0600
+
+    add check for fallback directories
+
+ xdg-launch.c | 44 ++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 38 insertions(+), 6 deletions(-)
+
+commit 5e8476e6d2fd72fc75b7ad32ffb33e90800a9b5d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 6 09:04:32 2014 -0600
+
+    add xdg-assist program (not finished)
+
+ .gitignore   |    1 +
+ Makefile.am  |   13 +-
+ xdg-assist.c | 1750 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 1759 insertions(+), 5 deletions(-)
+
+commit 05c17a1fa6b8e858b7ea76a696e19910ebcf9c8d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Apr 5 07:08:12 2014 -0600
+
+    better build
+
+ .gitignore         |  1 +
+ AUTHORS            |  3 ---
+ AUTHORS.in         |  3 +++
+ NEWS               |  9 -------
+ README             | 69 --------------------------------------------------
+ autogen.sh         | 12 +++++++--
+ configure.template |  3 ++-
+ 7 files changed, 16 insertions(+), 84 deletions(-)
+
+commit fc2d3d4079200e5fa13808b5153b2d3d51b2ae7b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Feb 8 03:48:23 2014 -0700
+
+    checking in work
+
+ .indent.pro  |   2 +-
+ NEWS         |   4 +-
+ NEWS.in      |   2 +-
+ README       |   6 +--
+ README.in    |   4 +-
+ xdg-launch.c | 117 +++++++++++++++++++++++++++++++------------------------
+ 6 files changed, 76 insertions(+), 59 deletions(-)
+
+commit 06a9aab1157da530634b59c01df8d45dd010a824
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 27 05:29:03 2014 -0700
+
+    fixups
+
+ xdg-launch.c   | 445 +++++++++++++++++++++++++++++++----------------------
+ xdg-launch.pod |  17 +-
+ 2 files changed, 272 insertions(+), 190 deletions(-)
+
+commit b100f531e341707321737df961ee4cbc94382ce9
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 26 14:01:24 2014 -0700
+
+    adding xdg-assist program
+
+ .gitignore     |   1 +
+ Makefile.am    |   7 +-
+ xdg-assist.pod | 259 ++++++++++++++++++++++
+ xdg-launch.pod | 634 +++++++++++++++++++++++++++++++++++++----------------
+ 4 files changed, 704 insertions(+), 197 deletions(-)
+
+commit cceeb4daa4e396c7402ec23784595b97d82e5aa2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 26 08:17:36 2014 -0700
+
+    complete build system
+
+ .gitignore         |  2 ++
+ AUTHORS            |  3 +++
+ NEWS               |  9 +++++++
+ NEWS.in            |  9 +++++++
+ README             | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ README.in          | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ THANKS             |  5 ++++
+ autogen.sh         | 14 ++++++++--
+ configure.template |  2 +-
+ 9 files changed, 179 insertions(+), 3 deletions(-)
+
+commit 290e1270d277774f61bd194612333a12da259a74
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 26 07:37:22 2014 -0700
+
+    cleanup of build system, passes distcheck
+
+ .gitignore         |   2 +
+ AUTHORS            |   0
+ COPYING            | 674 +++++++++++++++++++++++++++++++++++++++++++++++++
+ Makefile.am        |   2 +-
+ NEWS               |   0
+ README             |   0
+ TODO               |   0
+ configure.template |   2 +-
+ 8 files changed, 678 insertions(+), 2 deletions(-)
+
+commit 9da48cef34b432c01f257b14d558bf6ac34a436a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 26 07:27:33 2014 -0700
+
+    trimmed down to just xdg-launch
+
+ Makefile.am        |   18 +-
+ configure.template |    8 +-
+ xde-keys.c         |  330 ----------
+ xde-theme.c        | 1622 ------------------------------------------------
+ xde-theme.pod      |  466 --------------
+ xdg-launch.man.in  |  553 -----------------
+ xdg-launch.pod     |  455 ++++++++++++++
+ 7 files changed, 465 insertions(+), 2987 deletions(-)
+
+commit 03222f6de203d6914b8a25a92b0f0cecf7661f10
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 26 06:08:01 2014 -0700
+
+    compiles
+
+ .indent.pro |  10 +-
+ xde-theme.c | 792 +++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 770 insertions(+), 32 deletions(-)
+
+commit 5d9e70dd89b56d84ba3bda225293b159bbcd7e7b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 17 22:54:18 2014 -0700
+
+    working up xde-theme
+
+ .gitignore                |   3 +-
+ Makefile.am               |   9 +-
+ xde-theme.c => xde-keys.c | 219 ++----------
+ xde-theme.c               | 769 ++++++++++++++++++++++++++++++++----------
+ 4 files changed, 629 insertions(+), 371 deletions(-)
+
+commit 83b45374b1a58269b71aeb9be7360f42c5732d7d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 17 02:51:13 2014 -0700
+
+    working up launch utility
+
+ .gitignore    |   3 +
+ .indent.pro   | 226 ++++++++++++++++++
+ Makefile.am   |  21 +-
+ xde-theme.c   | 485 +++++++++++++++++++++++++++++++++++++
+ xde-theme.pod | 466 ++++++++++++++++++++++++++++++++++++
+ xdg-launch.c  | 699 ++++++++++++++++++++++++++++++++++++++++++++++--------
+ 6 files changed, 1804 insertions(+), 96 deletions(-)
+
+commit 35f9754f886d5a0e96e54d92cb3e549784786293
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 13 23:02:48 2014 -0700
+
+    more better atom handling
+
+ xdg-launch.c | 149 +++++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 122 insertions(+), 27 deletions(-)
+
+commit dd0e5045aa37cfcdb0c53b2dfd1facb10917b5e1
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 13 20:53:20 2014 -0700
+
+    intern atoms more efficiently
+
+ xdg-launch.c | 67 ++++++++++++++++++++++++++++++++++++++------------------
+ 1 file changed, 46 insertions(+), 21 deletions(-)
+
+commit 13c5befa9aafe9bf4e3f9e657289e02f8768d5c7
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jan 13 19:26:10 2014 -0700
+
+    almost complete, still needs assist
+
+ .gitignore        |    3 +-
+ xdg-launch.c      | 1467 +++++++++++++++++++++++++++++++++++++++----------
+ xdg-launch.man.in |   26 +-
+ 3 files changed, 1201 insertions(+), 295 deletions(-)
+
+commit 8d155eb2b07cca553c39e86a15d79d2a64974b2f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 12 23:10:21 2014 -0700
+
+    working up program
+
+ .gitignore                          |   3 +-
+ autogen.sh                          |   4 +-
+ configure.template                  |   7 +-
+ xdg-launch.c                        | 855 ++++++++++++++++++++++++++++++--
+ xdg-launch.man => xdg-launch.man.in | 133 +++--
+ 5 files changed, 894 insertions(+), 108 deletions(-)
+
+commit af5191760f910b4d3a453f406b9a1f8ffa5b0b55
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 12 14:50:34 2014 -0700
+
+    initial commit off skeleton
+
+ .gitignore         |  19 +-
+ Makefile.am        |  13 ++
+ autogen.sh         |  21 +++
+ configure.template |  89 +++++++++
+ xdg-launch.c       | 451 +++++++++++++++++++++++++++++++++++++++++++++
+ xdg-launch.man     | 492 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 1083 insertions(+), 2 deletions(-)
+
+commit ac65b10aeb4f2bc9e51b96dad909faa50c379ad6
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jan 12 14:27:49 2014 -0700
+
+    initial commit
+
+ .gitignore | 3 +++
+ 1 file changed, 3 insertions(+)

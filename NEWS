@@ -1,18 +1,21 @@
-@PACKAGE@ -- history of user-visible changes.  @DATE@
+xdg-launch -- history of user-visible changes.  2016-07-08
 
 Release xdg-launch-1.2 released 2016-07-08
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 1.1...1.2
-Brian Bidulock <bidulock@openss7.org> (2):
+
+Brian Bidulock <bidulock@openss7.org> (3):
       be pedantic about startup id mismatches
       better automatic log generation
+      update release files
 
 
 Release xdg-launch-1.1 released 2016-07-08
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 1.0...1.1
+
 Brian Bidulock <bidulock@openss7.org> (7):
       remove unusable xdg-monitor.desktop file
       always run xdg-assist in the foreground
@@ -27,6 +30,7 @@ Release xdg-launch-1.0 released 2016-07-07
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.9...1.0
+
 Brian Bidulock <bidulock@openss7.org> (16):
       rationalize xdg-assist, monitor, show
       tweaks to xdg-assist, show, monitor
@@ -50,6 +54,7 @@ Release xdg-launch-0.9 released 2016-06-27
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.8...0.9
+
 Brian Bidulock <bidulock@openss7.org> (37):
       start documenting xdg-types
       working up xde-types manual page
@@ -94,6 +99,7 @@ Release xdg-launch-0.8 released 2016-03-29
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.7...0.8
+
 Brian Bidulock <bidulock@openss7.org> (3):
       add guard timer
       update README.md
@@ -104,6 +110,7 @@ Release xdg-launch-0.7 released 2016-03-26
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.6...0.7
+
 Brian Bidulock <bidulock@openss7.org> (2):
       add wait for audio server
       update release files
@@ -113,6 +120,7 @@ Release xdg-launch-0.6 released 2016-03-17
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.5...0.6
+
 Brian Bidulock <bidulock@openss7.org> (10):
       minor update to build system
       add xdg-list manual page
@@ -130,6 +138,7 @@ Release xdg-launch-0.5 released 2016-01-07
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.4...0.5
+
 Brian Bidulock <bidulock@openss7.org> (107):
       add xdg-entry command
       typo
@@ -244,6 +253,7 @@ Release xdg-launch-0.4 released 2015-05-23
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.3...0.4
+
 Brian Bidulock <bidulock@openss7.org> (20):
       split up files into subdirectories
       add in XDE run history and recent apps files
@@ -271,6 +281,7 @@ Release xdg-launch-0.3 released 2014-09-12
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.2...0.3
+
 Brian Bidulock <bidulock@openss7.org> (4):
       very unfortunate error after initial release
       user persistent source window for messages
@@ -282,6 +293,7 @@ Release xdg-launch-0.2 released 2014-07-02
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 0.1...0.2
+
 Brian Bidulock <bidulock@openss7.org> (59):
       initial commit off skeleton
       working up program

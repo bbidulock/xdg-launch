@@ -1,14 +1,12 @@
 aclocal.m4
-AUTHORS
 autoconf.h
 autoconf.h.in
 autoconf.h.in~
 autom4te.cache/
-ChangeLog
 config.log
 config.status
 configure
-configure.ac
+configure.ac.bak
 cscope.*
 .deps/
 dmenu_launch.man
@@ -17,10 +15,10 @@ _install
 *.log
 Makefile
 Makefile.in
-NEWS
 *.o
 README
 README.html
+README.txt
 scripts/
 stamp-h*
 .*.sw[nop]

@@ -3,44 +3,67 @@ ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = src man data
 
-EXTRA_DIST = INSTALL COPYING AUTHORS AUTHORS.in NEWS NEWS.in README README.in README.md README.md.in THANKS THANKS.in TODO TODO.in ChangeLog
+EXTRA_DIST = INSTALL COPYING AUTHORS NEWS README README.md README.md.in THANKS TODO ChangeLog
+
+DISTCLEANFILES = ChangeLog AUTHORS NEWS README README.md README.html README.txt
+
+dist-hook:
+	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+		chmod u+w $(distdir)/{ChangeLog,AUTHORS,NEWS} ; \
+		( cd $(srcdir) ; \
+		  echo -e "# created with git log --stat=76 -M -C|fmt -sct -w80\n" ; \
+		  git log --stat=76 -M -C|fmt -sct -w80 \
+		)>$(distdir)/ChangeLog ; \
+		( cd $(srcdir) ; \
+		  echo "$(PACKAGE) -- authors file.  $(DATE)" ; \
+		  echo "" ; \
+		  git log|grep '^Author:'|awk '{if(!authors[$$0]){print$$0;authors[$$0]=1;}}' \
+		)>$(distdir)/AUTHORS ; \
+		( cd $(srcdir) ; \
+		  echo "$(PACKAGE) -- history of user-visible changes.  $(DATE)" ; \
+		  PACKAGE="$(PACKAGE)" $(srcdir)/gennews.sh \
+		)>$(distdir)/NEWS ; \
+	fi ; \
+	chmod u+w $(distdir)/{README.md,README} ; \
+	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $(distdir)/README.md.in >$(distdir)/README.md ; \
+	cat $(distdir)/README.md | fmt -sct -w80 -g72 >$(distdir)/README
 
 ChangeLog:
-	( \
-	  echo -e "# created with git log --stat=76 -M -C|fmt -sct -w80\n" ; \
-	  git log --stat=76 -M -C|fmt -sct -w80 \
-	)>$@
+	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+		( cd $(srcdir) ; \
+		  echo -e "# created with git log --stat=76 -M -C|fmt -sct -w80\n" ; \
+		  git log --stat=76 -M -C|fmt -sct -w80 \
+		)>$@ ; \
+	else touch $@ ; fi
 
-AUTHORS.in:
-	( \
-	  echo "\@PACKAGE\@ -- authors file. \@DATE\@" ; \
-	  echo "" ; \
-	  git log|grep '^Author:'|awk '{if(!authors[$$0]){print$$0;authors[$$0]=1;}}' \
-	)>$@
+AUTHORS:
+	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+		( cd $(srcdir) ; \
+		  echo "$(PACKAGE) -- authors file.  $(DATE)" ; \
+		  echo "" ; \
+		  git log|grep '^Author:'|awk '{if(!authors[$$0]){print$$0;authors[$$0]=1;}}' \
+		)>$@ ; \
+	else touch $@ ; fi
 
-NEWS.in:
-	( \
-	  echo "\@PACKAGE\@ -- history of user-visible changes.  \@DATE\@" ; \
-	  PACKAGE="@PACKAGE@" $(srcdir)/gennews.sh \
-	)>$@
+NEWS:
+	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+		( cd $(srcdir) ; \
+		  echo "$(PACKAGE) -- history of user-visible changes.  $(DATE)" ; \
+		  PACKAGE="$(PACKAGE)" $(srcdir)/gennews.sh \
+		)>$@ ; \
+	else touch $@ ; fi
 
 README.md: README.md.in
 	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
 
-README: README.in
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
+README: README.md
+	cat $< | fmt -sct -w80 -g72 >$@
 
-NEWS: NEWS.in
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
+README.html: README.md
+	markdown $< >$@
 
-AUTHORS: AUTHORS.in
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
-
-THANKS: THANKS.in
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
-
-TODO: TODO.in
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
+README.txt: README.html
+	links -dump -width 80 -codepage utf-8 $< >$@
 
 dist_noinst_SCRIPTS = gennews.sh autogen.sh configure.sh rebuild.sh
 
