@@ -5,6 +5,8 @@ SUBDIRS = src man data
 
 EXTRA_DIST = INSTALL COPYING AUTHORS NEWS README README.md README.md.in THANKS TODO ChangeLog
 
+dist_noinst_SCRIPTS = gennews.sh autogen.sh configure.sh rebuild.sh dist.sh
+
 DISTCLEANFILES = ChangeLog AUTHORS NEWS README README.md README.html README.txt
 
 dist-hook:
@@ -64,6 +66,4 @@ README.html: README.md
 
 README.txt: README.html
 	links -dump -width 80 -codepage utf-8 $< >$@
-
-dist_noinst_SCRIPTS = gennews.sh autogen.sh configure.sh rebuild.sh
 
