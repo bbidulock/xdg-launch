@@ -366,6 +366,8 @@ static const char *StartupNotifyFields[] = {
 	"HOSTNAME",
 	"COMMAND",
 	"ACTION",
+	"AUTOSTART",
+	"XSESSION",
 	"FILE",
 	"URL",
 	NULL
@@ -391,6 +393,8 @@ typedef enum {
 	FIELD_OFFSET_HOSTNAME,
 	FIELD_OFFSET_COMMAND,
 	FIELD_OFFSET_ACTION,
+	FIELD_OFFSET_AUTOSTART,
+	FIELD_OFFSET_XSESSION,
 	FIELD_OFFSET_FILE,
 	FIELD_OFFSET_URL,
 } FieldOffset;
@@ -415,6 +419,8 @@ struct fields {
 	char *hostname;
 	char *command;
 	char *action;
+	char *autostart;
+	char *xsession;
 	char *file;
 	char *url;
 };
@@ -449,6 +455,8 @@ typedef struct _Sequence {
 		unsigned silent;
 		unsigned pid;
 		unsigned sequence;
+		unsigned autostart;
+		unsigned xsession;
 	} n;
 #ifdef GIO_GLIB2_SUPPORT
 	gint timer;
@@ -2387,6 +2395,8 @@ struct {
 	{ " HOSTNAME=",		FIELD_OFFSET_HOSTNAME		},
 	{ " COMMAND=",		FIELD_OFFSET_COMMAND		},
         { " ACTION=",           FIELD_OFFSET_ACTION		},
+        { " AUTOSTART=",        FIELD_OFFSET_AUTOSTART		},
+        { " XSESSION=",         FIELD_OFFSET_XSESSION		},
 	{ NULL,			FIELD_OFFSET_ID			}
 	/* *INDENT-ON* */
 };
@@ -4008,6 +4018,10 @@ convert_sequence_fields(Sequence *seq)
 		seq->n.pid = atoi(seq->f.pid);
 	if (seq->f.sequence)
 		seq->n.sequence = atoi(seq->f.sequence);
+	if (seq->f.autostart)
+		seq->n.autostart = atoi(seq->f.autostart);
+	if (seq->f.xsession)
+		seq->n.autostart = atoi(seq->f.xsession);
 }
 
 static void
@@ -7603,6 +7617,30 @@ set_action()
 		myseq.f.action = NULL;
 }
 
+void
+set_autostart()
+{
+	PTRACE(5);
+	free(myseq.f.action);
+	myseq.f.autostart = calloc(2, sizeof(*myseq.f.autostart));
+	if (options.autostart)
+		strcpy(myseq.f.autostart, "1");
+	else
+		strcpy(myseq.f.autostart, "0");
+}
+
+void
+set_xsession()
+{
+	PTRACE(5);
+	free(myseq.f.action);
+	myseq.f.xsession = calloc(2, sizeof(*myseq.f.xsession));
+	if (options.xsession)
+		strcpy(myseq.f.xsession, "1");
+	else
+		strcpy(myseq.f.xsession, "0");
+}
+
 char *
 set_wmclass()
 {
@@ -7981,6 +8019,10 @@ set_all()
 		set_command();
 	if (!myseq.f.pid)
 		set_pid();
+	if (!myseq.f.autostart)
+		set_autostart();
+	if (!myseq.f.xsession)
+		set_xsession();
 	if (!myseq.f.id)
 		set_id();
 }
