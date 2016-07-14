@@ -9250,7 +9250,7 @@ main(int argc, char *argv[])
 		case 'P':	/* -P, --pointer */
 			if (options.keyboard)
 				goto bad_option;
-			defaults.keyboard = options.keyboard = True;
+			defaults.pointer = options.pointer = True;
 			break;
 		case 'A':	/* -A, --action ACTION */
 			free(options.action);
