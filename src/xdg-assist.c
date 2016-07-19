@@ -134,6 +134,14 @@ dumpstack(const char *file, const int line, const char *func)
 			fprintf(stderr, NAME ": E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
 }
 
+#undef EXIT_SUCCESS
+#undef EXIT_FAILURE
+#undef EXIT_SYNTAXERR
+
+#define EXIT_SUCCESS	0
+#define EXIT_FAILURE	1
+#define EXIT_SYNTAXERR	2
+
 const char *program = NAME;
 
 #define SELECTION_ATOM	"_XDG_ASSIST_S%d"
@@ -6934,7 +6942,7 @@ main(int argc, char *argv[])
 			      bad_usage:
 				usage(argc, argv);
 			}
-			exit(2);
+			exit(EXIT_SYNTAXERR);
 		      bad_command:
 			fprintf(stderr, "%s: only one command option allowed\n", argv[0]);
 			goto bad_usage;
