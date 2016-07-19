@@ -1,4 +1,21 @@
-xdg-launch -- history of user-visible changes.  2016-07-08
+xdg-launch -- history of user-visible changes.  2016-07-18
+
+Release xdg-launch-1.3 released 2016-07-18
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.2...1.3
+
+Brian Bidulock <bidulock@openss7.org> (9):
+      simplify distribution
+      git hates trailing space
+      better formatting
+      improve distribution process
+      limit changelog
+      tell monitors whether autostart or xsession launched
+      bug: pointer options not being set
+      cosmetics
+      add options to xdg-prefs
+
 
 Release xdg-launch-1.2 released 2016-07-08
 ------------------------------------------
@@ -287,71 +304,4 @@ Brian Bidulock <bidulock@openss7.org> (4):
       user persistent source window for messages
       added xdg-which utility
       add fallback directory to xdg-which
-
-
-Release xdg-launch-0.2 released 2014-07-02
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.1...0.2
-
-Brian Bidulock <bidulock@openss7.org> (59):
-      initial commit off skeleton
-      working up program
-      almost complete, still needs assist
-      intern atoms more efficiently
-      more better atom handling
-      working up launch utility
-      working up xde-theme
-      compiles
-      trimmed down to just xdg-launch
-      cleanup of build system, passes distcheck
-      complete build system
-      adding xdg-assist program
-      fixups
-      checking in work
-      better build
-      add xdg-assist program (not finished)
-      add check for fallback directories
-      better desktop entry parsing, added xdg-monitor manpage
-      add a dmenu utility called dmenu_launch
-      appids with a / are relative to an app dir are permitted
-      more ignores
-      enhancements
-      two items done
-      typo
-      install an X error handler
-      working up startup notification assistance
-      add maintainer script
-      start preparing to assist window manager in xdg-launch
-      add xdg-monitor
-      adding status icon and notification to xde-monitor
-      working up xdg-monitor
-      working up xdg-launch
-      pull information from startup id where possible
-      additional wm property handlers
-      working up state machine for xdg-monitor
-      further workup of xdg-monitor
-      move a few things around
-      more rearrangements
-      add selection functions to xdg-monitor
-      handle selection clear in xdg-monitor
-      rework event handling
-      add some missing client messages
-      a few last missing client messages
-      fill out some state machine behavior
-      add timeouts and status icon creation and destruction
-      create desktop notifications
-      properly remove client
-      sending with propertychangemask just doesn't work
-      add debug flags in for maintainer
-      some debugging
-      more corrections and debugging of xdg-monitor
-      update documentation for xdg-monitor
-      for now, close after timeout
-      add XDG application and autostart files
-      help the toolkit/window manager a bit
-      add autostart launch behaviour
-      autodetect XSessions
-      rework assist logic
-      my bad
 

@@ -1,4 +1,105 @@
-# created with git log --stat=76 -M -C|fmt -sct -w80
+# created with git log --stat=76 -M -C -300|fmt -sct -w80
+
+commit 25f8352a0872f54090aab9db8243f77e8deed976
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jul 18 21:18:58 2016 -0600
+
+    add options to xdg-prefs
+
+ src/xdg-prefs.c | 54 +++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 52 insertions(+), 2 deletions(-)
+
+commit a10aa075e9d6aeee77e37ef8bd19ee53452a88c4
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jul 18 21:18:35 2016 -0600
+
+    cosmetics
+
+ src/xdg-assist.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+commit 8178e5947c6cebc3889768a5accf34c8081a23e5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 14 07:01:58 2016 -0600
+
+    bug: pointer options not being set
+
+ src/xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit c2b839edfd4d57da86560c6577fe5c8c4276fcfd
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jul 14 05:13:04 2016 -0600
+
+    tell monitors whether autostart or xsession launched
+
+ src/xdg-assist.c | 54 ++++++++++++++++++++++++++++++----------------------
+ src/xdg-launch.c | 42 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 73 insertions(+), 23 deletions(-)
+
+commit 72c059cec00cccf0f6516f2c53c97e0e00035f2f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jul 10 02:47:16 2016 -0600
+
+    limit changelog
+
+ Makefile.am | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+commit 8c5820af03dedf3a384ac06e7399c2ff860ad42a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jul 10 02:39:15 2016 -0600
+
+    improve distribution process
+
+ .gitignore  | 35 ++++++++++++++++++++++++-----------
+ Makefile.am |  4 ++--
+ autogen.sh  | 31 +++++++++++++++----------------
+ 3 files changed, 41 insertions(+), 29 deletions(-)
+
+commit 23269cf85002d4d431e2b4d39b7baf0b9635fb6f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jul 10 02:38:24 2016 -0600
+
+    better formatting
+
+ README       | 144 ++++++++++++++++++++++++++++++------------------------
+ README.md    | 145 +++++++++++++++++++++++++++++++------------------------
+ README.md.in | 145 +++++++++++++++++++++++++++++++------------------------
+ 3 files changed, 245 insertions(+), 189 deletions(-)
+
+commit b9ec8f88fdf26f970e48af84394bb016f1d8f956
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jul 10 02:38:21 2016 -0600
+
+    git hates trailing space
+
+ gennews.sh | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit ce7063c7c8ef40d3dace78f43371a73625e04f4b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Jul 9 13:06:49 2016 -0600
+
+    simplify distribution
+
+ .gitignore                         |    6 +-
+ AUTHORS.in => AUTHORS              |    2 +-
+ ChangeLog                          | 2797 ++++++++++++++++++++++++++++++++
+ Makefile.am                        |   81 +-
+ NEWS.in => NEWS                    |   16 +-
+ README                             |   47 +-
+ README.in                          |  124 --
+ README.md                          |   22 +-
+ README.md.in                       |   22 +-
+ THANKS.in                          |    5 -
+ TODO.in                            |   26 -
+ autogen.sh                         |   26 +-
+ configure.template => configure.ac |    6 +-
+ dist.sh                            |    9 +
+ gennews.sh                         |    2 +-
+ rebuild.sh                         |    4 +-
+ 16 files changed, 2927 insertions(+), 268 deletions(-)
 
 commit 93f69fe214f7b71d9331e5ad3ef5a9a7dc22ddb5
 Author: Brian Bidulock <bidulock@openss7.org>
