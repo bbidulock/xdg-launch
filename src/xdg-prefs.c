@@ -80,6 +80,18 @@
 #include <strings.h>
 #include <regex.h>
 
+#include <X11/Xatom.h>
+#include <X11/Xlib.h>
+#include <X11/Xproto.h>
+#include <X11/Xutil.h>
+#include <X11/Xresource.h>
+#ifdef XRANDR
+#include <X11/extensions/Xrandr.h>
+#include <X11/extensions/randr.h>
+#endif
+#ifdef XINERAMA
+#include <X11/extensions/Xinerama.h>
+#endif
 #ifdef GIO_GLIB2_SUPPORT
 #include <glib.h>
 #include <gio/gio.h>
@@ -126,6 +138,9 @@ typedef struct {
 	int fallback;
 	char *appid;
 	char **types;
+	Bool pointer;
+	Bool keyboard;
+	int button;
 } Options;
 
 Options options = {
@@ -140,6 +155,9 @@ Options options = {
 	.fallback = 0,
 	.appid = NULL,
 	.types = NULL,
+	.pointer = False,
+	.keyboard = False,
+	.button = 0,
 };
 
 static void
@@ -362,6 +380,7 @@ main(int argc, char *argv[])
 
 	while (1) {
 		int c, val;
+		char *endptr = NULL;
 
 #ifdef _GNU_SOURCE
 		int option_index = 0;
@@ -373,6 +392,10 @@ main(int argc, char *argv[])
 			{"show-tilde",	no_argument,		NULL, 'T'},
 			{"recommend",	no_argument,		NULL, 'r'},
 			{"fallback",	no_argument,		NULL, 'f'},
+
+			{"pointer",	no_argument,		NULL, 'P'},
+			{"keyboard",	no_argument,		NULL, 'K'},
+			{"button",	required_argument,	NULL, 'b'},
 
 			{"pref",	no_argument,		NULL, 'p'},
 			{"exec",	no_argument,		NULL, 'e'},
@@ -388,9 +411,9 @@ main(int argc, char *argv[])
 		};
 		/* *INDENT-ON* */
 
-		c = getopt_long_only(argc, argv, "otOTrfpelD::v::hVCH?", long_options, &option_index);
+		c = getopt_long_only(argc, argv, "otOTrfPKb:pelD::v::hVCH?", long_options, &option_index);
 #else				/* _GNU_SOURCE */
-		c = getopt(argc, argv, "otOTrfpelDvhVCH?");
+		c = getopt(argc, argv, "otOTrfPKb:pelDvhVCH?");
 #endif				/* _GNU_SOURCE */
 		if (c == -1) {
 			DPRINTF("%s: done options processing\n", argv[0]);
@@ -418,6 +441,33 @@ main(int argc, char *argv[])
 		case 'f':	/* -f, --fallback */
 			options.fallback = 1;
 			break;
+
+		case 'P':	/* -P, --pointer */
+			options.pointer = True;
+			options.keyboard = False;
+			if (!options.button)
+				options.button = 1;
+			break;
+		case 'K':	/* -K, --keyboard */
+			options.pointer = False;
+			options.keyboard = True;
+			options.button = 0;
+			break;
+		case 'b':	/* -b, --button BUTTON */
+			val = strtoul(optarg, &endptr, 0);
+			if (endptr && *endptr)
+				goto bad_option;
+			if (val < 0 || val > 8)
+				goto bad_option;
+			if ((options.button = val)) {
+				options.pointer = True;
+				options.keyboard = False;
+			} else {
+				options.pointer = False;
+				options.keyboard = True;
+			}
+			break;
+
 
 		case 'p':	/* -p, --pref */
 			if (options.command != CommandDefault)
