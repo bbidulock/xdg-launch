@@ -7191,7 +7191,7 @@ launch()
 		send_change(&myseq);
 	else
 		send_new(&myseq);
-	XCloseDisplay(dpy);
+	put_display();
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	setenv("DESKTOP_STARTUP_ID", myseq.f.id, 1);
