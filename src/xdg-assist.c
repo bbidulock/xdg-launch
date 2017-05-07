@@ -716,7 +716,7 @@ XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
 void
-intern_atoms()
+intern_atoms(void)
 {
 	int i, j, n;
 	char **atom_names;
@@ -780,10 +780,10 @@ iohandler(Display *display)
 int (*oldhandler) (Display *, XErrorEvent *) = NULL;
 int (*oldiohandler) (Display *) = NULL;
 
-static void init_screen();
+static void init_screen(void);
 
 Bool
-get_display()
+get_display(void)
 {
 	PTRACE(5);
 	if (!dpy) {
@@ -839,7 +839,7 @@ get_display()
 }
 
 void
-put_display()
+put_display(void)
 {
 	PTRACE(5);
 	if (dpy) {
@@ -1172,7 +1172,7 @@ check_supported(Atom protocols, Atom supported)
   * echinus(1)).
   */
 static Window
-check_netwm_supported()
+check_netwm_supported(void)
 {
 	if (check_supported(_XA_NET_SUPPORTED, _XA_NET_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1182,7 +1182,7 @@ check_netwm_supported()
 /** @brief Check for an EWMH/NetWM compliant (sorta) window manager.
   */
 static Window
-check_netwm()
+check_netwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1214,7 +1214,7 @@ check_netwm()
   * _WIN_SUPPORTING_WM_CHECK in its list of atoms.
   */
 static Window
-check_winwm_supported()
+check_winwm_supported(void)
 {
 	if (check_supported(_XA_WIN_PROTOCOLS, _XA_WIN_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1224,7 +1224,7 @@ check_winwm_supported()
 /** @brief Check for a GNOME1/WMH/WinWM compliant window manager.
   */
 static Window
-check_winwm()
+check_winwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1250,7 +1250,7 @@ check_winwm()
 /** @brief Check for a WindowMaker compliant window manager.
   */
 static Window
-check_maker()
+check_maker(void)
 {
 	int i = 0;
 	Window win;
@@ -1275,7 +1275,7 @@ check_maker()
 /** @brief Check for an OSF/Motif compliant window manager.
   */
 static Window
-check_motif()
+check_motif(void)
 {
 	int i = 0;
 	long *data, n = 0;
@@ -1307,7 +1307,7 @@ check_motif()
 /** @brief Check for an ICCCM 2.0 compliant window manager.
   */
 static Window
-check_icccm()
+check_icccm(void)
 {
 	Window win;
 
@@ -1330,7 +1330,7 @@ check_icccm()
   * SubstructureRedirectMask on the root window.
   */
 static Window
-check_redir()
+check_redir(void)
 {
 	XWindowAttributes wa;
 	Window win = None;
@@ -1349,7 +1349,7 @@ check_redir()
 /** @brief Find window manager and compliance for the current screen.
   */
 static Bool
-check_window_manager()
+check_window_manager(void)
 {
 	Bool have_wm = False;
 
@@ -1406,7 +1406,7 @@ check_window_manager()
 /** @brief Check for a system tray.
   */
 static Window
-check_stray()
+check_stray(void)
 {
 	Window win;
 
@@ -1424,7 +1424,7 @@ check_stray()
 }
 
 static Window
-check_pager()
+check_pager(void)
 {
 	Window win;
 	long *cards, n = 0;
@@ -1446,7 +1446,7 @@ check_pager()
 }
 
 static Window
-check_compm()
+check_compm(void)
 {
 	Window win;
 
@@ -1460,7 +1460,7 @@ check_compm()
 }
 
 Window
-check_audio()
+check_audio(void)
 {
 	char *text;
 
@@ -1477,7 +1477,7 @@ check_audio()
 }
 
 static Window
-check_shelp()
+check_shelp(void)
 {
 	Window win;
 
@@ -1491,14 +1491,14 @@ check_shelp()
 }
 
 static void
-handle_wmchange()
+handle_wmchange(void)
 {
 	if (!check_window_manager())
 		check_window_manager();
 }
 
 static void
-init_screen()
+init_screen(void)
 {
 	handle_wmchange();
 	check_stray();
@@ -1608,7 +1608,7 @@ get_frame(Window win)
 }
 
 Window
-get_focus_frame()
+get_focus_frame(void)
 {
 	Window focus;
 	int di;
@@ -1622,7 +1622,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen()
+find_focus_screen(void)
 {
 	Window frame, froot;
 	int di;
@@ -1642,7 +1642,7 @@ find_focus_screen()
 }
 
 Bool
-find_pointer_screen()
+find_pointer_screen(void)
 {
 	Window proot = None, dw;
 	int di;
@@ -1815,7 +1815,7 @@ add_group(Client *c, Window leader, Groups group)
  * determine from WMCLASS= which messages belong to which newly mapped window.
  */
 Bool
-need_assistance()
+need_assistance(void)
 {
 	if (check_shelp()) {
 		DPRINTF(1, "No assistance needed: Startup notification helper running\n");

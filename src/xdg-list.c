@@ -639,7 +639,7 @@ sort_keys(const void *a, const void *b)
 }
 
 static void
-sort_desktop_entries()
+sort_desktop_entries(void)
 {
 	Entry *entry;
 	int i, n;
@@ -658,7 +658,7 @@ sort_desktop_entries()
 }
 
 static void
-list_desktop_entries()
+list_desktop_entries(void)
 {
 	Entry *entry;
 

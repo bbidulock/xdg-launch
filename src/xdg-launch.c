@@ -844,7 +844,7 @@ XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
 void
-intern_atoms()
+intern_atoms(void)
 {
 	int i, j, n;
 	char **atom_names;
@@ -908,10 +908,10 @@ iohandler(Display *display)
 int (*oldhandler) (Display *, XErrorEvent *) = NULL;
 int (*oldiohandler) (Display *) = NULL;
 
-static void init_screen();
+static void init_screen(void);
 
 Bool
-get_display()
+get_display(void)
 {
 	PTRACE(5);
 	if (!dpy) {
@@ -970,7 +970,7 @@ get_display()
 }
 
 void
-put_display()
+put_display(void)
 {
 	PTRACE(5);
 	if (dpy) {
@@ -1283,7 +1283,7 @@ check_supported(Atom protocols, Atom supported)
   * echinus(1)).
   */
 static Window
-check_netwm_supported()
+check_netwm_supported(void)
 {
 	if (check_supported(_XA_NET_SUPPORTED, _XA_NET_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1293,7 +1293,7 @@ check_netwm_supported()
 /** @brief Check for an EWMH/NetWM compliant (sorta) window manager.
   */
 static Window
-check_netwm()
+check_netwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1325,7 +1325,7 @@ check_netwm()
   * _WIN_SUPPORTING_WM_CHECK in its list of atoms.
   */
 static Window
-check_winwm_supported()
+check_winwm_supported(void)
 {
 	if (check_supported(_XA_WIN_PROTOCOLS, _XA_WIN_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1335,7 +1335,7 @@ check_winwm_supported()
 /** @brief Check for a GNOME1/WMH/WinWM compliant window manager.
   */
 static Window
-check_winwm()
+check_winwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1361,7 +1361,7 @@ check_winwm()
 /** @brief Check for a WindowMaker compliant window manager.
   */
 static Window
-check_maker()
+check_maker(void)
 {
 	int i = 0;
 	Window win;
@@ -1386,7 +1386,7 @@ check_maker()
 /** @brief Check for an OSF/Motif compliant window manager.
   */
 static Window
-check_motif()
+check_motif(void)
 {
 	int i = 0;
 	long *data, n = 0;
@@ -1416,7 +1416,7 @@ check_motif()
 /** @brief Check for an ICCCM 2.0 compliant window manager.
   */
 static Window
-check_icccm()
+check_icccm(void)
 {
 	Window win;
 
@@ -1439,7 +1439,7 @@ check_icccm()
   * SubstructureRedirectMask on the root window.
   */
 static Window
-check_redir()
+check_redir(void)
 {
 	XWindowAttributes wa;
 	Window win = None;
@@ -1458,7 +1458,7 @@ check_redir()
 /** @brief Find window manager and compliance for the current screen.
   */
 static Bool
-check_window_manager()
+check_window_manager(void)
 {
 	Bool have_wm = False;
 
@@ -1515,7 +1515,7 @@ check_window_manager()
 /** @brief Check for a system tray.
   */
 static Window
-check_stray()
+check_stray(void)
 {
 	Window win;
 
@@ -1533,7 +1533,7 @@ check_stray()
 }
 
 static Window
-check_pager()
+check_pager(void)
 {
 	Window win;
 	long *cards, n = 0;
@@ -1554,7 +1554,7 @@ check_pager()
 }
 
 static Window
-check_compm()
+check_compm(void)
 {
 	Window win;
 
@@ -1568,7 +1568,7 @@ check_compm()
 }
 
 Window
-check_audio()
+check_audio(void)
 {
 	char *text;
 
@@ -1585,7 +1585,7 @@ check_audio()
 }
 
 static Window
-check_shelp()
+check_shelp(void)
 {
 	Window win;
 
@@ -1599,14 +1599,14 @@ check_shelp()
 }
 
 static void
-handle_wmchange()
+handle_wmchange(void)
 {
 	if (!check_window_manager())
 		check_window_manager();
 }
 
 static void
-init_screen()
+init_screen(void)
 {
 	handle_wmchange();
 	check_stray();
@@ -1712,7 +1712,7 @@ get_frame(Window win)
 }
 
 Window
-get_focus_frame()
+get_focus_frame(void)
 {
 	Window focus;
 	int di;
@@ -1726,7 +1726,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen()
+find_focus_screen(void)
 {
 	Window frame, froot;
 	int di;
@@ -1746,7 +1746,7 @@ find_focus_screen()
 }
 
 Bool
-find_pointer_screen()
+find_pointer_screen(void)
 {
 	Window proot = None, dw;
 	int di;
@@ -1918,7 +1918,7 @@ add_group(Client *c, Window leader, Groups group)
  * determine from WMCLASS= which messages belong to which newly mapped window.
  */
 Bool
-need_assistance()
+need_assistance(void)
 {
 	if (check_shelp()) {
 		DPRINTF(1, "No assistance needed: Startup notification helper running\n");
@@ -6539,8 +6539,8 @@ handle_event(XEvent *e)
 	}
 }
 
-void set_pid();
-void set_id();
+void set_pid(void);
+void set_id(void);
 
 void
 reset_pid(pid_t pid)
@@ -6570,7 +6570,7 @@ reset_pid(pid_t pid)
   * process before the launch.
   */
 void
-setup_to_assist()
+setup_to_assist(void)
 {
 	if (myseq.f.timestamp && myseq.n.timestamp)
 		pushtime(&launch_time, (Time) myseq.n.timestamp);
@@ -6584,8 +6584,8 @@ sighandler(int sig)
 	signum = sig;
 }
 
-Bool get_display();
-void put_display();
+Bool get_display(void);
+void put_display(void);
 
 /** @brief assist the window manager.
   *
@@ -6600,7 +6600,7 @@ void put_display();
   * assistance and then exits.  The child owns the display connection.
   */
 void
-assist()
+assist(void)
 {
 	pid_t pid = getpid();
 
@@ -6701,7 +6701,7 @@ assist()
   * application.
   */
 void
-toolwait()
+toolwait(void)
 {
 	pid_t pid = getpid();
 
@@ -6791,7 +6791,7 @@ toolwait()
   * and set the appropriate EWMH properties on all windows.
   */
 void
-normal()
+normal(void)
 {
 	pid_t pid = getpid();
 
@@ -6857,7 +6857,7 @@ wait_for_condition(Window (*until) (void))
 }
 
 static Window
-check_anywm()
+check_anywm(void)
 {
 	if (scr->netwm_check)
 		return True;
@@ -6875,7 +6875,7 @@ check_anywm()
 }
 
 static Bool
-check_for_window_manager()
+check_for_window_manager(void)
 {
 	PTRACE(5);
 	OPRINTF(1, "checking NetWM/EWMH compliance\n");
@@ -6900,7 +6900,7 @@ check_for_window_manager()
 }
 
 static void
-wait_for_window_manager()
+wait_for_window_manager(void)
 {
 	PTRACE(5);
 	if (check_for_window_manager()) {
@@ -6937,7 +6937,7 @@ wait_for_window_manager()
 }
 
 static void
-wait_for_system_tray()
+wait_for_system_tray(void)
 {
 	PTRACE(5);
 	if (check_stray()) {
@@ -6957,7 +6957,7 @@ wait_for_system_tray()
 }
 
 static void
-wait_for_desktop_pager()
+wait_for_desktop_pager(void)
 {
 	PTRACE(5);
 	if (check_pager()) {
@@ -6978,7 +6978,7 @@ wait_for_desktop_pager()
 }
 
 static void
-wait_for_composite_manager()
+wait_for_composite_manager(void)
 {
 	PTRACE(5);
 	if (check_compm()) {
@@ -6999,7 +6999,7 @@ wait_for_composite_manager()
 }
 
 static void
-wait_for_audio_server()
+wait_for_audio_server(void)
 {
 	PTRACE(5);
 	if (check_audio()) {
@@ -7027,7 +7027,7 @@ wait_for_audio_server()
  * When options.xsession is true, we should never wait for resources.
  */
 void
-wait_for_resource()
+wait_for_resource(void)
 {
 	if (options.xsession) {
 		DPRINTF(1, "Cannot wait for resources when launching xsessions.\n");
@@ -7107,7 +7107,7 @@ wait_for_resource()
 }
 
 Bool
-need_assist()
+need_assist(void)
 {
 	Bool need_assist = options.assist;
 
@@ -7150,7 +7150,7 @@ need_assist()
 }
 
 void
-launch()
+launch(void)
 {
 	size_t size;
 	char *disp, *p;
@@ -7262,23 +7262,22 @@ launch()
 }
 
 void
-set_screen()
+set_screen(void)
 {
 	free(myseq.f.screen);
 	myseq.f.screen = calloc(64, sizeof(*myseq.f.screen));
 	if (options.screen != -1 && 0 <= options.screen && options.screen < ScreenCount(dpy))
 		snprintf(myseq.f.screen, 64, "%d", options.screen);
-	else if (options.keyboard && find_focus_screen(&options.screen))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
-	else if (options.pointer && find_pointer_screen(&options.screen))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
-	else if (!options.keyboard && !options.pointer &&
-		 (find_focus_screen(&options.screen) || find_pointer_screen(&options.screen)))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
+	else if (options.keyboard && find_focus_screen())
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+	else if (options.pointer && find_pointer_screen())
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+	else if (!options.keyboard && !options.pointer && (find_focus_screen() || find_pointer_screen()))
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
 	else {
 		options.screen = DefaultScreen(dpy);
 		scr = screens + DefaultScreen(dpy);
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
 	}
 }
 
@@ -7457,7 +7456,7 @@ find_pointer_monitor(int *monitor)
 }
 
 void
-set_monitor()
+set_monitor(void)
 {
 	free(myseq.f.monitor);
 	myseq.f.monitor = calloc(64, sizeof(*myseq.f.monitor));
@@ -7477,7 +7476,7 @@ set_monitor()
 }
 
 void
-set_desktop()
+set_desktop(void)
 {
 	Atom atom, real;
 	int format, monitor = 0;
@@ -7545,7 +7544,7 @@ set_desktop()
 }
 
 void
-set_name()
+set_name(void)
 {
 	char *pos;
 
@@ -7562,7 +7561,7 @@ set_name()
 }
 
 void
-set_description()
+set_description(void)
 {
 	PTRACE(5);
 	free(myseq.f.description);
@@ -7575,7 +7574,7 @@ set_description()
 }
 
 void
-set_icon()
+set_icon(void)
 {
 	char *icon, *p;
 
@@ -7604,7 +7603,7 @@ set_icon()
 }
 
 void
-set_action()
+set_action(void)
 {
 	PTRACE(5);
 	free(myseq.f.action);
@@ -7615,7 +7614,7 @@ set_action()
 }
 
 void
-set_autostart()
+set_autostart(void)
 {
 	PTRACE(5);
 	free(myseq.f.action);
@@ -7627,7 +7626,7 @@ set_autostart()
 }
 
 void
-set_xsession()
+set_xsession(void)
 {
 	PTRACE(5);
 	free(myseq.f.action);
@@ -7639,7 +7638,7 @@ set_xsession()
 }
 
 char *
-set_wmclass()
+set_wmclass(void)
 {
 	char *pos;
 
@@ -7658,7 +7657,7 @@ set_wmclass()
 }
 
 void
-set_pid()
+set_pid(void)
 {
 	char *p, *q;
 
@@ -7676,7 +7675,7 @@ set_pid()
 }
 
 void
-set_hostname()
+set_hostname(void)
 {
 	PTRACE(5);
 	free(myseq.f.hostname);
@@ -7689,7 +7688,7 @@ set_hostname()
 }
 
 void
-set_sequence()
+set_sequence(void)
 {
 	PTRACE(5);
 	free(myseq.f.sequence);
@@ -7703,7 +7702,7 @@ set_sequence()
 }
 
 void
-set_timestamp()
+set_timestamp(void)
 {
 	char *p;
 
@@ -7789,7 +7788,7 @@ truth_value(char *p)
 }
 
 char *
-set_command()
+set_command(void)
 {
 	char *cmd;
 
@@ -7838,7 +7837,7 @@ set_command()
 }
 
 void
-set_silent()
+set_silent(void)
 {
 	PTRACE(5);
 	free(myseq.f.silent);
@@ -7858,7 +7857,7 @@ first_word(char *str)
 }
 
 char *
-set_bin()
+set_bin(void)
 {
 	char *p, *q;
 
@@ -7885,7 +7884,7 @@ set_bin()
 }
 
 char *
-set_application_id()
+set_application_id(void)
 {
 	char *p, *q;
 
@@ -7906,7 +7905,7 @@ set_application_id()
 }
 
 void
-set_launcher()
+set_launcher(void)
 {
 	char *p;
 
@@ -7922,7 +7921,7 @@ set_launcher()
 }
 
 void
-set_launchee()
+set_launchee(void)
 {
 	char *p, *q;
 
@@ -7942,7 +7941,7 @@ set_launchee()
 }
 
 void
-set_id()
+set_id(void)
 {
 	char *launcher, *launchee, *p;
 
@@ -7981,7 +7980,7 @@ set_id()
 }
 
 void
-set_all()
+set_all(void)
 {
 	PTRACE(5);
 	if (!myseq.f.name)
@@ -8703,7 +8702,7 @@ put_line_history(char *file, char *line)
 }
 
 static void
-put_history()
+put_history(void)
 {
 	put_line_history(options.runhist, myseq.f.command);
 	put_line_history(options.recapps, myseq.f.application_id);
@@ -8958,7 +8957,7 @@ Options:\n\
 }
 
 static void
-set_default_files()
+set_default_files(void)
 {
 	static const char *rsuffix = "/xde/run-history";
 	static const char *asuffix = "/xde/recent-applications";
