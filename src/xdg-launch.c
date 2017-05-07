@@ -6796,11 +6796,8 @@ normal()
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	if (options.info) {
+	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
-		reset_pid(pid);
-		return;
-	}
 	reset_pid(pid);
 	/* main process returns and launches */
 	return;

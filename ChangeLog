@@ -1,5 +1,28 @@
 # created with git log --stat=76 -M -C -300|fmt -sct -w80
 
+commit d525592205941bddcc1b82bb1fadb0bfbb47efa8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun May 7 03:48:55 2017 -0600
+
+    replace error handlers too
+
+ src/xdg-launch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit df24e0b3301fb2f96600bfc28f3c473290c36dea
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Jul 18 21:25:40 2016 -0600
+
+    update release files
+
+ AUTHORS      |   2 +-
+ ChangeLog    | 103 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ NEWS         |  86 ++++++++++------------------------------------
+ README       |   4 +--
+ README.md    |   4 +--
+ configure.ac |   6 ++--
+ 6 files changed, 128 insertions(+), 77 deletions(-)
+
 commit 25f8352a0872f54090aab9db8243f77e8deed976
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Mon Jul 18 21:18:58 2016 -0600
