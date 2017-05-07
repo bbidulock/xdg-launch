@@ -3,7 +3,7 @@
 xdg-launch
 ===============
 
-Package `xdg-launch-1.4` was released under GPLv3 license 2017-05-07.
+Package `xdg-launch-1.5` was released under GPLv3 license 2017-05-07.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -20,7 +20,7 @@ wrapper scripts.
 Release
 -------
 
-This is the `xdg-launch-1.4` package, released 2017-05-07.  This
+This is the `xdg-launch-1.5` package, released 2017-05-07.  This
 release, and the latest version, can be obtained from the [GitHub
 repository][1], using a command such as:
 

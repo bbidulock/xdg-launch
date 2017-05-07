@@ -1,5 +1,42 @@
 # created with git log --stat=76 -M -C -300|fmt -sct -w80
 
+commit f8d2503e15a34c242eb2cbf8b70c13cfa797e1dc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun May 7 09:26:12 2017 -0600
+
+    strict prototypes and find screen better
+
+ configure.ac     |   4 +-
+ src/xdg-assist.c |  48 ++++++++---------
+ src/xdg-launch.c | 147 +++++++++++++++++++++++++--------------------------
+ src/xdg-list.c   |   4 +-
+ 4 files changed, 101 insertions(+), 102 deletions(-)
+
+commit 657d52effae0e93651fe02bce2b867f22c3c40fd
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun May 7 05:23:28 2017 -0600
+
+    search XFree problem in xdg-assist
+
+ man/xdg-assist.pod |   2 +-
+ src/xdg-assist.c   | 147 +++++++++++++++++++++++++++++++++++++------------
+ 2 files changed, 114 insertions(+), 35 deletions(-)
+
+commit a17f8f1faeb6803221c1e977987f2eebae75d816
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun May 7 04:44:32 2017 -0600
+
+    update release files
+
+ AUTHORS          |  2 +-
+ ChangeLog        | 23 +++++++++++++++++++++++
+ NEWS             | 26 ++++++++++++--------------
+ README           |  4 ++--
+ README.md        |  4 ++--
+ configure.ac     |  6 +++---
+ src/xdg-launch.c |  5 +----
+ 7 files changed, 44 insertions(+), 26 deletions(-)
+
 commit d525592205941bddcc1b82bb1fadb0bfbb47efa8
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun May 7 03:48:55 2017 -0600
