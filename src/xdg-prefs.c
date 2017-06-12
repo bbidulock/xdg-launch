@@ -1,6 +1,6 @@
 /*****************************************************************************
 
- Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>
+ Copyright (c) 2008-2017  Monavacon Limited <http://www.monavacon.com/>
  Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>
  Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>
 
@@ -368,7 +368,7 @@ General Options:\n\
         print tildes instead of full path\n\
     --recommend, -r\n\
         list, execute or set recommended rather than default\n\
-  - --fallback, -f\n\
+    --fallback, -f\n\
         list or execute fallback rather than default\n\
 ", argv[0]);
 }
