@@ -8182,7 +8182,7 @@ put_recently_used_xbel(char *filename)
 		p = groups;
 		for (p = groups, *strchrnul(p, ';') = '\0'; p < e;
 		     p += strlen(p) + 1, *strchrnul(p, ';') = '\0')
-			if (strcmp(p, "Application"))
+			if (strcmp(p, "Application") && p[0])
 				g_bookmark_file_add_group(bookmark, options.url, p);
 		free(groups);
 	}
