@@ -9524,12 +9524,32 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	if (options.file && !options.url) {
-		int size = strlen("file://") + strlen(options.file) + 1;
+	if (options.file && options.file[0] && !options.url) {
+		if (options.file[0] == '/') {
+			int size = strlen("file://") + strlen(options.file) + 1;
 
-		options.url = calloc(size, sizeof(*options.url));
-		strcat(options.url, "file://");
-		strcat(options.url, options.file);
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, options.file);
+		} else if (options.file[0] == '.' && options.file[1] == '/') {
+			char *cwd = get_current_dir_name();
+			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, cwd);
+			strcat(options.url, "/");
+			strcat(options.url, options.file + 2);
+		} else {
+			char *cwd = get_current_dir_name();
+			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, cwd);
+			strcat(options.url, "/");
+			strcat(options.url, options.file);
+		}
 	} else if (options.url && !options.file &&
 		   (p = strstr(options.url, "file://")) == options.url) {
 		options.file = strdup(options.url + 7);
