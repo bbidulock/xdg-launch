@@ -8036,7 +8036,7 @@ get_mime_type(const char *uri)
 		EPRINTF("could not get GFile for %s\n", uri);
 	} else
 	    if (!(info = g_file_query_info(file, G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE,
-					   G_PRIORITY_DEFAULT, NULL, NULL))) {
+					   G_FILE_QUERY_INFO_NONE, NULL, NULL))) {
 		EPRINTF("could not get GFileInfo for %s\n", uri);
 		g_object_unref(file);
 	} else
