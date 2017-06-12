@@ -97,6 +97,7 @@
 #ifdef GIO_GLIB2_SUPPORT
 #include <glib.h>
 #include <gio/gio.h>
+#include <gio/gdesktopappinfo.h>
 #endif
 
 #define XPRINTF(_args...) do { } while (0)
@@ -202,6 +203,7 @@ typedef struct {
 	Bool audio;
 	Bool assist;
 	int guard;
+	char *mime;
 } Options;
 
 Options options = {
@@ -255,6 +257,7 @@ Options options = {
 	.audio = False,
 	.assist = False,
 	.guard = 2,
+	.mime = NULL,
 };
 
 Options defaults = {
@@ -8031,23 +8034,82 @@ get_mime_type(const char *uri)
 	GFile *file;
 	GFileInfo *info;
 	char *mime = NULL;
+	const char *type;
+	const char *attr = G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE;
 
-	if (!(file = g_file_new_for_uri(uri))) {
+	if (!uri) {
+		EPRINTF("uri is NULL!\n");
+	} else if (!(file = g_file_new_for_uri(uri))) {
 		EPRINTF("could not get GFile for %s\n", uri);
-	} else
-	    if (!(info = g_file_query_info(file, G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE,
-					   G_FILE_QUERY_INFO_NONE, NULL, NULL))) {
+	} else if (!(info = g_file_query_info(file, attr, G_FILE_QUERY_INFO_NONE, NULL, NULL))) {
 		EPRINTF("could not get GFileInfo for %s\n", uri);
 		g_object_unref(file);
-	} else
-	    if (!(mime = g_file_info_get_attribute_as_string(info,
-							     G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE)))
-	{
+	} else if (!(type = g_file_info_get_attribute_string(info, attr))) {
 		EPRINTF("could not get content-type for %s\n", uri);
 		g_object_unref(info);
 		g_object_unref(file);
+	} else {
+		mime = strdup(type);
 	}
 	return (mime);
+}
+
+static void
+set_mime_type(void)
+{
+	free(options.mime);
+	if (!(options.mime = get_mime_type(options.url))) {
+		EPRINTF("could not get mime type for %s\n", options.url);
+		if (myent.MimeType) {
+			char *p;
+
+			options.mime = strdup(myent.MimeType);
+			if ((p = strchr(options.mime, ';')))
+				*p = '\0';
+		} else
+			options.mime = strdup("application/octet-stream");
+	}
+}
+
+static void
+put_recently_used_info(void)
+{
+	char *desktop_id;
+	GDesktopAppInfo *info;
+
+	/* only for applications, not autostart or xsesssion */
+	if (!options.uri) {
+		DPRINTF(1, "do not recommend without a uri\n");
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF(1, "do not recommend autostart or xsession invocations\n");
+		return;
+	}
+	if (!options.mime) {
+		DPRINTF(1, "do not recommend without a mime type\n");
+		return;
+	}
+	/* FIXME: should probably use the entire file name here. */
+	if (!myseq.f.application_id) {
+		DPRINTF(1, "do not recommend without an application id\n");
+		return;
+	}
+	desktop_id = g_strdup_printf("%s.desktop", myseq.f.application_id);
+	if (!(info = g_desktop_app_info_new(desktop_id))) {
+		EPRINTF("cannot find desktop id %s\n", desktop_id);
+		g_free(desktop_id);
+		return;
+	}
+	if (!g_app_info_set_as_last_used_for_type(G_APP_INFO(info), options.mime, NULL)) {
+		EPRINTF("cannot set last used %s for %s\n", desktop_id, options.mime);
+		g_object_unref(info);
+		g_free(desktop_id);
+		return;
+	}
+	g_object_unref(info);
+	g_free(desktop_id);
+	return;
 }
 
 static void
@@ -8116,7 +8178,7 @@ put_recently_used_xbel(char *filename)
 {
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
-	char *file, *mime = NULL;
+	char *file;
 
 	if (!options.url) {
 		EPRINTF("cannot record %s without a url\n", filename);
@@ -8146,18 +8208,8 @@ put_recently_used_xbel(char *filename)
 	}
 
 	/* 2) append new information (url only) */
-	if (!(mime = get_mime_type(options.url))) {
-		if (myent.MimeType) {
-			char *p;
-
-			mime = strdup(myent.MimeType);
-			if ((p = strchr(mime, ';')))
-				*p = '\0';
-		}
-	}
-	if (mime)
-		g_bookmark_file_set_mime_type(bookmark, options.url, mime);
-	free(mime);
+	if (options.mime)
+		g_bookmark_file_set_mime_type(bookmark, options.url, options.mime);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	if (myseq.f.application_id) {
@@ -8555,20 +8607,10 @@ put_recently_used(char *filename)
 
 	/* 2) append new information (url only) */
 	if (!(item = g_list_find_custom(list, options.url, uri_match))) {
-		char *p;
-
 		used = calloc(1, sizeof(*used));
 		used->uri = strdup(options.url);
 		used->private = TRUE;
-		if (!(used->mime = get_mime_type(options.url))) {
-			EPRINTF("could not get mime type for %s\n", options.url);
-			if (myent.MimeType) {
-				used->mime = strdup(myent.MimeType);
-				if ((p = strchr(used->mime, ';')))
-					*p = '\0';
-			} else
-				used->mime = strdup("application/octet-stream");
-		}
+		used->mime = options.mime ? strdup(options.mime) : NULL;
 		list = g_list_prepend(list, used);
 	} else
 		used = item->data;
@@ -8709,8 +8751,10 @@ put_history(void)
 #ifdef GIO_GLIB2_SUPPORT
 	if (options.uri) {
 		if (options.url) {
+			set_mime_type();
 			put_recently_used(".recently-used");
 			put_recently_used_xbel("recently-used.xbel");
+			put_recently_used_info();
 		}
 		put_recent_applications(".recently-used");
 		put_recent_applications(".recent-applications");
