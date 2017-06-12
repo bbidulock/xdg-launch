@@ -8074,8 +8074,8 @@ set_mime_type(void)
 static void
 put_recently_used_info(void)
 {
-	char *desktop_id;
-	GDesktopAppInfo *info;
+	char *desktop_id = NULL;
+	GDesktopAppInfo *info = NULL;
 
 	/* only for applications, not autostart or xsesssion */
 	if (!options.uri) {
@@ -8090,25 +8090,35 @@ put_recently_used_info(void)
 		DPRINTF(1, "do not recommend without a mime type\n");
 		return;
 	}
-	/* FIXME: should probably use the entire file name here. */
 	if (!myseq.f.application_id) {
 		DPRINTF(1, "do not recommend without an application id\n");
 		return;
 	}
-	desktop_id = g_strdup_printf("%s.desktop", myseq.f.application_id);
-	if (!(info = g_desktop_app_info_new(desktop_id))) {
-		EPRINTF("cannot find desktop id %s\n", desktop_id);
-		g_free(desktop_id);
+	if (options.path && !(info = g_desktop_app_info_new_from_filename(options.path))) {
+		EPRINTF("cannot find desktop file %s\n", options.path);
 		return;
+	}
+	if (!info) {
+		if (!(desktop_id = g_strdup_printf("%s.desktop", myseq.f.application_id))) {
+			EPRINTF("cannot allocate desktop_id\n");
+			return;
+		}
+		if (!(info = g_desktop_app_info_new(desktop_id))) {
+			EPRINTF("cannot find desktop id %s\n", desktop_id);
+			g_free(desktop_id);
+			return;
+		}
 	}
 	if (!g_app_info_set_as_last_used_for_type(G_APP_INFO(info), options.mime, NULL)) {
 		EPRINTF("cannot set last used %s for %s\n", desktop_id, options.mime);
 		g_object_unref(info);
-		g_free(desktop_id);
+		if (desktop_id)
+			g_free(desktop_id);
 		return;
 	}
 	g_object_unref(info);
-	g_free(desktop_id);
+	if (desktop_id)
+		g_free(desktop_id);
 	return;
 }
 
