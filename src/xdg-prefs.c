@@ -297,7 +297,7 @@ version(int argc, char *argv[])
 %1$s (OpenSS7 %2$s) %3$s\n\
 Written by Brian Bidulock.\n\
 \n\
-Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017  Monavacon Limited.\n\
+Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017  Monavacon Ltd.\n\
 Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008  OpenSS7 Corporation.\n\
 Copyright (c) 1997, 1998, 1999, 2000, 2001  Brian F. G. Bidulock.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
@@ -332,6 +332,8 @@ help(int argc, char *argv[])
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
+Name:\n\
+    %1$s: manage preferred applications\n\
 Usage:\n\
     %1$s [options] {-p|--pref} [--] APPID[;APPID[...]] [TYPE [...]]\n\
     %1$s [options] {-e|--exec} [--] TYPE [...]\n\
@@ -351,25 +353,22 @@ Command Options:\n\
         execute preferred application for type\n\
     --list, -l\n\
         list preferred application for types\n\
+General Options:\n\
+    --recommend, -r\n\
+        list, execute or set recommended rather than default\n\
+    --fallback, -f\n\
+        list or execute fallback rather than default or recommended\n\
+    --pointer, -P\n\
+        pass this option to xdg-launch when executing\n\
+    --keyboard, -K\n\
+        pass this option to xdg-launch when executing\n\
+Standard Options:\n\
     --help, -h, -?, --?\n\
         print this usage information and exit\n\
     --version, -V\n\
         print version and exit\n\
     --copying, -C\n\
         print copying permission and exit\n\
-General Options:\n\
-    --skip-dot, -o\n\
-        skip directories that start with a dot\n\
-    --skip-tilde, -t\n\
-        skip directories that start with a tilde\n\
-    --show-dot, -O\n\
-        print dots instead of full path\n\
-    --show-tilde, -T\n\
-        print tildes instead of full path\n\
-    --recommend, -r\n\
-        list, execute or set recommended rather than default\n\
-    --fallback, -f\n\
-        list or execute fallback rather than default\n\
 ", argv[0]);
 }
 
