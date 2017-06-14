@@ -6,7 +6,7 @@ xdg-prefs - locate and set preferred desktop applications
 
 =head1 SYNOPSIS
 
-B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID>[B<;>...] [I<TYPE> [...]]
+B<xdg-prefs> [I<options>] {-p,--pref} [--] I<APPID> [I<TYPE> [...]]
 
 B<xdg-prefs> [I<options>] {-e,--exec} [--] I<TYPE>
 
@@ -24,7 +24,7 @@ The program accepts the following arguments:
 
 =over
 
-=item I<APPID>[B<;>...]
+=item I<APPID>
 
 Specifies the application identifier of an XDG desktop application to
 locate.  The application identifier, I<APPID>, can be one of the
@@ -51,9 +51,6 @@ file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
 contain at least one C</> and start with either a C</> or a C<.>.
 
 =back
-
-Additional application identifiers and option actions can be listed
-separated by semi-colons (C<;>).
 
 Providing a non-option application identifier argument is mandatory when
 the B<--pref> option is specified.

@@ -163,6 +163,68 @@ Options options = {
 static void
 do_pref(int argc, char *argv[])
 {
+	char **type, *appid;
+	GDesktopAppInfo *desk;
+	GAppInfo *info;
+	int setcount = 0;
+
+	appid = calloc(PATH_MAX + 1, sizeof(*appid));
+	strncpy(appid, options.appid, PATH_MAX);
+	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
+		strncat(appid, ".desktop", PATH_MAX);
+	if (strstr(appid, "/")) {
+		if (!(desk = g_desktop_app_info_new_from_filename(appid))) {
+			EPRINTF("%s: cannot find appid file %s\n", argv[0], appid);
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		if (!(desk = g_desktop_app_info_new(appid))) {
+			EPRINTF("%s: cannot find appid %s\n", argv[0], appid);
+			exit(EXIT_FAILURE);
+		}
+	}
+	info = G_APP_INFO(desk);
+
+	for (type = options.types; type && *type; type++) {
+		gchar *content;
+
+		if (!strchr(*type, '/')) {
+			EPRINTF("%s: categories not yet supported\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+		if ((content = g_content_type_from_mime_type(*type))) {
+			if (options.fallback) {
+				EPRINTF("%s: could not set %s fallback for type %s\n", argv[0],
+					appid, content);
+			} else if (options.recommend) {
+				if (g_app_info_set_as_last_used_for_type(info, content, NULL)) {
+					setcount++;
+					continue;
+				}
+				EPRINTF("%s: could not set %s lastused for type %s\n", argv[0],
+					appid, content);
+			} else {
+				if (g_app_info_set_as_default_for_type(info, content, NULL)) {
+					setcount++;
+					continue;
+				}
+				EPRINTF("%s: could not set %s default for type %s\n", argv[0],
+					appid, content);
+			}
+			g_free(content);
+		}
+	}
+	if (!setcount) {
+		if (options.fallback)
+			EPRINTF("%s: could not set %s fallback for any type\n", argv[0], appid);
+		else if (options.recommend)
+			EPRINTF("%s: could not set %s lastused for any type\n", argv[0], appid);
+		else
+			EPRINTF("%s: could not set %s default for any type\n", argv[0], appid);
+		exit(EXIT_FAILURE);
+	}
+	g_object_unref(desk);
+	free(appid);
 }
 
 static void
