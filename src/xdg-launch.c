@@ -156,6 +156,8 @@ typedef struct {
 	int debug;
 	int output;
 	char *appid;
+	char *mimetype;
+	char *category;
 	char *launcher;
 	char *launchee;
 	char *sequence;
@@ -210,6 +212,8 @@ Options options = {
 	.debug = 0,
 	.output = 1,
 	.appid = NULL,
+	.mimetype = NULL,
+	.category = NULL,
 	.launcher = NULL,
 	.launchee = NULL,
 	.sequence = NULL,
@@ -264,6 +268,8 @@ Options defaults = {
 	.debug = 0,
 	.output = 1,
 	.appid = "[APPID]",
+	.mimetype = "[MIMETYPE]",
+	.category = "[CATEGORY]",
 	.launcher = NAME,
 	.launchee = "[APPID]",
 	.sequence = "0",
@@ -8910,10 +8916,14 @@ Options:\n\
         whether startup notification is silent (0/1), [default: '%13$s']\n\
     -p, --pid PID\n\
         process id of the XDG application, [default: '%14$d']\n\
-    -a, --appid APPID\n\
-        override application identifier\n\
     -x, --exec EXEC\n\
         override command to execute\n\
+    -a, --appid APPID\n\
+        override application identifier\n\
+    --mimetype MIMETYPE\n\
+        launch default application for MIMETYPE\n\
+    --category CATEGORY\n\
+        launch default application for CATEOGRY\n\
     -f, --file FILE\n\
         filename to use with application\n\
     -u, --url URL\n\
@@ -9140,8 +9150,10 @@ main(int argc, char *argv[])
 			{"wmclass",	required_argument,	NULL, 'W'},
 			{"silent",	required_argument,	NULL, 'q'},
 			{"pid",		optional_argument,	NULL, 'p'},
-			{"appid",	required_argument,	NULL, 'a'},
 			{"exec",	required_argument,	NULL, 'x'},
+			{"appid",	required_argument,	NULL, 'a'},
+			{"mimetype",	required_argument,	NULL,  7 },
+			{"category",	required_argument,	NULL,  8 },
 			{"file",	required_argument,	NULL, 'f'},
 			{"url",		required_argument,	NULL, 'u'},
 			{"keyboard",	no_argument,		NULL, 'K'},
@@ -9273,16 +9285,24 @@ main(int argc, char *argv[])
 			free(options.silent);
 			defaults.silent = options.silent = strdup(optarg);
 			break;
-		case 'a':	/* -a, --appid APPID */
-			free(options.appid);
-			defaults.appid = options.appid = strdup(optarg);
-			break;
 		case 'x':	/* -x, --exec EXEC */
 			free(options.exec);
 			defaults.exec = options.exec = strdup(optarg);
 			break;
 		case 'e':	/* -e command and options */
 			exec_mode = 1;
+			break;
+		case 'a':	/* -a, --appid APPID */
+			free(options.appid);
+			defaults.appid = options.appid = strdup(optarg);
+			break;
+		case 7:		/* --mimetype MIMETYPE */
+			free(options.mimetype);
+			defaults.mimetype = options.mimetype = strdup(optarg);
+			break;
+		case 8:		/* --cateogry CATEGORY */
+			free(options.category);
+			defaults.category = options.category = strdup(optarg);
 			break;
 		case 'f':	/* -f, --file FILE */
 			free(options.file);
