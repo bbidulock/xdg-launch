@@ -204,6 +204,22 @@ do_pref(int argc, char *argv[])
 				EPRINTF("%s: could not set %s lastused for type %s\n", argv[0],
 					appid, content);
 			} else {
+				/* A problem with this gio implementation is that it only 
+				   set one default application in the [Default
+				   Associations] section of the mimepps.list file,
+				   obliterating any existing list.  Also, it writes only
+				   to the non-desktop-specific mimeapps.list file and
+				   does not change the desktop-specific file, yet reads
+				   the desktop-specific file: meaning that it does not
+				   change the default at all if a desktop-specific file
+				   exits. The only solution to this is to write the
+				   default entries directly to the keyfile ourselves.
+
+				   Another problem is that gio won't let you set a
+				   non-existent application id in the default
+				   associations nor the added associations, even though
+				   one might want to set one.  */
+
 				if (g_app_info_set_as_default_for_type(info, content, NULL)) {
 					setcount++;
 					continue;
