@@ -2377,8 +2377,153 @@ lookup_file_by_type(const char *type)
 char *
 lookup_file_by_kind(const char *type)
 {
-	/* TODO */
-	return NULL;
+	GDesktopAppInfo *desk;
+	GKeyFile *dfile, *afile;
+	GList *apps, *app;
+	const char *cat, *path;
+	char *category, *categories, *result = NULL;
+	char **desktops = NULL, **desktop;
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+	char **search = NULL, **dir;
+
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	{
+		const gchar *cdir;
+		const gchar *ddir;
+		const gchar *const *dirs;
+		const gchar *const *cdirs;
+		const gchar *const *ddirs;
+		int len = 0, i = 0;
+
+		cdir = g_get_user_config_dir();
+		len++;
+		ddir = g_get_user_data_dir();
+		len++;
+		cdirs = g_get_system_config_dirs();
+		for (dirs = cdirs; *dirs; dirs++)
+			len++;
+		ddirs = g_get_system_data_dirs();
+		for (dirs = ddirs; *dirs; dirs++)
+			len++;
+		search = calloc(len + 1, sizeof(*search));
+		search[i++] = strdup(cdir);
+		for (dirs = cdirs; *dirs; dirs++)
+			search[i++] = strdup(*dirs);
+		search[i++] = strdup(ddir);
+		for (dirs = ddirs; *dirs; dirs++)
+			search[i++] = g_build_filename(*dirs, "applications", NULL);
+	}
+	if (!(dfile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+	if (!(afile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+
+	gboolean got_dfile = FALSE, got_afile = FALSE;
+
+	for (dir = search; dir && *dir; dir++) {
+		char *path, *name;
+
+		for (desktop = desktops; desktop && *desktop; desktop++) {
+
+			name = g_strdup_printf("%s-prefapps.list", *desktop);
+			path = g_build_filename(*dir, name, NULL);
+			if (!got_dfile)
+				got_dfile =
+				    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+			g_free(path);
+			g_free(name);
+		}
+		path = g_build_filename(*dir, "prefapps.list", NULL);
+		if (!got_dfile)
+			got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+		if (!got_afile)
+			got_afile = g_key_file_load_from_file(afile, path, G_KEY_FILE_NONE, NULL);
+		g_free(path);
+		if (got_dfile && got_afile)
+			break;
+	}
+	if (desktops)
+		g_strfreev(desktops);
+	if (search)
+		g_strfreev(search);
+
+	if (got_dfile) {
+		char **apps, **app;
+
+		if ((apps =
+		     g_key_file_get_string_list(dfile, "Default Applications", type, NULL, NULL))) {
+			for (app = apps; app && *app; app++) {
+				if ((result = lookup_file_by_name(*app))) {
+					g_strfreev(apps);
+					g_key_file_unref(dfile);
+					g_key_file_unref(afile);
+					return result;
+				}
+			}
+			g_strfreev(apps);
+		}
+	}
+	if (got_afile) {
+		char **apps, **app;
+
+		if ((apps =
+		     g_key_file_get_string_list(dfile, "Added Categories", type, NULL, NULL))) {
+			for (app = apps; app && *app; app++) {
+				if ((result = lookup_file_by_name(*app))) {
+					g_strfreev(apps);
+					g_key_file_unref(dfile);
+					g_key_file_unref(afile);
+					return result;
+				}
+			}
+			g_strfreev(apps);
+		}
+	}
+	g_key_file_unref(dfile);
+	g_key_file_unref(afile);
+
+	/* this is actually the fallback approach */
+	category = calloc(PATH_MAX + 1, sizeof(*category));
+
+	strncpy(category, ";", PATH_MAX);
+	strncat(category, type, PATH_MAX);
+	strncat(category, ";", PATH_MAX);
+
+	if ((apps = g_app_info_get_all())) {
+		categories = calloc(PATH_MAX + 1, sizeof(*categories));
+		for (app = apps; app; app = app->next) {
+			desk = G_DESKTOP_APP_INFO(app->data);
+			if ((cat = g_desktop_app_info_get_categories(desk))) {
+				strncpy(categories, ";", PATH_MAX);
+				strncat(categories, cat, PATH_MAX);
+				strncat(categories, ";", PATH_MAX);
+				if (strstr(categories, category))
+					if ((path = g_desktop_app_info_get_filename(desk))
+					    && (result = strdup(path)))
+						break;
+			}
+		}
+		g_list_free(apps);
+		free(categories);
+
+	}
+	free(category);
+	return result;
 }
 
 void
