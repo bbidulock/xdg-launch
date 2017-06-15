@@ -160,6 +160,156 @@ Options options = {
 	.button = 0,
 };
 
+static gboolean
+read_mimeapp_file(GKeyFile *file, const gchar *directory, const char *base)
+{
+	char *path;
+	gboolean result;
+
+	path = g_build_filename(directory, base, NULL);
+	result = g_key_file_load_from_file(file, path, G_KEY_FILE_NONE, NULL);
+	g_free(path);
+	return result;
+}
+
+static gboolean
+read_default_file(GKeyFile *file, char **desktops, const gchar *directory, const char *base)
+{
+	char **desktop;
+
+	for (desktop = desktops; *desktop; desktop++) {
+		char *name, *path;
+		gboolean result;
+
+		if (!*desktop[0])
+			continue;
+		name = g_strdup_printf("%s-%s", *desktop, base);
+		path = g_build_filename(directory, name, NULL);
+		result = g_key_file_load_from_file(file, path, G_KEY_FILE_NONE, NULL);
+		g_free(name);
+		g_free(path);
+		if (result)
+			return result;
+	}
+	return read_mimeapp_file(file, directory, base);
+}
+
+gboolean
+find_mimeapp_file(GKeyFile *file, const gchar *directory, const char *base)
+{
+	const gchar * cdir;
+	const gchar * ddir;
+	const gchar * const * dir;
+	const gchar * const * cdirs;
+	const gchar * const * ddirs;
+
+	cdir = g_get_user_config_dir();
+	ddir = g_get_user_data_dir();
+	cdirs = g_get_system_config_dirs();
+	ddirs = g_get_system_data_dirs();
+	if (read_mimeapp_file(file, cdir, base))
+		return TRUE;
+	if (read_mimeapp_file(file, ddir, base))
+		return TRUE;
+	for (dir = cdirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_mimeapp_file(file, *dir, base))
+			return TRUE;
+	}
+	for (dir = ddirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_mimeapp_file(file, *dir, base))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/* Search order:
+
+   $XDG_CONFIG_HOME/$desktop-mimeapps.list
+   $XDG_CONFIG_HOME/mimeapps.list
+   $XDG_CONFIG_DIRS/$desktop-mimeapps.list
+   $XDG_CONFIG_DIRS/mimeapps.list
+   $XDG_DATA_HOME/applications/$desktop-mimeapps.list
+   $XDG_DATA_HOME/applications/mimeapps.list
+   $XDG_DATA_DIRS/applications/$desktop-mimeapps.list
+   $XDG_DATA_DIRS/applications/mimeapps.list
+
+   $desktop variety only contain defaults, whereas the mimeapps.list can contain
+   added and removed associations.
+ */
+gboolean
+find_default_file(GKeyFile *file, char **desktops, const gchar *directory, const char *base)
+{
+	const gchar * cdir;
+	const gchar * ddir;
+	const gchar * const * dir;
+	const gchar * const * cdirs;
+	const gchar * const * ddirs;
+
+	cdir = g_get_user_config_dir();
+	ddir = g_get_user_data_dir();
+	cdirs = g_get_system_config_dirs();
+	ddirs = g_get_system_data_dirs();
+	if (read_default_file(file, desktops, cdir, base))
+		return TRUE;
+	if (read_default_file(file, desktops, ddir, base))
+		return TRUE;
+	for (dir = cdirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_default_file(file, desktops, *dir, base))
+			return TRUE;
+	}
+	for (dir = ddirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_default_file(file, desktops, *dir, base))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+void
+read_mime_apps(void)
+{
+	GKeyFile *dfile, *afile;
+	char **desktops = NULL;
+	static const char *base = "mimeapps.list";
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+
+	if (!(dfile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+	if (!(afile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	(void) base;
+	/* TODO */
+	/* TODO */
+	/* TODO */
+	g_object_unref(afile);
+	g_object_unref(dfile);
+	if (desktops)
+		g_strfreev(desktops);
+}
+
 static void
 do_pref(int argc, char *argv[])
 {
