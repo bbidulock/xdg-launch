@@ -80,22 +80,43 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <wordexp.h>
+#include <execinfo.h>
 
-#define DPRINTF(_args...) do { if (options.debug > 0) { \
-		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args); } } while (0)
+#define XPRINTF(_args...) do { } while (0)
+
+#define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
+		fprintf(stderr, NAME ": D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
-		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args);   } while (0)
+		fprintf(stderr, NAME ": E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, _args); fflush(stderr); } while (0)
 
-#define OPRINTF(_args...) do { if (options.debug > 0 || options.output > 1) { \
-		fprintf(stderr, "I: "); \
-		fprintf(stderr, _args); } } while (0)
+#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
+		fprintf(stdout, NAME ": I: "); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
-#define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
-		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
-					} } while (0)
+#define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
+		fprintf(stderr, NAME ": T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
+		fflush(stderr); } } while (0)
+
+#define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
+		fprintf(stdout, NAME ": C: 0x%08lx client (%c) ", c->win, c->managed ?  'M' : 'U'); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
+
+void
+dumpstack(const char *file, const int line, const char *func)
+{
+	void *buffer[32];
+	int nptr;
+	char **strings;
+	int i;
+
+	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
+		for (i = 0; i < nptr; i++)
+			fprintf(stderr, NAME ": E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+}
 
 const char *program = NAME;
 
@@ -258,7 +279,7 @@ lookup_file(char *name)
 				break;
 			}
 			strncat(path, appid, PATH_MAX);
-			DPRINTF("%s: checking '%s'\n", NAME, path);
+			DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 			if (!stat(path, &st)) {
 				if (output_path(home, path) && !options.all) {
 					free(list);
@@ -310,7 +331,7 @@ lookup_file(char *name)
 			path = realloc(path, PATH_MAX + 1);
 			strncat(path, "/fallback/", PATH_MAX);
 			strncat(path, appid, PATH_MAX);
-			DPRINTF("%s: checking '%s'\n", NAME, path);
+			DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 			if (!stat(path, &st)) {
 				if (output_path(home, path) && !options.all) {
 					free(list);
@@ -351,7 +372,7 @@ lookup_file(char *name)
 			path = realloc(path, PATH_MAX + 1);
 			strncat(path, "/autostart/", PATH_MAX);
 			strncat(path, appid, PATH_MAX);
-			DPRINTF("%s: checking '%s'\n", NAME, path);
+			DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 			if (!stat(path, &st)) {
 				if (output_path(home, path) && !options.all) {
 					free(list);
@@ -391,7 +412,7 @@ lookup_file(char *name)
 			path = realloc(path, PATH_MAX + 1);
 			strncat(path, "/xsessions/", PATH_MAX);
 			strncat(path, appid, PATH_MAX);
-			DPRINTF("%s: checking '%s'\n", NAME, path);
+			DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 			if (!stat(path, &st)) {
 				if (output_path(home, path) && !options.all) {
 					free(list);
@@ -406,7 +427,7 @@ lookup_file(char *name)
 		free(list);
 	} else {
 		path = strdup(appid);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st)) {
 			output_path(home, path);
 		}
@@ -476,7 +497,7 @@ list_paths(void)
 			strncat(path, "/xsessions", PATH_MAX);
 			break;
 		}
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -519,7 +540,7 @@ list_paths(void)
 		}
 		path = realloc(path, PATH_MAX + 1);
 		strncat(path, "/fallback", PATH_MAX);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -556,7 +577,7 @@ list_paths(void)
 		}
 		path = realloc(path, PATH_MAX + 1);
 		strncat(path, "/autostart", PATH_MAX);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -589,7 +610,7 @@ list_paths(void)
 		}
 		path = realloc(path, PATH_MAX + 1);
 		strncat(path, "/xsessions", PATH_MAX);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -613,13 +634,13 @@ get_desktop_entry(char *key, char *file)
 {
 	Entry *entry;
 
-	DPRINTF("getting desktop entry: %s: %s\n", key, file);
+	DPRINTF(1, "getting desktop entry: %s: %s\n", key, file);
 	for (entry = entries; entry; entry = entry->next) {
 		if (!strcmp(key, entry->key))
 			break;
 	}
 	if (options.all || !entry) {
-		DPRINTF("allocating entry for: %s: %s\n", key, file);
+		DPRINTF(1, "allocating entry for: %s: %s\n", key, file);
 		entry = calloc(1, sizeof(*entry));
 		entry->next = entries;
 		entries = entry;
@@ -646,7 +667,7 @@ sort_desktop_entries(void)
 
 	for (n = 0, entry = entries; entry; entry = entry->next, n++) ;
 	array = calloc(n, sizeof(Entry *));
-	DPRINTF("there are %d entries\n", n);
+	DPRINTF(1, "there are %d entries\n", n);
 	for (i = 0, entry = entries; entry; entry = entry->next, i++)
 		array[i] = entry;
 	qsort(array, n, sizeof(Entry *), &sort_keys);
@@ -672,9 +693,9 @@ get_entries(char *path, char *prefix)
 	DIR *dir;
 	struct dirent *d;
 
-	DPRINTF("checking directory: %s (%s)\n", path, prefix);
+	DPRINTF(1, "checking directory: %s (%s)\n", path, prefix);
 	if (!(dir = opendir(path))) {
-		DPRINTF("%s: %s\n", path, strerror(errno));
+		DPRINTF(1, "%s: %s\n", path, strerror(errno));
 		return;
 	}
 	while ((d = readdir(dir))) {
@@ -700,7 +721,7 @@ get_entries(char *path, char *prefix)
 			char *key;
 
 			if (!(f = strstr(d->d_name, suffix)) || f[suflen]) {
-				DPRINTF("%s: no %s suffix\n", d->d_name, suffix);
+				DPRINTF(1, "%s: no %s suffix\n", d->d_name, suffix);
 				free(file);
 				continue;
 			}
@@ -726,7 +747,7 @@ get_entries(char *path, char *prefix)
 			free(file);
 			continue;
 		} else {
-			DPRINTF("%s: %s\n", file, "not a file or directory");
+			DPRINTF(1, "%s: %s\n", file, "not a file or directory");
 			free(file);
 			continue;
 		}
@@ -1085,27 +1106,27 @@ main(int argc, char *argv[])
 		command = CommandWhereis;
 		/* fall thru */
 	case CommandWhereis:
-		DPRINTF("%s: running which\n", argv[0]);
+		DPRINTF(1, "%s: running which\n", argv[0]);
 		do_whereis(argc, argv);
 		break;
 	case CommandWhich:
-		DPRINTF("%s: running which\n", argv[0]);
+		DPRINTF(1, "%s: running which\n", argv[0]);
 		do_which(argc, argv);
 		break;
 	case CommandList:
-		DPRINTF("%s: running list\n", argv[0]);
+		DPRINTF(1, "%s: running list\n", argv[0]);
 		do_list(argc, argv);
 		break;
 	case CommandHelp:
-		DPRINTF("%s: printing help message\n", argv[0]);
+		DPRINTF(1, "%s: printing help message\n", argv[0]);
 		help(argc, argv);
 		break;
 	case CommandVersion:
-		DPRINTF("%s: printing version message\n", argv[0]);
+		DPRINTF(1, "%s: printing version message\n", argv[0]);
 		version(argc, argv);
 		break;
 	case CommandCopying:
-		DPRINTF("%s: printing copying message\n", argv[0]);
+		DPRINTF(1, "%s: printing copying message\n", argv[0]);
 		copying(argc, argv);
 		break;
 	}
