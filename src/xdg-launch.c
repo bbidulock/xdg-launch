@@ -206,7 +206,6 @@ typedef struct {
 	Bool audio;
 	Bool assist;
 	int guard;
-	char *mime;
 } Options;
 
 Options options = {
@@ -263,7 +262,6 @@ Options options = {
 	.audio = False,
 	.assist = False,
 	.guard = 2,
-	.mime = NULL,
 };
 
 Options defaults = {
@@ -8136,20 +8134,15 @@ get_mime_type(const char *uri)
 static void
 set_mime_type(void)
 {
-	free(options.mime);
-	if (!(options.mime = get_mime_type(options.url))) {
-		EPRINTF("could not get mime type for %s\n", options.url);
-		if (myent.MimeType) {
-			char *p;
-
-			options.mime = strdup(myent.MimeType);
-			if ((p = strchr(options.mime, ';')))
-				*p = '\0';
-		} else if (options.mimetype) {
-			options.mime = strdup(options.mimetype);
-		} else
-			options.mime = strdup("application/octet-stream");
+	if (!options.mimetype && options.url)
+		options.mimetype = get_mime_type(options.url);
+	if (!options.mimetype && myent.MimeType) {
+		options.mimetype = strdup(myent.MimeType);
+		if (strchr(options.mimetype, ';'))
+			*strchr(options.mimetype, ';') = '\0';
 	}
+	if (!options.mimetype && options.url)
+		options.mimetype = strdup("application/octet-stream");
 }
 
 static void
@@ -8167,7 +8160,7 @@ put_recently_used_info(void)
 		DPRINTF(1, "do not recommend autostart or xsession invocations\n");
 		return;
 	}
-	if (!options.mime) {
+	if (!options.mimetype) {
 		DPRINTF(1, "do not recommend without a mime type\n");
 		return;
 	}
@@ -8190,8 +8183,8 @@ put_recently_used_info(void)
 			return;
 		}
 	}
-	if (!g_app_info_set_as_last_used_for_type(G_APP_INFO(info), options.mime, NULL)) {
-		EPRINTF("cannot set last used %s for %s\n", desktop_id, options.mime);
+	if (!g_app_info_set_as_last_used_for_type(G_APP_INFO(info), options.mimetype, NULL)) {
+		EPRINTF("cannot set last used %s for %s\n", desktop_id, options.mimetype);
 		g_object_unref(info);
 		if (desktop_id)
 			g_free(desktop_id);
@@ -8299,8 +8292,8 @@ put_recently_used_xbel(char *filename)
 	}
 
 	/* 2) append new information (url only) */
-	if (options.mime)
-		g_bookmark_file_set_mime_type(bookmark, options.url, options.mime);
+	if (options.mimetype && options.url)
+		g_bookmark_file_set_mime_type(bookmark, options.url, options.mimetype);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	if (myseq.f.application_id) {
@@ -8701,7 +8694,7 @@ put_recently_used(char *filename)
 		used = calloc(1, sizeof(*used));
 		used->uri = strdup(options.url);
 		used->private = TRUE;
-		used->mime = options.mime ? strdup(options.mime) : NULL;
+		used->mime = options.mimetype ? strdup(options.mimetype) : NULL;
 		list = g_list_prepend(list, used);
 	} else
 		used = item->data;
@@ -8840,12 +8833,12 @@ put_history(void)
 	put_line_history(options.runhist, myseq.f.command);
 	put_line_history(options.recapps, myseq.f.application_id);
 #ifdef GIO_GLIB2_SUPPORT
+	set_mime_type();
+	put_recently_used_info();
 	if (options.uri) {
 		if (options.url) {
-			set_mime_type();
 			put_recently_used(".recently-used");
 			put_recently_used_xbel("recently-used.xbel");
-			put_recently_used_info();
 		}
 		put_recent_applications(".recently-used");
 		put_recent_applications(".recent-applications");
