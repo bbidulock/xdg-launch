@@ -325,8 +325,8 @@ read_mime_apps(void)
 	/* TODO */
 	/* TODO */
 	/* TODO */
-	g_object_unref(afile);
-	g_object_unref(dfile);
+	g_key_file_unref(afile);
+	g_key_file_unref(dfile);
 	if (desktops)
 		g_strfreev(desktops);
 }
