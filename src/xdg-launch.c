@@ -155,6 +155,7 @@ typedef enum {
 typedef struct {
 	int debug;
 	int output;
+	char *appspec;
 	char *appid;
 	char *mimetype;
 	char *category;
@@ -211,6 +212,7 @@ typedef struct {
 Options options = {
 	.debug = 0,
 	.output = 1,
+	.appspec = NULL,
 	.appid = NULL,
 	.mimetype = NULL,
 	.category = NULL,
@@ -267,6 +269,7 @@ Options options = {
 Options defaults = {
 	.debug = 0,
 	.output = 1,
+	.appspec = "[APPID|MIMETYPE|CATEGORY]",
 	.appid = "[APPID]",
 	.mimetype = "[MIMETYPE]",
 	.category = "[CATEGORY]",
@@ -2144,7 +2147,7 @@ parse_file(char *path, Entry *e)
   *
   */
 char *
-lookup_file(char *name)
+lookup_file_by_name(const char *name)
 {
 	char *path = NULL, *appid;
 
@@ -2317,6 +2320,67 @@ lookup_file(char *name)
 	}
 	free(appid);
 	return path;
+}
+
+/** @brief look up the file from MIMETYPE
+  *
+  * Use glib to make the association.
+  */
+char *
+lookup_file_by_type(const char *type)
+{
+	char *path;
+	gchar *content;
+	GList *apps, *app;
+	GAppInfo *info;
+
+	if (!strchr(type, '/') || (strchr(type, '/') != strrchr(type, '/'))) {
+		DPRINTF(1, "incorrect mime-type format: '%s'\n", type);
+		return NULL;
+	}
+	if (!(content = g_content_type_from_mime_type(type))) {
+		DPRINTF(1, "not content type for mime type: '%s'\n", type);
+		return NULL;
+	}
+	if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+		if ((path = lookup_file_by_name(g_app_info_get_id(info)))) {
+			g_free(content);
+			return path;
+		}
+	}
+	if ((apps = g_app_info_get_recommended_for_type(content))) {
+		for (app = apps; app; app = app->next) {
+			if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+				g_list_free(apps);
+				g_free(content);
+				return path;
+			}
+		}
+		g_list_free(apps);
+	}
+	if ((apps = g_app_info_get_fallback_for_type(content))) {
+		for (app = apps; app; app = app->next) {
+			if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+				g_list_free(apps);
+				g_free(content);
+				return path;
+			}
+		}
+		g_list_free(apps);
+	}
+	g_free(content);
+	return NULL;
+}
+
+/** @brief look up the file from CATEGORY
+  *
+  * Use glib to make the association.
+  */
+char *
+lookup_file_by_kind(const char *type)
+{
+	/* TODO */
+	return NULL;
 }
 
 void
@@ -4188,7 +4252,7 @@ add_sequence(Sequence *seq)
 			appid = strrchr(seq->f.bin, '/');
 			appid = appid ? appid + 1 : seq->f.bin;
 		}
-		if ((path = lookup_file(appid))) {
+		if ((path = lookup_file_by_name(appid))) {
 			DPRINTF(1, "found desktop file %s\n", path);
 			Entry *e = calloc(1, sizeof(*e));
 
@@ -7899,7 +7963,16 @@ set_application_id(void)
 
 	PTRACE(5);
 	free(myseq.f.application_id);
-	if (options.appid) {
+	if (options.path) {
+		if ((p = strrchr(options.path, '/')))
+			p++;
+		else
+			p = options.path;
+		if ((q = strstr(options.path, ".desktop")) && !q[8])
+			myseq.f.application_id = strndup(p, q - p);
+		else
+			myseq.f.application_id = strdup(p);
+	} else if (options.appid) {
 		if ((p = strrchr(options.appid, '/')))
 			p++;
 		else
@@ -8072,6 +8145,8 @@ set_mime_type(void)
 			options.mime = strdup(myent.MimeType);
 			if ((p = strchr(options.mime, ';')))
 				*p = '\0';
+		} else if (options.mimetype) {
+			options.mime = strdup(options.mimetype);
 		} else
 			options.mime = strdup("application/octet-stream");
 	}
@@ -9114,6 +9189,7 @@ set_defaults(int argc, char *argv[])
 }
 
 int
+
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
@@ -9295,14 +9371,20 @@ main(int argc, char *argv[])
 		case 'a':	/* -a, --appid APPID */
 			free(options.appid);
 			defaults.appid = options.appid = strdup(optarg);
+			free(options.appspec);
+			defaults.appspec = options.appspec = strdup(optarg);
 			break;
 		case 7:		/* --mimetype MIMETYPE */
 			free(options.mimetype);
 			defaults.mimetype = options.mimetype = strdup(optarg);
+			free(options.appspec);
+			defaults.appspec = options.appspec = strdup(optarg);
 			break;
 		case 8:		/* --cateogry CATEGORY */
 			free(options.category);
 			defaults.category = options.category = strdup(optarg);
+			free(options.appspec);
+			defaults.appspec = options.appspec = strdup(optarg);
 			break;
 		case 'f':	/* -f, --file FILE */
 			free(options.file);
@@ -9499,10 +9581,10 @@ main(int argc, char *argv[])
 		for (i = 0; optind < argc; optind++, i++)
 			eargv[i] = strdup(argv[optind]);
 	} else if (optind < argc) {
-		if (options.appid)
+		if (options.appspec)
 			optind++;
 		else
-			options.appid = strdup(argv[optind++]);
+			options.appspec = strdup(argv[optind++]);
 		if (optind < argc) {
 			if (strchr(argv[optind], ':')) {
 				if (options.url)
@@ -9519,30 +9601,59 @@ main(int argc, char *argv[])
 				goto bad_nonopt;
 		}
 	}
-	if (!eargv && !options.appid && !options.exec) {
-		EPRINTF("APPID or EXEC must be specified\n");
+	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec) {
+		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
 	} else if (eargv) {
 		p = strrchr(eargv[0], '/');
 		p = p ? p + 1 : eargv[0];
 		free(options.path);
-		if ((options.path = lookup_file(p))) {
-			if (!parse_file(options.path, &myent)) {
-				free(options.path);
-				options.path = NULL;
-				myent.TryExec = strdup(eargv[0]);
-			}
-		}
+		options.path = lookup_file_by_name(p);
 	} else if (options.appid) {
 		free(options.path);
-		if (!(options.path = lookup_file(options.appid))) {
-			EPRINTF("could not find file '%s'\n", options.appid);
+		if (!(options.path = lookup_file_by_name(options.appid))) {
+			EPRINTF("could not find file for name '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
-		if (!parse_file(options.path, &myent)) {
-			EPRINTF("could not parse file '%s'\n", options.path);
+	} else if (options.mimetype) {
+		free(options.path);
+		if (!(options.path = lookup_file_by_type(options.mimetype))) {
+			EPRINTF("could not find file for type '%s'\n", options.mimetype);
 			exit(EXIT_FAILURE);
 		}
+	} else if (options.category) {
+		free(options.path);
+		if (!(options.path = lookup_file_by_kind(options.category))) {
+			EPRINTF("could not find file for kind '%s'\n", options.category);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.appspec) {
+		free(options.path);
+		options.path = NULL;
+		if (!options.path && (options.path = lookup_file_by_name(options.appspec))) {
+			free(options.appid);
+			options.appid = strdup(options.appspec);
+		}
+		if (!options.path && (options.path = lookup_file_by_type(options.appspec))) {
+			free(options.mimetype);
+			options.mimetype = strdup(options.appspec);
+		}
+		if (!options.path && (options.path = lookup_file_by_kind(options.appspec))) {
+			free(options.category);
+			options.category = strdup(options.appspec);
+		}
+		if (!options.path) {
+			EPRINTF("could not find file for spec '%s'\n", options.appspec);
+			exit(EXIT_FAILURE);
+		}
+	}
+	if (options.path && !parse_file(options.path, &myent)) {
+		EPRINTF("could not parse file '%s'\n", options.path);
+		free(options.path);
+		options.path = NULL;
+		if (!eargv)
+			exit(EXIT_FAILURE);
+		myent.TryExec = strdup(eargv[0]);
 	}
 	if (options.file && options.file[0] && !options.url) {
 		if (options.file[0] == '/') {
@@ -9580,6 +9691,7 @@ main(int argc, char *argv[])
 		     calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
 			strcpy(options.uri, "file://");
 			strcat(options.uri, options.path);
+
 		}
 	}
 	if (options.output > 1)
