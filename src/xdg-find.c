@@ -79,6 +79,8 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <wordexp.h>
+#include <execinfo.h>
 
 #ifdef GIO_GLIB2_SUPPORT
 #include <glib.h>
@@ -86,21 +88,40 @@
 #include <gio/gdesktopappinfo.h>
 #endif
 
-#define DPRINTF(_args...) do { if (options.debug > 0) { \
-		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args); } } while (0)
+#define XPRINTF(_args...) do { } while (0)
+
+#define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
+		fprintf(stderr, NAME ": D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
-		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args);   } while (0)
+		fprintf(stderr, NAME ": E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, _args); fflush(stderr); } while (0)
 
-#define OPRINTF(_args...) do { if (options.debug > 0 || options.output > 1) { \
-		fprintf(stderr, "I: "); \
-		fprintf(stderr, _args); } } while (0)
+#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
+		fprintf(stdout, NAME ": I: "); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
-#define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
-		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
-					} } while (0)
+#define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
+		fprintf(stderr, NAME ": T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
+		fflush(stderr); } } while (0)
+
+#define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
+		fprintf(stdout, NAME ": C: 0x%08lx client (%c) ", c->win, c->managed ?  'M' : 'U'); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
+
+void
+dumpstack(const char *file, const int line, const char *func)
+{
+	void *buffer[32];
+	int nptr;
+	char **strings;
+	int i;
+
+	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
+		for (i = 0; i < nptr; i++)
+			fprintf(stderr, NAME ": E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+}
 
 const char *program = NAME;
 
@@ -239,7 +260,7 @@ list_paths(WhichEntry which)
 			strncat(path, "/xsessions", PATH_MAX);
 			break;
 		}
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -282,7 +303,7 @@ list_paths(WhichEntry which)
 		}
 		path = realloc(path, PATH_MAX + 1);
 		strncat(path, "/fallback", PATH_MAX);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -315,7 +336,7 @@ list_paths(WhichEntry which)
 		}
 		path = realloc(path, PATH_MAX + 1);
 		strncat(path, "/autostart", PATH_MAX);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -348,7 +369,7 @@ list_paths(WhichEntry which)
 		}
 		path = realloc(path, PATH_MAX + 1);
 		strncat(path, "/xsessions", PATH_MAX);
-		DPRINTF("%s: checking '%s'\n", NAME, path);
+		DPRINTF(1, "%s: checking '%s'\n", NAME, path);
 		if (!stat(path, &st))
 			output_path(home, path);
 		free(path);
@@ -391,7 +412,7 @@ do_find(int argc, char *argv[])
 
 				info = app->data;
 				if (!(supported = g_app_info_get_supported_types(info))) {
-					DPRINTF("%s does not have any mime types\n", g_app_info_get_id(info));
+					DPRINTF(1, "%s does not have any mime types\n", g_app_info_get_id(info));
 					deleted = g_list_remove(deleted, info);
 					deleted = g_list_append(deleted, info);
 					continue;
@@ -400,7 +421,7 @@ do_find(int argc, char *argv[])
 					if (!strcmp(content, *support))
 						break;
 				if (!support || !*support) {
-					OPRINTF("%s does not have mime type %s\n", g_app_info_get_id(info), *type);
+					OPRINTF(1, "%s does not have mime type %s\n", g_app_info_get_id(info), *type);
 					deleted = g_list_remove(deleted, info);
 					deleted = g_list_append(deleted, info);
 					continue;
@@ -424,7 +445,7 @@ do_find(int argc, char *argv[])
 
 				desk = G_DESKTOP_APP_INFO(app->data);
 				if (!(cat = g_desktop_app_info_get_categories(desk))) {
-					DPRINTF("%s does not have any categories\n", g_app_info_get_id(G_APP_INFO(desk)));
+					DPRINTF(1, "%s does not have any categories\n", g_app_info_get_id(G_APP_INFO(desk)));
 					deleted = g_list_remove(deleted, desk);
 					deleted = g_list_append(deleted, desk);
 					continue;
@@ -433,7 +454,7 @@ do_find(int argc, char *argv[])
 				strncat(categories, cat, PATH_MAX);
 				strncat(categories, ";", PATH_MAX);
 				if (!strstr(categories, category)) {
-					OPRINTF("%s does not have category %s\n", g_app_info_get_id(G_APP_INFO(desk)), *type);
+					OPRINTF(1, "%s does not have category %s\n", g_app_info_get_id(G_APP_INFO(desk)), *type);
 					deleted = g_list_remove(deleted, desk);
 					deleted = g_list_append(deleted, desk);
 					continue;
@@ -728,8 +749,8 @@ main(int argc, char *argv[])
 			exit(2);
 		}
 	}
-	DPRINTF("%s: option index = %d\n", argv[0], optind);
-	DPRINTF("%s: option count = %d\n", argv[0], argc);
+	DPRINTF(1, "%s: option index = %d\n", argv[0], optind);
+	DPRINTF(1, "%s: option count = %d\n", argv[0], argc);
 	if (optind < argc) {
 		int n = argc - optind, j = 0;
 
@@ -746,23 +767,23 @@ main(int argc, char *argv[])
 		command = CommandFind;
 		/* fall thru */
 	case CommandFind:
-		DPRINTF("%s: running find\n", argv[0]);
+		DPRINTF(1, "%s: running find\n", argv[0]);
 		do_find(argc, argv);
 		break;
 	case CommandList:
-		DPRINTF("%s: running list\n", argv[0]);
+		DPRINTF(1, "%s: running list\n", argv[0]);
 		do_list(argc, argv);
 		break;
 	case CommandHelp:
-		DPRINTF("%s: printing help message\n", argv[0]);
+		DPRINTF(1, "%s: printing help message\n", argv[0]);
 		help(argc, argv);
 		break;
 	case CommandVersion:
-		DPRINTF("%s: printing version message\n", argv[0]);
+		DPRINTF(1, "%s: printing version message\n", argv[0]);
 		version(argc, argv);
 		break;
 	case CommandCopying:
-		DPRINTF("%s: printing copying message\n", argv[0]);
+		DPRINTF(1, "%s: printing copying message\n", argv[0]);
 		copying(argc, argv);
 		break;
 	}
