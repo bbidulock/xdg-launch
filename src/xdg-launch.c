@@ -9333,10 +9333,13 @@ main(int argc, char *argv[])
 	int exec_mode = 0;		/* application mode is default */
 	char *p;
 
+#if 0
+	/* not sure that we ever want to do this */
 	if ((p = getenv("DESKTOP_STARTUP_ID")) && *p) {
 		free(options.id);
 		options.id = strdup(p);
 	}
+#endif
 	unsetenv("DESKTOP_STARTUP_ID");
 
 	set_defaults(argc, argv);
