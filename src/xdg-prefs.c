@@ -414,9 +414,201 @@ do_pref(int argc, char *argv[])
 	free(appid);
 }
 
+static char **
+get_desktops(void)
+{
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+	char **desktops = NULL;
+
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; desktop && *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	return desktops;
+}
+
+static char **
+get_searchdirs(void)
+{
+	const gchar *cdir, *ddir, *const *dirs, *const *cdirs, *const *ddirs;
+	char **searchdirs = NULL;
+	int len = 0, i = 0;
+
+	cdir = g_get_user_config_dir(); len++;
+	ddir = g_get_user_data_dir(); len++;
+	cdirs = g_get_system_config_dirs();
+	for (dirs = cdirs; dirs && *dirs; dirs++) len++;
+	ddirs = g_get_system_data_dirs();
+	for (dirs = ddirs; dirs && *dirs; dirs++) len++;
+
+	searchdirs = calloc(len+1, sizeof(*searchdirs));
+	searchdirs[i++] = strdup(cdir);
+	searchdirs[i++] = g_build_filename(ddir, "applications", NULL);
+	for (dirs = cdirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = strdup(*dirs);
+	for (dirs = ddirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = g_build_filename(*dirs, "applications", NULL);
+	return searchdirs;
+}
+
 static void
 do_exec(int argc, char *argv[])
 {
+	char *type;
+	GList *app;
+	GAppInfo *info = NULL;
+	GDesktopAppInfo *desk = NULL;
+
+	if (!(type = options.types[0])) {
+		EPRINTF("a MIMETYPE or CATEGORY must be specified\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (strchr(type, '/')) {
+		gchar *content;
+
+		if (!(content = g_content_type_from_mime_type(type))) {
+			EPRINTF("unknown content type for mime type '%s'\n", type);
+			exit(EXIT_FAILURE);
+		}
+		if (!options.recommend && !options.fallback) {
+			if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+				/* execute this one */
+			}
+		} else if (options.recommend && !options.fallback) {
+			if ((app = g_app_info_get_recommended_for_type(content))) {
+				info = app->data;
+				/* execute this one */
+			}
+		} else if (options.fallback) {
+			if ((app = g_app_info_get_fallback_for_type(content))) {
+				info = app->data;
+				/* execute this one */
+			}
+		}
+	} else {
+		char **desktops, **desktop, **searchdirs, **dir;
+		gboolean got_dfile = FALSE, got_afile = FALSE;
+		GKeyFile *dfile, *afile;
+
+		desktops = get_desktops();
+		searchdirs = get_searchdirs();
+
+		if (!(dfile = g_key_file_new())) {
+			EPRINTF("could not allocate key file\n");
+			exit(EXIT_FAILURE);
+		}
+		if (!(afile = g_key_file_new())) {
+			EPRINTF("could not allocate key file\n");
+			exit(EXIT_FAILURE);
+		}
+
+		for (dir = searchdirs; dir && *dir; dir++) {
+			char *path, *name;
+
+			for (desktop = desktops; desktop && *desktop; desktop++) {
+				name = g_strdup_printf("%s-prefapps.list", *desktop);
+				path = g_build_filename(*dir, name, NULL);
+				if (!got_dfile)
+					got_dfile =
+					    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE,
+								      NULL);
+				g_free(path);
+				g_free(name);
+			}
+			path = g_build_filename(*dir, "prefapps.list", NULL);
+			if (!got_dfile)
+				got_dfile =
+				    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+			if (!got_afile)
+				got_afile =
+				    g_key_file_load_from_file(afile, path, G_KEY_FILE_NONE, NULL);
+			g_free(path);
+			if (got_dfile && got_afile)
+				break;
+		}
+		if (desktops)
+			g_strfreev(desktops);
+		if (searchdirs)
+			g_strfreev(searchdirs);
+
+		if (!options.recommend && !options.fallback) {
+			if (!desk && got_dfile) {
+				char **apps, **app;
+
+				if ((apps =
+				     g_key_file_get_string_list(dfile, "Default Applications", type,
+								NULL, NULL))) {
+					for (app = apps; *app; app++) {
+						if ((desk = g_desktop_app_info_new(*app))) {
+							/* use this one */
+							break;
+						}
+					}
+					g_strfreev(apps);
+				}
+			}
+		}
+		if (!options.fallback) {
+			if (!desk && got_afile) {
+				char **apps, **app;
+
+				if ((apps =
+				     g_key_file_get_string_list(afile, "Added Categories", type,
+								NULL, NULL))) {
+					for (app = apps; *app; app++) {
+						if ((desk = g_desktop_app_info_new(*app))) {
+							/* use this one */
+							break;
+						}
+					}
+					g_strfreev(apps);
+				}
+			}
+		}
+		g_key_file_unref(dfile);
+		g_key_file_unref(afile);
+
+		if (!desk) {
+			char *category, *categories;
+			GList *apps, *app;
+			const char *cat;
+
+			category = calloc(PATH_MAX + 1, sizeof(*category));
+
+			strncpy(category, ";", PATH_MAX);
+			strncat(category, type, PATH_MAX);
+			strncat(category, ";", PATH_MAX);
+
+			if ((apps = g_app_info_get_all())) {
+				categories = calloc(PATH_MAX + 1, sizeof(*categories));
+				for (app = apps; app; app = app->next) {
+					if ((cat = g_desktop_app_info_get_categories(app->data))) {
+						strncpy(categories, ";", PATH_MAX);
+						strncat(categories, cat, PATH_MAX);
+						strncat(categories, ";", PATH_MAX);
+						if (strstr(categories, category)) {
+							desk = G_DESKTOP_APP_INFO(app->data);
+							/* use this one */
+							break;
+						}
+					}
+				}
+				g_list_free(apps);
+				free(categories);
+
+			}
+			free(category);
+		}
+	}
 }
 
 static void
