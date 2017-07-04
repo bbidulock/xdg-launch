@@ -2370,6 +2370,51 @@ lookup_file_by_type(const char *type)
 	return NULL;
 }
 
+static char **
+get_desktops(void)
+{
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+	char **desktops = NULL;
+
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; desktop && *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	return desktops;
+}
+
+static char **
+get_searchdirs(void)
+{
+	const gchar *cdir, *ddir, *const *dirs, *const *cdirs, *const *ddirs;
+	char **searchdirs = NULL;
+	int len = 0, i = 0;
+
+	cdir = g_get_user_config_dir(); len++;
+	ddir = g_get_user_data_dir(); len++;
+	cdirs = g_get_system_config_dirs();
+	for (dirs = cdirs; dirs && *dirs; dirs++) len++;
+	ddirs = g_get_system_data_dirs();
+	for (dirs = ddirs; dirs && *dirs; dirs++) len++;
+
+	searchdirs = calloc(len+1, sizeof(*searchdirs));
+	searchdirs[i++] = strdup(cdir);
+	searchdirs[i++] = g_build_filename(ddir, "applications", NULL);
+	for (dirs = cdirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = strdup(*dirs);
+	for (dirs = ddirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = g_build_filename(*dirs, "applications", NULL);
+	return searchdirs;
+}
+
 /** @brief look up the file from CATEGORY
   *
   * Use glib to make the association.
@@ -2383,47 +2428,11 @@ lookup_file_by_kind(const char *type)
 	const char *cat, *path;
 	char *category, *categories, *result = NULL;
 	char **desktops = NULL, **desktop;
-	static const char *evar = "XDG_CURRENT_DESKTOP";
-	char **search = NULL, **dir;
+	char **searchdirs = NULL, **dir;
 
-	if (getenv(evar) && *getenv(evar)) {
-		char **desktop;
+	desktops = get_desktops();
+	searchdirs = get_searchdirs();
 
-		desktops = g_strsplit(getenv(evar), ";", 0);
-		for (desktop = desktops; *desktop; desktop++) {
-			char *dlower;
-
-			dlower = g_utf8_strdown(*desktop, -1);
-			g_free(*desktop);
-			*desktop = dlower;
-		}
-	}
-	{
-		const gchar *cdir;
-		const gchar *ddir;
-		const gchar *const *dirs;
-		const gchar *const *cdirs;
-		const gchar *const *ddirs;
-		int len = 0, i = 0;
-
-		cdir = g_get_user_config_dir();
-		len++;
-		ddir = g_get_user_data_dir();
-		len++;
-		cdirs = g_get_system_config_dirs();
-		for (dirs = cdirs; *dirs; dirs++)
-			len++;
-		ddirs = g_get_system_data_dirs();
-		for (dirs = ddirs; *dirs; dirs++)
-			len++;
-		search = calloc(len + 1, sizeof(*search));
-		search[i++] = strdup(cdir);
-		for (dirs = cdirs; *dirs; dirs++)
-			search[i++] = strdup(*dirs);
-		search[i++] = strdup(ddir);
-		for (dirs = ddirs; *dirs; dirs++)
-			search[i++] = g_build_filename(*dirs, "applications", NULL);
-	}
 	if (!(dfile = g_key_file_new())) {
 		EPRINTF("could not allocate key file\n");
 		exit(EXIT_FAILURE);
@@ -2435,7 +2444,7 @@ lookup_file_by_kind(const char *type)
 
 	gboolean got_dfile = FALSE, got_afile = FALSE;
 
-	for (dir = search; dir && *dir; dir++) {
+	for (dir = searchdirs; dir && *dir; dir++) {
 		char *path, *name;
 
 		for (desktop = desktops; desktop && *desktop; desktop++) {
@@ -2459,24 +2468,32 @@ lookup_file_by_kind(const char *type)
 	}
 	if (desktops)
 		g_strfreev(desktops);
-	if (search)
-		g_strfreev(search);
+	if (searchdirs)
+		g_strfreev(searchdirs);
 
 	if (got_dfile) {
 		char **apps, **app;
+		GDesktopAppInfo *desk;
 
-		if ((apps =
-		     g_key_file_get_string_list(dfile, "Default Applications", type, NULL, NULL))) {
-			for (app = apps; app && *app; app++) {
-				if ((result = lookup_file_by_name(*app))) {
-					g_strfreev(apps);
-					g_key_file_unref(dfile);
-					g_key_file_unref(afile);
-					return result;
-				}
+		apps = g_key_file_get_string_list(dfile, "Default Applications", type, NULL, NULL);
+		for (app = apps; app && *app; app++) {
+			if (!(result = lookup_file_by_name(*app)))
+				continue;
+			desk = g_desktop_app_info_new_from_filename(result);
+			g_free(result);
+			if (!desk)
+				continue;
+			if (g_desktop_app_info_get_is_hidden(desk)) {
+				g_object_unref(desk);
+				continue;
 			}
 			g_strfreev(apps);
+			g_key_file_unref(dfile);
+			g_key_file_unref(afile);
+			return result;
 		}
+		if (apps)
+			g_strfreev(apps);
 	}
 	if (got_afile) {
 		char **apps, **app;
