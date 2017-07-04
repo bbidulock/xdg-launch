@@ -47,7 +47,7 @@ C<gvim.desktop>); the same restrictions as (1), above, apply; or,
 =item 3.
 
 the full path (absolute or relative) and filename of a desktop entry
-file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
+file (e.g.  C</usr/share/applications/gvim.desktop>); the full path must
 contain at least one C</> and start with either a C</> or a C<.>.
 
 =back
@@ -65,14 +65,14 @@ of the following:
 
 =item 1.
 
-A recognized XDG category name.  For recognized XDG category names, see
-L</XDG CATEGORIES>.
+A recognized XDG category name (e.g. C<TextEditor>).  For recognized XDG
+category names, see L</XDG CATEGORIES>.
 
 =item 2.
 
-A mime (content) type.  All mime types have a C</> in their names and
-are thus distinguished from XDG categories.  The content type cannot
-contain wild cards (i.e. it cannot contain C<*>).
+A mime (content) type (e.g. C<text/plain>).  All mime types have a C</>
+in their names and are thus distinguished from XDG categories.  The
+content type cannot contain wild cards (i.e. it cannot contain C<*>).
 
 =back
 
@@ -96,18 +96,21 @@ command mode:
 Specifies that I<APPID> is to be used as the default or preferred
 application for I<TYPE>.  When additional application identifiers,
 I<APPID>, are specified, separated by semicolons (C<;>), the application
-identifiers specify the order or preference applications for the mime
+identifiers specify the order of preference of applications for the mime
 types or categories, I<TYPE>.
 
 When no mime types nor categories are specified, the mime types and
 categories for which to set the application identifier will be taken
 from the application's F<.desktop> file.
 
+When multiple mime types or categories are specified, the applications
+will be set against each mime type and category specified.
+
 =item B<-e>, B<--exec> [--] I<TYPE>
 
 Execute the preferred application corresponding to the specified mime
-type or category, I<TYPE>.  It is an error when no application has been
-assigned to the specified I<TYPE>.
+type or category, I<TYPE>.  It is an error when no usable application
+has been assigned to the specified I<TYPE>.
 
 =item B<-l>, B<--list> [--] I<TYPE> [...]
 
@@ -140,10 +143,18 @@ When listing, launching or setting preferred applications, use the
 recommended application instead of the default application for the given
 type.
 
+=item B<-f>, B<--fallback>
+
+When listing or launching preferred applications, use the fallback
+application instead of the default or recommended application for the
+given type.
+
 =item B<-t>, B<--textonly>
 
 When listing, launching or setting preferred applications, only list,
-launch or set applications that run in a terminal.
+launch or set applications that run in a terminal.  Note that this is
+the default behaviour when the B<DISPLAY> environment variable is not
+set.
 
 =back
 
