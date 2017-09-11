@@ -1,9 +1,9 @@
-[xdg-launch -- read me first file.  @DATE]: #
+[xdg-launch -- read me first file.  2017-05-07]: #
 
 xdg-launch
 ===============
 
-Package `xdg-launch-1.3` was released under GPLv3 license 2016-07-18.
+Package `xdg-launch-1.5` was released under GPLv3 license 2017-05-07.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -20,57 +20,53 @@ wrapper scripts.
 Release
 -------
 
-This is the `xdg-launch-1.3` package, released 2016-07-18.  This
-release, and the latest version, can be obtained from the [GitHub
-repository][1], using a command such as:
+This is the `xdg-launch-1.5` package, released 2017-05-07.  This release, and
+the latest version, can be obtained from [GitHub][1], using a command such as:
 
     $> git clone https://github.com/bbidulock/xdg-launch.git
 
-Please see the [NEWS][2] file for release notes and history of user
-visible changes for the current version, and the [ChangeLog][3]
-file for a more detailed history of implementation changes.  The
-[TODO][4] file lists features not yet implemented and other
-outstanding items.
+Please see the [NEWS][3] file for release notes and history of user visible
+changes for the current version, and the [ChangeLog][4] file for a more
+detailed history of implementation changes.  The [TODO][5] file lists features
+not yet implemented and other outstanding items.
 
-Please see the [INSTALL][5] file for installation instructions.
+Please see the [INSTALL][7] file for installation instructions.
 
 When working from `git(1)`, please use this file.  An abbreviated
 installation procedure that works for most applications appears below.
 
-This release is published under GPLv3.  Please see the license in
-the file [COPYING][6].
+This release is published under GPLv3.  Please see the license
+in the file [COPYING][9].
 
 
 Quick Start
 -----------
 
-The quickest and easiest way to get `xdg-launch` up and running
-is to run the following commands:
+The quickest and easiest way to get `xdg-launch` up and running is to run the
+following commands:
 
     $> git clone https://github.com/bbidulock/xdg-launch.git
     $> cd xdg-launch
     $> ./autogen.sh
-    $> ./configure --prefix=/usr --sysconfdir=/etc
-    $> make V=0
+    $> ./configure
+    $> make
     $> make DESTDIR="$pkgdir" install
 
-This will configure, compile and install `xdg-launch` the quickest.
-For those who would like to spend the extra 15 seconds reading
-the output of `./configure --help`, some compile options can be
-turned on and off before the build.
+This will configure, compile and install `xdg-launch` the quickest.  For those who
+like to spend the extra 15 seconds reading `./configure --help`, some compile
+time options can be turned on and off before the build.
 
-For general information on GNU's `./configure`, see the file
-[INSTALL][5].
+For general information on GNU's `./configure`, see the file [INSTALL][7].
 
 
-Running xdg-launch
------------------
+Running
+-------
 
 Read the manual page after installation:
 
     man xdg-launch
 
-The following programs are included in xdg-launch:
+The following programs are included in `xdg-launch`:
 
  - __`xdg-launch(1)`__ -- This is the primary program.
 
@@ -124,16 +120,18 @@ XDG desktop:
 Issues
 ------
 
-Report problems at GitHub [here][7].
+Report issues on GitHub [here][2].
 
 
 
 [1]: https://github.com/bbidulock/xdg-launch
-[2]: NEWS
-[3]: ChangeLog
-[4]: TODO
-[5]: INSTALL
-[6]: COPYING
-[7]: https://github.com/bbidulock/xdg-launch/issues
+[2]: https://github.com/bbidulock/xdg-launch/issues
+[3]: https://github.com/bbidulock/xdg-launch/blob/master/NEWS
+[4]: https://github.com/bbidulock/xdg-launch/blob/master/ChangeLog
+[5]: https://github.com/bbidulock/xdg-launch/blob/master/TODO
+[6]: https://github.com/bbidulock/xdg-launch/blob/master/COMPLIANCE
+[7]: https://github.com/bbidulock/xdg-launch/blob/master/INSTALL
+[8]: https://github.com/bbidulock/xdg-launch/blob/master/LICENSE
+[9]: https://github.com/bbidulock/xdg-launch/blob/master/COPYING
 
-[ vim: set ft=markdown sw=4 tw=72 nocin nosi fo+=tcqlorn spell: ]: #
+[ vim: set ft=markdown sw=4 tw=80 nocin nosi fo+=tcqlorn spell: ]: #

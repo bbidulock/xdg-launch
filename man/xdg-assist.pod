@@ -48,7 +48,7 @@ Asks a running B<xdg-assist> launch assistant process to stop.
 
 =item B<-m>, B<--monitor>
 
-Normally B<xdg-assist> will a single instance as a launch assistant.
+Normally B<xdg-assist> will run a single instance as a launch assistant.
 This option requests that B<xdg-assist> provide monitoring of startup
 notification only and that it not provide any assistance.  This is
 useful for running B<xdg-assist> with debugging and verbosity set high

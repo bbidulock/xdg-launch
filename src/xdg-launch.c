@@ -1,7 +1,7 @@
 /*****************************************************************************
 
- Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>
- Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>
+ Copyright (c) 2010-2017  Monavacon Limited <http://www.monavacon.com/>
+ Copyright (c) 2002-2009  OpenSS7 Corporation <http://www.openss7.com/>
  Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>
 
  All Rights Reserved.
@@ -97,6 +97,7 @@
 #ifdef GIO_GLIB2_SUPPORT
 #include <glib.h>
 #include <gio/gio.h>
+#include <gio/gdesktopappinfo.h>
 #endif
 
 #define XPRINTF(_args...) do { } while (0)
@@ -154,7 +155,10 @@ typedef enum {
 typedef struct {
 	int debug;
 	int output;
+	char *appspec;
 	char *appid;
+	char *mimetype;
+	char *category;
 	char *launcher;
 	char *launchee;
 	char *sequence;
@@ -207,7 +211,10 @@ typedef struct {
 Options options = {
 	.debug = 0,
 	.output = 1,
+	.appspec = NULL,
 	.appid = NULL,
+	.mimetype = NULL,
+	.category = NULL,
 	.launcher = NULL,
 	.launchee = NULL,
 	.sequence = NULL,
@@ -260,7 +267,10 @@ Options options = {
 Options defaults = {
 	.debug = 0,
 	.output = 1,
+	.appspec = "[APPID|MIMETYPE|CATEGORY]",
 	.appid = "[APPID]",
+	.mimetype = "[MIMETYPE]",
+	.category = "[CATEGORY]",
 	.launcher = NAME,
 	.launchee = "[APPID]",
 	.sequence = "0",
@@ -844,7 +854,7 @@ XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
 void
-intern_atoms()
+intern_atoms(void)
 {
 	int i, j, n;
 	char **atom_names;
@@ -908,10 +918,10 @@ iohandler(Display *display)
 int (*oldhandler) (Display *, XErrorEvent *) = NULL;
 int (*oldiohandler) (Display *) = NULL;
 
-static void init_screen();
+static void init_screen(void);
 
 Bool
-get_display()
+get_display(void)
 {
 	PTRACE(5);
 	if (!dpy) {
@@ -970,7 +980,7 @@ get_display()
 }
 
 void
-put_display()
+put_display(void)
 {
 	PTRACE(5);
 	if (dpy) {
@@ -1283,7 +1293,7 @@ check_supported(Atom protocols, Atom supported)
   * echinus(1)).
   */
 static Window
-check_netwm_supported()
+check_netwm_supported(void)
 {
 	if (check_supported(_XA_NET_SUPPORTED, _XA_NET_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1293,7 +1303,7 @@ check_netwm_supported()
 /** @brief Check for an EWMH/NetWM compliant (sorta) window manager.
   */
 static Window
-check_netwm()
+check_netwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1325,7 +1335,7 @@ check_netwm()
   * _WIN_SUPPORTING_WM_CHECK in its list of atoms.
   */
 static Window
-check_winwm_supported()
+check_winwm_supported(void)
 {
 	if (check_supported(_XA_WIN_PROTOCOLS, _XA_WIN_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1335,7 +1345,7 @@ check_winwm_supported()
 /** @brief Check for a GNOME1/WMH/WinWM compliant window manager.
   */
 static Window
-check_winwm()
+check_winwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1361,7 +1371,7 @@ check_winwm()
 /** @brief Check for a WindowMaker compliant window manager.
   */
 static Window
-check_maker()
+check_maker(void)
 {
 	int i = 0;
 	Window win;
@@ -1386,7 +1396,7 @@ check_maker()
 /** @brief Check for an OSF/Motif compliant window manager.
   */
 static Window
-check_motif()
+check_motif(void)
 {
 	int i = 0;
 	long *data, n = 0;
@@ -1416,7 +1426,7 @@ check_motif()
 /** @brief Check for an ICCCM 2.0 compliant window manager.
   */
 static Window
-check_icccm()
+check_icccm(void)
 {
 	Window win;
 
@@ -1439,7 +1449,7 @@ check_icccm()
   * SubstructureRedirectMask on the root window.
   */
 static Window
-check_redir()
+check_redir(void)
 {
 	XWindowAttributes wa;
 	Window win = None;
@@ -1458,7 +1468,7 @@ check_redir()
 /** @brief Find window manager and compliance for the current screen.
   */
 static Bool
-check_window_manager()
+check_window_manager(void)
 {
 	Bool have_wm = False;
 
@@ -1515,7 +1525,7 @@ check_window_manager()
 /** @brief Check for a system tray.
   */
 static Window
-check_stray()
+check_stray(void)
 {
 	Window win;
 
@@ -1533,7 +1543,7 @@ check_stray()
 }
 
 static Window
-check_pager()
+check_pager(void)
 {
 	Window win;
 	long *cards, n = 0;
@@ -1554,7 +1564,7 @@ check_pager()
 }
 
 static Window
-check_compm()
+check_compm(void)
 {
 	Window win;
 
@@ -1568,7 +1578,7 @@ check_compm()
 }
 
 Window
-check_audio()
+check_audio(void)
 {
 	char *text;
 
@@ -1585,7 +1595,7 @@ check_audio()
 }
 
 static Window
-check_shelp()
+check_shelp(void)
 {
 	Window win;
 
@@ -1599,14 +1609,14 @@ check_shelp()
 }
 
 static void
-handle_wmchange()
+handle_wmchange(void)
 {
 	if (!check_window_manager())
 		check_window_manager();
 }
 
 static void
-init_screen()
+init_screen(void)
 {
 	handle_wmchange();
 	check_stray();
@@ -1712,7 +1722,7 @@ get_frame(Window win)
 }
 
 Window
-get_focus_frame()
+get_focus_frame(void)
 {
 	Window focus;
 	int di;
@@ -1726,7 +1736,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen()
+find_focus_screen(void)
 {
 	Window frame, froot;
 	int di;
@@ -1746,7 +1756,7 @@ find_focus_screen()
 }
 
 Bool
-find_pointer_screen()
+find_pointer_screen(void)
 {
 	Window proot = None, dw;
 	int di;
@@ -1918,7 +1928,7 @@ add_group(Client *c, Window leader, Groups group)
  * determine from WMCLASS= which messages belong to which newly mapped window.
  */
 Bool
-need_assistance()
+need_assistance(void)
 {
 	if (check_shelp()) {
 		DPRINTF(1, "No assistance needed: Startup notification helper running\n");
@@ -2137,7 +2147,7 @@ parse_file(char *path, Entry *e)
   *
   */
 char *
-lookup_file(char *name)
+lookup_file_by_name(const char *name)
 {
 	char *path = NULL, *appid;
 
@@ -2310,6 +2320,229 @@ lookup_file(char *name)
 	}
 	free(appid);
 	return path;
+}
+
+/** @brief look up the file from MIMETYPE
+  *
+  * Use glib to make the association.
+  */
+char *
+lookup_file_by_type(const char *type)
+{
+	char *path;
+	gchar *content;
+	GList *apps, *app;
+	GAppInfo *info;
+
+	if (!strchr(type, '/') || (strchr(type, '/') != strrchr(type, '/'))) {
+		DPRINTF(1, "incorrect mime-type format: '%s'\n", type);
+		return NULL;
+	}
+	if (!(content = g_content_type_from_mime_type(type))) {
+		DPRINTF(1, "not content type for mime type: '%s'\n", type);
+		return NULL;
+	}
+	if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+		if ((path = lookup_file_by_name(g_app_info_get_id(info)))) {
+			g_free(content);
+			return path;
+		}
+	}
+	if ((apps = g_app_info_get_recommended_for_type(content))) {
+		for (app = apps; app; app = app->next) {
+			if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+				g_list_free(apps);
+				g_free(content);
+				return path;
+			}
+		}
+		g_list_free(apps);
+	}
+	if ((apps = g_app_info_get_fallback_for_type(content))) {
+		for (app = apps; app; app = app->next) {
+			if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+				g_list_free(apps);
+				g_free(content);
+				return path;
+			}
+		}
+		g_list_free(apps);
+	}
+	g_free(content);
+	return NULL;
+}
+
+static char **
+get_desktops(void)
+{
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+	char **desktops = NULL;
+
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; desktop && *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	return desktops;
+}
+
+static char **
+get_searchdirs(void)
+{
+	const gchar *cdir, *ddir, *const *dirs, *const *cdirs, *const *ddirs;
+	char **searchdirs = NULL;
+	int len = 0, i = 0;
+
+	cdir = g_get_user_config_dir(); len++;
+	ddir = g_get_user_data_dir(); len++;
+	cdirs = g_get_system_config_dirs();
+	for (dirs = cdirs; dirs && *dirs; dirs++) len++;
+	ddirs = g_get_system_data_dirs();
+	for (dirs = ddirs; dirs && *dirs; dirs++) len++;
+
+	searchdirs = calloc(len+1, sizeof(*searchdirs));
+	searchdirs[i++] = strdup(cdir);
+	searchdirs[i++] = g_build_filename(ddir, "applications", NULL);
+	for (dirs = cdirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = strdup(*dirs);
+	for (dirs = ddirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = g_build_filename(*dirs, "applications", NULL);
+	return searchdirs;
+}
+
+/** @brief look up the file from CATEGORY
+  *
+  * Use glib to make the association.
+  */
+char *
+lookup_file_by_kind(const char *type)
+{
+	GDesktopAppInfo *desk;
+	GKeyFile *dfile, *afile;
+	GList *apps, *app;
+	const char *cat, *path;
+	char *category, *categories, *result = NULL;
+	char **desktops = NULL, **desktop;
+	char **searchdirs = NULL, **dir;
+
+	desktops = get_desktops();
+	searchdirs = get_searchdirs();
+
+	if (!(dfile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+	if (!(afile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+
+	gboolean got_dfile = FALSE, got_afile = FALSE;
+
+	for (dir = searchdirs; dir && *dir; dir++) {
+		char *path, *name;
+
+		for (desktop = desktops; desktop && *desktop; desktop++) {
+
+			name = g_strdup_printf("%s-prefapps.list", *desktop);
+			path = g_build_filename(*dir, name, NULL);
+			if (!got_dfile)
+				got_dfile =
+				    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+			g_free(path);
+			g_free(name);
+		}
+		path = g_build_filename(*dir, "prefapps.list", NULL);
+		if (!got_dfile)
+			got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+		if (!got_afile)
+			got_afile = g_key_file_load_from_file(afile, path, G_KEY_FILE_NONE, NULL);
+		g_free(path);
+		if (got_dfile && got_afile)
+			break;
+	}
+	if (desktops)
+		g_strfreev(desktops);
+	if (searchdirs)
+		g_strfreev(searchdirs);
+
+	if (got_dfile) {
+		char **apps, **app;
+		GDesktopAppInfo *desk;
+
+		apps = g_key_file_get_string_list(dfile, "Default Applications", type, NULL, NULL);
+		for (app = apps; app && *app; app++) {
+			if (!(result = lookup_file_by_name(*app)))
+				continue;
+			desk = g_desktop_app_info_new_from_filename(result);
+			g_free(result);
+			if (!desk)
+				continue;
+			if (g_desktop_app_info_get_is_hidden(desk)) {
+				g_object_unref(desk);
+				continue;
+			}
+			g_strfreev(apps);
+			g_key_file_unref(dfile);
+			g_key_file_unref(afile);
+			return result;
+		}
+		if (apps)
+			g_strfreev(apps);
+	}
+	if (got_afile) {
+		char **apps, **app;
+
+		if ((apps =
+		     g_key_file_get_string_list(dfile, "Added Categories", type, NULL, NULL))) {
+			for (app = apps; app && *app; app++) {
+				if ((result = lookup_file_by_name(*app))) {
+					g_strfreev(apps);
+					g_key_file_unref(dfile);
+					g_key_file_unref(afile);
+					return result;
+				}
+			}
+			g_strfreev(apps);
+		}
+	}
+	g_key_file_unref(dfile);
+	g_key_file_unref(afile);
+
+	/* this is actually the fallback approach */
+	category = calloc(PATH_MAX + 1, sizeof(*category));
+
+	strncpy(category, ";", PATH_MAX);
+	strncat(category, type, PATH_MAX);
+	strncat(category, ";", PATH_MAX);
+
+	if ((apps = g_app_info_get_all())) {
+		categories = calloc(PATH_MAX + 1, sizeof(*categories));
+		for (app = apps; app; app = app->next) {
+			desk = G_DESKTOP_APP_INFO(app->data);
+			if ((cat = g_desktop_app_info_get_categories(desk))) {
+				strncpy(categories, ";", PATH_MAX);
+				strncat(categories, cat, PATH_MAX);
+				strncat(categories, ";", PATH_MAX);
+				if (strstr(categories, category))
+					if ((path = g_desktop_app_info_get_filename(desk))
+					    && (result = strdup(path)))
+						break;
+			}
+		}
+		g_list_free(apps);
+		free(categories);
+
+	}
+	free(category);
+	return result;
 }
 
 void
@@ -4181,7 +4414,7 @@ add_sequence(Sequence *seq)
 			appid = strrchr(seq->f.bin, '/');
 			appid = appid ? appid + 1 : seq->f.bin;
 		}
-		if ((path = lookup_file(appid))) {
+		if ((path = lookup_file_by_name(appid))) {
 			DPRINTF(1, "found desktop file %s\n", path);
 			Entry *e = calloc(1, sizeof(*e));
 
@@ -6541,8 +6774,8 @@ handle_event(XEvent *e)
 	}
 }
 
-void set_pid();
-void set_id();
+void set_pid(void);
+void set_id(void);
 
 void
 reset_pid(pid_t pid)
@@ -6572,7 +6805,7 @@ reset_pid(pid_t pid)
   * process before the launch.
   */
 void
-setup_to_assist()
+setup_to_assist(void)
 {
 	if (myseq.f.timestamp && myseq.n.timestamp)
 		pushtime(&launch_time, (Time) myseq.n.timestamp);
@@ -6586,8 +6819,8 @@ sighandler(int sig)
 	signum = sig;
 }
 
-Bool get_display();
-void put_display();
+Bool get_display(void);
+void put_display(void);
 
 /** @brief assist the window manager.
   *
@@ -6602,7 +6835,7 @@ void put_display();
   * assistance and then exits.  The child owns the display connection.
   */
 void
-assist()
+assist(void)
 {
 	pid_t pid = getpid();
 
@@ -6703,7 +6936,7 @@ assist()
   * application.
   */
 void
-toolwait()
+toolwait(void)
 {
 	pid_t pid = getpid();
 
@@ -6793,16 +7026,13 @@ toolwait()
   * and set the appropriate EWMH properties on all windows.
   */
 void
-normal()
+normal(void)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	if (options.info) {
+	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
-		reset_pid(pid);
-		return;
-	}
 	reset_pid(pid);
 	/* main process returns and launches */
 	return;
@@ -6862,7 +7092,7 @@ wait_for_condition(Window (*until) (void))
 }
 
 static Window
-check_anywm()
+check_anywm(void)
 {
 	if (scr->netwm_check)
 		return scr->netwm_check;
@@ -6880,7 +7110,7 @@ check_anywm()
 }
 
 static Bool
-check_for_window_manager()
+check_for_window_manager(void)
 {
 	PTRACE(5);
 	OPRINTF(1, "checking NetWM/EWMH compliance\n");
@@ -6905,7 +7135,7 @@ check_for_window_manager()
 }
 
 static void
-wait_for_window_manager()
+wait_for_window_manager(void)
 {
 	PTRACE(5);
 	if (check_for_window_manager()) {
@@ -6942,7 +7172,7 @@ wait_for_window_manager()
 }
 
 static void
-wait_for_system_tray()
+wait_for_system_tray(void)
 {
 	PTRACE(5);
 	if (check_stray()) {
@@ -6962,7 +7192,7 @@ wait_for_system_tray()
 }
 
 static void
-wait_for_desktop_pager()
+wait_for_desktop_pager(void)
 {
 	PTRACE(5);
 	if (check_pager()) {
@@ -6983,7 +7213,7 @@ wait_for_desktop_pager()
 }
 
 static void
-wait_for_composite_manager()
+wait_for_composite_manager(void)
 {
 	PTRACE(5);
 	if (check_compm()) {
@@ -7004,7 +7234,7 @@ wait_for_composite_manager()
 }
 
 static void
-wait_for_audio_server()
+wait_for_audio_server(void)
 {
 	PTRACE(5);
 	if (check_audio()) {
@@ -7032,7 +7262,7 @@ wait_for_audio_server()
  * When options.xsession is true, we should never wait for resources.
  */
 void
-wait_for_resource()
+wait_for_resource(void)
 {
 	if (options.xsession) {
 		DPRINTF(1, "Cannot wait for resources when launching xsessions.\n");
@@ -7119,7 +7349,7 @@ wait_for_resource()
 }
 
 Bool
-need_assist()
+need_assist(void)
 {
 	Bool need_assist = options.assist;
 
@@ -7162,7 +7392,7 @@ need_assist()
 }
 
 void
-launch()
+launch(void)
 {
 	size_t size;
 	char *disp, *p;
@@ -7200,7 +7430,7 @@ launch()
 		send_change(&myseq);
 	else
 		send_new(&myseq);
-	XCloseDisplay(dpy);
+	put_display();
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	setenv("DESKTOP_STARTUP_ID", myseq.f.id, 1);
@@ -7274,23 +7504,22 @@ launch()
 }
 
 void
-set_screen()
+set_screen(void)
 {
 	free(myseq.f.screen);
 	myseq.f.screen = calloc(64, sizeof(*myseq.f.screen));
 	if (options.screen != -1 && 0 <= options.screen && options.screen < ScreenCount(dpy))
 		snprintf(myseq.f.screen, 64, "%d", options.screen);
-	else if (options.keyboard && find_focus_screen(&options.screen))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
-	else if (options.pointer && find_pointer_screen(&options.screen))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
-	else if (!options.keyboard && !options.pointer &&
-		 (find_focus_screen(&options.screen) || find_pointer_screen(&options.screen)))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
+	else if (options.keyboard && find_focus_screen())
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+	else if (options.pointer && find_pointer_screen())
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+	else if (!options.keyboard && !options.pointer && (find_focus_screen() || find_pointer_screen()))
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
 	else {
 		options.screen = DefaultScreen(dpy);
 		scr = screens + DefaultScreen(dpy);
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
+		snprintf(myseq.f.screen, 64, "%d", scr->screen);
 	}
 }
 
@@ -7469,7 +7698,7 @@ find_pointer_monitor(int *monitor)
 }
 
 void
-set_monitor()
+set_monitor(void)
 {
 	free(myseq.f.monitor);
 	myseq.f.monitor = calloc(64, sizeof(*myseq.f.monitor));
@@ -7489,7 +7718,7 @@ set_monitor()
 }
 
 void
-set_desktop()
+set_desktop(void)
 {
 	Atom atom, real;
 	int format, monitor = 0;
@@ -7557,7 +7786,7 @@ set_desktop()
 }
 
 void
-set_name()
+set_name(void)
 {
 	char *pos;
 
@@ -7574,7 +7803,7 @@ set_name()
 }
 
 void
-set_description()
+set_description(void)
 {
 	PTRACE(5);
 	free(myseq.f.description);
@@ -7587,7 +7816,7 @@ set_description()
 }
 
 void
-set_icon()
+set_icon(void)
 {
 	char *icon, *p;
 
@@ -7616,7 +7845,7 @@ set_icon()
 }
 
 void
-set_action()
+set_action(void)
 {
 	PTRACE(5);
 	free(myseq.f.action);
@@ -7627,7 +7856,7 @@ set_action()
 }
 
 void
-set_autostart()
+set_autostart(void)
 {
 	PTRACE(5);
 	free(myseq.f.action);
@@ -7639,7 +7868,7 @@ set_autostart()
 }
 
 void
-set_xsession()
+set_xsession(void)
 {
 	PTRACE(5);
 	free(myseq.f.action);
@@ -7651,7 +7880,7 @@ set_xsession()
 }
 
 char *
-set_wmclass()
+set_wmclass(void)
 {
 	char *pos;
 
@@ -7670,7 +7899,7 @@ set_wmclass()
 }
 
 void
-set_pid()
+set_pid(void)
 {
 	char *p, *q;
 
@@ -7688,7 +7917,7 @@ set_pid()
 }
 
 void
-set_hostname()
+set_hostname(void)
 {
 	PTRACE(5);
 	free(myseq.f.hostname);
@@ -7701,7 +7930,7 @@ set_hostname()
 }
 
 void
-set_sequence()
+set_sequence(void)
 {
 	PTRACE(5);
 	free(myseq.f.sequence);
@@ -7715,7 +7944,7 @@ set_sequence()
 }
 
 void
-set_timestamp()
+set_timestamp(void)
 {
 	char *p;
 
@@ -7801,7 +8030,7 @@ truth_value(char *p)
 }
 
 char *
-set_command()
+set_command(void)
 {
 	char *cmd;
 
@@ -7850,7 +8079,7 @@ set_command()
 }
 
 void
-set_silent()
+set_silent(void)
 {
 	PTRACE(5);
 	free(myseq.f.silent);
@@ -7870,7 +8099,7 @@ first_word(char *str)
 }
 
 char *
-set_bin()
+set_bin(void)
 {
 	char *p, *q;
 
@@ -7897,13 +8126,22 @@ set_bin()
 }
 
 char *
-set_application_id()
+set_application_id(void)
 {
 	char *p, *q;
 
 	PTRACE(5);
 	free(myseq.f.application_id);
-	if (options.appid) {
+	if (options.path) {
+		if ((p = strrchr(options.path, '/')))
+			p++;
+		else
+			p = options.path;
+		if ((q = strstr(options.path, ".desktop")) && !q[8])
+			myseq.f.application_id = strndup(p, q - p);
+		else
+			myseq.f.application_id = strdup(p);
+	} else if (options.appid) {
 		if ((p = strrchr(options.appid, '/')))
 			p++;
 		else
@@ -7918,7 +8156,7 @@ set_application_id()
 }
 
 void
-set_launcher()
+set_launcher(void)
 {
 	char *p;
 
@@ -7934,7 +8172,7 @@ set_launcher()
 }
 
 void
-set_launchee()
+set_launchee(void)
 {
 	char *p, *q;
 
@@ -7954,7 +8192,7 @@ set_launchee()
 }
 
 void
-set_id()
+set_id(void)
 {
 	char *launcher, *launchee, *p;
 
@@ -7993,7 +8231,7 @@ set_id()
 }
 
 void
-set_all()
+set_all(void)
 {
 	PTRACE(5);
 	if (!myseq.f.name)
@@ -8044,23 +8282,89 @@ get_mime_type(const char *uri)
 	GFile *file;
 	GFileInfo *info;
 	char *mime = NULL;
+	const char *type;
+	const char *attr = G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE;
 
-	if (!(file = g_file_new_for_uri(uri))) {
+	if (!uri) {
+		EPRINTF("uri is NULL!\n");
+	} else if (!(file = g_file_new_for_uri(uri))) {
 		EPRINTF("could not get GFile for %s\n", uri);
-	} else
-	    if (!(info = g_file_query_info(file, G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE,
-					   G_PRIORITY_DEFAULT, NULL, NULL))) {
+	} else if (!(info = g_file_query_info(file, attr, G_FILE_QUERY_INFO_NONE, NULL, NULL))) {
 		EPRINTF("could not get GFileInfo for %s\n", uri);
 		g_object_unref(file);
-	} else
-	    if (!(mime = g_file_info_get_attribute_as_string(info,
-							     G_FILE_ATTRIBUTE_STANDARD_FAST_CONTENT_TYPE)))
-	{
+	} else if (!(type = g_file_info_get_attribute_string(info, attr))) {
 		EPRINTF("could not get content-type for %s\n", uri);
 		g_object_unref(info);
 		g_object_unref(file);
+	} else {
+		mime = strdup(type);
 	}
 	return (mime);
+}
+
+static void
+set_mime_type(void)
+{
+	if (!options.mimetype && options.url)
+		options.mimetype = get_mime_type(options.url);
+	if (!options.mimetype && myent.MimeType) {
+		options.mimetype = strdup(myent.MimeType);
+		if (strchr(options.mimetype, ';'))
+			*strchr(options.mimetype, ';') = '\0';
+	}
+	if (!options.mimetype && options.url)
+		options.mimetype = strdup("application/octet-stream");
+}
+
+static void
+put_recently_used_info(void)
+{
+	char *desktop_id = NULL;
+	GDesktopAppInfo *info = NULL;
+
+	/* only for applications, not autostart or xsesssion */
+	if (!options.uri) {
+		DPRINTF(1, "do not recommend without a uri\n");
+		return;
+	}
+	if (options.autostart || options.xsession) {
+		DPRINTF(1, "do not recommend autostart or xsession invocations\n");
+		return;
+	}
+	if (!options.mimetype) {
+		DPRINTF(1, "do not recommend without a mime type\n");
+		return;
+	}
+	if (!myseq.f.application_id) {
+		DPRINTF(1, "do not recommend without an application id\n");
+		return;
+	}
+	if (options.path && !(info = g_desktop_app_info_new_from_filename(options.path))) {
+		EPRINTF("cannot find desktop file %s\n", options.path);
+		return;
+	}
+	if (!info) {
+		if (!(desktop_id = g_strdup_printf("%s.desktop", myseq.f.application_id))) {
+			EPRINTF("cannot allocate desktop_id\n");
+			return;
+		}
+		if (!(info = g_desktop_app_info_new(desktop_id))) {
+			EPRINTF("cannot find desktop id %s\n", desktop_id);
+			g_free(desktop_id);
+			return;
+		}
+	}
+	if (!g_app_info_set_as_last_used_for_type(G_APP_INFO(info), options.mimetype, NULL)) {
+		EPRINTF("cannot set last used %s for %s\n", desktop_id, options.mimetype);
+		g_object_unref(info);
+		if (desktop_id)
+			g_free(desktop_id);
+		return;
+	}
+	g_object_unref(info);
+	if (desktop_id)
+		g_free(desktop_id);
+	return;
 }
 
 static void
@@ -8129,7 +8433,7 @@ put_recently_used_xbel(char *filename)
 {
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
-	char *file, *mime = NULL;
+	char *file;
 
 	if (!options.url) {
 		EPRINTF("cannot record %s without a url\n", filename);
@@ -8159,18 +8463,8 @@ put_recently_used_xbel(char *filename)
 	}
 
 	/* 2) append new information (url only) */
-	if (!(mime = get_mime_type(options.url))) {
-		if (myent.MimeType) {
-			char *p;
-
-			mime = strdup(myent.MimeType);
-			if ((p = strchr(mime, ';')))
-				*p = '\0';
-		}
-	}
-	if (mime)
-		g_bookmark_file_set_mime_type(bookmark, options.url, mime);
-	free(mime);
+	if (options.mimetype && options.url)
+		g_bookmark_file_set_mime_type(bookmark, options.url, options.mimetype);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	if (myseq.f.application_id) {
@@ -8195,7 +8489,7 @@ put_recently_used_xbel(char *filename)
 		p = groups;
 		for (p = groups, *strchrnul(p, ';') = '\0'; p < e;
 		     p += strlen(p) + 1, *strchrnul(p, ';') = '\0')
-			if (strcmp(p, "Application"))
+			if (strcmp(p, "Application") && p[0])
 				g_bookmark_file_add_group(bookmark, options.url, p);
 		free(groups);
 	}
@@ -8568,20 +8862,10 @@ put_recently_used(char *filename)
 
 	/* 2) append new information (url only) */
 	if (!(item = g_list_find_custom(list, options.url, uri_match))) {
-		char *p;
-
 		used = calloc(1, sizeof(*used));
 		used->uri = strdup(options.url);
 		used->private = TRUE;
-		if (!(used->mime = get_mime_type(options.url))) {
-			EPRINTF("could not get mime type for %s\n", options.url);
-			if (myent.MimeType) {
-				used->mime = strdup(myent.MimeType);
-				if ((p = strchr(used->mime, ';')))
-					*p = '\0';
-			} else
-				used->mime = strdup("application/octet-stream");
-		}
+		used->mime = options.mimetype ? strdup(options.mimetype) : NULL;
 		list = g_list_prepend(list, used);
 	} else
 		used = item->data;
@@ -8715,11 +8999,13 @@ put_line_history(char *file, char *line)
 }
 
 static void
-put_history()
+put_history(void)
 {
 	put_line_history(options.runhist, myseq.f.command);
 	put_line_history(options.recapps, myseq.f.application_id);
 #ifdef GIO_GLIB2_SUPPORT
+	set_mime_type();
+	put_recently_used_info();
 	if (options.uri) {
 		if (options.url) {
 			put_recently_used(".recently-used");
@@ -8742,8 +9028,8 @@ copying(int argc, char *argv[])
 --------------------------------------------------------------------------------\n\
 %1$s\n\
 --------------------------------------------------------------------------------\n\
-Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>\n\
-Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>\n\
+Copyright (c) 2010-2017  Monavacon Limited <http://www.monavacon.com/>\n\
+Copyright (c) 2002-2009  OpenSS7 Corporation <http://www.openss7.com/>\n\
 Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>\n\
 \n\
 All Rights Reserved.\n\
@@ -8786,8 +9072,8 @@ version(int argc, char *argv[])
 %1$s (OpenSS7 %2$s) %3$s\n\
 Written by Brian Bidulock.\n\
 \n\
-Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016  Monavacon Limited.\n\
-Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008  OpenSS7 Corporation.\n\
+Copyright (c) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017  Monavacon Limited.\n\
+Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009  OpenSS7 Corporation.\n\
 Copyright (c) 1997, 1998, 1999, 2000, 2001  Brian F. G. Bidulock.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
@@ -8869,10 +9155,14 @@ Options:\n\
         whether startup notification is silent (0/1), [default: '%13$s']\n\
     -p, --pid PID\n\
         process id of the XDG application, [default: '%14$d']\n\
-    -a, --appid APPID\n\
-        override application identifier\n\
     -x, --exec EXEC\n\
         override command to execute\n\
+    -a, --appid APPID\n\
+        override application identifier\n\
+    --mimetype MIMETYPE\n\
+        launch default application for MIMETYPE\n\
+    --category CATEGORY\n\
+        launch default application for CATEOGRY\n\
     -f, --file FILE\n\
         filename to use with application\n\
     -u, --url URL\n\
@@ -8970,7 +9260,7 @@ Options:\n\
 }
 
 static void
-set_default_files()
+set_default_files(void)
 {
 	static const char *rsuffix = "/xde/run-history";
 	static const char *asuffix = "/xde/recent-applications";
@@ -9063,15 +9353,19 @@ set_defaults(int argc, char *argv[])
 }
 
 int
+
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
 	char *p;
 
+#if 0
+	/* not sure that we ever want to do this */
 	if ((p = getenv("DESKTOP_STARTUP_ID")) && *p) {
 		free(options.id);
 		options.id = strdup(p);
 	}
+#endif
 	unsetenv("DESKTOP_STARTUP_ID");
 
 	set_defaults(argc, argv);
@@ -9099,8 +9393,10 @@ main(int argc, char *argv[])
 			{"wmclass",	required_argument,	NULL, 'W'},
 			{"silent",	required_argument,	NULL, 'q'},
 			{"pid",		optional_argument,	NULL, 'p'},
-			{"appid",	required_argument,	NULL, 'a'},
 			{"exec",	required_argument,	NULL, 'x'},
+			{"appid",	required_argument,	NULL, 'a'},
+			{"mimetype",	required_argument,	NULL,  7 },
+			{"category",	required_argument,	NULL,  8 },
 			{"file",	required_argument,	NULL, 'f'},
 			{"url",		required_argument,	NULL, 'u'},
 			{"keyboard",	no_argument,		NULL, 'K'},
@@ -9232,16 +9528,30 @@ main(int argc, char *argv[])
 			free(options.silent);
 			defaults.silent = options.silent = strdup(optarg);
 			break;
-		case 'a':	/* -a, --appid APPID */
-			free(options.appid);
-			defaults.appid = options.appid = strdup(optarg);
-			break;
 		case 'x':	/* -x, --exec EXEC */
 			free(options.exec);
 			defaults.exec = options.exec = strdup(optarg);
 			break;
 		case 'e':	/* -e command and options */
 			exec_mode = 1;
+			break;
+		case 'a':	/* -a, --appid APPID */
+			free(options.appid);
+			defaults.appid = options.appid = strdup(optarg);
+			free(options.appspec);
+			defaults.appspec = options.appspec = strdup(optarg);
+			break;
+		case 7:		/* --mimetype MIMETYPE */
+			free(options.mimetype);
+			defaults.mimetype = options.mimetype = strdup(optarg);
+			free(options.appspec);
+			defaults.appspec = options.appspec = strdup(optarg);
+			break;
+		case 8:		/* --cateogry CATEGORY */
+			free(options.category);
+			defaults.category = options.category = strdup(optarg);
+			free(options.appspec);
+			defaults.appspec = options.appspec = strdup(optarg);
 			break;
 		case 'f':	/* -f, --file FILE */
 			free(options.file);
@@ -9438,10 +9748,10 @@ main(int argc, char *argv[])
 		for (i = 0; optind < argc; optind++, i++)
 			eargv[i] = strdup(argv[optind]);
 	} else if (optind < argc) {
-		if (options.appid)
+		if (options.appspec)
 			optind++;
 		else
-			options.appid = strdup(argv[optind++]);
+			options.appspec = strdup(argv[optind++]);
 		if (optind < argc) {
 			if (strchr(argv[optind], ':')) {
 				if (options.url)
@@ -9458,37 +9768,86 @@ main(int argc, char *argv[])
 				goto bad_nonopt;
 		}
 	}
-	if (!eargv && !options.appid && !options.exec) {
-		EPRINTF("APPID or EXEC must be specified\n");
+	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec) {
+		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
 	} else if (eargv) {
 		p = strrchr(eargv[0], '/');
 		p = p ? p + 1 : eargv[0];
 		free(options.path);
-		if ((options.path = lookup_file(p))) {
-			if (!parse_file(options.path, &myent)) {
-				free(options.path);
-				options.path = NULL;
-				myent.TryExec = strdup(eargv[0]);
-			}
-		}
+		options.path = lookup_file_by_name(p);
 	} else if (options.appid) {
 		free(options.path);
-		if (!(options.path = lookup_file(options.appid))) {
-			EPRINTF("could not find file '%s'\n", options.appid);
+		if (!(options.path = lookup_file_by_name(options.appid))) {
+			EPRINTF("could not find file for name '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
-		if (!parse_file(options.path, &myent)) {
-			EPRINTF("could not parse file '%s'\n", options.path);
+	} else if (options.mimetype) {
+		free(options.path);
+		if (!(options.path = lookup_file_by_type(options.mimetype))) {
+			EPRINTF("could not find file for type '%s'\n", options.mimetype);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.category) {
+		free(options.path);
+		if (!(options.path = lookup_file_by_kind(options.category))) {
+			EPRINTF("could not find file for kind '%s'\n", options.category);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.appspec) {
+		free(options.path);
+		options.path = NULL;
+		if (!options.path && (options.path = lookup_file_by_name(options.appspec))) {
+			free(options.appid);
+			options.appid = strdup(options.appspec);
+		}
+		if (!options.path && (options.path = lookup_file_by_type(options.appspec))) {
+			free(options.mimetype);
+			options.mimetype = strdup(options.appspec);
+		}
+		if (!options.path && (options.path = lookup_file_by_kind(options.appspec))) {
+			free(options.category);
+			options.category = strdup(options.appspec);
+		}
+		if (!options.path) {
+			EPRINTF("could not find file for spec '%s'\n", options.appspec);
 			exit(EXIT_FAILURE);
 		}
 	}
-	if (options.file && !options.url) {
-		int size = strlen("file://") + strlen(options.file) + 1;
+	if (options.path && !parse_file(options.path, &myent)) {
+		EPRINTF("could not parse file '%s'\n", options.path);
+		free(options.path);
+		options.path = NULL;
+		if (!eargv)
+			exit(EXIT_FAILURE);
+		myent.TryExec = strdup(eargv[0]);
+	}
+	if (options.file && options.file[0] && !options.url) {
+		if (options.file[0] == '/') {
+			int size = strlen("file://") + strlen(options.file) + 1;
 
-		options.url = calloc(size, sizeof(*options.url));
-		strcat(options.url, "file://");
-		strcat(options.url, options.file);
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, options.file);
+		} else if (options.file[0] == '.' && options.file[1] == '/') {
+			char *cwd = get_current_dir_name();
+			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, cwd);
+			strcat(options.url, "/");
+			strcat(options.url, options.file + 2);
+		} else {
+			char *cwd = get_current_dir_name();
+			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, cwd);
+			strcat(options.url, "/");
+			strcat(options.url, options.file);
+		}
 	} else if (options.url && !options.file &&
 		   (p = strstr(options.url, "file://")) == options.url) {
 		options.file = strdup(options.url + 7);
@@ -9499,6 +9858,7 @@ main(int argc, char *argv[])
 		     calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
 			strcpy(options.uri, "file://");
 			strcat(options.uri, options.path);
+
 		}
 	}
 	if (options.output > 1)

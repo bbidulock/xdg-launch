@@ -1,5 +1,5 @@
 
-xdg_man_files = \
+xdg_man1_files = \
 	     xdg-launch.man \
 	     xdg-assist.man \
 	     dmenu_launch.man \
@@ -12,14 +12,14 @@ xdg_man_files = \
 	     xdg-list.man
 
 if HAVE_GIO_GLIB2_SUPPORT
-xdg_man_files += \
+xdg_man1_files += \
 	     xdg-types.man \
 	     xdg-prefs.man \
 	     xdg-find.man
 endif
 
-nodist_man1_MANS = $(xdg_man_files)
-CLEANFILES = $(xdg_man_files)
+nodist_man1_MANS = $(xdg_man1_files)
+CLEANFILES = $(xdg_man1_files)
 
 EXTRA_DIST = \
 	     xdg-launch.pod \
@@ -36,10 +36,8 @@ EXTRA_DIST = \
 	     xdg-prefs.pod \
 	     xdg-find.pod
 
-SUFFIXES = .man .pod
-
-.pod.man:
-	pod2man --center="User Commands" \
+$(xdg_man1_files): %.man: %.pod
+	$(AM_V_GEN)pod2man --center="User Commands" \
 		--date="$(DATE)" \
 		--errors="none" \
 		--fixed="CW" \
@@ -50,4 +48,17 @@ SUFFIXES = .man .pod
 		--release="$(PACKAGE) $(VERSION)" \
 		--section="1" \
 		$< >$@
+
+#$(xdg_man5_files): %.man: %.pod
+#	$(AM_V_GEN)pod2man --center="Standards, Environments and Macros" \
+#		--date="$(DATE)" \
+#		--errors="none" \
+#		--fixed="CW" \
+#		--fixedbold="CB" \
+#		--fixeditalic="CI" \
+#		--fixedbolditalic="CX" \
+#		--nourls \
+#		--release="$(PACKAGE) $(VERSION)" \
+#		--section="5" \
+#		$< >$@
 

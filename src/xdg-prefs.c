@@ -1,7 +1,7 @@
 /*****************************************************************************
 
- Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>
- Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>
+ Copyright (c) 2010-2017  Monavacon Limited <http://www.monavacon.com/>
+ Copyright (c) 2002-2000  OpenSS7 Corporation <http://www.openss7.com/>
  Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>
 
  All Rights Reserved.
@@ -79,6 +79,8 @@
 #include <stdarg.h>
 #include <strings.h>
 #include <regex.h>
+#include <wordexp.h>
+#include <execinfo.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -98,21 +100,40 @@
 #include <gio/gdesktopappinfo.h>
 #endif
 
-#define DPRINTF(_args...) do { if (options.debug > 0) { \
-		fprintf(stderr, "D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args); } } while (0)
+#define XPRINTF(_args...) do { } while (0)
+
+#define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
+		fprintf(stderr, NAME ": D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
-		fprintf(stderr, "E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
-		fprintf(stderr, _args);   } while (0)
+		fprintf(stderr, NAME ": E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, _args); fflush(stderr); } while (0)
 
-#define OPRINTF(_args...) do { if (options.debug > 0 || options.output > 1) { \
-		fprintf(stderr, "I: "); \
-		fprintf(stderr, _args); } } while (0)
+#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
+		fprintf(stdout, NAME ": I: "); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
-#define PTRACE() do { if (options.debug > 0 || options.output > 2) { \
-		fprintf(stderr, "T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
-					} } while (0)
+#define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
+		fprintf(stderr, NAME ": T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
+		fflush(stderr); } } while (0)
+
+#define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
+		fprintf(stdout, NAME ": C: 0x%08lx client (%c) ", c->win, c->managed ?  'M' : 'U'); \
+		fprintf(stdout, _args); fflush(stdout); } } while (0)
+
+void
+dumpstack(const char *file, const int line, const char *func)
+{
+	void *buffer[32];
+	int nptr;
+	char **strings;
+	int i;
+
+	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
+		for (i = 0; i < nptr; i++)
+			fprintf(stderr, NAME ": E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+}
 
 const char *program = NAME;
 
@@ -160,14 +181,434 @@ Options options = {
 	.button = 0,
 };
 
+static gboolean
+read_mimeapp_file(GKeyFile *file, const gchar *directory, const char *base)
+{
+	char *path;
+	gboolean result;
+
+	path = g_build_filename(directory, base, NULL);
+	result = g_key_file_load_from_file(file, path, G_KEY_FILE_NONE, NULL);
+	g_free(path);
+	return result;
+}
+
+static gboolean
+read_default_file(GKeyFile *file, char **desktops, const gchar *directory, const char *base)
+{
+	char **desktop;
+
+	for (desktop = desktops; *desktop; desktop++) {
+		char *name, *path;
+		gboolean result;
+
+		if (!*desktop[0])
+			continue;
+		name = g_strdup_printf("%s-%s", *desktop, base);
+		path = g_build_filename(directory, name, NULL);
+		result = g_key_file_load_from_file(file, path, G_KEY_FILE_NONE, NULL);
+		g_free(name);
+		g_free(path);
+		if (result)
+			return result;
+	}
+	return read_mimeapp_file(file, directory, base);
+}
+
+gboolean
+find_mimeapp_file(GKeyFile *file, const gchar *directory, const char *base)
+{
+	const gchar * cdir;
+	const gchar * ddir;
+	const gchar * const * dir;
+	const gchar * const * cdirs;
+	const gchar * const * ddirs;
+
+	cdir = g_get_user_config_dir();
+	ddir = g_get_user_data_dir();
+	cdirs = g_get_system_config_dirs();
+	ddirs = g_get_system_data_dirs();
+	if (read_mimeapp_file(file, cdir, base))
+		return TRUE;
+	if (read_mimeapp_file(file, ddir, base))
+		return TRUE;
+	for (dir = cdirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_mimeapp_file(file, *dir, base))
+			return TRUE;
+	}
+	for (dir = ddirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_mimeapp_file(file, *dir, base))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/* Search order:
+
+   $XDG_CONFIG_HOME/$desktop-mimeapps.list
+   $XDG_CONFIG_HOME/mimeapps.list
+   $XDG_CONFIG_DIRS/$desktop-mimeapps.list
+   $XDG_CONFIG_DIRS/mimeapps.list
+   $XDG_DATA_HOME/applications/$desktop-mimeapps.list
+   $XDG_DATA_HOME/applications/mimeapps.list
+   $XDG_DATA_DIRS/applications/$desktop-mimeapps.list
+   $XDG_DATA_DIRS/applications/mimeapps.list
+
+   $desktop variety only contain defaults, whereas the mimeapps.list can contain
+   added and removed associations.
+ */
+gboolean
+find_default_file(GKeyFile *file, char **desktops, const gchar *directory, const char *base)
+{
+	const gchar * cdir;
+	const gchar * ddir;
+	const gchar * const * dir;
+	const gchar * const * cdirs;
+	const gchar * const * ddirs;
+
+	cdir = g_get_user_config_dir();
+	ddir = g_get_user_data_dir();
+	cdirs = g_get_system_config_dirs();
+	ddirs = g_get_system_data_dirs();
+	if (read_default_file(file, desktops, cdir, base))
+		return TRUE;
+	if (read_default_file(file, desktops, ddir, base))
+		return TRUE;
+	for (dir = cdirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_default_file(file, desktops, *dir, base))
+			return TRUE;
+	}
+	for (dir = ddirs; *dir; dir++) {
+		if (!*dir[0])
+			continue;
+		if (read_default_file(file, desktops, *dir, base))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+void
+read_mime_apps(void)
+{
+	GKeyFile *dfile, *afile;
+	char **desktops = NULL;
+	static const char *base = "mimeapps.list";
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+
+	if (!(dfile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+	if (!(afile = g_key_file_new())) {
+		EPRINTF("could not allocate key file\n");
+		exit(EXIT_FAILURE);
+	}
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	(void) base;
+	/* TODO */
+	/* TODO */
+	/* TODO */
+	g_key_file_unref(afile);
+	g_key_file_unref(dfile);
+	if (desktops)
+		g_strfreev(desktops);
+}
+
 static void
 do_pref(int argc, char *argv[])
 {
+	char **type, *appid;
+	GDesktopAppInfo *desk;
+	GAppInfo *info;
+	int setcount = 0;
+
+	appid = calloc(PATH_MAX + 1, sizeof(*appid));
+	strncpy(appid, options.appid, PATH_MAX);
+	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
+		strncat(appid, ".desktop", PATH_MAX);
+	if (strstr(appid, "/")) {
+		if (!(desk = g_desktop_app_info_new_from_filename(appid))) {
+			EPRINTF("%s: cannot find appid file %s\n", argv[0], appid);
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		if (!(desk = g_desktop_app_info_new(appid))) {
+			EPRINTF("%s: cannot find appid %s\n", argv[0], appid);
+			exit(EXIT_FAILURE);
+		}
+	}
+	info = G_APP_INFO(desk);
+
+	for (type = options.types; type && *type; type++) {
+		gchar *content;
+
+		if (!strchr(*type, '/')) {
+			EPRINTF("%s: categories not yet supported\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+		if ((content = g_content_type_from_mime_type(*type))) {
+			if (options.fallback) {
+				EPRINTF("%s: could not set %s fallback for type %s\n", argv[0],
+					appid, content);
+			} else if (options.recommend) {
+				if (g_app_info_set_as_last_used_for_type(info, content, NULL)) {
+					setcount++;
+					continue;
+				}
+				EPRINTF("%s: could not set %s lastused for type %s\n", argv[0],
+					appid, content);
+			} else {
+				/* A problem with this gio implementation is that it only 
+				   set one default application in the [Default
+				   Associations] section of the mimepps.list file,
+				   obliterating any existing list.  Also, it writes only
+				   to the non-desktop-specific mimeapps.list file and
+				   does not change the desktop-specific file, yet reads
+				   the desktop-specific file: meaning that it does not
+				   change the default at all if a desktop-specific file
+				   exits. The only solution to this is to write the
+				   default entries directly to the keyfile ourselves.
+
+				   Another problem is that gio won't let you set a
+				   non-existent application id in the default
+				   associations nor the added associations, even though
+				   one might want to set one.  */
+
+				if (g_app_info_set_as_default_for_type(info, content, NULL)) {
+					setcount++;
+					continue;
+				}
+				EPRINTF("%s: could not set %s default for type %s\n", argv[0],
+					appid, content);
+			}
+			g_free(content);
+		}
+	}
+	if (!setcount) {
+		if (options.fallback)
+			EPRINTF("%s: could not set %s fallback for any type\n", argv[0], appid);
+		else if (options.recommend)
+			EPRINTF("%s: could not set %s lastused for any type\n", argv[0], appid);
+		else
+			EPRINTF("%s: could not set %s default for any type\n", argv[0], appid);
+		exit(EXIT_FAILURE);
+	}
+	g_object_unref(desk);
+	free(appid);
+}
+
+static char **
+get_desktops(void)
+{
+	static const char *evar = "XDG_CURRENT_DESKTOP";
+	char **desktops = NULL;
+
+	if (getenv(evar) && *getenv(evar)) {
+		char **desktop;
+
+		desktops = g_strsplit(getenv(evar), ";", 0);
+		for (desktop = desktops; desktop && *desktop; desktop++) {
+			char *dlower;
+
+			dlower = g_utf8_strdown(*desktop, -1);
+			g_free(*desktop);
+			*desktop = dlower;
+		}
+	}
+	return desktops;
+}
+
+static char **
+get_searchdirs(void)
+{
+	const gchar *cdir, *ddir, *const *dirs, *const *cdirs, *const *ddirs;
+	char **searchdirs = NULL;
+	int len = 0, i = 0;
+
+	cdir = g_get_user_config_dir(); len++;
+	ddir = g_get_user_data_dir(); len++;
+	cdirs = g_get_system_config_dirs();
+	for (dirs = cdirs; dirs && *dirs; dirs++) len++;
+	ddirs = g_get_system_data_dirs();
+	for (dirs = ddirs; dirs && *dirs; dirs++) len++;
+
+	searchdirs = calloc(len+1, sizeof(*searchdirs));
+	searchdirs[i++] = strdup(cdir);
+	searchdirs[i++] = g_build_filename(ddir, "applications", NULL);
+	for (dirs = cdirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = strdup(*dirs);
+	for (dirs = ddirs; dirs && *dirs; dirs++)
+		searchdirs[i++] = g_build_filename(*dirs, "applications", NULL);
+	return searchdirs;
 }
 
 static void
 do_exec(int argc, char *argv[])
 {
+	char *type;
+	GList *app;
+	GAppInfo *info = NULL;
+	GDesktopAppInfo *desk = NULL;
+
+	if (!(type = options.types[0])) {
+		EPRINTF("a MIMETYPE or CATEGORY must be specified\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (strchr(type, '/')) {
+		gchar *content;
+
+		if (!(content = g_content_type_from_mime_type(type))) {
+			EPRINTF("unknown content type for mime type '%s'\n", type);
+			exit(EXIT_FAILURE);
+		}
+		if (!options.recommend && !options.fallback) {
+			if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+				/* execute this one */
+			}
+		} else if (options.recommend && !options.fallback) {
+			if ((app = g_app_info_get_recommended_for_type(content))) {
+				info = app->data;
+				/* execute this one */
+			}
+		} else if (options.fallback) {
+			if ((app = g_app_info_get_fallback_for_type(content))) {
+				info = app->data;
+				/* execute this one */
+			}
+		}
+	} else {
+		char **desktops, **desktop, **searchdirs, **dir;
+		gboolean got_dfile = FALSE, got_afile = FALSE;
+		GKeyFile *dfile, *afile;
+
+		desktops = get_desktops();
+		searchdirs = get_searchdirs();
+
+		if (!(dfile = g_key_file_new())) {
+			EPRINTF("could not allocate key file\n");
+			exit(EXIT_FAILURE);
+		}
+		if (!(afile = g_key_file_new())) {
+			EPRINTF("could not allocate key file\n");
+			exit(EXIT_FAILURE);
+		}
+
+		for (dir = searchdirs; dir && *dir; dir++) {
+			char *path, *name;
+
+			for (desktop = desktops; desktop && *desktop; desktop++) {
+				name = g_strdup_printf("%s-prefapps.list", *desktop);
+				path = g_build_filename(*dir, name, NULL);
+				if (!got_dfile)
+					got_dfile =
+					    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE,
+								      NULL);
+				g_free(path);
+				g_free(name);
+			}
+			path = g_build_filename(*dir, "prefapps.list", NULL);
+			if (!got_dfile)
+				got_dfile =
+				    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+			if (!got_afile)
+				got_afile =
+				    g_key_file_load_from_file(afile, path, G_KEY_FILE_NONE, NULL);
+			g_free(path);
+			if (got_dfile && got_afile)
+				break;
+		}
+		if (desktops)
+			g_strfreev(desktops);
+		if (searchdirs)
+			g_strfreev(searchdirs);
+
+		if (!options.recommend && !options.fallback) {
+			if (!desk && got_dfile) {
+				char **apps, **app;
+
+				if ((apps =
+				     g_key_file_get_string_list(dfile, "Default Applications", type,
+								NULL, NULL))) {
+					for (app = apps; *app; app++) {
+						if ((desk = g_desktop_app_info_new(*app))) {
+							/* use this one */
+							break;
+						}
+					}
+					g_strfreev(apps);
+				}
+			}
+		}
+		if (!options.fallback) {
+			if (!desk && got_afile) {
+				char **apps, **app;
+
+				if ((apps =
+				     g_key_file_get_string_list(afile, "Added Categories", type,
+								NULL, NULL))) {
+					for (app = apps; *app; app++) {
+						if ((desk = g_desktop_app_info_new(*app))) {
+							/* use this one */
+							break;
+						}
+					}
+					g_strfreev(apps);
+				}
+			}
+		}
+		g_key_file_unref(dfile);
+		g_key_file_unref(afile);
+
+		if (!desk) {
+			char *category, *categories;
+			GList *apps, *app;
+			const char *cat;
+
+			category = calloc(PATH_MAX + 1, sizeof(*category));
+
+			strncpy(category, ";", PATH_MAX);
+			strncat(category, type, PATH_MAX);
+			strncat(category, ";", PATH_MAX);
+
+			if ((apps = g_app_info_get_all())) {
+				categories = calloc(PATH_MAX + 1, sizeof(*categories));
+				for (app = apps; app; app = app->next) {
+					if ((cat = g_desktop_app_info_get_categories(app->data))) {
+						strncpy(categories, ";", PATH_MAX);
+						strncat(categories, cat, PATH_MAX);
+						strncat(categories, ";", PATH_MAX);
+						if (strstr(categories, category)) {
+							desk = G_DESKTOP_APP_INFO(app->data);
+							/* use this one */
+							break;
+						}
+					}
+				}
+				g_list_free(apps);
+				free(categories);
+
+			}
+			free(category);
+		}
+	}
 }
 
 static void
@@ -253,8 +694,8 @@ copying(int argc, char *argv[])
 --------------------------------------------------------------------------------\n\
 %1$s\n\
 --------------------------------------------------------------------------------\n\
-Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>\n\
-Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>\n\
+Copyright (c) 2010-2017  Monavacon Limited <http://www.monavacon.com/>\n\
+Copyright (c) 2002-2009  OpenSS7 Corporation <http://www.openss7.com/>\n\
 Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>\n\
 \n\
 All Rights Reserved.\n\
@@ -297,8 +738,8 @@ version(int argc, char *argv[])
 %1$s (OpenSS7 %2$s) %3$s\n\
 Written by Brian Bidulock.\n\
 \n\
-Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016  Monavacon Limited.\n\
-Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008  OpenSS7 Corporation.\n\
+Copyright (c) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017  Monavacon Ltd.\n\
+Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009  OpenSS7 Corporation.\n\
 Copyright (c) 1997, 1998, 1999, 2000, 2001  Brian F. G. Bidulock.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
@@ -332,6 +773,8 @@ help(int argc, char *argv[])
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
+Name:\n\
+    %1$s: manage preferred applications\n\
 Usage:\n\
     %1$s [options] {-p|--pref} [--] APPID[;APPID[...]] [TYPE [...]]\n\
     %1$s [options] {-e|--exec} [--] TYPE [...]\n\
@@ -351,25 +794,22 @@ Command Options:\n\
         execute preferred application for type\n\
     --list, -l\n\
         list preferred application for types\n\
+General Options:\n\
+    --recommend, -r\n\
+        list, execute or set recommended rather than default\n\
+    --fallback, -f\n\
+        list or execute fallback rather than default or recommended\n\
+    --pointer, -P\n\
+        pass this option to xdg-launch when executing\n\
+    --keyboard, -K\n\
+        pass this option to xdg-launch when executing\n\
+Standard Options:\n\
     --help, -h, -?, --?\n\
         print this usage information and exit\n\
     --version, -V\n\
         print version and exit\n\
     --copying, -C\n\
         print copying permission and exit\n\
-General Options:\n\
-    --skip-dot, -o\n\
-        skip directories that start with a dot\n\
-    --skip-tilde, -t\n\
-        skip directories that start with a tilde\n\
-    --show-dot, -O\n\
-        print dots instead of full path\n\
-    --show-tilde, -T\n\
-        print tildes instead of full path\n\
-    --recommend, -r\n\
-        list, execute or set recommended rather than default\n\
-  - --fallback, -f\n\
-        list or execute fallback rather than default\n\
 ", argv[0]);
 }
 
@@ -416,7 +856,7 @@ main(int argc, char *argv[])
 		c = getopt(argc, argv, "otOTrfPKb:pelDvhVCH?");
 #endif				/* _GNU_SOURCE */
 		if (c == -1) {
-			DPRINTF("%s: done options processing\n", argv[0]);
+			DPRINTF(1, "%s: done options processing\n", argv[0]);
 			break;
 		}
 		switch (c) {
@@ -492,7 +932,7 @@ main(int argc, char *argv[])
 			break;
 
 		case 'D':	/* -D, --debug [level] */
-			DPRINTF("%s: increasing debug verbosity\n", argv[0]);
+			DPRINTF(1, "%s: increasing debug verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				options.debug++;
 				break;
@@ -502,7 +942,7 @@ main(int argc, char *argv[])
 			options.debug = val;
 			break;
 		case 'v':	/* -v, --verbose [level] */
-			DPRINTF("%s: increasing output verbosity\n", argv[0]);
+			DPRINTF(1, "%s: increasing output verbosity\n", argv[0]);
 			if (optarg == NULL) {
 				options.output++;
 				break;
@@ -552,8 +992,8 @@ main(int argc, char *argv[])
 			exit(2);
 		}
 	}
-	DPRINTF("%s: option index = %d\n", argv[0], optind);
-	DPRINTF("%s: option count = %d\n", argv[0], argc);
+	DPRINTF(1, "%s: option index = %d\n", argv[0], optind);
+	DPRINTF(1, "%s: option count = %d\n", argv[0], argc);
 	if (optind < argc) {
 		int n = argc - optind, j = 0;
 
@@ -577,27 +1017,27 @@ main(int argc, char *argv[])
 	case CommandDefault:
 		goto bad_usage;
 	case CommandPref:
-		DPRINTF("%s: setting preferences\n", argv[0]);
+		DPRINTF(1, "%s: setting preferences\n", argv[0]);
 		do_pref(argc, argv);
 		break;
 	case CommandExec:
-		DPRINTF("%s: executing preference\n", argv[0]);
+		DPRINTF(1, "%s: executing preference\n", argv[0]);
 		do_exec(argc, argv);
 		break;
 	case CommandList:
-		DPRINTF("%s: listing preferences\n", argv[0]);
+		DPRINTF(1, "%s: listing preferences\n", argv[0]);
 		do_list(argc, argv);
 		break;
 	case CommandHelp:
-		DPRINTF("%s: printing help message\n", argv[0]);
+		DPRINTF(1, "%s: printing help message\n", argv[0]);
 		help(argc, argv);
 		break;
 	case CommandVersion:
-		DPRINTF("%s: printing version message\n", argv[0]);
+		DPRINTF(1, "%s: printing version message\n", argv[0]);
 		version(argc, argv);
 		break;
 	case CommandCopying:
-		DPRINTF("%s: printing copying message\n", argv[0]);
+		DPRINTF(1, "%s: printing copying message\n", argv[0]);
 		copying(argc, argv);
 		break;
 	}

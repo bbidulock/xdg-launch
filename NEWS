@@ -1,11 +1,31 @@
-xdg-launch -- history of user-visible changes.  2016-07-18
+xdg-launch -- history of user-visible changes.  2017-05-07
+
+Release xdg-launch-1.5 released 2017-05-07
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.4...1.5
+
+Brian Bidulock <bidulock@openss7.org> (2):
+      search XFree problem in xdg-assist
+      strict prototypes and find screen better
+
+
+Release xdg-launch-1.4 released 2017-05-07
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.3...1.4
+
+Brian Bidulock <bidulock@openss7.org> (2):
+      replace error handlers too
+      update release files
+
 
 Release xdg-launch-1.3 released 2016-07-18
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 1.2...1.3
 
-Brian Bidulock <bidulock@openss7.org> (9):
+Brian Bidulock <bidulock@openss7.org> (10):
       simplify distribution
       git hates trailing space
       better formatting
@@ -15,6 +35,7 @@ Brian Bidulock <bidulock@openss7.org> (9):
       bug: pointer options not being set
       cosmetics
       add options to xdg-prefs
+      update release files
 
 
 Release xdg-launch-1.2 released 2016-07-08
@@ -264,44 +285,4 @@ Brian Bidulock <bidulock@openss7.org> (107):
       update release files
       adjust paths in scripts for distcheck
       updated NEWS file
-
-
-Release xdg-launch-0.4 released 2015-05-23
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.3...0.4
-
-Brian Bidulock <bidulock@openss7.org> (20):
-      split up files into subdirectories
-      add in XDE run history and recent apps files
-      working up recently used applications support
-      add provision for recently-used.xbel support
-      prepare to update history files
-      get history working correctly
-      indent and prepare for recently-used
-      handle ~/.recently-used file updates
-      proper handling of xbel files with gtk2
-      non-gtk2 support for recently-used.xbel works
-      get rid of some globals (they were problematic)
-      prepare to keep track of recent files
-      more preparation for recently used files
-      first stab at complete recent file history
-      handle proper sizing and ageing of files
-      relaunch recent files with xdg-lauch again
-      properly handle mime types using gio library
-      general comment
-      commit release files
-      clock ticked over during release
-
-
-Release xdg-launch-0.3 released 2014-09-12
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.2...0.3
-
-Brian Bidulock <bidulock@openss7.org> (4):
-      very unfortunate error after initial release
-      user persistent source window for messages
-      added xdg-which utility
-      add fallback directory to xdg-which
 

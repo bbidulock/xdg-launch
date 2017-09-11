@@ -1,6 +1,6 @@
 /*****************************************************************************
 
- Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>
+ Copyright (c) 2008-2017  Monavacon Limited <http://www.monavacon.com/>
  Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>
  Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>
 
@@ -716,7 +716,7 @@ XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
 void
-intern_atoms()
+intern_atoms(void)
 {
 	int i, j, n;
 	char **atom_names;
@@ -780,10 +780,10 @@ iohandler(Display *display)
 int (*oldhandler) (Display *, XErrorEvent *) = NULL;
 int (*oldiohandler) (Display *) = NULL;
 
-static void init_screen();
+static void init_screen(void);
 
 Bool
-get_display()
+get_display(void)
 {
 	PTRACE(5);
 	if (!dpy) {
@@ -839,7 +839,7 @@ get_display()
 }
 
 void
-put_display()
+put_display(void)
 {
 	PTRACE(5);
 	if (dpy) {
@@ -877,12 +877,15 @@ get_cardinals(Window win, Atom prop, Atom type, long *n)
 				XFree(data);
 				data = NULL;
 			}
+			DPRINTF(1, "trying harder with num = %lu\n", num);
 			goto try_harder;
 		}
 		if ((*n = nitems) > 0)
 			return data;
-		if (data)
+		if (data) {
 			XFree(data);
+			data = NULL;
+		}
 	} else
 		*n = -1;
 	return NULL;
@@ -898,8 +901,10 @@ get_cardinal(Window win, Atom prop, Atom type, long *card_ret)
 		*card_ret = data[0];
 		result = True;
 	}
-	if (data)
+	if (data) {
 		XFree(data);
+		data = NULL;
+	}
 	return result;
 }
 
@@ -953,6 +958,7 @@ XGetWMState(Display *d, Window win)
 		if (format != 32 || nitems < 2) {
 			if (wms) {
 				XFree(wms);
+				wms = NULL;
 				return NULL;
 			}
 		}
@@ -976,6 +982,7 @@ XGetEmbedInfo(Display *d, Window win)
 		if (format != 32 || nitems < 2) {
 			if (xei) {
 				XFree(xei);
+				xei = NULL;
 				return NULL;
 			}
 		}
@@ -1033,8 +1040,10 @@ check_recursive(Atom atom, Atom type)
 				data = NULL;
 			}
 		} else {
-			if (data)
+			if (data) {
 				XFree(data);
+				data = NULL;
+			}
 			return None;
 		}
 		if (XGetWindowProperty(dpy, check, atom, 0L, 1L, False, type, &real,
@@ -1042,16 +1051,23 @@ check_recursive(Atom atom, Atom type)
 		    == Success && format != 0) {
 			if (nitems > 0) {
 				if (check != (Window) data[0]) {
-					XFree(data);
+					if (data) {
+						XFree(data);
+						data = NULL;
+					}
 					return None;
 				}
 			} else {
-				if (data)
+				if (data) {
 					XFree(data);
+					data = NULL;
+				}
 				return None;
 			}
-			if (data)
+			if (data) {
 				XFree(data);
+				data = NULL;
+			}
 		} else
 			return None;
 	} else
@@ -1082,8 +1098,10 @@ check_nonrecursive(Atom atom, Atom type)
 			if ((check = data[0]) && check != scr->root)
 				XSelectInput(dpy, check, StructureNotifyMask | PropertyChangeMask);
 		}
-		if (data)
+		if (data) {
 			XFree(data);
+			data = NULL;
+		}
 	}
 	return check;
 }
@@ -1129,8 +1147,10 @@ check_supported(Atom protocols, Atom supported)
 				}
 			}
 		}
-		if (data)
+		if (data) {
 			XFree(data);
+			data = NULL;
+		}
 	}
 	return result;
 }
@@ -1152,7 +1172,7 @@ check_supported(Atom protocols, Atom supported)
   * echinus(1)).
   */
 static Window
-check_netwm_supported()
+check_netwm_supported(void)
 {
 	if (check_supported(_XA_NET_SUPPORTED, _XA_NET_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1162,7 +1182,7 @@ check_netwm_supported()
 /** @brief Check for an EWMH/NetWM compliant (sorta) window manager.
   */
 static Window
-check_netwm()
+check_netwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1194,7 +1214,7 @@ check_netwm()
   * _WIN_SUPPORTING_WM_CHECK in its list of atoms.
   */
 static Window
-check_winwm_supported()
+check_winwm_supported(void)
 {
 	if (check_supported(_XA_WIN_PROTOCOLS, _XA_WIN_SUPPORTING_WM_CHECK))
 		return scr->root;
@@ -1204,7 +1224,7 @@ check_winwm_supported()
 /** @brief Check for a GNOME1/WMH/WinWM compliant window manager.
   */
 static Window
-check_winwm()
+check_winwm(void)
 {
 	int i = 0;
 	Window win;
@@ -1230,7 +1250,7 @@ check_winwm()
 /** @brief Check for a WindowMaker compliant window manager.
   */
 static Window
-check_maker()
+check_maker(void)
 {
 	int i = 0;
 	Window win;
@@ -1255,7 +1275,7 @@ check_maker()
 /** @brief Check for an OSF/Motif compliant window manager.
   */
 static Window
-check_motif()
+check_motif(void)
 {
 	int i = 0;
 	long *data, n = 0;
@@ -1267,8 +1287,10 @@ check_motif()
 
 	if (data && n >= 2)
 		win = data[1];
-	if (data)
+	if (data) {
 		XFree(data);
+		data = NULL;
+	}
 	if (win && win != scr->root) {
 		XSaveContext(dpy, win, ScreenContext, (XPointer) scr);
 		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
@@ -1285,7 +1307,7 @@ check_motif()
 /** @brief Check for an ICCCM 2.0 compliant window manager.
   */
 static Window
-check_icccm()
+check_icccm(void)
 {
 	Window win;
 
@@ -1308,7 +1330,7 @@ check_icccm()
   * SubstructureRedirectMask on the root window.
   */
 static Window
-check_redir()
+check_redir(void)
 {
 	XWindowAttributes wa;
 	Window win = None;
@@ -1327,7 +1349,7 @@ check_redir()
 /** @brief Find window manager and compliance for the current screen.
   */
 static Bool
-check_window_manager()
+check_window_manager(void)
 {
 	Bool have_wm = False;
 
@@ -1384,7 +1406,7 @@ check_window_manager()
 /** @brief Check for a system tray.
   */
 static Window
-check_stray()
+check_stray(void)
 {
 	Window win;
 
@@ -1402,7 +1424,7 @@ check_stray()
 }
 
 static Window
-check_pager()
+check_pager(void)
 {
 	Window win;
 	long *cards, n = 0;
@@ -1413,6 +1435,7 @@ check_pager()
 	if (!win && (cards = get_cardinals(scr->root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
 	    && n >= 4) {
 		XFree(cards);
+		cards = NULL;
 		win = scr->root;
 	}
 	if (win && win != scr->pager_owner)
@@ -1423,7 +1446,7 @@ check_pager()
 }
 
 static Window
-check_compm()
+check_compm(void)
 {
 	Window win;
 
@@ -1437,7 +1460,7 @@ check_compm()
 }
 
 Window
-check_audio()
+check_audio(void)
 {
 	char *text;
 
@@ -1454,7 +1477,7 @@ check_audio()
 }
 
 static Window
-check_shelp()
+check_shelp(void)
 {
 	Window win;
 
@@ -1468,14 +1491,14 @@ check_shelp()
 }
 
 static void
-handle_wmchange()
+handle_wmchange(void)
 {
 	if (!check_window_manager())
 		check_window_manager();
 }
 
 static void
-init_screen()
+init_screen(void)
 {
 	handle_wmchange();
 	check_stray();
@@ -1565,8 +1588,10 @@ get_frame(Window win)
 			frame = None;
 			goto done;
 		}
-		if (fchildren)
+		if (fchildren) {
 			XFree(fchildren);
+			fchildren = NULL;
+		}
 		/* When the parent is a virtual root, we have the frame. */
 		for (i = 0; i < n; i++)
 			if (fparent == vroots[i])
@@ -1575,13 +1600,15 @@ get_frame(Window win)
 			goto done;
 	}
       done:
-	if (vroots)
+	if (vroots) {
 		XFree(vroots);
+		vroots = NULL;
+	}
 	return frame;
 }
 
 Window
-get_focus_frame()
+get_focus_frame(void)
 {
 	Window focus;
 	int di;
@@ -1595,7 +1622,7 @@ get_focus_frame()
 }
 
 Bool
-find_focus_screen()
+find_focus_screen(void)
 {
 	Window frame, froot;
 	int di;
@@ -1615,7 +1642,7 @@ find_focus_screen()
 }
 
 Bool
-find_pointer_screen()
+find_pointer_screen(void)
 {
 	Window proot = None, dw;
 	int di;
@@ -1636,9 +1663,10 @@ find_window_screen(Window w)
 		DPRINTF(4, "could not query tree for window 0x%08lx\n", w);
 		return False;
 	}
-	if (dwp)
+	if (dwp) {
 		XFree(dwp);
-
+		dwp = NULL;
+	}
 	DPRINTF(4, "window 0x%08lx has root 0x%08lx\n", w, wroot);
 	if (set_screen_of_root(wroot)) {
 		XSaveContext(dpy, w, ScreenContext, (XPointer) scr);
@@ -1787,7 +1815,7 @@ add_group(Client *c, Window leader, Groups group)
  * determine from WMCLASS= which messages belong to which newly mapped window.
  */
 Bool
-need_assistance()
+need_assistance(void)
 {
 	if (check_shelp()) {
 		DPRINTF(1, "No assistance needed: Startup notification helper running\n");
@@ -2969,8 +2997,10 @@ setup_client(Client *c)
 			list[0] = seq->f.id;
 			Xutf8TextListToTextProperty(dpy, list, count, XUTF8StringStyle, &xtp);
 			XSetTextProperty(dpy, c->win, &xtp, _XA_NET_STARTUP_ID);
-			if (xtp.value)
+			if (xtp.value) {
 				XFree(xtp.value);
+				xtp.value = NULL;
+			}
 		}
 	}
 	/* set up _NET_WM_USER_TIME */
@@ -3008,6 +3038,7 @@ setup_client(Client *c)
 			if (xtp.value) {
 				XSetWMClientMachine(dpy, c->win, &xtp);
 				XFree(xtp.value);
+				xtp.value = NULL;
 			}
 		}
 	}
@@ -3361,6 +3392,7 @@ show_atoms(Atom *atoms, int n)
 		if ((name = XGetAtomName(dpy, atoms[i]))) {
 			strncat(buf, name, BUFSIZ);
 			XFree(name);
+			name = NULL;
 		} else
 			strncat(buf, "???", BUFSIZ);
 	}
@@ -4535,6 +4567,7 @@ pc_handle_CLIENT_LIST(XPropertyEvent *e, Atom atom, Atom type)
 			if ((c = find_client(list[i])))
 				listed_client(c, e ? e->time : CurrentTime);
 		XFree(list);
+		list = NULL;
 	}
 }
 
@@ -4669,6 +4702,7 @@ pc_handle_NET_FRAME_EXTENTS(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "[pc] _NET_FRAME_EXTENTS = (%ld, %ld, %ld, %ld)\n",
 			extents[0], extents[1], extents[2], extents[3]);
 		XFree(extents);
+		extents = NULL;
 		if (!c->managed && !c->request)
 			managed_client(c, e ? e->time : CurrentTime);
 		c->request = False;
@@ -4713,6 +4747,7 @@ pc_handle_NET_STARTUP_ID(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "[pc] _NET_STARTUP_ID = (deleted)\n");
 		if (old) {
 			XFree(old);
+			old = NULL;
 			groups_need_retest(c);
 		}
 		return;
@@ -4754,6 +4789,7 @@ pc_handle_NET_WM_ALLOWED_ACTIONS(XPropertyEvent *e, Client *c)
 		if ((atoms = get_atoms(c->win, _XA_NET_WM_ALLOWED_ACTIONS, AnyPropertyType, &n))) {
 			CPRINTF(1, c, "[pc]  _NET_WM_ALLOWED_ACTIONS = %s\n", show_atoms(atoms, n));
 			XFree(atoms);
+			atoms = NULL;
 			managed_client(c, e ? e->time : CurrentTime);
 		}
 	}
@@ -4856,8 +4892,10 @@ pc_handle_NET_WM_NAME(XPropertyEvent *e, Client *c)
 		if (old)
 			CPRINTF(1, c, "[pc] _NET_WM_NAME was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] _NET_WM_NAME = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		return;
 	}
 	if (!c->name)
@@ -4869,8 +4907,10 @@ pc_handle_NET_WM_NAME(XPropertyEvent *e, Client *c)
 			CPRINTF(1, c, "[pc] _NET_WM_NAME was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] _NET_WM_NAME = \"%s\"\n", c->name);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 /** @brief handle _NET_WM_PID PropertyNotify event.
@@ -4950,6 +4990,7 @@ pc_handle_NET_WM_STATE(XPropertyEvent *e, Client *c)
 					manage = True;
 			}
 			XFree(atoms);
+			atoms = NULL;
 		}
 		if (manage)
 			managed_client(c, e ? e->time : CurrentTime);
@@ -5079,6 +5120,7 @@ pc_handle_NET_WM_VISIBLE_NAME(XPropertyEvent *e, Client *c)
 	CPRINTF(1, c, "[pc] _NET_WM_VISIBLE_NAME set unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, e ? e->time : CurrentTime);
 	XFree(name);
+	name = NULL;
 }
 
 /** @brief handle _NET_WM_VISIBLE_ICON_NAME PropertyNotify event
@@ -5103,6 +5145,7 @@ pc_handle_NET_WM_VISIBLE_ICON_NAME(XPropertyEvent *e, Client *c)
 	CPRINTF(1, c, "[pc] _NET_WM_VISIBLE_ICON_NAME set unmanaged window 0x%08lx\n", e->window);
 	managed_client(c, e ? e->time : CurrentTime);
 	XFree(name);
+	name = NULL;
 }
 
 /** @brief handle _NET_WM_DESKTOP PropertyNotify event.
@@ -5303,8 +5346,10 @@ pc_handle_SM_CLIENT_ID(XPropertyEvent *e, Client *c)
 		if (old)
 			CPRINTF(1, c, "[pc] SM_CLIENT_ID was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] SM_CLIENT_ID = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		return;
 	}
 	c->client_id = get_text(c->win, _XA_SM_CLIENT_ID);
@@ -5313,8 +5358,10 @@ pc_handle_SM_CLIENT_ID(XPropertyEvent *e, Client *c)
 			CPRINTF(1, c, "[pc] SM_CLIENT_ID was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] SM_CLIENT_ID = \"%s\"\n", c->client_id);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 /** @brief handle WM_CLASS PropertyNotify event.
@@ -5338,10 +5385,14 @@ pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
 	if ((old.res_class = c->ch.res_class))
 		c->ch.res_class = NULL;
 	if (e && e->state == PropertyDelete) {
-		if (old.res_name)
+		if (old.res_name) {
 			XFree(old.res_name);
-		if (old.res_class)
+			old.res_name = NULL;
+		}
+		if (old.res_class) {
 			XFree(old.res_class);
+			old.res_class = NULL;
+		}
 		return;
 	}
 	XGetClassHint(dpy, c->win, &c->ch);
@@ -5352,10 +5403,14 @@ pc_handle_WM_CLASS(XPropertyEvent *e, Client *c)
 			(c->dockapp = is_dockapp(c)) ? "dock app" : "");
 		groups_need_retest(c);
 	}
-	if (old.res_name)
+	if (old.res_name) {
 		XFree(old.res_name);
-	if (old.res_class)
+		old.res_name = NULL;
+	}
+	if (old.res_class) {
 		XFree(old.res_class);
+		old.res_class = NULL;
+	}
 }
 
 static void
@@ -5432,8 +5487,10 @@ pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
 		if (old)
 			CPRINTF(1, c, "[pc] WM_CLIENT_MACHINE was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] WM_CLIENT_MACHINE = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		return;
 	}
 	c->hostname = get_text(c->win, XA_WM_CLIENT_MACHINE);
@@ -5443,8 +5500,10 @@ pc_handle_WM_CLIENT_MACHINE(XPropertyEvent *e, Client *c)
 		CPRINTF(1, c, "[pc] WM_CLIENT_MACHINE = \"%s\"\n", c->hostname);
 		groups_need_retest(c);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 /** @brief handle WM_COMMAND PropertyNotify event.
@@ -5519,8 +5578,10 @@ pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 		c->wmh = NULL;
 	if (e && e->state == PropertyDelete) {
 		CPRINTF(1, c, "[pc] WM_HINTS = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		return;
 	}
 	c->wmh = XGetWMHints(dpy, c->win);
@@ -5533,8 +5594,10 @@ pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 		add_group(c, group, WindowGroup);
 		groups_need_retest(c);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 static void
@@ -5572,8 +5635,10 @@ pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
 		if (old)
 			CPRINTF(1, c, "[pc] WM_NAME was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] WM_NAME = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		return;
 	}
 	c->name = get_text(c->win, XA_WM_NAME);
@@ -5582,8 +5647,10 @@ pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
 			CPRINTF(1, c, "[pc] WM_NAME was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] WM_NAME = \"%s\"\n", c->name);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 static void
@@ -5653,8 +5720,10 @@ pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 			CPRINTF(1, c, "[pc] WM_STATE was %s, 0x%08lx\n", show_state(old->state),
 				old->icon_window);
 		CPRINTF(1, c, "[pc] WM_STATE = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		unmanaged_client(c);
 		return;
 	}
@@ -5679,8 +5748,10 @@ pc_handle_WM_STATE(XPropertyEvent *e, Client *c)
 		} else
 			managed_client(c, e ? e->time : CurrentTime);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 static void
@@ -5752,8 +5823,10 @@ pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
 		if (old)
 			CPRINTF(1, c, "[pc] WM_WINDOW_ROLE was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] WM_WINDOW_ROLE = (deleted)\n");
-		if (old)
+		if (old) {
 			XFree(old);
+			old = NULL;
+		}
 		return;
 	}
 	c->role = get_text(c->win, _XA_WM_WINDOW_ROLE);
@@ -5762,8 +5835,10 @@ pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
 			CPRINTF(1, c, "[pc] WM_WINDOW_ROLE was \"%s\"\n", old);
 		CPRINTF(1, c, "[pc] WM_WINDOW_ROLE = %s\n", c->role);
 	}
-	if (old)
+	if (old) {
 		XFree(old);
+		old = NULL;
+	}
 }
 
 static void
@@ -6021,8 +6096,10 @@ pc_handle_atom(XPropertyEvent *e, Client *c)
 	else
 		DPRINTF(1, "no PropertyNotify handler for %s\n",
 			(name = XGetAtomName(dpy, e->atom)));
-	if (name)
+	if (name) {
 		XFree(name);
+		name = NULL;
+	}
 }
 
 void
@@ -6037,8 +6114,10 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 	else
 		CPRINTF(1, c, "no ClientMessage handler for %s\n",
 			(name = XGetAtomName(dpy, e->message_type)));
-	if (name)
+	if (name) {
 		XFree(name);
+		name = NULL;
+	}
 }
 
 void
@@ -6693,7 +6772,7 @@ copying(int argc, char *argv[])
 --------------------------------------------------------------------------------\n\
 %1$s\n\
 --------------------------------------------------------------------------------\n\
-Copyright (c) 2008-2016  Monavacon Limited <http://www.monavacon.com/>\n\
+Copyright (c) 2008-2017  Monavacon Limited <http://www.monavacon.com/>\n\
 Copyright (c) 2001-2008  OpenSS7 Corporation <http://www.openss7.com/>\n\
 Copyright (c) 1997-2001  Brian F. G. Bidulock <bidulock@openss7.org>\n\
 \n\
@@ -6737,8 +6816,8 @@ version(int argc, char *argv[])
 %1$s (OpenSS7 %2$s) %3$s\n\
 Written by Brian Bidulock.\n\
 \n\
-Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016  Monavacon Limited.\n\
-Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008  OpenSS7 Corporation.\n\
+Copyright (c) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017  Monavacon Limited.\n\
+Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009  OpenSS7 Corporation.\n\
 Copyright (c) 1997, 1998, 1999, 2000, 2001  Brian F. G. Bidulock.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
