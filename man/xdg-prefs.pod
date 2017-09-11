@@ -156,6 +156,16 @@ launch or set applications that run in a terminal.  Note that this is
 the default behaviour when the B<DISPLAY> environment variable is not
 set.
 
+=item B<--P>, B<--pointer>
+
+Passes the B<--pointer> option to L<xdg-launch(1)> when launching the
+application.
+
+=item B<--K>, B<--keyboard>
+
+Passes the B<--keyboard> option to L<xdg-launch(1)> when launching the
+application.
+
 =back
 
 
