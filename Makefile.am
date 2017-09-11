@@ -27,11 +27,11 @@ dist-hook:
 		)>$(distdir)/NEWS ; \
 	fi ; \
 	chmod u+w $(distdir)/{README.md,README} ; \
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $(distdir)/README.md.in >$(distdir)/README.md ; \
+	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g;s:\@BRANCH\@:$(BRANCH):g' $(distdir)/README.md.in >$(distdir)/README.md ; \
 	cat $(distdir)/README.md | fmt -sct -w80 -g72 >$(distdir)/README
 
 ChangeLog:
-	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+	$(AM_V_GEN)if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
 		( cd $(srcdir) ; \
 		  echo -e "# created with git log --stat=76 -M -C -300|fmt -sct -w80\n" ; \
 		  git log --stat=76 -M -C -300|fmt -sct -w80 \
@@ -39,7 +39,7 @@ ChangeLog:
 	else touch $@ ; fi
 
 AUTHORS:
-	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+	$(AM_V_GEN)if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
 		( cd $(srcdir) ; \
 		  echo "$(PACKAGE) -- authors file.  $(DATE)" ; \
 		  echo "" ; \
@@ -48,7 +48,7 @@ AUTHORS:
 	else touch $@ ; fi
 
 NEWS:
-	if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
+	$(AM_V_GEN)if test -x "`which git 2>/dev/null`" -a -d "$(srcdir)/.git" ; then \
 		( cd $(srcdir) ; \
 		  echo "$(PACKAGE) -- history of user-visible changes.  $(DATE)" ; \
 		  PACKAGE="$(PACKAGE)" $(srcdir)/gennews.sh \
@@ -56,14 +56,14 @@ NEWS:
 	else touch $@ ; fi
 
 README.md: README.md.in
-	sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g' $< >$@
+	$(AM_V_GEN)sed -r -e 's:\@PACKAGE\@:$(PACKAGE):g;s:\@VERSION\@:$(VERSION):g;s:\@DATE\@:$(DATE):g;s:\@BRANCH\@:$(BRANCH):g' $< >$@
 
 README: README.md
-	cat $< | fmt -sct -w80 -g72 >$@
+	$(AM_V_GEN)cat $< | fmt -sct -w80 -g72 >$@
 
 README.html: README.md
-	markdown $< >$@
+	$(AM_V_GEN)$(MARKDOWN) $< >$@
 
 README.txt: README.html
-	links -dump -width 80 -codepage utf-8 $< >$@
+	$(AM_V_GEN)$(LINKS) -dump -width 80 $< >$@
 
