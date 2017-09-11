@@ -86,14 +86,14 @@ The following programs are included in `xdg-launch`:
    would be used for startup notification and launching of the resulting
    application.
 
- - __`xdg-toolwait`__`(1)` -- This is a little script that invokes
+ - __`xdg-toolwait(1)`__ -- This is a little script that invokes
    `xdg-launch(1)` with the --toolwait option.
 
- - __`xdg-which`__`(1)`, __`xdg-whereis`__`(1)` -- Two little programs what
+ - __`xdg-which(1)`__, __`xdg-whereis(1)`__ -- Two little programs what
    parallel `which(1)` and `whereis(1)` for desktop entry files instead
    of binaries.
 
- - __`xdg-assist`__`(1)` -- A program to monitor startup notification and
+ - __`xdg-assist(1)`__ -- A program to monitor startup notification and
    provide notification as programs start up and performs startup
    notification completion of applications that do not complete.  It
    also assists window managers with supporting startup notification and
@@ -102,18 +102,18 @@ The following programs are included in `xdg-launch`:
 Also provided (when `glib2` is available) are some little tools for the
 XDG desktop:
 
- - __`xdg-list`__`(1)` -- lists desktop entry files.
+ - __`xdg-list(1)`__ -- lists desktop entry files.
 
- - __`xdg-types`__`(1)` -- shows the content types provided by a desktop
+ - __`xdg-types(1)`__ -- shows the content types provided by a desktop
    application.
 
- - __`xdg-find`__`(1)` -- finds desktop entry files based on a number of
+ - __`xdg-find(1)`__ -- finds desktop entry files based on a number of
    search criteria.
 
- - __`xdg-which`__`(1)` -- determine which XDG desktop entries correspond
+ - __`xdg-which(1)`__ -- determine which XDG desktop entries correspond
    to a given application id.
 
- - __`xdg-prefs`_`(1)`_ -- locates or sets preferred applications by
+ - __`xdg-prefs(1)`__ -- locates or sets preferred applications by
    category or mime type.
 
 
