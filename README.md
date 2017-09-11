@@ -7,11 +7,11 @@ Package `xdg-launch-1.5` was released under GPLv3 license 2017-05-07.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
-assistance from the command line.  The command is able to launch
-desktop applications, autostart entries and xsession entries.  It is
-useful when generating applications root menus for light-weight window
-managers that do not provide startup notification for applications
-launched using the keyboard or root menu.  The source is hosted on
+assistance from the command line.  The command is able to launch desktop
+applications, autostart entries and xsession entries.  It is useful when
+generating applications root menus for light-weight window managers that
+do not provide startup notification for applications launched using the
+keyboard or root menu.  The source is hosted on
 [GitHub](https://github.com/bbidulock/xdg-launch).  What it includes is
 just the xdg-launch program and manual page, as well as a handfull of
 wrapper scripts.
@@ -20,30 +20,31 @@ wrapper scripts.
 Release
 -------
 
-This is the `xdg-launch-1.5` package, released 2017-05-07.  This release, and
-the latest version, can be obtained from [GitHub][1], using a command such as:
+This is the `xdg-launch-1.5` package, released 2017-05-07.  This
+release, and the latest version, can be obtained from [GitHub][1], using
+a command such as:
 
     $> git clone https://github.com/bbidulock/xdg-launch.git
 
-Please see the [NEWS][3] file for release notes and history of user visible
-changes for the current version, and the [ChangeLog][4] file for a more
-detailed history of implementation changes.  The [TODO][5] file lists features
-not yet implemented and other outstanding items.
+Please see the [NEWS][3] file for release notes and history of user
+visible changes for the current version, and the [ChangeLog][4] file for
+a more detailed history of implementation changes.  The [TODO][5] file
+lists features not yet implemented and other outstanding items.
 
 Please see the [INSTALL][7] file for installation instructions.
 
 When working from `git(1)`, please use this file.  An abbreviated
 installation procedure that works for most applications appears below.
 
-This release is published under GPLv3.  Please see the license
-in the file [COPYING][9].
+This release is published under GPLv3.  Please see the license in the
+file [COPYING][9].
 
 
 Quick Start
 -----------
 
-The quickest and easiest way to get `xdg-launch` up and running is to run the
-following commands:
+The quickest and easiest way to get `xdg-launch` up and running is to run
+the following commands:
 
     $> git clone https://github.com/bbidulock/xdg-launch.git
     $> cd xdg-launch
@@ -52,11 +53,13 @@ following commands:
     $> make
     $> make DESTDIR="$pkgdir" install
 
-This will configure, compile and install `xdg-launch` the quickest.  For those who
-like to spend the extra 15 seconds reading `./configure --help`, some compile
-time options can be turned on and off before the build.
+This will configure, compile and install `xdg-launch` the quickest.  For
+those who like to spend the extra 15 seconds reading `./configure
+--help`, some compile time options can be turned on and off before the
+build.
 
-For general information on GNU's `./configure`, see the file [INSTALL][7].
+For general information on GNU's `./configure`, see the file
+[INSTALL][7].
 
 
 Running
@@ -134,4 +137,4 @@ Report issues on GitHub [here][2].
 [8]: https://github.com/bbidulock/xdg-launch/blob/master/LICENSE
 [9]: https://github.com/bbidulock/xdg-launch/blob/master/COPYING
 
-[ vim: set ft=markdown sw=4 tw=80 nocin nosi fo+=tcqlorn spell: ]: #
+[ vim: set ft=markdown sw=4 tw=72 nocin nosi fo+=tcqlorn spell: ]: #
