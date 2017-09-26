@@ -2123,6 +2123,8 @@ parse_file(char *path, Entry *e)
 			if (!e->AutostartPhase) {
 				switch (atoi(val)) {
 				case 0:
+					e->AutostartPhase = strdup("PreDisplayServer");
+					break;
 				case 1:
 					e->AutostartPhase = strdup("Initializing");
 					break;
@@ -7093,18 +7095,18 @@ static Window
 check_anywm(void)
 {
 	if (scr->netwm_check)
-		return True;
+		return scr->netwm_check;
 	if (scr->winwm_check)
-		return True;
+		return scr->winwm_check;
 	if (scr->maker_check)
-		return True;
+		return scr->maker_check;
 	if (scr->motif_check)
-		return True;
+		return scr->motif_check;
 	if (scr->icccm_check)
-		return True;
+		return scr->icccm_check;
 	if (scr->redir_check)
-		return True;
-	return False;
+		return scr->redir_check;
+	return None;
 }
 
 static Bool
@@ -7129,7 +7131,7 @@ check_for_window_manager(void)
 	OPRINTF(1, "checking redirection\n");
 	if (check_redir())
 		OPRINTF(1, "redirection on window 0x%08lx\n", scr->redir_check);
-	return check_anywm();
+	return check_anywm() ? True : False;
 }
 
 static void
@@ -7269,7 +7271,14 @@ wait_for_resource(void)
 	if (myent.AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
-		if (strcmp(myent.AutostartPhase, "Initializing") == 0) {
+		if (strcmp(myent.AutostartPhase, "PreDisplayServer") == 0) {
+			/* PreDisplayServer: do not wait for anything. */
+			options.audio = False;
+			options.manager = False;
+			options.composite = False;
+			options.tray = False;
+			options.pager = False;
+		} else if (strcmp(myent.AutostartPhase, "Initializing") == 0) {
 			/* Initializing: do not wait for anything. */
 			options.audio = False;
 			options.manager = False;
