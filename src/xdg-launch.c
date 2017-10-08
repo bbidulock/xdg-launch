@@ -7997,15 +7997,15 @@ do_subst(char *cmd, char *chars, char *str)
 }
 
 void
-subst_command(char *cmd)
+subst_command(char *cmd, Sequence *s)
 {
 	int len;
 	char *p;
 
-	do_subst(cmd, "i", myseq.f.icon);
-	do_subst(cmd, "c", myseq.f.name);
-	do_subst(cmd, "C", myseq.f.wmclass);
-	do_subst(cmd, "k", myseq.f.application_id);
+	do_subst(cmd, "i", s->f.icon);
+	do_subst(cmd, "c", s->f.name);
+	do_subst(cmd, "C", s->f.wmclass);
+	do_subst(cmd, "k", s->f.application_id);
 	do_subst(cmd, "uU", options.url);
 	do_subst(cmd, "fF", options.file);
 	do_subst(cmd, "dDnNvm", NULL);
@@ -8081,7 +8081,7 @@ set_command(Sequence *s)
 	}
 	free(options.rawcmd);
 	options.rawcmd = strdup(cmd);
-	subst_command(cmd);
+	subst_command(cmd, s);
 	return (s->f.command = cmd);
 }
 
@@ -8324,7 +8324,7 @@ set_mime_type(void)
 }
 
 static void
-put_recently_used_info(void)
+put_recently_used_info(Sequence *s)
 {
 	char *desktop_id = NULL;
 	GDesktopAppInfo *info = NULL;
@@ -8342,7 +8342,7 @@ put_recently_used_info(void)
 		DPRINTF(1, "do not recommend without a mime type\n");
 		return;
 	}
-	if (!myseq.f.application_id) {
+	if (!s->f.application_id) {
 		DPRINTF(1, "do not recommend without an application id\n");
 		return;
 	}
@@ -8351,7 +8351,7 @@ put_recently_used_info(void)
 		return;
 	}
 	if (!info) {
-		if (!(desktop_id = g_strdup_printf("%s.desktop", myseq.f.application_id))) {
+		if (!(desktop_id = g_strdup_printf("%s.desktop", s->f.application_id))) {
 			EPRINTF("cannot allocate desktop_id\n");
 			return;
 		}
@@ -8375,7 +8375,7 @@ put_recently_used_info(void)
 }
 
 static void
-put_recent_applications_xbel(char *filename)
+put_recent_applications_xbel(char *filename, Sequence *s)
 {
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
@@ -8410,16 +8410,16 @@ put_recent_applications_xbel(char *filename)
 	}
 
 	/* 2) append new information (uri only) */
-	if (myseq.f.name)
-		g_bookmark_file_set_title(bookmark, options.uri, myseq.f.name);
-	if (myseq.f.description)
-		g_bookmark_file_set_description(bookmark, options.uri, myseq.f.description);
+	if (s->f.name)
+		g_bookmark_file_set_title(bookmark, options.uri, s->f.name);
+	if (s->f.description)
+		g_bookmark_file_set_description(bookmark, options.uri, s->f.description);
 	g_bookmark_file_set_mime_type(bookmark, options.uri, "application/x-desktop");
 	g_bookmark_file_set_is_private(bookmark, options.uri, TRUE);
-	if (myseq.f.icon)
+	if (s->f.icon)
 		/* XXX: can we set mime_type to NULL here? No mime type for Icon Naming
 		   Convention icons */
-		g_bookmark_file_set_icon(bookmark, options.uri, myseq.f.icon, NULL);
+		g_bookmark_file_set_icon(bookmark, options.uri, s->f.icon, NULL);
 	g_bookmark_file_set_visited(bookmark, options.uri, -1);
 	g_bookmark_file_add_application(bookmark, options.uri, "XDG Launcher", "xdg-launch %f");
 	g_bookmark_file_add_group(bookmark, options.uri, "Application");
@@ -8436,7 +8436,7 @@ put_recent_applications_xbel(char *filename)
 }
 
 static void
-put_recently_used_xbel(char *filename)
+put_recently_used_xbel(char *filename, Sequence *s)
 {
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
@@ -8474,19 +8474,19 @@ put_recently_used_xbel(char *filename)
 		g_bookmark_file_set_mime_type(bookmark, options.url, options.mimetype);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
-	if (myseq.f.application_id) {
+	if (s->f.application_id) {
 		char *exec;
 		int len;
 
-		len = strlen(NAME) + 1 + strlen(myseq.f.application_id) + 1 + strlen("%u") + 1;
+		len = strlen(NAME) + 1 + strlen(s->f.application_id) + 1 + strlen("%u") + 1;
 		exec = calloc(len, sizeof(*exec));
-		snprintf(exec, len, "%s %s %%u", NAME, myseq.f.application_id);
+		snprintf(exec, len, "%s %s %%u", NAME, s->f.application_id);
 
 		g_bookmark_file_add_application(bookmark, options.url, NAME, exec);
 		free(exec);
 	} else {
 		g_bookmark_file_add_application(bookmark, options.url,
-						myseq.f.bin ? : myent.Name, options.rawcmd);
+						s->f.bin ? : myent.Name, options.rawcmd);
 	}
 	if (myent.Categories) {
 		char *p, *e, *groups;
@@ -9006,22 +9006,22 @@ put_line_history(char *file, char *line)
 }
 
 static void
-put_history(void)
+put_history(Sequence *s)
 {
-	put_line_history(options.runhist, myseq.f.command);
-	put_line_history(options.recapps, myseq.f.application_id);
+	put_line_history(options.runhist, s->f.command);
+	put_line_history(options.recapps, s->f.application_id);
 #ifdef GIO_GLIB2_SUPPORT
 	set_mime_type();
-	put_recently_used_info();
+	put_recently_used_info(s);
 	if (options.uri) {
 		if (options.url) {
 			put_recently_used(".recently-used");
-			put_recently_used_xbel("recently-used.xbel");
+			put_recently_used_xbel("recently-used.xbel", s);
 		}
 		put_recent_applications(".recently-used");
 		put_recent_applications(".recent-applications");
-		put_recent_applications_xbel("recently-used.xbel");
-		put_recent_applications_xbel("recent-applications.xbel");
+		put_recent_applications_xbel("recently-used.xbel", s);
+		put_recent_applications_xbel("recent-applications.xbel", s);
 	}
 #endif				/* GIO_GLIB2_SUPPORT */
 }
@@ -9902,7 +9902,7 @@ main(int argc, char *argv[])
 	/* fill out all fields */
 	set_all(&myseq);
 	if (!options.info)
-		put_history();
+		put_history(&myseq);
 	launch(&myent, &myseq);
 	exit(EXIT_SUCCESS);
 }
