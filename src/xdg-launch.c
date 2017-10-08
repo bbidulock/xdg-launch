@@ -4195,7 +4195,7 @@ static Sequence *remove_sequence(Sequence *del);
   * Update the client associated with a startup notification sequence.
   */
 static void
-update_startup_client(Sequence *seq)
+update_startup_client(Sequence *seq, Sequence *s)
 {
 	Client *c;
 
@@ -4203,8 +4203,8 @@ update_startup_client(Sequence *seq)
 		EPRINTF("Sequence without id!\n");
 		return;
 	}
-	if (myseq.f.id) {
-		if (strcmp(seq->f.id, myseq.f.id)) {
+	if (s->f.id) {
+		if (strcmp(seq->f.id, s->f.id)) {
 			DPRINTF(1, "Sequence for unrelated id %s\n", seq->f.id);
 			remove_sequence(seq);
 			return;
@@ -4446,7 +4446,7 @@ add_sequence(Sequence *seq)
 }
 
 static void
-process_startup_msg(Message *m)
+process_startup_msg(Message *m, Sequence *s)
 {
 	Sequence cmd = { NULL, }, *seq;
 	char *p = m->data, *k, *v, *q, *copy, *b;
@@ -4599,12 +4599,12 @@ process_startup_msg(Message *m)
 		case StartupNotifyNew:
 			seq->state = StartupNotifyNew;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			update_startup_client(seq, s);
 			return;
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			update_startup_client(seq, s);
 			return;
 		}
 		break;
@@ -4621,7 +4621,7 @@ process_startup_msg(Message *m)
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			update_startup_client(seq, s);
 			return;
 		}
 		break;
@@ -4638,7 +4638,7 @@ process_startup_msg(Message *m)
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			update_startup_client(seq, s);
 			return;
 		}
 		break;
@@ -4648,7 +4648,7 @@ process_startup_msg(Message *m)
 	}
 	/* remove sequence */
 	copy_sequence_fields(seq, &cmd);
-	update_startup_client(seq);
+	update_startup_client(seq, s);
 	remove_sequence(seq);
 }
 
@@ -4675,7 +4675,7 @@ cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *e, Client *c)
 	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
-		process_startup_msg(m);
+		process_startup_msg(m, &myseq);
 	}
 }
 
@@ -4697,7 +4697,7 @@ cm_handle_NET_STARTUP_INFO(XClientMessageEvent *e, Client *c)
 	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
-		process_startup_msg(m);
+		process_startup_msg(m, &myseq);
 	}
 }
 
@@ -6780,27 +6780,27 @@ handle_event(XEvent *e)
 	}
 }
 
-void set_pid(void);
-void set_id(void);
+void set_pid(Sequence *s);
+void set_id(Sequence *s);
 
 void
-reset_pid(pid_t pid)
+reset_pid(pid_t pid, Sequence *s)
 {
 	PTRACE(5);
 	if (pid) {
 		/* this is the parent */
 		options.pid = pid;
-		set_pid();
-		set_id();
+		set_pid(s);
+		set_id(s);
 		if (options.output > 1)
-			show_sequence("Final notify fields", &myseq);
+			show_sequence("Final notify fields", s);
 		if (options.info)
-			info_sequence("Final notify fields", &myseq);
+			info_sequence("Final notify fields", s);
 	} else {
 		/* this is the child */
 		options.pid = getpid();
-		set_pid();
-		set_id();
+		set_pid(s);
+		set_id(s);
 	}
 }
 
@@ -6811,10 +6811,10 @@ reset_pid(pid_t pid)
   * process before the launch.
   */
 void
-setup_to_assist(void)
+setup_to_assist(Sequence *s)
 {
-	if (myseq.f.timestamp && myseq.n.timestamp)
-		pushtime(&launch_time, (Time) myseq.n.timestamp);
+	if (s->f.timestamp && s->n.timestamp)
+		pushtime(&launch_time, (Time) s->n.timestamp);
 }
 
 volatile int signum = 0;
@@ -6841,14 +6841,14 @@ void put_display(void);
   * assistance and then exits.  The child owns the display connection.
   */
 void
-assist(void)
+assist(Sequence *s)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	setup_to_assist();
+	setup_to_assist(s);
 	XSync(dpy, False);
-	reset_pid(pid);
+	reset_pid(pid, s);
 	if (options.info) {
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
@@ -6942,16 +6942,16 @@ assist(void)
   * application.
   */
 void
-toolwait(void)
+toolwait(Sequence *s)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	setup_to_assist();
+	setup_to_assist(s);
 	XSync(dpy, False);
 	if (options.info) {
 		fputs("Would launch with tool wait support\n\n", stdout);
-		reset_pid(pid);
+		reset_pid(pid, s);
 		return;
 	}
 	put_display();
@@ -6959,7 +6959,7 @@ toolwait(void)
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	reset_pid(pid);
+	reset_pid(pid, s);
 	if (!pid) {
 		/* child returns and launches */
 		setsid();
@@ -7032,14 +7032,14 @@ toolwait(void)
   * and set the appropriate EWMH properties on all windows.
   */
 void
-normal(void)
+normal(Sequence *s)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
 	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
-	reset_pid(pid);
+	reset_pid(pid, s);
 	/* main process returns and launches */
 	return;
 }
@@ -7268,47 +7268,47 @@ wait_for_audio_server(void)
  * When options.xsession is true, we should never wait for resources.
  */
 void
-wait_for_resource(void)
+wait_for_resource(Entry *e)
 {
 	if (options.xsession) {
 		DPRINTF(1, "Cannot wait for resources when launching xsessions.\n");
 		return;
 	}
-	if (myent.AutostartPhase) {
+	if (e->AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
-		if (strcmp(myent.AutostartPhase, "PreDisplayServer") == 0) {
+		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
 			/* PreDisplayServer: do not wait for anything. */
 			options.audio = False;
 			options.manager = False;
 			options.composite = False;
 			options.tray = False;
 			options.pager = False;
-		} else if (strcmp(myent.AutostartPhase, "Initializing") == 0) {
+		} else if (strcmp(e->AutostartPhase, "Initializing") == 0) {
 			/* Initializing: do not wait for anything. */
 			options.audio = False;
 			options.manager = False;
 			options.composite = False;
 			options.tray = False;
 			options.pager = False;
-		} else if (strcmp(myent.AutostartPhase, "WindowManager") == 0) {
+		} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
 			/* WindowManager: do not wait for anything, except perhaps audio. 
 			 */
 			options.manager = False;
 			options.composite = False;
 			options.tray = False;
 			options.pager = False;
-		} else if (strcmp(myent.AutostartPhase, "Panel") == 0) {
+		} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
 			/* Panel: wait only for window and composite manager (if
 			   requested?). */
 			options.manager = True;
 			options.tray = False;
 			options.pager = False;
-		} else if (strcmp(myent.AutostartPhase, "Desktop") == 0) {
+		} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
 			/* Desktop: wait only for window and composite manager (if
 			   requested?). */
 			options.manager = True;
-		} else if (strcmp(myent.AutostartPhase, "Application") == 0) {
+		} else if (strcmp(e->AutostartPhase, "Application") == 0) {
 			/* Application(s): wait for window manager, others if requested. */
 			options.manager = True;
 		} else {
@@ -7317,14 +7317,14 @@ wait_for_resource(void)
 		}
 	} else if (options.autostart) {
 		options.manager = True;
-		if (myent.Categories) {
-			if (strstr(myent.Categories, "Audio"))
+		if (e->Categories) {
+			if (strstr(e->Categories, "Audio"))
 				options.audio = True;
-			if (strstr(myent.Categories, "TrayIcon"))
+			if (strstr(e->Categories, "TrayIcon"))
 				options.tray = True;
-			if (strstr(myent.Categories, "DockApp"))
+			if (strstr(e->Categories, "DockApp"))
 				options.manager = True;
-			if (strstr(myent.Categories, "SystemTray"))
+			if (strstr(e->Categories, "SystemTray"))
 				options.tray = False;
 		}
 	}
@@ -7355,7 +7355,7 @@ wait_for_resource(void)
 }
 
 Bool
-need_assist(void)
+need_assist(Sequence *s)
 {
 	Bool need_assist = (!options.autoassist && options.assist) ? True : False;
 
@@ -7378,7 +7378,7 @@ need_assist(void)
 			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
 	} else if (need_assistance()) {
 		OPRINTF(1, "WindowManager: needs assistance\n");
-		if (myseq.f.wmclass) {
+		if (s->f.wmclass) {
 			OPRINTF(1, "WMCLASS: requires assistance\n");
 			need_assist = True;
 			if (options.info)
@@ -7386,7 +7386,7 @@ need_assist(void)
 				    ("Launching StartupWMClass entry always requires assistance.\n",
 				     stdout);
 		}
-		if (myseq.f.silent && myseq.n.silent) {
+		if (s->f.silent && s->n.silent) {
 			OPRINTF(1, "SILENT: requires assistance\n");
 			need_assist = True;
 			if (options.info)
@@ -7398,16 +7398,16 @@ need_assist(void)
 }
 
 void
-launch(void)
+launch(Entry *e, Sequence *s)
 {
 	size_t size;
 	char *disp, *p;
 	Bool change_only = False;
 
 	PTRACE(5);
-	wait_for_resource();
+	wait_for_resource(e);
 	if (options.autoassist)
-		options.assist = need_assist();
+		options.assist = need_assist(s);
 
 	/* make the call... */
 
@@ -7415,42 +7415,42 @@ launch(void)
 		OPRINTF(1, "Tool wait requested\n");
 		if (options.info)
 			fputs("Tool wait requested\n\n", stdout);
-		toolwait();
+		toolwait(s);
 	} else if (options.assist) {
 		OPRINTF(1, "Assistance is required\n");
 		if (options.info)
 			fputs("Assistance is required\n\n", stdout);
-		assist();
+		assist(s);
 	} else {
 		OPRINTF(1, "Assistance is NOT needed, no tool wait\n");
 		if (options.info)
 			fputs("Assistance is NOT needed, no tool wait\n\n", stdout);
-		normal();
+		normal(s);
 	}
 
 	if (options.id)
 		change_only = True;
 
-	myseq.e = &myent;
-	add_sequence(&myseq);
+	s->e = e;
+	add_sequence(s);
 	if (change_only)
-		send_change(&myseq);
+		send_change(s);
 	else
-		send_new(&myseq);
+		send_new(s);
 	put_display();
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
-	setenv("DESKTOP_STARTUP_ID", myseq.f.id, 1);
+	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
 
 	/* set the DISPLAY environment variable */
 	p = getenv("DISPLAY");
-	size = strlen(p) + strlen(myseq.f.screen) + 2;
+	size = strlen(p) + strlen(s->f.screen) + 2;
 	disp = calloc(size, sizeof(*disp));
 	strcpy(disp, p);
 	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
 		*p = '\0';
 	strcat(disp, ".");
-	strcat(disp, myseq.f.screen);
+	strcat(disp, s->f.screen);
 	setenv("DISPLAY", disp, 1);
 
 	if (eargv) {
@@ -7468,25 +7468,25 @@ launch(void)
 		wordexp_t we = { 0, };
 		int status;
 
-		if ((status = wordexp(myseq.f.command, &we, 0)) != 0 || we.we_wordc < 1) {
+		if ((status = wordexp(s->f.command, &we, 0)) != 0 || we.we_wordc < 1) {
 			switch(status) {
 			case WRDE_BADCHAR:
-				EPRINTF("adwm: bad character in command string: %s\n", myseq.f.command);
+				EPRINTF("adwm: bad character in command string: %s\n", s->f.command);
 				break;
 			case WRDE_BADVAL:
-				EPRINTF("adwm: undefined variable substitution in command string: %s\n", myseq.f.command);
+				EPRINTF("adwm: undefined variable substitution in command string: %s\n", s->f.command);
 				break;
 			case WRDE_CMDSUB:
-				EPRINTF("adwm: command substitution in command string: %s\n", myseq.f.command);
+				EPRINTF("adwm: command substitution in command string: %s\n", s->f.command);
 				break;
 			case WRDE_NOSPACE:
-				EPRINTF("adwm: out of memory processing command string: %s\n", myseq.f.command);
+				EPRINTF("adwm: out of memory processing command string: %s\n", s->f.command);
 				break;
 			case WRDE_SYNTAX:
-				EPRINTF("adwm: syntax error in command string: %s\n", myseq.f.command);
+				EPRINTF("adwm: syntax error in command string: %s\n", s->f.command);
 				break;
 			default:
-				EPRINTF("adwm: unknown error processing command string: %s\n", myseq.f.command);
+				EPRINTF("adwm: unknown error processing command string: %s\n", s->f.command);
 				break;
 			}
 			wordfree(&we); /* necessary ??? */
@@ -7503,7 +7503,7 @@ launch(void)
 			fputs("\n\n", stdout);
 			return;
 		}
-		OPRINTF(1, "Command is: '%s'\n", myseq.f.command);
+		OPRINTF(1, "Command is: '%s'\n", s->f.command);
 		execvp(we.we_wordv[0], we.we_wordv);
 	}
 	EPRINTF("Should never get here!\n");
@@ -7511,22 +7511,22 @@ launch(void)
 }
 
 void
-set_screen(void)
+set_screen(Sequence *s)
 {
-	free(myseq.f.screen);
-	myseq.f.screen = calloc(64, sizeof(*myseq.f.screen));
+	free(s->f.screen);
+	s->f.screen = calloc(64, sizeof(*s->f.screen));
 	if (options.screen != -1 && 0 <= options.screen && options.screen < ScreenCount(dpy))
-		snprintf(myseq.f.screen, 64, "%d", options.screen);
+		snprintf(s->f.screen, 64, "%d", options.screen);
 	else if (options.keyboard && find_focus_screen())
-		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+		snprintf(s->f.screen, 64, "%d", scr->screen);
 	else if (options.pointer && find_pointer_screen())
-		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+		snprintf(s->f.screen, 64, "%d", scr->screen);
 	else if (!options.keyboard && !options.pointer && (find_focus_screen() || find_pointer_screen()))
-		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+		snprintf(s->f.screen, 64, "%d", scr->screen);
 	else {
 		options.screen = DefaultScreen(dpy);
 		scr = screens + DefaultScreen(dpy);
-		snprintf(myseq.f.screen, 64, "%d", scr->screen);
+		snprintf(s->f.screen, 64, "%d", scr->screen);
 	}
 }
 
@@ -7705,27 +7705,27 @@ find_pointer_monitor(int *monitor)
 }
 
 void
-set_monitor(void)
+set_monitor(Sequence *s)
 {
-	free(myseq.f.monitor);
-	myseq.f.monitor = calloc(64, sizeof(*myseq.f.monitor));
+	free(s->f.monitor);
+	s->f.monitor = calloc(64, sizeof(*s->f.monitor));
 	if (options.monitor != -1)
-		snprintf(myseq.f.monitor, 64, "%d", options.monitor);
+		snprintf(s->f.monitor, 64, "%d", options.monitor);
 	else if (options.keyboard && find_focus_monitor(&options.monitor))
-		snprintf(myseq.f.monitor, 64, "%d", options.monitor);
+		snprintf(s->f.monitor, 64, "%d", options.monitor);
 	else if (options.pointer && find_pointer_monitor(&options.monitor))
-		snprintf(myseq.f.monitor, 64, "%d", options.monitor);
+		snprintf(s->f.monitor, 64, "%d", options.monitor);
 	else if (!options.keyboard && !options.pointer &&
 		 (find_focus_monitor(&options.monitor) || find_pointer_monitor(&options.monitor)))
-		snprintf(myseq.f.monitor, 64, "%d", options.monitor);
+		snprintf(s->f.monitor, 64, "%d", options.monitor);
 	else {
-		free(myseq.f.monitor);
-		myseq.f.monitor = NULL;
+		free(s->f.monitor);
+		s->f.monitor = NULL;
 	}
 }
 
 void
-set_desktop(void)
+set_desktop(Sequence *s)
 {
 	Atom atom, real;
 	int format, monitor = 0;
@@ -7735,10 +7735,10 @@ set_desktop(void)
 	PTRACE(5);
 	if (options.monitor != -1)
 		monitor = options.monitor;
-	free(myseq.f.desktop);
-	myseq.f.desktop = calloc(64, sizeof(*myseq.f.desktop));
+	free(s->f.desktop);
+	s->f.desktop = calloc(64, sizeof(*s->f.desktop));
 	if (options.desktop != -1) {
-		snprintf(myseq.f.desktop, 64, "%d", options.desktop);
+		snprintf(s->f.desktop, 64, "%d", options.desktop);
 		return;
 	}
 	if (check_netwm()) {
@@ -7747,7 +7747,7 @@ set_desktop(void)
 				       AnyPropertyType, &real, &format,
 				       &nitems, &after, (unsigned char **) &data) == Success
 		    && format != 0 && nitems > 0) {
-			snprintf(myseq.f.desktop, 64, "%lu",
+			snprintf(s->f.desktop, 64, "%lu",
 				 nitems > monitor ? data[monitor] : data[0]);
 			XFree(data);
 			return;
@@ -7761,7 +7761,7 @@ set_desktop(void)
 				       AnyPropertyType, &real, &format,
 				       &nitems, &after, (unsigned char **) &data) == Success
 		    && format != 0 && nitems > 0) {
-			snprintf(myseq.f.desktop, 64, "%lu",
+			snprintf(s->f.desktop, 64, "%lu",
 				 nitems > monitor ? data[monitor] : data[0]);
 			XFree(data);
 			return;
@@ -7777,7 +7777,7 @@ set_desktop(void)
 				       AnyPropertyType, &real, &format,
 				       &nitems, &after, (unsigned char **) &data) == Success
 		    && format != 0 && nitems > 0) {
-			snprintf(myseq.f.desktop, 64, "%lu",
+			snprintf(s->f.desktop, 64, "%lu",
 				 nitems > monitor ? data[monitor] : data[0]);
 			XFree(data);
 			return;
@@ -7787,48 +7787,48 @@ set_desktop(void)
 			data = NULL;
 		}
 	}
-	free(myseq.f.desktop);
-	myseq.f.desktop = NULL;
+	free(s->f.desktop);
+	s->f.desktop = NULL;
 	return;
 }
 
 void
-set_name(void)
+set_name(Sequence *s)
 {
 	char *pos;
 
 	PTRACE(5);
-	free(myseq.f.name);
+	free(s->f.name);
 	if (options.name)
-		myseq.f.name = strdup(options.name);
+		s->f.name = strdup(options.name);
 	else if (myent.Name)
-		myseq.f.name = strdup(myent.Name);
+		s->f.name = strdup(myent.Name);
 	else if (eargv)
-		myseq.f.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
+		s->f.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else
-		myseq.f.name = strdup("");	/* must be included in new: message */
+		s->f.name = strdup("");	/* must be included in new: message */
 }
 
 void
-set_description(void)
+set_description(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.description);
+	free(s->f.description);
 	if (options.description)
-		myseq.f.description = strdup(options.description);
+		s->f.description = strdup(options.description);
 	else if (myent.Comment)
-		myseq.f.description = strdup(myent.Comment);
+		s->f.description = strdup(myent.Comment);
 	else
-		myseq.f.description = NULL;
+		s->f.description = NULL;
 }
 
 void
-set_icon(void)
+set_icon(Sequence *s)
 {
 	char *icon, *p;
 
 	PTRACE(5);
-	free(myseq.f.icon);
+	free(s->f.icon);
 	icon = calloc(512, sizeof(*icon));
 	if (options.icon)
 		strcat(icon, options.icon);
@@ -7844,124 +7844,124 @@ set_icon(void)
 		*p = '\0';
 	if ((p = strstr(icon, ".jpg")) && *(p + 4) == '\0')
 		*p = '\0';
-	myseq.f.icon = icon;
-	if (!*myseq.f.icon) {
-		free(myseq.f.icon);
-		myseq.f.icon = NULL;
+	s->f.icon = icon;
+	if (!*s->f.icon) {
+		free(s->f.icon);
+		s->f.icon = NULL;
 	}
 }
 
 void
-set_action(void)
+set_action(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.action);
+	free(s->f.action);
 	if (options.action)
-		myseq.f.action = strdup(options.action);
+		s->f.action = strdup(options.action);
 	else
-		myseq.f.action = NULL;
+		s->f.action = NULL;
 }
 
 void
-set_autostart(void)
+set_autostart(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.action);
-	myseq.f.autostart = calloc(2, sizeof(*myseq.f.autostart));
+	free(s->f.action);
+	s->f.autostart = calloc(2, sizeof(*s->f.autostart));
 	if (options.autostart)
-		strcpy(myseq.f.autostart, "1");
+		strcpy(s->f.autostart, "1");
 	else
-		strcpy(myseq.f.autostart, "0");
+		strcpy(s->f.autostart, "0");
 }
 
 void
-set_xsession(void)
+set_xsession(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.action);
-	myseq.f.xsession = calloc(2, sizeof(*myseq.f.xsession));
-	if (options.xsession)
-		strcpy(myseq.f.xsession, "1");
+	free(s->f.action);
+	s->f.xsession = calloc(2, sizeof(*s->f.xsession));
+	if (options.xsession || options.session)
+		strcpy(s->f.xsession, "1");
 	else
-		strcpy(myseq.f.xsession, "0");
+		strcpy(s->f.xsession, "0");
 }
 
 char *
-set_wmclass(void)
+set_wmclass(Sequence *s)
 {
 	char *pos;
 
 	PTRACE(5);
-	free(myseq.f.wmclass);
+	free(s->f.wmclass);
 	if (options.wmclass)
-		myseq.f.wmclass = strdup(options.wmclass);
+		s->f.wmclass = strdup(options.wmclass);
 	else if (eargv)
-		myseq.f.wmclass = (pos = strrchr(eargv[0], '/'))
+		s->f.wmclass = (pos = strrchr(eargv[0], '/'))
 		    ? strdup(pos) : strdup(eargv[0]);
 	else if (myent.StartupWMClass)
-		myseq.f.wmclass = strdup(myent.StartupWMClass);
+		s->f.wmclass = strdup(myent.StartupWMClass);
 	else
-		myseq.f.wmclass = NULL;
-	return myseq.f.wmclass;
+		s->f.wmclass = NULL;
+	return s->f.wmclass;
 }
 
 void
-set_pid(void)
+set_pid(Sequence *s)
 {
 	char *p, *q;
 
 	PTRACE(5);
-	free(myseq.f.pid);
-	myseq.f.pid = calloc(64, sizeof(*myseq.f.pid));
+	free(s->f.pid);
+	s->f.pid = calloc(64, sizeof(*s->f.pid));
 	if (options.pid)
-		snprintf(myseq.f.pid, 64, "%d", options.pid);
-	else if ((p = myseq.f.id) &&
+		snprintf(s->f.pid, 64, "%d", options.pid);
+	else if ((p = s->f.id) &&
 		 (p = strchr(p, '/')) && p++ && (p = strchr(p, '/')) && p++ && (q = strchr(p, '-'))
 		 && strtoul(p, NULL, 0))
-		myseq.f.pid = strncpy(myseq.f.pid, p, q - p);
+		s->f.pid = strncpy(s->f.pid, p, q - p);
 	else
-		snprintf(myseq.f.pid, 64, "%d", (int) getpid());
+		snprintf(s->f.pid, 64, "%d", (int) getpid());
 }
 
 void
-set_hostname(void)
+set_hostname(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.hostname);
+	free(s->f.hostname);
 	if (options.hostname)
-		myseq.f.hostname = strdup(options.hostname);
+		s->f.hostname = strdup(options.hostname);
 	else {
-		myseq.f.hostname = calloc(64, sizeof(*myseq.f.hostname));
-		gethostname(myseq.f.hostname, 64);
+		s->f.hostname = calloc(64, sizeof(*s->f.hostname));
+		gethostname(s->f.hostname, 64);
 	}
 }
 
 void
-set_sequence(void)
+set_sequence(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.sequence);
-	myseq.f.sequence = calloc(64, sizeof(*myseq.f.sequence));
+	free(s->f.sequence);
+	s->f.sequence = calloc(64, sizeof(*s->f.sequence));
 	if (options.sequence)
-		strncpy(myseq.f.sequence, options.sequence, 63);
+		strncpy(s->f.sequence, options.sequence, 63);
 	else if (options.monitor != -1)
-		snprintf(myseq.f.sequence, 64, "%d", options.monitor);
+		snprintf(s->f.sequence, 64, "%d", options.monitor);
 	else
-		snprintf(myseq.f.sequence, 64, "%d", 0);
+		snprintf(s->f.sequence, 64, "%d", 0);
 }
 
 void
-set_timestamp(void)
+set_timestamp(Sequence *s)
 {
 	char *p;
 
 	PTRACE(5);
-	free(myseq.f.timestamp);
-	myseq.f.timestamp = calloc(64, sizeof(*myseq.f.timestamp));
+	free(s->f.timestamp);
+	s->f.timestamp = calloc(64, sizeof(*s->f.timestamp));
 	if (options.timestamp)
-		snprintf(myseq.f.timestamp, 64, "%lu", options.timestamp);
-	else if (myseq.f.id && (p = strstr(myseq.f.id, "_TIME")) && strtoul(p + 5, NULL, 0))
-		strncpy(myseq.f.timestamp, p + 5, 63);
+		snprintf(s->f.timestamp, 64, "%lu", options.timestamp);
+	else if (s->f.id && (p = strstr(s->f.id, "_TIME")) && strtoul(p + 5, NULL, 0))
+		strncpy(s->f.timestamp, p + 5, 63);
 	else {
 		XEvent ev;
 		Atom atom = _XA_TIMESTAMP_PROP;
@@ -7973,7 +7973,7 @@ set_timestamp(void)
 		XMaskEvent(dpy, PropertyChangeMask, &ev);
 		XSelectInput(dpy, scr->root, NoEventMask);
 
-		snprintf(myseq.f.timestamp, 64, "%lu", ev.xproperty.time);
+		snprintf(s->f.timestamp, 64, "%lu", ev.xproperty.time);
 	}
 }
 
@@ -8037,36 +8037,36 @@ truth_value(char *p)
 }
 
 char *
-set_command(void)
+set_command(Sequence *s)
 {
 	char *cmd;
 
 	PTRACE(5);
-	free(myseq.f.command);
+	free(s->f.command);
 	cmd = calloc(2048, sizeof(*cmd));
 	if (truth_value(myent.Terminal)) {
 		/* More to do here: if there is no wmclass set, and there is a
 		   application id, use that; otherwise, if there is a binary, use the
 		   binary name, and set the wmclass. */
-		if (!myseq.f.wmclass && myseq.f.application_id) {
-			free(myseq.f.wmclass);
-			myseq.f.wmclass = strdup(myseq.f.application_id);
+		if (!s->f.wmclass && s->f.application_id) {
+			free(s->f.wmclass);
+			s->f.wmclass = strdup(s->f.application_id);
 		}
-		if (!myseq.f.wmclass && myseq.f.bin) {
+		if (!s->f.wmclass && s->f.bin) {
 			char *p;
 
-			free(myseq.f.wmclass);
-			myseq.f.wmclass = (p = strrchr(myseq.f.bin, '/')) ?
-			    strdup(p) : strdup(myseq.f.bin);
+			free(s->f.wmclass);
+			s->f.wmclass = (p = strrchr(s->f.bin, '/')) ?
+			    strdup(p) : strdup(s->f.bin);
 		}
-		if (!myseq.f.wmclass) {
-			free(myseq.f.wmclass);
-			myseq.f.wmclass = strdup("xterm");
+		if (!s->f.wmclass) {
+			free(s->f.wmclass);
+			s->f.wmclass = strdup("xterm");
 		}
-		if (myseq.f.wmclass) {
-			snprintf(cmd, 1024, "xterm -name \"%s\" -T \"%%c\" -e ", myseq.f.wmclass);
-			free(myseq.f.silent);
-			myseq.f.silent = NULL;
+		if (s->f.wmclass) {
+			snprintf(cmd, 1024, "xterm -name \"%s\" -T \"%%c\" -e ", s->f.wmclass);
+			free(s->f.silent);
+			s->f.silent = NULL;
 		} else {
 			strncat(cmd, "xterm -T \"%c\" -e ", 1024);
 		}
@@ -8082,19 +8082,19 @@ set_command(void)
 	free(options.rawcmd);
 	options.rawcmd = strdup(cmd);
 	subst_command(cmd);
-	return (myseq.f.command = cmd);
+	return (s->f.command = cmd);
 }
 
 void
-set_silent(void)
+set_silent(Sequence *s)
 {
 	PTRACE(5);
-	free(myseq.f.silent);
-	if (!truth_value(myent.StartupNotify) && !myseq.f.wmclass && !set_wmclass()) {
-		myseq.f.silent = calloc(64, sizeof(*myseq.f.silent));
-		snprintf(myseq.f.silent, 64, "%d", 1);
+	free(s->f.silent);
+	if (!truth_value(myent.StartupNotify) && !s->f.wmclass && !set_wmclass(s)) {
+		s->f.silent = calloc(64, sizeof(*s->f.silent));
+		snprintf(s->f.silent, 64, "%d", 1);
 	} else
-		myseq.f.silent = NULL;
+		s->f.silent = NULL;
 }
 
 char *
@@ -8106,179 +8106,179 @@ first_word(char *str)
 }
 
 char *
-set_bin(void)
+set_bin(Sequence *s)
 {
 	char *p, *q;
 
 	PTRACE(5);
-	free(myseq.f.bin);
+	free(s->f.bin);
 	if (options.binary)
-		myseq.f.bin = strdup(options.binary);
+		s->f.bin = strdup(options.binary);
 	else if (eargv)
-		myseq.f.bin = strdup(eargv[0]);
-	else if (myseq.f.id && (p = strrchr(myseq.f.id, '/')) && p++ && (q = strchr(p, '-')))
-		myseq.f.bin = strndup(p, q - p);
+		s->f.bin = strdup(eargv[0]);
+	else if (s->f.id && (p = strrchr(s->f.id, '/')) && p++ && (q = strchr(p, '-')))
+		s->f.bin = strndup(p, q - p);
 	else if (options.exec)
-		myseq.f.bin = first_word(options.exec);
+		s->f.bin = first_word(options.exec);
 	else if (myent.TryExec)
-		myseq.f.bin = first_word(myent.TryExec);
+		s->f.bin = first_word(myent.TryExec);
 	else if (myent.Exec)
-		myseq.f.bin = first_word(myent.Exec);
-	else if (!truth_value(myent.Terminal) && (myseq.f.command || set_command()))
-		myseq.f.bin = first_word(myseq.f.command);
+		s->f.bin = first_word(myent.Exec);
+	else if (!truth_value(myent.Terminal) && (s->f.command || set_command(s)))
+		s->f.bin = first_word(s->f.command);
 	else
-		myseq.f.bin = NULL;
-	for (; (p = strchr(myseq.f.bin, '|')); *p = '/') ;
-	return myseq.f.bin;
+		s->f.bin = NULL;
+	for (; (p = strchr(s->f.bin, '|')); *p = '/') ;
+	return s->f.bin;
 }
 
 char *
-set_application_id(void)
+set_application_id(Sequence *s)
 {
 	char *p, *q;
 
 	PTRACE(5);
-	free(myseq.f.application_id);
+	free(s->f.application_id);
 	if (options.path) {
 		if ((p = strrchr(options.path, '/')))
 			p++;
 		else
 			p = options.path;
 		if ((q = strstr(options.path, ".desktop")) && !q[8])
-			myseq.f.application_id = strndup(p, q - p);
+			s->f.application_id = strndup(p, q - p);
 		else
-			myseq.f.application_id = strdup(p);
+			s->f.application_id = strdup(p);
 	} else if (options.appid) {
 		if ((p = strrchr(options.appid, '/')))
 			p++;
 		else
 			p = options.appid;
 		if ((q = strstr(options.appid, ".desktop")) && !q[8])
-			myseq.f.application_id = strndup(p, q - p);
+			s->f.application_id = strndup(p, q - p);
 		else
-			myseq.f.application_id = strdup(p);
+			s->f.application_id = strdup(p);
 	} else
-		myseq.f.application_id = NULL;
-	return myseq.f.application_id;
+		s->f.application_id = NULL;
+	return s->f.application_id;
 }
 
 void
-set_launcher(void)
+set_launcher(Sequence *s)
 {
 	char *p;
 
 	PTRACE(5);
-	free(myseq.f.launcher);
+	free(s->f.launcher);
 	if (options.launcher)
-		myseq.f.launcher = strdup(options.launcher);
-	else if (myseq.f.id && (p = strchr(myseq.f.id, '/')))
-		myseq.f.launcher = strndup(myseq.f.id, p - myseq.f.id);
+		s->f.launcher = strdup(options.launcher);
+	else if (s->f.id && (p = strchr(s->f.id, '/')))
+		s->f.launcher = strndup(s->f.id, p - s->f.id);
 	else
-		myseq.f.launcher = strdup(NAME);
-	for (; (p = strchr(myseq.f.launcher, '|')); *p = '/') ;
+		s->f.launcher = strdup(NAME);
+	for (; (p = strchr(s->f.launcher, '|')); *p = '/') ;
 }
 
 void
-set_launchee(void)
+set_launchee(Sequence *s)
 {
 	char *p, *q;
 
 	PTRACE(5);
-	free(myseq.f.launchee);
+	free(s->f.launchee);
 	if (options.launchee)
-		myseq.f.launchee = strdup(options.launchee);
-	else if (myseq.f.id && (p = strchr(myseq.f.id, '/')) && p++ && (q = strchr(p, '/')))
-		myseq.f.launchee = strndup(p, q - p);
-	else if (myseq.f.bin || set_bin())
-		myseq.f.launchee = strdup(myseq.f.bin);
-	else if (myseq.f.application_id || set_application_id())
-		myseq.f.launchee = strdup(myseq.f.application_id);
+		s->f.launchee = strdup(options.launchee);
+	else if (s->f.id && (p = strchr(s->f.id, '/')) && p++ && (q = strchr(p, '/')))
+		s->f.launchee = strndup(p, q - p);
+	else if (s->f.bin || set_bin(s))
+		s->f.launchee = strdup(s->f.bin);
+	else if (s->f.application_id || set_application_id(s))
+		s->f.launchee = strdup(s->f.application_id);
 	else
-		myseq.f.launchee = strdup("");
-	for (; (p = strchr(myseq.f.launchee, '|')); *p = '/') ;
+		s->f.launchee = strdup("");
+	for (; (p = strchr(s->f.launchee, '|')); *p = '/') ;
 }
 
 void
-set_id(void)
+set_id(Sequence *s)
 {
 	char *launcher, *launchee, *p;
 
 	PTRACE(5);
-	free(myseq.f.id);
-	myseq.f.id = NULL;
+	free(s->f.id);
+	s->f.id = NULL;
 
 	if (options.id) {
-		myseq.f.id = strdup(options.id);
+		s->f.id = strdup(options.id);
 		return;
 	}
-	if (!myseq.f.launcher)
-		set_launcher();
-	if (!myseq.f.launchee)
-		set_launchee();
-	if (!myseq.f.pid)
-		set_pid();
-	if (!myseq.f.sequence)
-		set_sequence();
-	if (!myseq.f.hostname)
-		set_hostname();
-	if (!myseq.f.timestamp)
-		set_timestamp();
+	if (!s->f.launcher)
+		set_launcher(s);
+	if (!s->f.launchee)
+		set_launchee(s);
+	if (!s->f.pid)
+		set_pid(s);
+	if (!s->f.sequence)
+		set_sequence(s);
+	if (!s->f.hostname)
+		set_hostname(s);
+	if (!s->f.timestamp)
+		set_timestamp(s);
 
 	/* canonicalize paths */
-	launcher = strdup(myseq.f.launcher);
+	launcher = strdup(s->f.launcher);
 	for (; (p = strchr(launcher, '/')); *p = '|') ;
-	launchee = strdup(myseq.f.launchee);
+	launchee = strdup(s->f.launchee);
 	for (; (p = strchr(launchee, '/')); *p = '|') ;
 
-	myseq.f.id = calloc(512, sizeof(*myseq.f.id));
-	snprintf(myseq.f.id, 512, "%s/%s/%s-%s-%s_TIME%s",
-		 launcher, launchee, myseq.f.pid, myseq.f.monitor, myseq.f.hostname, myseq.f.timestamp);
+	s->f.id = calloc(512, sizeof(*s->f.id));
+	snprintf(s->f.id, 512, "%s/%s/%s-%s-%s_TIME%s",
+		 launcher, launchee, s->f.pid, s->f.monitor, s->f.hostname, s->f.timestamp);
 	free(launcher);
 	free(launchee);
 }
 
 void
-set_all(void)
+set_all(Sequence *s)
 {
 	PTRACE(5);
-	if (!myseq.f.name)
-		set_name();
-	if (!myseq.f.icon)
-		set_icon();
-	if (!myseq.f.bin)
-		set_bin();
-	if (!myseq.f.description)
-		set_description();
-	if (!myseq.f.wmclass)
-		set_wmclass();
-	if (!myseq.f.silent)
-		set_silent();
-	if (!myseq.f.application_id)
-		set_application_id();
-	if (!myseq.f.screen)
-		set_screen();
+	if (!s->f.name)
+		set_name(s);
+	if (!s->f.icon)
+		set_icon(s);
+	if (!s->f.bin)
+		set_bin(s);
+	if (!s->f.description)
+		set_description(s);
+	if (!s->f.wmclass)
+		set_wmclass(s);
+	if (!s->f.silent)
+		set_silent(s);
+	if (!s->f.application_id)
+		set_application_id(s);
+	if (!s->f.screen)
+		set_screen(s);
 	/* must be on correct screen before doing monitor */
-	if (!myseq.f.monitor)
-		set_monitor();
+	if (!s->f.monitor)
+		set_monitor(s);
 	/* must be on correct screen before doing desktop */
-	if (!myseq.f.desktop)
-		set_desktop();
-	if (!myseq.f.timestamp)
-		set_timestamp();
-	if (!myseq.f.hostname)
-		set_hostname();
-	if (!myseq.f.action)
-		set_action();
-	if (!myseq.f.command)
-		set_command();
-	if (!myseq.f.pid)
-		set_pid();
-	if (!myseq.f.autostart)
-		set_autostart();
-	if (!myseq.f.xsession)
-		set_xsession();
-	if (!myseq.f.id)
-		set_id();
+	if (!s->f.desktop)
+		set_desktop(s);
+	if (!s->f.timestamp)
+		set_timestamp(s);
+	if (!s->f.hostname)
+		set_hostname(s);
+	if (!s->f.action)
+		set_action(s);
+	if (!s->f.command)
+		set_command(s);
+	if (!s->f.pid)
+		set_pid(s);
+	if (!s->f.autostart)
+		set_autostart(s);
+	if (!s->f.xsession)
+		set_xsession(s);
+	if (!s->f.id)
+		set_id(s);
 }
 
 #ifdef GIO_GLIB2_SUPPORT
@@ -9900,10 +9900,10 @@ main(int argc, char *argv[])
 	/* open display now */
 	get_display();
 	/* fill out all fields */
-	set_all();
+	set_all(&myseq);
 	if (!options.info)
 		put_history();
-	launch();
+	launch(&myent, &myseq);
 	exit(EXIT_SUCCESS);
 }
 
