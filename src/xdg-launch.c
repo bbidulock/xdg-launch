@@ -205,6 +205,7 @@ typedef struct {
 	Bool composite;
 	Bool audio;
 	Bool assist;
+	Bool autoassist;
 	int guard;
 } Options;
 
@@ -261,6 +262,7 @@ Options options = {
 	.composite = False,
 	.audio = False,
 	.assist = False,
+	.autoassist = True,
 	.guard = 2,
 };
 
@@ -315,6 +317,7 @@ Options defaults = {
 	.composite = False,
 	.audio = False,
 	.assist = False,
+	.autoassist = True,
 	.guard = 2,
 };
 
@@ -7351,7 +7354,7 @@ wait_for_resource(void)
 Bool
 need_assist(void)
 {
-	Bool need_assist = options.assist;
+	Bool need_assist = (!options.autoassist && options.assist) ? True : False;
 
 	PTRACE(5);
 	if (need_assist) {
@@ -7400,7 +7403,8 @@ launch(void)
 
 	PTRACE(5);
 	wait_for_resource();
-	options.assist = need_assist();
+	if (options.autoassist)
+		options.assist = need_assist();
 
 	/* make the call... */
 
@@ -9416,6 +9420,7 @@ main(int argc, char *argv[])
 			{"noprop",	no_argument,		NULL,  5 },
 
 			{"assist",	no_argument,		NULL,  6 },
+			{"no-assist",	no_argument,		NULL,  9 },
 
 			{"manager",	no_argument,		NULL, 'M'},
 			{"tray",	no_argument,		NULL, 'Y'},
@@ -9637,6 +9642,11 @@ main(int argc, char *argv[])
 			break;
 		case 6:		/* --assist */
 			defaults.assist = options.assist = True;
+			defaults.autoassist = options.autoassist = False;
+			break;
+		case 9:		/* --no-assist */
+			defaults.assist = options.assist = False;
+			defaults.autoassist = options.autoassist = False;
 			break;
 		case 'M':	/* -M, --manager */
 			defaults.manager = options.manager = True;
