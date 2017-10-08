@@ -9,7 +9,8 @@ xdg_man1_files = \
 	     xdg-which.man \
 	     xdg-entry.man \
 	     xdg-toolwait.man \
-	     xdg-list.man
+	     xdg-list.man \
+	     xdg-session.man
 
 if HAVE_GIO_GLIB2_SUPPORT
 xdg_man1_files += \
@@ -32,6 +33,7 @@ EXTRA_DIST = \
 	     xdg-entry.pod \
 	     xdg-toolwait.pod \
 	     xdg-list.pod \
+	     xdg-session.pod \
 	     xdg-types.pod \
 	     xdg-prefs.pod \
 	     xdg-find.pod

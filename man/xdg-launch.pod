@@ -188,7 +188,7 @@ identifier.
 
 =cut
 
-item B<-S>, B<--sequence> I<SEQUENCE>
+=item B<-S>, B<--sequence> I<SEQUENCE>
 
 Specifies a sequence number that will be used when generating a startup
 notification identifier.  The default, when unspecified, is zero (0).
@@ -375,7 +375,7 @@ to B<xdg-session> instead of B<xdg-launch>.  Aside from these
 differences, the launcher operates in the same fashion.  This option is
 intended for launching window managers.
 
-Only one of B<--xsession> or B<--autostart> can be specified.
+Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
 
 =item B<-U>, B<--autostart>
 
@@ -386,7 +386,21 @@ to B<xdg-autostart> instead of B<xdg-launch>.  Aside from these
 differences, the launcher operates in the same fashion.  This option is
 intended for launching autostart entries.
 
-Only one of B<--xsession> or B<--autostart> can be specified.
+Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
+
+=item B<-E>, B<--session>
+
+Interpret and search for the desktop entry file as an C<XSession>
+desktop entry instead of an C<Application> desktop entry.  This is the
+default when invoked as B<xdg-session>.  The C<LAUNCHER> will default to
+B<xdg-session> instead of B<xdg-launch>.  This option, therefore, acts
+like the B<--xsession> option, with the exception that the program also
+performs autostart for the window manager by executing the necessary
+autostart desktop entries according to the XDG autostart specification.
+
+Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
+
+=item B<
 
 =item B<-k>, B<--keep> I<NUMBER>
 
@@ -420,6 +434,14 @@ application toolkit requires assistance with startup notification.  The
 default when the window manager supports startup notification is to not
 provide any assistance.  This option requests that B<xdg-launch> provide
 startup notification assistance to the window manager.
+
+=item B<--no-assist>
+
+Normally B<xdg-launch> will determine whether the window manager and
+application toolkit requires assistance with startup notification.  The
+default when the window manager does not support startup notification is
+to provide assistance.  This option requests that B<xdg-launch> not
+provide startup notification assistance to the window manager.
 
 =item B<-T>, B<--toolwait>
 
@@ -676,6 +698,17 @@ terminal programs do not properly observe startup notification.  (Note
 that L<xterm(1)> does not properly observe startup notification, even
 though it properly observes X11 Session Management, whereas many other
 terminal emulators support both.)
+
+=head2 AUTO START SESSION
+
+When B<--session> is specified, the program starts the XDG auto start
+procedure before launching the window manager specified by the I<APPID>
+or B<--exec> command.  B<xdg-launch> creates a session by launching
+autostart desktop entries in child processes and then executes the
+I<APPID> or B<--exec> command for the window manager in the parent
+process.  It attempts to become an session leader and a process group
+leader before launching children.  This should ultimately leave any
+child processes as children of the window manager.
 
 =head2 TOOL WAIT
 

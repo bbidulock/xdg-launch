@@ -13,7 +13,10 @@ B<xdg-toolwait> [I<OPTIONS>] -c I<command and arguments>
 =head1 DESCRIPTION
 
 B<xdg-toolwait> is a script that simply executes L<xdg-launch(1)> with
-the appropriate arguments (B<--toolwait>).  It provides a similar
+the appropriate arguments (B<--toolwait>).
+See L<xdg-launch(1)/COMMAND OPTIONS> for more information.
+
+It provides a similar
 behaviour to the L<xtoolwait(1)> utility, but also supports XDG
 desktop applications.
 

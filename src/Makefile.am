@@ -62,7 +62,8 @@ dist_bin_SCRIPTS = \
 	xdg-xsession \
 	xdg-autostart \
 	xdg-entry \
-	xdg-toolwait
+	xdg-toolwait \
+	xdg-session
 
 AM_INSTALLCHECK_STD_OPTIONS_EXEMPT = dmenu_apps dmenu_launch
 
