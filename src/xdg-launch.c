@@ -183,6 +183,7 @@ typedef struct {
 	char *action;
 	Bool xsession;
 	Bool autostart;
+	Bool session;
 	char *path;
 	char *uri;
 	char *rawcmd;
@@ -240,6 +241,7 @@ Options options = {
 	.action = NULL,
 	.xsession = False,
 	.autostart = False,
+	.session = False,
 	.path = NULL,
 	.uri = NULL,
 	.rawcmd = NULL,
@@ -296,6 +298,7 @@ Options defaults = {
 	.action = "none",
 	.xsession = False,
 	.autostart = False,
+	.session = False,
 	.path = NULL,
 	.uri = NULL,
 	.runhist = "~/.config/xde/run-history",
@@ -2214,7 +2217,7 @@ lookup_file_by_name(const char *name)
 			path = realloc(path, PATH_MAX + 1);
 			if (options.autostart)
 				strcat(path, "/autostart/");
-			else if (options.xsession)
+			else if (options.xsession || options.session)
 				strcat(path, "/xsessions/");
 			else
 				strcat(path, "/applications/");
@@ -2237,7 +2240,7 @@ lookup_file_by_name(const char *name)
 			return (NULL);
 		}
 		/* only look in xsessions for xsession entries */
-		else if (options.xsession) {
+		else if (options.xsession || options.session) {
 			free(home);
 			free(appid);
 			return (NULL);
@@ -8331,7 +8334,7 @@ put_recently_used_info(void)
 		DPRINTF(1, "do not recommend without a uri\n");
 		return;
 	}
-	if (options.autostart || options.xsession) {
+	if (options.autostart || options.xsession || options.session) {
 		DPRINTF(1, "do not recommend autostart or xsession invocations\n");
 		return;
 	}
@@ -8382,7 +8385,7 @@ put_recent_applications_xbel(char *filename)
 		EPRINTF("cannot record %s without a uri\n", filename);
 		return;
 	}
-	if (options.autostart || options.xsession) {
+	if (options.autostart || options.xsession || options.session) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
@@ -8443,7 +8446,7 @@ put_recently_used_xbel(char *filename)
 		EPRINTF("cannot record %s without a url\n", filename);
 		return;
 	}
-	if (options.autostart || options.xsession) {
+	if (options.autostart || options.xsession || options.session) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
@@ -8685,7 +8688,7 @@ put_recent_applications(char *filename)
 		g_free(file);
 		return;
 	}
-	if (options.autostart || options.xsession) {
+	if (options.autostart || options.xsession || options.session) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		g_free(file);
 		return;
@@ -8806,7 +8809,7 @@ put_recently_used(char *filename)
 		g_free(file);
 		return;
 	}
-	if (options.autostart || options.xsession) {
+	if (options.autostart || options.xsession || options.session) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		g_free(file);
 		return;
@@ -8951,7 +8954,7 @@ put_line_history(char *file, char *line)
 		EPRINTF("cannot record history without a line\n");
 		return;
 	}
-	if (options.autostart || options.xsession) {
+	if (options.autostart || options.xsession || options.session) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
@@ -9342,6 +9345,8 @@ set_defaults(int argc, char *argv[])
 		defaults.xsession = options.xsession = True;
 	else if (!strcmp(buf, "xdg-autostart"))
 		defaults.autostart = options.autostart = True;
+	else if (!strcmp(buf, "xdg-session"))
+		defaults.session = options.session = True;
 
 	free(options.hostname);
 	buf = defaults.hostname = options.hostname = calloc(65, sizeof(*buf));
@@ -9408,6 +9413,7 @@ main(int argc, char *argv[])
 			{"action",	required_argument,	NULL, 'A'},
 			{"xsession",	no_argument,		NULL, 'X'},
 			{"autostart",	no_argument,		NULL, 'U'},
+			{"session",	no_argument,		NULL, 'E'},
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
@@ -9440,11 +9446,11 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORg::D::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg::D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
 		c = getopt(argc, argv,
-			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUk:r:ITMYGORg:DvhVC?");
+			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (options.debug)
@@ -9581,14 +9587,19 @@ main(int argc, char *argv[])
 			defaults.action = options.action = strdup(optarg);
 			break;
 		case 'X':	/* -X, --xsession */
-			if (options.autostart)
+			if (options.autostart || options.session)
 				goto bad_option;
 			defaults.xsession = options.xsession = True;
 			break;
 		case 'U':	/* -S, --autostart */
-			if (options.xsession)
+			if (options.xsession || options.session)
 				goto bad_option;
 			defaults.autostart = options.autostart = True;
+			break;
+		case 'E':	/* -E, --session */
+			if (options.autostart || options.xsession)
+				goto bad_option;
+			defaults.session = options.session = True;
 			break;
 		case 'k':	/* -k, --keep NUMBER */
 			if ((val = strtoul(optarg, &endptr, 0)) < 0)
