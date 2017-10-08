@@ -6781,17 +6781,17 @@ handle_event(XEvent *e)
 }
 
 void set_pid(Sequence *s);
-void set_id(Sequence *s);
+void set_id(Sequence *s, Entry *e);
 
 void
-reset_pid(pid_t pid, Sequence *s)
+reset_pid(pid_t pid, Sequence *s, Entry *e)
 {
 	PTRACE(5);
 	if (pid) {
 		/* this is the parent */
 		options.pid = pid;
 		set_pid(s);
-		set_id(s);
+		set_id(s, e);
 		if (options.output > 1)
 			show_sequence("Final notify fields", s);
 		if (options.info)
@@ -6800,7 +6800,7 @@ reset_pid(pid_t pid, Sequence *s)
 		/* this is the child */
 		options.pid = getpid();
 		set_pid(s);
-		set_id(s);
+		set_id(s, e);
 	}
 }
 
@@ -6841,14 +6841,14 @@ void put_display(void);
   * assistance and then exits.  The child owns the display connection.
   */
 void
-assist(Sequence *s)
+assist(Sequence *s, Entry *e)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
 	setup_to_assist(s);
 	XSync(dpy, False);
-	reset_pid(pid, s);
+	reset_pid(pid, s, e);
 	if (options.info) {
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
@@ -6942,7 +6942,7 @@ assist(Sequence *s)
   * application.
   */
 void
-toolwait(Sequence *s)
+toolwait(Sequence *s, Entry *e)
 {
 	pid_t pid = getpid();
 
@@ -6951,7 +6951,7 @@ toolwait(Sequence *s)
 	XSync(dpy, False);
 	if (options.info) {
 		fputs("Would launch with tool wait support\n\n", stdout);
-		reset_pid(pid, s);
+		reset_pid(pid, s, e);
 		return;
 	}
 	put_display();
@@ -6959,7 +6959,7 @@ toolwait(Sequence *s)
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	reset_pid(pid, s);
+	reset_pid(pid, s, e);
 	if (!pid) {
 		/* child returns and launches */
 		setsid();
@@ -7032,14 +7032,14 @@ toolwait(Sequence *s)
   * and set the appropriate EWMH properties on all windows.
   */
 void
-normal(Sequence *s)
+normal(Sequence *s, Entry *e)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
 	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
-	reset_pid(pid, s);
+	reset_pid(pid, s, e);
 	/* main process returns and launches */
 	return;
 }
@@ -7398,7 +7398,7 @@ need_assist(Sequence *s)
 }
 
 void
-launch(Entry *e, Sequence *s)
+launch(Sequence *s, Entry *e)
 {
 	size_t size;
 	char *disp, *p;
@@ -7415,17 +7415,17 @@ launch(Entry *e, Sequence *s)
 		OPRINTF(1, "Tool wait requested\n");
 		if (options.info)
 			fputs("Tool wait requested\n\n", stdout);
-		toolwait(s);
+		toolwait(s, e);
 	} else if (options.assist) {
 		OPRINTF(1, "Assistance is required\n");
 		if (options.info)
 			fputs("Assistance is required\n\n", stdout);
-		assist(s);
+		assist(s, e);
 	} else {
 		OPRINTF(1, "Assistance is NOT needed, no tool wait\n");
 		if (options.info)
 			fputs("Assistance is NOT needed, no tool wait\n\n", stdout);
-		normal(s);
+		normal(s, e);
 	}
 
 	if (options.id)
@@ -7793,7 +7793,7 @@ set_desktop(Sequence *s)
 }
 
 void
-set_name(Sequence *s)
+set_name(Sequence *s, Entry *e)
 {
 	char *pos;
 
@@ -7801,8 +7801,8 @@ set_name(Sequence *s)
 	free(s->f.name);
 	if (options.name)
 		s->f.name = strdup(options.name);
-	else if (myent.Name)
-		s->f.name = strdup(myent.Name);
+	else if (e->Name)
+		s->f.name = strdup(e->Name);
 	else if (eargv)
 		s->f.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else
@@ -7810,20 +7810,20 @@ set_name(Sequence *s)
 }
 
 void
-set_description(Sequence *s)
+set_description(Sequence *s, Entry *e)
 {
 	PTRACE(5);
 	free(s->f.description);
 	if (options.description)
 		s->f.description = strdup(options.description);
-	else if (myent.Comment)
-		s->f.description = strdup(myent.Comment);
+	else if (e->Comment)
+		s->f.description = strdup(e->Comment);
 	else
 		s->f.description = NULL;
 }
 
 void
-set_icon(Sequence *s)
+set_icon(Sequence *s, Entry *e)
 {
 	char *icon, *p;
 
@@ -7832,8 +7832,8 @@ set_icon(Sequence *s)
 	icon = calloc(512, sizeof(*icon));
 	if (options.icon)
 		strcat(icon, options.icon);
-	else if (myent.Icon)
-		strcat(icon, myent.Icon);
+	else if (e->Icon)
+		strcat(icon, e->Icon);
 	if ((p = strchr(icon, '/')) && p++)
 		memmove(icon, p, strlen(p) + 1);
 	if ((p = strstr(icon, ".xpm")) && *(p + 4) == '\0')
@@ -7887,7 +7887,7 @@ set_xsession(Sequence *s)
 }
 
 char *
-set_wmclass(Sequence *s)
+set_wmclass(Sequence *s, Entry *e)
 {
 	char *pos;
 
@@ -7898,8 +7898,8 @@ set_wmclass(Sequence *s)
 	else if (eargv)
 		s->f.wmclass = (pos = strrchr(eargv[0], '/'))
 		    ? strdup(pos) : strdup(eargv[0]);
-	else if (myent.StartupWMClass)
-		s->f.wmclass = strdup(myent.StartupWMClass);
+	else if (e->StartupWMClass)
+		s->f.wmclass = strdup(e->StartupWMClass);
 	else
 		s->f.wmclass = NULL;
 	return s->f.wmclass;
@@ -8037,14 +8037,14 @@ truth_value(char *p)
 }
 
 char *
-set_command(Sequence *s)
+set_command(Sequence *s, Entry *e)
 {
 	char *cmd;
 
 	PTRACE(5);
 	free(s->f.command);
 	cmd = calloc(2048, sizeof(*cmd));
-	if (truth_value(myent.Terminal)) {
+	if (truth_value(e->Terminal)) {
 		/* More to do here: if there is no wmclass set, and there is a
 		   application id, use that; otherwise, if there is a binary, use the
 		   binary name, and set the wmclass. */
@@ -8073,8 +8073,8 @@ set_command(Sequence *s)
 	}
 	if (options.exec)
 		strncat(cmd, options.exec, 1024);
-	else if (myent.Exec)
-		strncat(cmd, myent.Exec, 1024);
+	else if (e->Exec)
+		strncat(cmd, e->Exec, 1024);
 	else if (!eargv) {
 		EPRINTF("cannot launch anything without a command\n");
 		exit(EXIT_FAILURE);
@@ -8086,11 +8086,11 @@ set_command(Sequence *s)
 }
 
 void
-set_silent(Sequence *s)
+set_silent(Sequence *s, Entry *e)
 {
 	PTRACE(5);
 	free(s->f.silent);
-	if (!truth_value(myent.StartupNotify) && !s->f.wmclass && !set_wmclass(s)) {
+	if (!truth_value(e->StartupNotify) && !s->f.wmclass && !set_wmclass(s, e)) {
 		s->f.silent = calloc(64, sizeof(*s->f.silent));
 		snprintf(s->f.silent, 64, "%d", 1);
 	} else
@@ -8106,7 +8106,7 @@ first_word(char *str)
 }
 
 char *
-set_bin(Sequence *s)
+set_bin(Sequence *s, Entry *e)
 {
 	char *p, *q;
 
@@ -8120,11 +8120,11 @@ set_bin(Sequence *s)
 		s->f.bin = strndup(p, q - p);
 	else if (options.exec)
 		s->f.bin = first_word(options.exec);
-	else if (myent.TryExec)
-		s->f.bin = first_word(myent.TryExec);
-	else if (myent.Exec)
-		s->f.bin = first_word(myent.Exec);
-	else if (!truth_value(myent.Terminal) && (s->f.command || set_command(s)))
+	else if (e->TryExec)
+		s->f.bin = first_word(e->TryExec);
+	else if (e->Exec)
+		s->f.bin = first_word(e->Exec);
+	else if (!truth_value(e->Terminal) && (s->f.command || set_command(s, e)))
 		s->f.bin = first_word(s->f.command);
 	else
 		s->f.bin = NULL;
@@ -8179,7 +8179,7 @@ set_launcher(Sequence *s)
 }
 
 void
-set_launchee(Sequence *s)
+set_launchee(Sequence *s, Entry *e)
 {
 	char *p, *q;
 
@@ -8189,7 +8189,7 @@ set_launchee(Sequence *s)
 		s->f.launchee = strdup(options.launchee);
 	else if (s->f.id && (p = strchr(s->f.id, '/')) && p++ && (q = strchr(p, '/')))
 		s->f.launchee = strndup(p, q - p);
-	else if (s->f.bin || set_bin(s))
+	else if (s->f.bin || set_bin(s, e))
 		s->f.launchee = strdup(s->f.bin);
 	else if (s->f.application_id || set_application_id(s))
 		s->f.launchee = strdup(s->f.application_id);
@@ -8199,7 +8199,7 @@ set_launchee(Sequence *s)
 }
 
 void
-set_id(Sequence *s)
+set_id(Sequence *s, Entry *e)
 {
 	char *launcher, *launchee, *p;
 
@@ -8214,7 +8214,7 @@ set_id(Sequence *s)
 	if (!s->f.launcher)
 		set_launcher(s);
 	if (!s->f.launchee)
-		set_launchee(s);
+		set_launchee(s, e);
 	if (!s->f.pid)
 		set_pid(s);
 	if (!s->f.sequence)
@@ -8238,21 +8238,21 @@ set_id(Sequence *s)
 }
 
 void
-set_all(Sequence *s)
+set_all(Sequence *s, Entry *e)
 {
 	PTRACE(5);
 	if (!s->f.name)
-		set_name(s);
+		set_name(s, e);
 	if (!s->f.icon)
-		set_icon(s);
+		set_icon(s, e);
 	if (!s->f.bin)
-		set_bin(s);
+		set_bin(s, e);
 	if (!s->f.description)
-		set_description(s);
+		set_description(s, e);
 	if (!s->f.wmclass)
-		set_wmclass(s);
+		set_wmclass(s, e);
 	if (!s->f.silent)
-		set_silent(s);
+		set_silent(s, e);
 	if (!s->f.application_id)
 		set_application_id(s);
 	if (!s->f.screen)
@@ -8270,7 +8270,7 @@ set_all(Sequence *s)
 	if (!s->f.action)
 		set_action(s);
 	if (!s->f.command)
-		set_command(s);
+		set_command(s, e);
 	if (!s->f.pid)
 		set_pid(s);
 	if (!s->f.autostart)
@@ -8278,7 +8278,7 @@ set_all(Sequence *s)
 	if (!s->f.xsession)
 		set_xsession(s);
 	if (!s->f.id)
-		set_id(s);
+		set_id(s, e);
 }
 
 #ifdef GIO_GLIB2_SUPPORT
@@ -8310,12 +8310,12 @@ get_mime_type(const char *uri)
 }
 
 static void
-set_mime_type(void)
+set_mime_type(Entry *e)
 {
 	if (!options.mimetype && options.url)
 		options.mimetype = get_mime_type(options.url);
-	if (!options.mimetype && myent.MimeType) {
-		options.mimetype = strdup(myent.MimeType);
+	if (!options.mimetype && e->MimeType) {
+		options.mimetype = strdup(e->MimeType);
 		if (strchr(options.mimetype, ';'))
 			*strchr(options.mimetype, ';') = '\0';
 	}
@@ -8436,7 +8436,7 @@ put_recent_applications_xbel(char *filename, Sequence *s)
 }
 
 static void
-put_recently_used_xbel(char *filename, Sequence *s)
+put_recently_used_xbel(char *filename, Sequence *s, Entry *e)
 {
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
@@ -8486,15 +8486,15 @@ put_recently_used_xbel(char *filename, Sequence *s)
 		free(exec);
 	} else {
 		g_bookmark_file_add_application(bookmark, options.url,
-						s->f.bin ? : myent.Name, options.rawcmd);
+						s->f.bin ? : e->Name, options.rawcmd);
 	}
-	if (myent.Categories) {
-		char *p, *e, *groups;
+	if (e->Categories) {
+		char *p, *q, *groups;
 
-		groups = strdup(myent.Categories);
-		e = groups + strlen(groups) + 1;
+		groups = strdup(e->Categories);
+		q = groups + strlen(groups) + 1;
 		p = groups;
-		for (p = groups, *strchrnul(p, ';') = '\0'; p < e;
+		for (p = groups, *strchrnul(p, ';') = '\0'; p < q;
 		     p += strlen(p) + 1, *strchrnul(p, ';') = '\0')
 			if (strcmp(p, "Application") && p[0])
 				g_bookmark_file_add_group(bookmark, options.url, p);
@@ -8788,7 +8788,7 @@ put_recent_applications(char *filename)
 }
 
 static void
-put_recently_used(char *filename)
+put_recently_used(char *filename, Entry *e)
 {
 	FILE *f;
 	int dummy;
@@ -8877,10 +8877,10 @@ put_recently_used(char *filename)
 	} else
 		used = item->data;
 
-	if (myent.Categories) {
+	if (e->Categories) {
 		char *grp, *p;
 
-		grp = strdup(myent.Categories);
+		grp = strdup(e->Categories);
 		if ((p = strchr(grp, ';')))
 			*p = '\0';
 		if (!(item = g_list_find_custom(used->groups, grp, grps_match)))
@@ -9006,17 +9006,17 @@ put_line_history(char *file, char *line)
 }
 
 static void
-put_history(Sequence *s)
+put_history(Sequence *s, Entry *e)
 {
 	put_line_history(options.runhist, s->f.command);
 	put_line_history(options.recapps, s->f.application_id);
 #ifdef GIO_GLIB2_SUPPORT
-	set_mime_type();
+	set_mime_type(e);
 	put_recently_used_info(s);
 	if (options.uri) {
 		if (options.url) {
-			put_recently_used(".recently-used");
-			put_recently_used_xbel("recently-used.xbel", s);
+			put_recently_used(".recently-used", e);
+			put_recently_used_xbel("recently-used.xbel", s, e);
 		}
 		put_recent_applications(".recently-used");
 		put_recent_applications(".recent-applications");
@@ -9900,10 +9900,10 @@ main(int argc, char *argv[])
 	/* open display now */
 	get_display();
 	/* fill out all fields */
-	set_all(&myseq);
+	set_all(&myseq, &myent);
 	if (!options.info)
-		put_history(&myseq);
-	launch(&myent, &myseq);
+		put_history(&myseq, &myent);
+	launch(&myseq, &myent);
 	exit(EXIT_SUCCESS);
 }
 
