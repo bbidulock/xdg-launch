@@ -1954,8 +1954,10 @@ need_assistance(void)
 	return False;
 }
 
-int
-parse_file(char *path, Entry *e)
+static void free_entry(Entry *e);
+
+Entry *
+parse_file(char *path)
 {
 	FILE *file;
 	char buf[4096], *p, *q;
@@ -1963,7 +1965,10 @@ parse_file(char *path, Entry *e)
 	char *section = NULL;
 	char *key, *val, *lang, *llang, *slang;
 	int ok = 0, action_found = options.action ? 0 : 1;
+	Entry *e;
 
+	if (!(e = calloc(1, sizeof(*e))))
+		return (e);
 	if (getenv("LANG") && *getenv("LANG"))
 		llang = strdup(getenv("LANG"));
 	else
@@ -2140,7 +2145,10 @@ parse_file(char *path, Entry *e)
 		}
 	}
 	fclose(file);
-	return (ok && action_found);
+	if (ok && action_found)
+		return (e);
+	free_entry(e);
+	return (NULL);
 }
 
 /** @brief look up the file from APPID.
@@ -4417,12 +4425,10 @@ add_sequence(Sequence *seq)
 			appid = appid ? appid + 1 : seq->f.bin;
 		}
 		if ((path = lookup_file_by_name(appid))) {
-			DPRINTF(1, "found desktop file %s\n", path);
-			Entry *e = calloc(1, sizeof(*e));
+			Entry *e;
 
-			if (!parse_file(path, e))
-				free_entry(e);
-			else {
+			DPRINTF(1, "found desktop file %s\n", path);
+			if ((e = parse_file(path))) {
 				seq->e = e;
 				if (options.output > 1)
 					show_entry("Parsed entries", e);
@@ -6857,7 +6863,7 @@ assist(Sequence *s, Entry *e)
 	if (pid) {
 		OPRINTF(1, "parent says child pid is %d\n", pid);
 		/* parent returns and launches */
-		setsid();
+		/* setsid(); */ /* XXX */
 		get_display();
 		return;
 	}
@@ -6958,7 +6964,7 @@ toolwait(Sequence *s, Entry *e)
 	reset_pid(pid, s, e);
 	if (!pid) {
 		/* child returns and launches */
-		setsid();
+		/* setsid(); */ /* XXX */
 		get_display();
 		return;
 	}
@@ -9025,6 +9031,24 @@ put_history(Sequence *s, Entry *e)
 #endif				/* GIO_GLIB2_SUPPORT */
 }
 
+/** @brief create a simple session
+  *
+  * First attempt to become new session leader.  This establishes a new
+  * foreground process group.
+  */
+
+void
+session(Sequence *s, Entry * e)
+{
+	pid_t sid;
+
+	if ((sid = setsid()) == (pid_t) -1)
+		EPRINTF("cannot become session leader: %s\n", strerror(errno));
+	else
+		DPRINTF(3, "new session id %d\n", (int) sid);
+	(void) sid;
+}
+
 static void
 copying(int argc, char *argv[])
 {
@@ -9836,16 +9860,16 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	if (!(e = calloc(1, sizeof(*e)))) {
-		EPRINTF("could not allocate entry: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	if (options.path && !parse_file(options.path, e)) {
+	if (!options.path || !(e = parse_file(options.path))) {
 		EPRINTF("could not parse file '%s'\n", options.path);
 		free(options.path);
 		options.path = NULL;
 		if (!eargv)
 			exit(EXIT_FAILURE);
+		if (!(e = calloc(1, sizeof(*e)))) {
+			EPRINTF("could not allocate entry: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
 		e->TryExec = strdup(eargv[0]);
 	}
 	if (options.file && options.file[0] && !options.url) {
@@ -9913,6 +9937,8 @@ main(int argc, char *argv[])
 	set_all(s, e);
 	if (!options.info)
 		put_history(s, e);
+	if (options.session)
+		session(s, e);
 	launch(s, e);
 	exit(EXIT_SUCCESS);
 }
