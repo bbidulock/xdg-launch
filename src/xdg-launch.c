@@ -360,8 +360,6 @@ typedef struct _Entry {
 	char *AutostartPhase;
 } Entry;
 
-Entry myent = { NULL, };
-
 static const char *StartupNotifyFields[] = {
 	"LAUNCHER",
 	"LAUNCHEE",
@@ -480,7 +478,7 @@ typedef struct _Sequence {
 } Sequence;
 
 Sequence *sequences;
-Sequence myseq = { NULL, };
+const char *myid = NULL;
 
 typedef struct {
 	Window origin;			/* origin of message sequence */
@@ -4125,8 +4123,7 @@ free_entry(Entry *e)
 	}
 	free(e->path);
 	e->path = NULL;
-	if (e != &myent)
-		free(e);
+	free(e);
 }
 
 static Sequence *unref_sequence(Sequence *seq);
@@ -4195,7 +4192,7 @@ static Sequence *remove_sequence(Sequence *del);
   * Update the client associated with a startup notification sequence.
   */
 static void
-update_startup_client(Sequence *seq, Sequence *s)
+update_startup_client(Sequence *seq)
 {
 	Client *c;
 
@@ -4203,8 +4200,8 @@ update_startup_client(Sequence *seq, Sequence *s)
 		EPRINTF("Sequence without id!\n");
 		return;
 	}
-	if (s->f.id) {
-		if (strcmp(seq->f.id, s->f.id)) {
+	if (myid) {
+		if (strcmp(seq->f.id, myid)) {
 			DPRINTF(1, "Sequence for unrelated id %s\n", seq->f.id);
 			remove_sequence(seq);
 			return;
@@ -4336,8 +4333,7 @@ unref_sequence(Sequence *seq)
 			free_sequence_fields(seq);
 			free_entry(seq->e);
 			seq->e = NULL;
-			if (seq != &myseq)
-				free(seq);
+			free(seq);
 			return (NULL);
 		} else
 			DPRINTF(1, "sequence still has %d references\n", seq->refs);
@@ -4446,7 +4442,7 @@ add_sequence(Sequence *seq)
 }
 
 static void
-process_startup_msg(Message *m, Sequence *s)
+process_startup_msg(Message *m)
 {
 	Sequence cmd = { NULL, }, *seq;
 	char *p = m->data, *k, *v, *q, *copy, *b;
@@ -4599,12 +4595,12 @@ process_startup_msg(Message *m, Sequence *s)
 		case StartupNotifyNew:
 			seq->state = StartupNotifyNew;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq, s);
+			update_startup_client(seq);
 			return;
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq, s);
+			update_startup_client(seq);
 			return;
 		}
 		break;
@@ -4621,7 +4617,7 @@ process_startup_msg(Message *m, Sequence *s)
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq, s);
+			update_startup_client(seq);
 			return;
 		}
 		break;
@@ -4638,7 +4634,7 @@ process_startup_msg(Message *m, Sequence *s)
 		case StartupNotifyChanged:
 			seq->state = StartupNotifyChanged;
 			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq, s);
+			update_startup_client(seq);
 			return;
 		}
 		break;
@@ -4648,7 +4644,7 @@ process_startup_msg(Message *m, Sequence *s)
 	}
 	/* remove sequence */
 	copy_sequence_fields(seq, &cmd);
-	update_startup_client(seq, s);
+	update_startup_client(seq);
 	remove_sequence(seq);
 }
 
@@ -4675,7 +4671,7 @@ cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *e, Client *c)
 	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
-		process_startup_msg(m, &myseq);
+		process_startup_msg(m);
 	}
 }
 
@@ -4697,7 +4693,7 @@ cm_handle_NET_STARTUP_INFO(XClientMessageEvent *e, Client *c)
 	m->len += len;
 	if (len < 20) {
 		XDeleteContext(dpy, from, MessageContext);
-		process_startup_msg(m, &myseq);
+		process_startup_msg(m);
 	}
 }
 
@@ -8206,9 +8202,11 @@ set_id(Sequence *s, Entry *e)
 	PTRACE(5);
 	free(s->f.id);
 	s->f.id = NULL;
+	myid = NULL;
 
 	if (options.id) {
 		s->f.id = strdup(options.id);
+		myid = s->f.id;
 		return;
 	}
 	if (!s->f.launcher)
@@ -8231,6 +8229,7 @@ set_id(Sequence *s, Entry *e)
 	for (; (p = strchr(launchee, '/')); *p = '|') ;
 
 	s->f.id = calloc(512, sizeof(*s->f.id));
+	myid = s->f.id;
 	snprintf(s->f.id, 512, "%s/%s/%s-%s-%s_TIME%s",
 		 launcher, launchee, s->f.pid, s->f.monitor, s->f.hostname, s->f.timestamp);
 	free(launcher);
@@ -9366,6 +9365,8 @@ int
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
+	Entry *e;
+	Sequence *s;
 	char *p;
 
 #if 0
@@ -9835,13 +9836,17 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	if (options.path && !parse_file(options.path, &myent)) {
+	if (!(e = calloc(1, sizeof(*e)))) {
+		EPRINTF("could not allocate entry: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if (options.path && !parse_file(options.path, e)) {
 		EPRINTF("could not parse file '%s'\n", options.path);
 		free(options.path);
 		options.path = NULL;
 		if (!eargv)
 			exit(EXIT_FAILURE);
-		myent.TryExec = strdup(eargv[0]);
+		e->TryExec = strdup(eargv[0]);
 	}
 	if (options.file && options.file[0] && !options.url) {
 		if (options.file[0] == '/') {
@@ -9883,27 +9888,32 @@ main(int argc, char *argv[])
 		}
 	}
 	if (options.output > 1)
-		show_entry("Entries", &myent);
+		show_entry("Entries", e);
 	if (options.info)
-		info_entry("Entries", &myent);
-	if (!eargv && !options.exec && !myent.Exec) {
+		info_entry("Entries", e);
+	if (!eargv && !options.exec && !e->Exec) {
 		EPRINTF("no exec command\n");
+		exit(EXIT_FAILURE);
+	}
+	if (!(s = calloc(1, sizeof(*s)))) {
+		EPRINTF("could not allocate sequence: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	/* populate some fields */
 	if (options.id) {
 		if (options.info)
 			fprintf(stdout, "Setting desktop startup id to: %s\n", options.id);
-		free(myseq.f.id);
-		myseq.f.id = strdup(options.id);
+		free(s->f.id);
+		s->f.id = strdup(options.id);
+		myid = s->f.id;
 	}
 	/* open display now */
 	get_display();
 	/* fill out all fields */
-	set_all(&myseq, &myent);
+	set_all(s, e);
 	if (!options.info)
-		put_history(&myseq, &myent);
-	launch(&myseq, &myent);
+		put_history(s, e);
+	launch(s, e);
 	exit(EXIT_SUCCESS);
 }
 
