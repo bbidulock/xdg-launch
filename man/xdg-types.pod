@@ -128,11 +128,10 @@ for that path, then print "./appid.desktop" rather than the full path.
 
 Output a tilde when a directory matches the C<HOME> directory.
 
-=item B<-m>, B<--mimetypes>
+=item B<-m>, B<--mime-types>
 
-For each desktop entry, also print to standard output an indented
-list of the mime types supported by the desktop entry, one mime type per
-line.
+Also output an indented list of supported mime types for the desktop
+entry, one per line.
 
 =back
 

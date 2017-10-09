@@ -179,6 +179,51 @@ output_types(const char *path)
 	    (types = g_app_info_get_supported_types(G_APP_INFO(info))))
 		while (*types)
 			fprintf(stdout, "\t%s\n", *types++);
+#else
+	FILE *f;
+
+	if ((f = fopen(path, "r"))) {
+		char buf[BUFSIZ + 1], *p, *q;
+		int outside_entry = 1;
+		char *section = NULL;
+		char *key, *val;
+
+		while ((p = fgets(buf, BUFSIZ, f))) {
+			/* watch out for DOS formatted files */
+			if ((q = strchr(p, '\r')))
+				*q = '\0';
+			if ((q = strchr(p, '\n')))
+				*q = '\0';
+			if (*p == '[' && (q = strchr(p, ']'))) {
+				*q = '\0';
+				free(section);
+				section = strdup(p + 1);
+				outside_entry = strcmp(section, "Desktop Entry");
+			}
+			if (outside_entry)
+				continue;
+			if (*p == '#' || !(q = strchr(p, '=')))
+				continue;
+			*q = '\0';
+			key = p;
+			val = q + 1;
+
+			/* space before and after the equals sign should be ignored */
+			for (q = q - 1; q >= key && isspace(*q); *q = '\0', q--) ;
+			for (q = val; *q && isspace(*q); q++) ;
+
+			if (strcmp(key, "MimeType"))
+				continue;
+			while ((p = q)) {
+				if ((q = strchr(p, ';')))
+					*q++ = '\0';
+				if (*p)
+					fprintf(stdout, "\t%s\n", p);
+			}
+			break;
+		}
+		fclose(f);
+	}
 #endif
 }
 

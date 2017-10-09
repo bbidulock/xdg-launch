@@ -4,19 +4,18 @@ bin_PROGRAMS = \
 	xdg-launch \
 	xdg-assist \
 	xdg-list \
-	xdg-types
+	xdg-types \
+	xdg-which
 
 EXTRA_PROGRAMS = \
 	xdg-find \
 	xdg-prefs \
-	xdg-which \
 	xdg-whereis
 
 if HAVE_GIO_GLIB2_SUPPORT
 bin_PROGRAMS += \
 	xdg-find \
-	xdg-prefs \
-	xdg-which
+	xdg-prefs
 endif
 
 xdg_launch_CPPFLAGS = -DNAME=\"xde-launch\"
