@@ -3,10 +3,10 @@ AM_CFLAGS = $(DEBUG_CFLAGS)
 bin_PROGRAMS = \
 	xdg-launch \
 	xdg-assist \
-	xdg-list
+	xdg-list \
+	xdg-types
 
 EXTRA_PROGRAMS = \
-	xdg-types \
 	xdg-find \
 	xdg-prefs \
 	xdg-which \
@@ -14,7 +14,6 @@ EXTRA_PROGRAMS = \
 
 if HAVE_GIO_GLIB2_SUPPORT
 bin_PROGRAMS += \
-	xdg-types \
 	xdg-find \
 	xdg-prefs \
 	xdg-which

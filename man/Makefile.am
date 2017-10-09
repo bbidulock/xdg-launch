@@ -10,11 +10,11 @@ xdg_man1_files = \
 	     xdg-entry.man \
 	     xdg-toolwait.man \
 	     xdg-list.man \
-	     xdg-session.man
+	     xdg-session.man \
+	     xdg-types.man
 
 if HAVE_GIO_GLIB2_SUPPORT
 xdg_man1_files += \
-	     xdg-types.man \
 	     xdg-prefs.man \
 	     xdg-find.man
 endif

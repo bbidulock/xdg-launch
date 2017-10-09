@@ -18,10 +18,6 @@ appropriate sub-directories of the C<XDG_CONFIG_DIRS>,
 C<XDG_CONFIG_HOME>, C<XDG_DATA_DIRS> and C<XDG_DATA_HOME> environment
 variables using the same algorithms as L<xdg-launch(1)>.
 
-For each desktop entry, it also prints to standard output an indented
-list of the mime types supported by the desktop entry, one mime type per
-line.
-
 =head1 ARGUMENTS
 
 The program accepts the following arguments:
@@ -131,6 +127,12 @@ for that path, then print "./appid.desktop" rather than the full path.
 =item B<-T>, B<--show-tilde>
 
 Output a tilde when a directory matches the C<HOME> directory.
+
+=item B<-m>, B<--mimetypes>
+
+For each desktop entry, also print to standard output an indented
+list of the mime types supported by the desktop entry, one mime type per
+line.
 
 =back
 
