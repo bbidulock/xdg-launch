@@ -2341,49 +2341,55 @@ lookup_file_by_name(const char *name)
 char *
 lookup_file_by_type(const char *type)
 {
-	char *path;
-	gchar *content;
-	GList *apps, *app;
-	GAppInfo *info;
 
 	if (!strchr(type, '/') || (strchr(type, '/') != strrchr(type, '/'))) {
 		DPRINTF(1, "incorrect mime-type format: '%s'\n", type);
-		return NULL;
-	}
-	if (!(content = g_content_type_from_mime_type(type))) {
-		DPRINTF(1, "not content type for mime type: '%s'\n", type);
-		return NULL;
-	}
-	if ((info = g_app_info_get_default_for_type(content, FALSE))) {
-		if ((path = lookup_file_by_name(g_app_info_get_id(info)))) {
-			g_free(content);
-			return path;
+	} else {
+#ifdef GIO_GLIB2_SUPPORT
+		char *path;
+		gchar *content;
+		GList *apps, *app;
+		GAppInfo *info;
+
+		if (!(content = g_content_type_from_mime_type(type))) {
+			DPRINTF(1, "not content type for mime type: '%s'\n", type);
+			return NULL;
 		}
-	}
-	if ((apps = g_app_info_get_recommended_for_type(content))) {
-		for (app = apps; app; app = app->next) {
-			if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
-				g_list_free(apps);
+		if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+			if ((path = lookup_file_by_name(g_app_info_get_id(info)))) {
 				g_free(content);
 				return path;
 			}
 		}
-		g_list_free(apps);
-	}
-	if ((apps = g_app_info_get_fallback_for_type(content))) {
-		for (app = apps; app; app = app->next) {
-			if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
-				g_list_free(apps);
-				g_free(content);
-				return path;
+		if ((apps = g_app_info_get_recommended_for_type(content))) {
+			for (app = apps; app; app = app->next) {
+				if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+					g_list_free(apps);
+					g_free(content);
+					return path;
+				}
 			}
+			g_list_free(apps);
 		}
-		g_list_free(apps);
+		if ((apps = g_app_info_get_fallback_for_type(content))) {
+			for (app = apps; app; app = app->next) {
+				if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+					g_list_free(apps);
+					g_free(content);
+					return path;
+				}
+			}
+			g_list_free(apps);
+		}
+		g_free(content);
+#else
+		EPRINTF("cannot use mime type without GLIB/GIO support\n");
+#endif
 	}
-	g_free(content);
 	return NULL;
 }
 
+#ifdef GIO_GLIB2_SUPPORT
 static char **
 get_desktops(void)
 {
@@ -2428,6 +2434,7 @@ get_searchdirs(void)
 		searchdirs[i++] = g_build_filename(*dirs, "applications", NULL);
 	return searchdirs;
 }
+#endif
 
 /** @brief look up the file from CATEGORY
   *
@@ -2436,6 +2443,7 @@ get_searchdirs(void)
 char *
 lookup_file_by_kind(const char *type)
 {
+#ifdef GIO_GLIB2_SUPPORT
 	GDesktopAppInfo *desk;
 	GKeyFile *dfile, *afile;
 	GList *apps, *app;
@@ -2466,8 +2474,7 @@ lookup_file_by_kind(const char *type)
 			name = g_strdup_printf("%s-prefapps.list", *desktop);
 			path = g_build_filename(*dir, name, NULL);
 			if (!got_dfile)
-				got_dfile =
-				    g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+				got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
 			g_free(path);
 			g_free(name);
 		}
@@ -2512,8 +2519,7 @@ lookup_file_by_kind(const char *type)
 	if (got_afile) {
 		char **apps, **app;
 
-		if ((apps =
-		     g_key_file_get_string_list(dfile, "Added Categories", type, NULL, NULL))) {
+		if ((apps = g_key_file_get_string_list(dfile, "Added Categories", type, NULL, NULL))) {
 			for (app = apps; app && *app; app++) {
 				if ((result = lookup_file_by_name(*app))) {
 					g_strfreev(apps);
@@ -2555,6 +2561,10 @@ lookup_file_by_kind(const char *type)
 	}
 	free(category);
 	return result;
+#else
+	EPRINTF("cannot look up by category without GLIB/GIO support\n");
+	return (NULL);
+#endif
 }
 
 void
@@ -8916,34 +8926,16 @@ put_recently_used(char *filename, Entry *e)
 #endif				/* GIO_GLIB2_SUPPORT */
 
 static void
-line_free(gpointer data)
-{
-	free(data);
-}
-
-static gint
-line_sort(gconstpointer a, gconstpointer b)
-{
-	return strcmp(a, b);
-}
-
-static void
-line_write(gpointer data, gpointer user)
-{
-	FILE *f = user;
-
-	fputs(data, f);
-	fputc('\n', f);
-}
-
-static void
 put_line_history(char *file, char *line)
 {
 	FILE *f;
 	int dummy;
 	char *buf, *p;
 	int discarding = 0, n = 0, keep;
-	GList *history = NULL;
+	struct list {
+		struct list *next;
+		char *string;
+	} *history = NULL, *last = NULL, *h;
 
 	keep = defaults.keep;
 	if (options.keep > 0)
@@ -8986,27 +8978,43 @@ put_line_history(char *file, char *line)
 		if (!*p)
 			continue;
 		DPRINTF(1, "read line from %s: '%s'\n", file, p);
-		if (line_sort(p, line) == 0)
+		if (strcmp(p, line) == 0)
 			continue;
-		if (g_list_find_custom(history, p, line_sort))
+		for (h = history; h && strcmp(h->string, p) != 0; h = h->next) ;
+		if (h)
 			continue;
-		history = g_list_append(history, strdup(p));
+		if (!(h = calloc(1, sizeof(*h))))
+			break;
+		h->string = strdup(p);
+		if (last) {
+			last->next = h;
+			last = h;
+		} else {
+			history = last = h;
+		}
 		if (++n >= keep)
 			break;
 	}
 
 	/* 2) append new information */
-	history = g_list_prepend(history, strdup(line));
+	if ((h = calloc(1, sizeof(*h)))) {
+		h->string = strdup(line);
+		h->next = history;
+		history = h;
+	}
 
 	/* 3) write out the history file */
 	dummy = ftruncate(fileno(f), 0);
 	fseek(f, 0L, SEEK_SET);
-	g_list_foreach(history, line_write, f);
+	while ((h = history)) {
+		history = h->next;
+		fputs(h->string, f);
+		fputc('\n', f);
+		free(h);
+	}
 	fflush(f);
 	dummy = lockf(fileno(f), F_ULOCK, 0);
 	fclose(f);
-	g_list_free_full(history, line_free);
-	history = NULL;
 	(void) dummy;
 }
 
@@ -9904,8 +9912,7 @@ main(int argc, char *argv[])
 	}
 	if (options.path) {
 		free(options.uri);
-		if ((options.uri =
-		     calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
+		if ((options.uri = calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
 			strcpy(options.uri, "file://");
 			strcat(options.uri, options.path);
 
