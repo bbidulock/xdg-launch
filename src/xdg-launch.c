@@ -343,6 +343,7 @@ static const char *DesktopEntryFields[] = {
 	"Hidden",
 	"OnlyShowIn",
 	"NotShowIn",
+	"DesktopNames",
 	NULL
 };
 
@@ -365,6 +366,7 @@ typedef struct _Entry {
 	char *Hidden;
 	char *OnlyShowIn;
 	char *NotShowIn;
+	char *DesktopNames;
 } Entry;
 
 static const char *StartupNotifyFields[] = {
@@ -2172,6 +2174,10 @@ parse_file(char *path)
 		} else if (strcmp(key, "NotShowIn") == 0) {
 			if (!e->NotShowIn)
 				e->NotShowIn = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "DesktopNames") == 0) {
+			if (!e->DesktopNames)
+				e->DesktopNames = strdup(val);
 			ok = 1;
 		}
 	}
@@ -9224,6 +9230,28 @@ session(Sequence *s, Entry * e)
 	pid_t sid;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
+
+	if (!getenv("XDG_CURRENT_DESKTOP")) {
+		if (e->DesktopNames)
+			setenv("XDG_CURRENT_DESKTOP", e->DesktopNames, 1);
+		else if (e->path) {
+			char *p, *q, *desktop;
+
+			if ((p = strrchr(e->path, '/')))
+				p++;
+			else
+				p = e->path;
+			if ((q = strstr(e->path, ".desktop")) && !q[8])
+				desktop = strndup(p, q - p);
+			else
+				desktop = strdup(p);
+			for (p = desktop; p && *p; p++)
+				*p = toupper(*p);
+			setenv("XDG_CURRENT_DESKTOP", desktop, 1);
+			free(desktop);
+		} else
+			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
+	}
 
 	if ((sid = setsid()) == (pid_t) -1)
 		EPRINTF("cannot become session leader: %s\n", strerror(errno));
