@@ -59,6 +59,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <sys/types.h>
+#include <dirent.h>
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/poll.h>
@@ -339,6 +340,9 @@ static const char *DesktopEntryFields[] = {
 	"MimeType",
 	"AsRoot",
 	"AutostartPhase",
+	"Hidden",
+	"OnlyShowIn",
+	"NotShowIn",
 	NULL
 };
 
@@ -358,6 +362,9 @@ typedef struct _Entry {
 	char *MimeType;
 	char *AsRoot;
 	char *AutostartPhase;
+	char *Hidden;
+	char *OnlyShowIn;
+	char *NotShowIn;
 } Entry;
 
 static const char *StartupNotifyFields[] = {
@@ -485,6 +492,18 @@ typedef struct {
 	char *data;			/* message bytes */
 	int len;			/* number of message bytes */
 } Message;
+
+typedef struct _Process {
+	struct _Process *next;		/* next entry */
+	Bool running;			/* is this process running? */
+	pid_t pid;			/* pid for this process */
+	char *path;			/* path to .desktop file */
+	char *appid;			/* application id portion of path */
+	Entry *ent;			/* parsed entry for this process */
+	Sequence *seq;			/* startup notification sequence */
+} Process;
+
+Process *processes = NULL;
 
 typedef struct {
 	int screen;			/* screen number */
@@ -1991,7 +2010,7 @@ parse_file(char *path)
 
 	if (!(file = fopen(path, "r"))) {
 		EPRINTF("cannot open file '%s' for reading\n", path);
-		exit(EXIT_FAILURE);
+		return (NULL);
 	}
 	free(e->path);
 	e->path = strdup(path);
@@ -2142,6 +2161,18 @@ parse_file(char *path)
 					break;
 				}
 			}
+		} else if (strcmp(key, "Hidden") == 0) {
+			if (!e->Hidden)
+				e->Hidden = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "OnlyShowIn") == 0) {
+			if (!e->OnlyShowIn)
+				e->OnlyShowIn = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "NotShowIn") == 0) {
+			if (!e->NotShowIn)
+				e->NotShowIn = strdup(val);
+			ok = 1;
 		}
 	}
 	fclose(file);
@@ -8145,18 +8176,18 @@ set_bin(Sequence *s, Entry *e)
 }
 
 char *
-set_application_id(Sequence *s)
+set_application_id(Sequence *s, Entry *e)
 {
 	char *p, *q;
 
 	PTRACE(5);
 	free(s->f.application_id);
-	if (options.path) {
-		if ((p = strrchr(options.path, '/')))
+	if (e->path) {
+		if ((p = strrchr(e->path, '/')))
 			p++;
 		else
-			p = options.path;
-		if ((q = strstr(options.path, ".desktop")) && !q[8])
+			p = e->path;
+		if ((q = strstr(e->path, ".desktop")) && !q[8])
 			s->f.application_id = strndup(p, q - p);
 		else
 			s->f.application_id = strdup(p);
@@ -8185,6 +8216,12 @@ set_launcher(Sequence *s)
 		s->f.launcher = strdup(options.launcher);
 	else if (s->f.id && (p = strchr(s->f.id, '/')))
 		s->f.launcher = strndup(s->f.id, p - s->f.id);
+	else if (options.session)
+		s->f.launcher = strdup("xdg-session");
+	else if (options.autostart)
+		s->f.launcher = strdup("xdg-autostart");
+	else if (options.xsession)
+		s->f.launcher = strdup("xdg-xsession");
 	else
 		s->f.launcher = strdup(NAME);
 	for (; (p = strchr(s->f.launcher, '|')); *p = '/') ;
@@ -8203,7 +8240,7 @@ set_launchee(Sequence *s, Entry *e)
 		s->f.launchee = strndup(p, q - p);
 	else if (s->f.bin || set_bin(s, e))
 		s->f.launchee = strdup(s->f.bin);
-	else if (s->f.application_id || set_application_id(s))
+	else if (s->f.application_id || set_application_id(s, e))
 		s->f.launchee = strdup(s->f.application_id);
 	else
 		s->f.launchee = strdup("");
@@ -8269,7 +8306,7 @@ set_all(Sequence *s, Entry *e)
 	if (!s->f.silent)
 		set_silent(s, e);
 	if (!s->f.application_id)
-		set_application_id(s);
+		set_application_id(s, e);
 	if (!s->f.screen)
 		set_screen(s);
 	/* must be on correct screen before doing monitor */
@@ -9039,6 +9076,95 @@ put_history(Sequence *s, Entry *e)
 #endif				/* GIO_GLIB2_SUPPORT */
 }
 
+static int
+sort_by_appid(const void *a, const void *b)
+{
+	Process * const * pp_a = a;
+	Process * const * pp_b = b;
+
+	DPRINTF(8, "comparing %s with %s\n", (*pp_a)->appid, (*pp_b)->appid);
+
+	return strcmp((*pp_a)->appid, (*pp_b)->appid);
+}
+
+static void
+delete_pr(Process **prev)
+{
+	Process *pr = *prev;
+
+	*prev = pr->next;
+	pr->next = NULL;
+	if (pr->ent) {
+		free_entry(pr->ent);
+		pr->ent = NULL;
+	}
+	free(pr->path);
+	pr->path = NULL;
+	free(pr->appid);
+	pr->appid = NULL;
+	free(pr);
+}
+
+static Bool
+check_showin(const char *showin)
+{
+	const char *env;
+	char *desktop, *dstr, *dtok, *dsav;
+
+	if (!showin)
+		return True;
+	if ((env = getenv("XDG_CURRENT_DESKTOP")) && (desktop = strdup(env))) {
+		for (dstr = desktop; (dtok = strtok_r(dstr, ";", &dsav)); dstr = NULL) {
+			char *check, *cstr, *ctok, *csav;
+
+			if (!(check = strdup(showin))) {
+				free(desktop);
+				return False;
+			}
+			for (cstr = check; (ctok = strtok_r(cstr, ";", &csav)); cstr = NULL) {
+				if (!strcmp(dtok, ctok)) {
+					free(desktop);
+					free(check);
+					return True;
+				}
+			}
+			free(check);
+		}
+		free(desktop);
+	}
+	return False;
+}
+
+static Bool
+check_noshow(const char *noshow)
+{
+	const char *env;
+	char *desktop, *dstr, *dtok, *dsav;
+
+	if (!noshow)
+		return True;
+	if ((env = getenv("XDG_CURRENT_DESKTOP")) && (desktop = strdup(env))) {
+		for (dstr = desktop; (dtok = strtok_r(dstr, ";", &dsav)); dstr = NULL) {
+			char *check, *cstr, *ctok, *csav;
+
+			if (!(check = strdup(noshow))) {
+				free(desktop);
+				return True;
+			}
+			for (cstr = check; (ctok = strtok_r(cstr, ";", &csav)); cstr = NULL) {
+				if (!strcmp(dtok, ctok)) {
+					free(desktop);
+					free(check);
+					return False;
+				}
+			}
+			free(check);
+		}
+		free(desktop);
+	}
+	return True;
+}
+
 /** @brief create a simple session
   *
   * First attempt to become new session leader.  This establishes a new
@@ -9049,12 +9175,143 @@ void
 session(Sequence *s, Entry * e)
 {
 	pid_t sid;
+	char home[PATH_MAX + 1];
+	size_t i, count = 0;
 
 	if ((sid = setsid()) == (pid_t) -1)
 		EPRINTF("cannot become session leader: %s\n", strerror(errno));
 	else
 		DPRINTF(3, "new session id %d\n", (int) sid);
 	(void) sid;
+
+	char *xdg, *dirs, *env;
+	char *p, *q;
+
+	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
+
+	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || *dirs)
+		dirs = "/etc/xdg";
+	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
+		strcpy(home, env);
+	else {
+		if ((env = getenv("HOME")))
+			strcpy(home, env);
+		else
+			strcpy(home, ".");
+		strcat(home, "/.config");
+	}
+	strncpy(xdg, home, PATH_MAX);
+	strncat(xdg, ":", PATH_MAX);
+	strncat(xdg, dirs, PATH_MAX);
+
+	/* process directories in reverse order */
+	do {
+		char path[PATH_MAX + 1];
+		DIR *dir;
+
+		if ((p = strrchr(xdg, ':')))
+			*p++ = '\0';
+		else
+			p = xdg;
+		strncpy(path, p, PATH_MAX);
+		strncat(path, "/autostart/", PATH_MAX);
+
+		if ((dir = opendir(path))) {
+			struct dirent *d;
+
+			while ((d = readdir(dir))) {
+				Process *pr;
+				char appid[256];
+				size_t len;
+
+				/* name must end in .desktop */
+				if (!(q = strstr(d->d_name, ".desktop")) || q[8])
+					continue;
+				len = q - d->d_name;
+				strncpy(appid, d->d_name, len);
+				appid[len] = '\0';
+				for (pr = processes; pr && strcmp(pr->appid, appid); pr = pr->next) ;
+				if (pr) {
+					pr->path = realloc(pr->path, PATH_MAX + 1);
+					strncpy(pr->path, path, PATH_MAX);
+					strncat(pr->path, d->d_name, PATH_MAX);
+				} else if ((pr = calloc(1, sizeof(*pr)))) {
+					size_t len = strlen(path) + strlen(appid) + 8 + 1;
+
+					pr->appid = strdup(appid);
+					pr->path = calloc(len + 1, sizeof(*pr->path));
+					strncpy(pr->path, path, len);
+					strncat(pr->path, appid, len);
+					strncat(pr->path, ".desktop", len);
+					pr->next = processes;
+					processes = pr;
+					count++;
+				}
+			}
+			closedir(dir);
+		}
+	} while (p != xdg);
+	if (count) {
+		Process **array, *pr, **pp, **pp_prev;
+
+		array = calloc(count, sizeof(*array));
+		for (pp = array, pr = processes; pr; pr = pr->next) {
+			DPRINTF(6, "adding %s from %s to processes\n", pr->appid, pr->path);
+			*pp++ = pr;
+		}
+		qsort(array, count, sizeof(*pp), sort_by_appid);
+		/* rebuild list sorted */
+		for (processes = NULL, pp_prev = &processes, i = 0; i < count; i++) {
+			pr = array[i];
+			pr->next = NULL;
+			*pp_prev = pr;
+			pp_prev = &pr->next;
+			DPRINTF(4, "%s: %s\n", pr->appid, pr->path);
+		}
+		free(array);
+		options.session = False;
+		options.xsession = False;
+		options.autostart = True;
+		// free(options.launcher);
+		// options.launcher = strdup("xdg-autostart");
+		for (pp_prev = &processes; (pr = *pp_prev); ) {
+			if (!(pr->ent = parse_file(pr->path))) {
+				EPRINTF("%s: %s: is invalid: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
+			if (pr->ent->Hidden && !strcmp(pr->ent->Hidden, "true")) {
+				DPRINTF(3, "%s: %s: is hidden: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
+			if (!check_showin(pr->ent->OnlyShowIn)) {
+				DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
+			if (!check_noshow(pr->ent->NotShowIn)) {
+				DPRINTF(3, "%s: %s: desktop is in NotShowIn: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
+			if (options.output > 1)
+				show_entry("Parsed entries", pr->ent);
+			if (options.info)
+				info_entry("Parsed entries", pr->ent);
+			pp_prev = &pr->next;
+		}
+		for (pr = processes; pr; pr = pr->next) {
+			/* should actually be done after child forks */
+			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
+				set_all(pr->seq, pr->ent);
+				if (options.output > 1)
+					show_sequence("Associated sequence", pr->seq);
+				if (options.info)
+					info_sequence("Associated sequence", pr->seq);
+			}
+		}
+	}
 }
 
 static void
@@ -9393,7 +9650,6 @@ set_defaults(int argc, char *argv[])
 }
 
 int
-
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
@@ -9482,8 +9738,7 @@ main(int argc, char *argv[])
 				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg::D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv,
-			   "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg:DvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (options.debug)
@@ -9585,13 +9840,13 @@ main(int argc, char *argv[])
 			free(options.appspec);
 			defaults.appspec = options.appspec = strdup(optarg);
 			break;
-		case 7:		/* --mimetype MIMETYPE */
+		case 7:	/* --mimetype MIMETYPE */
 			free(options.mimetype);
 			defaults.mimetype = options.mimetype = strdup(optarg);
 			free(options.appspec);
 			defaults.appspec = options.appspec = strdup(optarg);
 			break;
-		case 8:		/* --cateogry CATEGORY */
+		case 8:	/* --cateogry CATEGORY */
 			free(options.category);
 			defaults.category = options.category = strdup(optarg);
 			free(options.appspec);
@@ -9623,16 +9878,22 @@ main(int argc, char *argv[])
 			if (options.autostart || options.session)
 				goto bad_option;
 			defaults.xsession = options.xsession = True;
+			free(options.launcher);
+			defaults.launcher = options.launcher = strdup("xdg-xsession");
 			break;
 		case 'U':	/* -S, --autostart */
 			if (options.xsession || options.session)
 				goto bad_option;
 			defaults.autostart = options.autostart = True;
+			free(options.launcher);
+			defaults.launcher = options.launcher = strdup("xdg-autostart");
 			break;
 		case 'E':	/* -E, --session */
 			if (options.autostart || options.xsession)
 				goto bad_option;
 			defaults.session = options.session = True;
+			free(options.launcher);
+			defaults.launcher = options.launcher = strdup("xdg-session");
 			break;
 		case 'k':	/* -k, --keep NUMBER */
 			if ((val = strtoul(optarg, &endptr, 0)) < 0)
@@ -9653,7 +9914,7 @@ main(int argc, char *argv[])
 		case 'T':	/* -T, --toolwait */
 			defaults.toolwait = options.toolwait = True;
 			break;
-		case 1:		/* --timeout [SECONDS] */
+		case 1:	/* --timeout [SECONDS] */
 			if (optarg == NULL) {
 				defaults.timeout = options.timeout = 0;
 				break;
@@ -9666,7 +9927,7 @@ main(int argc, char *argv[])
 				goto bad_option;
 			defaults.timeout = options.timeout = val;
 			break;
-		case 2:		/* --mappings MAPPINGS */
+		case 2:	/* --mappings MAPPINGS */
 			if ((val = strtoul(optarg, &endptr, 0)) < 0)
 				goto bad_option;
 			if (endptr && *endptr)
@@ -9675,20 +9936,20 @@ main(int argc, char *argv[])
 				goto bad_option;
 			defaults.mappings = options.mappings = val;
 			break;
-		case 3:		/* --withdrawn */
+		case 3:	/* --withdrawn */
 			defaults.withdrawn = options.withdrawn = True;
 			break;
-		case 4:		/* --wid */
+		case 4:	/* --wid */
 			defaults.printwid = options.printwid = True;
 			break;
-		case 5:		/* --noprop */
+		case 5:	/* --noprop */
 			defaults.noprop = options.noprop = True;
 			break;
-		case 6:		/* --assist */
+		case 6:	/* --assist */
 			defaults.assist = options.assist = True;
 			defaults.autoassist = options.autoassist = False;
 			break;
-		case 9:		/* --no-assist */
+		case 9:	/* --no-assist */
 			defaults.assist = options.assist = False;
 			defaults.autoassist = options.autoassist = False;
 			break;
@@ -9822,7 +10083,8 @@ main(int argc, char *argv[])
 				goto bad_nonopt;
 		}
 	}
-	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec) {
+	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category
+	    && !options.exec && !options.session) {
 		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
 	} else if (eargv) {
@@ -9868,17 +10130,23 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	if (!options.path || !(e = parse_file(options.path))) {
-		EPRINTF("could not parse file '%s'\n", options.path);
-		free(options.path);
-		options.path = NULL;
-		if (!eargv)
-			exit(EXIT_FAILURE);
-		if (!(e = calloc(1, sizeof(*e)))) {
-			EPRINTF("could not allocate entry: %s\n", strerror(errno));
+	if (options.path) {
+		if (!(e = parse_file(options.path))) {
+			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
-		e->TryExec = strdup(eargv[0]);
+	} else {
+		if (eargv || options.session) {
+			if (!(e = calloc(1, sizeof(*e)))) {
+				EPRINTF("could not allocate entry: %s\n", strerror(errno));
+				exit(EXIT_FAILURE);
+			}
+			if (eargv)
+				e->TryExec = strdup(eargv[0]);
+		} else {
+			EPRINTF("could not find .desktop file for APPSPEC\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 	if (options.file && options.file[0] && !options.url) {
 		if (options.file[0] == '/') {
@@ -9906,23 +10174,24 @@ main(int argc, char *argv[])
 			strcat(options.url, "/");
 			strcat(options.url, options.file);
 		}
-	} else if (options.url && !options.file &&
-		   (p = strstr(options.url, "file://")) == options.url) {
+	} else if (options.url && !options.file && (p = strstr(options.url, "file://")) == options.url) {
 		options.file = strdup(options.url + 7);
 	}
+#if 0
+	/* XXX: what is this all about??? */
 	if (options.path) {
 		free(options.uri);
 		if ((options.uri = calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
 			strcpy(options.uri, "file://");
 			strcat(options.uri, options.path);
-
 		}
 	}
+#endif
 	if (options.output > 1)
 		show_entry("Entries", e);
 	if (options.info)
 		info_entry("Entries", e);
-	if (!eargv && !options.exec && !e->Exec) {
+	if (!eargv && !options.exec && !e->Exec && !options.session) {
 		EPRINTF("no exec command\n");
 		exit(EXIT_FAILURE);
 	}
@@ -9940,13 +10209,16 @@ main(int argc, char *argv[])
 	}
 	/* open display now */
 	get_display();
-	/* fill out all fields */
-	set_all(s, e);
-	if (!options.info)
-		put_history(s, e);
+	if (eargv || options.exec || e->Exec) {
+		/* fill out all fields */
+		set_all(s, e);
+		if (!options.info)
+			put_history(s, e);
+	}
 	if (options.session)
 		session(s, e);
-	launch(s, e);
+	else
+		launch(s, e);
 	exit(EXIT_SUCCESS);
 }
 
