@@ -7431,16 +7431,13 @@ need_assist(Sequence *s)
 			OPRINTF(1, "WMCLASS: requires assistance\n");
 			need_assist = True;
 			if (options.info)
-				fputs
-				    ("Launching StartupWMClass entry always requires assistance.\n",
-				     stdout);
+				fputs("Launching StartupWMClass entry always requires assistance.\n", stdout);
 		}
 		if (s->f.silent && s->n.silent) {
 			OPRINTF(1, "SILENT: requires assistance\n");
 			need_assist = True;
 			if (options.info)
-				fputs("Launching SILENT entry always requires assistance.\n",
-				      stdout);
+				fputs("Launching SILENT entry always requires assistance.\n", stdout);
 		}
 	}
 	return need_assist;
@@ -8145,11 +8142,30 @@ set_silent(Sequence *s, Entry *e)
 }
 
 char *
-first_word(char *str)
+first_word(const char *str)
 {
 	char *q = strchrnul(str, ' ');
 
 	return strndup(str, q - str);
+}
+
+char *
+strip_desktop(const char *p)
+{
+	char *q;
+
+	return (((q = strstr(p, ".desktop")) != p && !q[8])
+			? strndup(p, q - p)
+			: strdup(p));
+}
+
+char *
+extract_appid(const char *path)
+{
+	const char *p;
+
+	p = (p = strrchr(path, '/')) ? p + 1 : path;
+	return (strip_desktop(p));
 }
 
 char *
@@ -8180,28 +8196,12 @@ set_bin(Sequence *s, Entry *e)
 char *
 set_application_id(Sequence *s, Entry *e)
 {
-	char *p, *q;
-
 	PTRACE(5);
 	free(s->f.application_id);
 	if (e->path) {
-		if ((p = strrchr(e->path, '/')))
-			p++;
-		else
-			p = e->path;
-		if ((q = strstr(e->path, ".desktop")) && !q[8])
-			s->f.application_id = strndup(p, q - p);
-		else
-			s->f.application_id = strdup(p);
+		s->f.application_id = extract_appid(e->path);
 	} else if (options.appid) {
-		if ((p = strrchr(options.appid, '/')))
-			p++;
-		else
-			p = options.appid;
-		if ((q = strstr(options.appid, ".desktop")) && !q[8])
-			s->f.application_id = strndup(p, q - p);
-		else
-			s->f.application_id = strdup(p);
+		s->f.application_id = extract_appid(options.appid);
 	} else
 		s->f.application_id = NULL;
 	return s->f.application_id;
@@ -9083,8 +9083,8 @@ put_history(Sequence *s, Entry *e)
 static int
 sort_by_appid(const void *a, const void *b)
 {
-	Process * const * pp_a = a;
-	Process * const * pp_b = b;
+	Process *const *pp_a = a;
+	Process *const *pp_b = b;
 
 	DPRINTF(8, "comparing %s with %s\n", (*pp_a)->appid, (*pp_b)->appid);
 
@@ -9177,15 +9177,11 @@ check_exec(const char *tryexec, const char *exec)
 	if (!exec)
 		return False;
 	if (tryexec) {
-		if (!(binary = strdup(tryexec)))
+		if (!(binary = first_word(tryexec)))
 			return False;
 	} else {
-		char *p;
-
-		if (!(binary = strdup(exec)))
+		if (!(binary = first_word(exec)))
 			return False;
-		if ((p = strpbrk(binary, " \t")))
-			*p = '\0';
 	}
 	if (binary[0] == '/') {
 		if (!access(binary, X_OK)) {
@@ -9225,26 +9221,20 @@ check_exec(const char *tryexec, const char *exec)
   */
 
 void
-session(Sequence *s, Entry * e)
+session(Process *wm)
 {
 	pid_t sid;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
+	Entry *e = wm->ent;
 
 	if (e->DesktopNames)
 		setenv("XDG_CURRENT_DESKTOP", e->DesktopNames, 1);
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
 		if (e->path) {
-			char *p, *q, *desktop;
+			char *desktop, *p;
 
-			if ((p = strrchr(e->path, '/')))
-				p++;
-			else
-				p = e->path;
-			if ((q = strstr(e->path, ".desktop")) && !q[8])
-				desktop = strndup(p, q - p);
-			else
-				desktop = strdup(p);
+			desktop = extract_appid(e->path);
 			for (p = desktop; p && *p; p++)
 				*p = toupper(*p);
 			setenv("XDG_CURRENT_DESKTOP", desktop, 1);
@@ -9369,7 +9359,8 @@ session(Sequence *s, Entry * e)
 				continue;
 			}
 			if (!check_showin(ent->OnlyShowIn)) {
-				DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid, pr->path);
+				DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid,
+					pr->path);
 				delete_pr(pp_prev);
 				continue;
 			}
@@ -9746,6 +9737,7 @@ int
 main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
+	Process *pr;
 	Entry *e;
 	Sequence *s;
 	char *p;
@@ -10228,17 +10220,23 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
+	if (!(pr = calloc(1, sizeof(*pr)))) {
+		EPRINTF("could not alloc process: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	if (options.path) {
-		if (!(e = parse_file(options.path))) {
+		if (!(e = pr->ent = parse_file(options.path))) {
 			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
+		pr->path = strdup(e->path);
+		pr->appid = extract_appid(e->path);
 		if (!e->Exec) {
 			EPRINTF("no exec command in '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
 	} else {
-		if (!(e = calloc(1, sizeof(*e)))) {
+		if (!(e = pr->ent = calloc(1, sizeof(*e)))) {
 			EPRINTF("could not allocate entry: %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
@@ -10284,7 +10282,7 @@ main(int argc, char *argv[])
 		show_entry("Entries", e);
 	if (options.info)
 		info_entry("Entries", e);
-	if (!(s = calloc(1, sizeof(*s)))) {
+	if (!(s = pr->seq = calloc(1, sizeof(*s)))) {
 		EPRINTF("could not allocate sequence: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
@@ -10305,7 +10303,7 @@ main(int argc, char *argv[])
 			put_history(s, e);
 	}
 	if (options.session)
-		session(s, e);
+		session(pr);
 	else
 		launch(s, e);
 	exit(EXIT_SUCCESS);
