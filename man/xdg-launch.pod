@@ -397,6 +397,8 @@ B<xdg-session> instead of B<xdg-launch>.  This option, therefore, acts
 like the B<--xsession> option, with the exception that the program also
 performs autostart for the window manager by executing the necessary
 autostart desktop entries according to the XDG autostart specification.
+When no X session is specified, waits after the autostart procedure
+until all children exit.
 
 Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
 
@@ -709,6 +711,10 @@ I<APPID> or B<--exec> command for the window manager in the parent
 process.  It attempts to become an session leader and a process group
 leader before launching children.  This should ultimately leave any
 child processes as children of the window manager.
+
+When no I<APPID> or B<--exec> command is specified, instead of starting
+a window manager, waits until all child processes have exited and then
+exits itself.
 
 =head2 TOOL WAIT
 
