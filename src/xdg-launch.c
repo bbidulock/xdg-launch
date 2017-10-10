@@ -9687,15 +9687,20 @@ set_defaults(int argc, char *argv[])
 {
 	char *buf, *disp, *p;
 
-	free(options.launcher);
 	buf = (p = strrchr(argv[0], '/')) ? p + 1 : argv[0];
-	defaults.launcher = options.launcher = strdup(buf);
-	if (!strcmp(buf, "xdg-xsession"))
+	if (!strcmp(buf, "xdg-xsession")) {
 		defaults.xsession = options.xsession = True;
-	else if (!strcmp(buf, "xdg-autostart"))
+		free(options.launcher);
+		defaults.launcher = options.launcher = strdup(buf);
+	} else if (!strcmp(buf, "xdg-autostart")) {
 		defaults.autostart = options.autostart = True;
-	else if (!strcmp(buf, "xdg-session"))
+		free(options.launcher);
+		defaults.launcher = options.launcher = strdup(buf);
+	} else if (!strcmp(buf, "xdg-session")) {
 		defaults.session = options.session = True;
+		free(options.launcher);
+		defaults.launcher = options.launcher = strdup(buf);
+	}
 
 	free(options.hostname);
 	buf = defaults.hostname = options.hostname = calloc(65, sizeof(*buf));
