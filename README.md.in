@@ -102,19 +102,19 @@ The following programs are included in `@PACKAGE@`:
    also assists window managers with supporting startup notification and
    other EWMH/NetWM features.
 
-Also provided (when `glib2` is available) are some little tools for the
-XDG desktop:
-
  - __`xdg-list(1)`__ -- lists desktop entry files.
 
  - __`xdg-types(1)`__ -- shows the content types provided by a desktop
    application.
 
- - __`xdg-find(1)`__ -- finds desktop entry files based on a number of
-   search criteria.
-
  - __`xdg-which(1)`__ -- determine which XDG desktop entries correspond
    to a given application id.
+
+Also provided (when `glib2` is available) are some little tools for the
+XDG desktop:
+
+ - __`xdg-find(1)`__ -- finds desktop entry files based on a number of
+   search criteria.
 
  - __`xdg-prefs(1)`__ -- locates or sets preferred applications by
    category or mime type.
