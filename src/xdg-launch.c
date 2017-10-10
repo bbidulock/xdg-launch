@@ -8974,11 +8974,13 @@ put_line_history(char *file, char *line)
 		char *string;
 	} *history = NULL, *last = NULL, *h;
 
-	keep = defaults.keep;
-	if (options.keep > 0)
+	if (options.keep > 0) {
 		keep = options.keep;
-
-	DPRINTF(1, "maximum history entries '%d'\n", keep);
+		DPRINTF(1, "maximum history entries '%d'\n", keep);
+	} else {
+		keep = INT_MAX;
+		DPRINTF(1, "maximum history entries unlimited\n");
+	}
 
 	if (!file) {
 		EPRINTF("cannot record history without a file\n");
