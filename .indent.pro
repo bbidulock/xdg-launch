@@ -228,6 +228,7 @@
 -Tpid_t
 -TPingHost
 -TPixmap
+-TProcess
 -Tpwatch_fp_t
 -Tpwatch_t
 -Tqband_t
