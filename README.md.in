@@ -77,12 +77,17 @@ The following programs are included in `@PACKAGE@`:
    `xdg-launch(1)` and dmenu(1) to provide an application menu.
 
  - __`xdg-autostart(1)`__ -- This is a little script that invokes
-   xdg-launch(1) as a launcher for autostart programs instead of
+   xdg-launch(1) as a launcher for auto-start programs instead of
    applications.
 
  - __`xdg-xsession(1)`__ -- This is a little script that invokes
    `xdg-launch(1)` as a launcher for X Sessions programs (window
    managers) instead of applications.
+
+ - __`xdg-session(1)`__ -- This is a little script that invokes
+   `xdg-launch(1)` as a launcher for X Sessions programs (window
+   managers) instead of applications a simple session and full
+   auto-start procedure.
 
  - __`xdg-entry(1)`__ -- This is a little script that invokes
    xdg-launch(1)` with the --info option and lists which information
