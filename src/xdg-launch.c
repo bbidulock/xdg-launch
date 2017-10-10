@@ -306,7 +306,7 @@ Options defaults = {
 	.recapps = "~/.config/xde/recent-applications",
 	.recently = "~/.local/share/recently-used",
 	.recent = NULL,
-	.keep = 10,
+	.keep = 20,
 	.info = False,
 	.toolwait = False,
 	.timeout = 15,
@@ -8114,9 +8114,7 @@ set_command(Sequence *s, Entry *e)
 			strncat(cmd, "xterm -T \"%c\" -e ", 1024);
 		}
 	}
-	if (options.exec)
-		strncat(cmd, options.exec, 1024);
-	else if (e->Exec)
+	if (e->Exec)
 		strncat(cmd, e->Exec, 1024);
 	else if (!eargv) {
 		EPRINTF("cannot launch anything without a command\n");
@@ -8161,8 +8159,6 @@ set_bin(Sequence *s, Entry *e)
 		s->f.bin = strdup(eargv[0]);
 	else if (s->f.id && (p = strrchr(s->f.id, '/')) && p++ && (q = strchr(p, '-')))
 		s->f.bin = strndup(p, q - p);
-	else if (options.exec)
-		s->f.bin = first_word(options.exec);
 	else if (e->TryExec)
 		s->f.bin = first_word(e->TryExec);
 	else if (e->Exec)
@@ -9302,6 +9298,7 @@ session(Sequence *s, Entry * e)
 			closedir(dir);
 		}
 	} while (p != xdg);
+
 	if (count) {
 		Process **array, *pr, **pp, **pp_prev;
 
@@ -9724,6 +9721,11 @@ main(int argc, char *argv[])
 	Entry *e;
 	Sequence *s;
 	char *p;
+
+	/* don't care about job control */
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
 
 #if 0
 	/* not sure that we ever want to do this */
@@ -10203,15 +10205,20 @@ main(int argc, char *argv[])
 			EPRINTF("could not parse file '%s'\n", options.path);
 			exit(EXIT_FAILURE);
 		}
+		if (!e->Exec) {
+			EPRINTF("no exec command in '%s'\n", options.path);
+			exit(EXIT_FAILURE);
+		}
 	} else {
-		if (eargv || options.session) {
-			if (!(e = calloc(1, sizeof(*e)))) {
-				EPRINTF("could not allocate entry: %s\n", strerror(errno));
-				exit(EXIT_FAILURE);
-			}
-			if (eargv)
-				e->TryExec = strdup(eargv[0]);
-		} else {
+		if (!(e = calloc(1, sizeof(*e)))) {
+			EPRINTF("could not allocate entry: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		if (options.exec)
+			e->Exec = strdup(options.exec);
+		else if (eargv)
+			e->TryExec = strdup(eargv[0]);
+		else if (!options.session) {
 			EPRINTF("could not find .desktop file for APPSPEC\n");
 			exit(EXIT_FAILURE);
 		}
@@ -10245,24 +10252,10 @@ main(int argc, char *argv[])
 	} else if (options.url && !options.file && (p = strstr(options.url, "file://")) == options.url) {
 		options.file = strdup(options.url + 7);
 	}
-#if 0
-	/* XXX: what is this all about??? */
-	if (options.path) {
-		free(options.uri);
-		if ((options.uri = calloc(strlen("file://") + strlen(options.path) + 1, sizeof(*options.uri)))) {
-			strcpy(options.uri, "file://");
-			strcat(options.uri, options.path);
-		}
-	}
-#endif
 	if (options.output > 1)
 		show_entry("Entries", e);
 	if (options.info)
 		info_entry("Entries", e);
-	if (!eargv && !options.exec && !e->Exec && !options.session) {
-		EPRINTF("no exec command\n");
-		exit(EXIT_FAILURE);
-	}
 	if (!(s = calloc(1, sizeof(*s)))) {
 		EPRINTF("could not allocate sequence: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -10277,7 +10270,7 @@ main(int argc, char *argv[])
 	}
 	/* open display now */
 	get_display();
-	if (eargv || options.exec || e->Exec) {
+	if (eargv || e->Exec) {
 		/* fill out all fields */
 		set_all(s, e);
 		if (!options.info)
