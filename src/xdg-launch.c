@@ -9231,10 +9231,10 @@ session(Sequence *s, Entry * e)
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
 
+	if (e->DesktopNames)
+		setenv("XDG_CURRENT_DESKTOP", e->DesktopNames, 1);
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
-		if (e->DesktopNames)
-			setenv("XDG_CURRENT_DESKTOP", e->DesktopNames, 1);
-		else if (e->path) {
+		if (e->path) {
 			char *p, *q, *desktop;
 
 			if ((p = strrchr(e->path, '/')))
@@ -9350,7 +9350,7 @@ session(Sequence *s, Entry * e)
 		options.autostart = True;
 		// free(options.launcher);
 		// options.launcher = strdup("xdg-autostart");
-		for (pp_prev = &processes; (pr = *pp_prev); ) {
+		for (pp_prev = &processes; (pr = *pp_prev);) {
 			Entry *ent;
 
 			if (!(pr->ent = ent = parse_file(pr->path))) {
