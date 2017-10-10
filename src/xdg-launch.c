@@ -9165,6 +9165,55 @@ check_noshow(const char *noshow)
 	return True;
 }
 
+static Bool
+check_exec(const char *tryexec, const char *exec)
+{
+	char *binary;
+
+	if (!exec)
+		return False;
+	if (tryexec) {
+		if (!(binary = strdup(tryexec)))
+			return False;
+	} else {
+		char *p;
+
+		if (!(binary = strdup(exec)))
+			return False;
+		if ((p = strpbrk(binary, " \t")))
+			*p = '\0';
+	}
+	if (binary[0] == '/') {
+		if (!access(binary, X_OK)) {
+			free(binary);
+			return True;
+		}
+		DPRINTF(1, "%s: %s\n", binary, strerror(errno));
+	} else {
+		char *path, *pstr, *ptok, *psav;
+		char file[PATH_MAX + 1];
+
+		if (!(path = strdup(getenv("PATH") ? : ""))) {
+			free(binary);
+			return False;
+		}
+		for (pstr = path; (ptok = strtok_r(pstr, ":", &psav)); pstr = NULL) {
+			strncpy(file, ptok, PATH_MAX);
+			strncat(file, "/", PATH_MAX);
+			strncat(file, binary, PATH_MAX);
+			if (!access(file, X_OK)) {
+				free(path);
+				free(binary);
+				return True;
+			}
+		}
+		free(path);
+		DPRINTF(1, "%s: not found in PATH\n", binary);
+	}
+	free(binary);
+	return False;
+}
+
 /** @brief create a simple session
   *
   * First attempt to become new session leader.  This establishes a new
@@ -9275,30 +9324,42 @@ session(Sequence *s, Entry * e)
 		// free(options.launcher);
 		// options.launcher = strdup("xdg-autostart");
 		for (pp_prev = &processes; (pr = *pp_prev); ) {
-			if (!(pr->ent = parse_file(pr->path))) {
+			Entry *ent;
+
+			if (!(pr->ent = ent = parse_file(pr->path))) {
 				EPRINTF("%s: %s: is invalid: discarding\n", pr->appid, pr->path);
 				delete_pr(pp_prev);
 				continue;
 			}
-			if (pr->ent->Hidden && !strcmp(pr->ent->Hidden, "true")) {
+			if (!ent->Exec) {
+				DPRINTF(3, "%s: %s: no exec: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
+			if (ent->Hidden && !strcmp(ent->Hidden, "true")) {
 				DPRINTF(3, "%s: %s: is hidden: discarding\n", pr->appid, pr->path);
 				delete_pr(pp_prev);
 				continue;
 			}
-			if (!check_showin(pr->ent->OnlyShowIn)) {
+			if (!check_showin(ent->OnlyShowIn)) {
 				DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid, pr->path);
 				delete_pr(pp_prev);
 				continue;
 			}
-			if (!check_noshow(pr->ent->NotShowIn)) {
+			if (!check_noshow(ent->NotShowIn)) {
 				DPRINTF(3, "%s: %s: desktop is in NotShowIn: discarding\n", pr->appid, pr->path);
 				delete_pr(pp_prev);
 				continue;
 			}
+			if (!check_exec(ent->TryExec, ent->Exec)) {
+				DPRINTF(3, "%s: %s: not executable: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
 			if (options.output > 1)
-				show_entry("Parsed entries", pr->ent);
+				show_entry("Parsed entries", ent);
 			if (options.info)
-				info_entry("Parsed entries", pr->ent);
+				info_entry("Parsed entries", ent);
 			pp_prev = &pr->next;
 		}
 		for (pr = processes; pr; pr = pr->next) {
