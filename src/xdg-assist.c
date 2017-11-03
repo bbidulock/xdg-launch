@@ -216,34 +216,7 @@ typedef struct _Entry {
 	char *AutostartPhase;
 } Entry;
 
-Entry myent = { NULL, };
-
-static const char *StartupNotifyFields[] = {
-	"LAUNCHER",
-	"LAUNCHEE",
-	"SEQUENCE",
-	"ID",
-	"NAME",
-	"ICON",
-	"BIN",
-	"DESCRIPTION",
-	"WMCLASS",
-	"SILENT",
-	"APPLICATION_ID",
-	"DESKTOP",
-	"SCREEN",
-	"MONITOR",
-	"TIMESTAMP",
-	"PID",
-	"HOSTNAME",
-	"COMMAND",
-	"ACTION",
-	"AUTOSTART",
-	"XSESSION",
-	"FILE",
-	"URL",
-	NULL
-};
+/* Keep the next two in sync! */
 
 typedef enum {
 	FIELD_OFFSET_LAUNCHER,
@@ -297,6 +270,65 @@ struct fields {
 	char *url;
 };
 
+/* Keep the next two in sync! */
+
+typedef enum {
+	NUMBER_OFFSET_SCREEN,
+	NUMBER_OFFSET_MONITOR,
+	NUMBER_OFFSET_DESKTOP,
+	NUMBER_OFFSET_TIMESTAMP,
+	NUMBER_OFFSET_SILENT,
+	NUMBER_OFFSET_PID,
+	NUMBER_OFFSET_SEQUENCE,
+	NUMBER_OFFSET_AUTOSTART,
+	NUMBER_OFFSET_XSESSION,
+} NumberOffset;
+
+struct numbers {
+	unsigned long screen;
+	unsigned long monitor;
+	unsigned long desktop;
+	unsigned long timestamp;
+	unsigned long silent;
+	unsigned long pid;
+	unsigned long sequence;
+	unsigned long autostart;
+	unsigned long xsession;
+};
+
+typedef struct StartupElement {
+	const char *label;
+	Bool numeric;
+	int index;
+} StartupElement;
+
+static const StartupElement StartupNotifyElements[] = {
+	{ "LAUNCHER",		False,		0			},
+	{ "LAUNCHEE",		False,		0			},
+	{ "SEQUENCE",		False,		0			},
+	{ "ID",			False,		0			},
+	{ "NAME",		False,		0			},
+	{ "ICON",		False,		0			},
+	{ "BIN",		False,		0			},
+	{ "DESCRIPTION",	False,		0			},
+	{ "WMCLASS",		False,		0			},
+	{ "SILENT",		True,		NUMBER_OFFSET_SILENT	},
+	{ "APPLICATION_ID",	False,		0			},
+	{ "DESKTOP",		True,		NUMBER_OFFSET_DESKTOP	},
+	{ "SCREEN",		True,		NUMBER_OFFSET_SCREEN	},
+	{ "MONITOR",		True,		NUMBER_OFFSET_MONITOR	},
+	{ "TIMESTAMP",		True,		NUMBER_OFFSET_TIMESTAMP	},
+	{ "PID",		True,		NUMBER_OFFSET_PID	},
+	{ "HOSTNAME",		False,		0			},
+	{ "COMMAND",		False,		0			},
+	{ "ACTION",		False,		0			},
+	{ "AUTOSTART",		True,		NUMBER_OFFSET_AUTOSTART	},
+	{ "XSESSION",		True,		NUMBER_OFFSET_XSESSION	},
+	{ "FILE",		False,		0			},
+	{ "URL",		False,		0			},
+	{ NULL,			False,		0			},
+};
+
 typedef enum {
 	StartupNotifyIdle,
 	StartupNotifyNew,
@@ -319,24 +351,16 @@ typedef struct _Sequence {
 		char *fields[sizeof(struct fields) / sizeof(char *)];
 		struct fields f;
 	};
-	struct {
-		unsigned screen;
-		unsigned monitor;
-		unsigned desktop;
-		unsigned timestamp;
-		unsigned silent;
-		unsigned pid;
-		unsigned sequence;
-		unsigned autostart;
-		unsigned xsession;
-	} n;
+	union {
+		unsigned long numbers[sizeof(struct numbers) / sizeof(unsigned long)];
+		struct numbers n;
+	};
 #ifdef GIO_GLIB2_SUPPORT
 	gint timer;
 #endif					/* GIO_GLIB2_SUPPORT */
 } Sequence;
 
 Sequence *sequences;
-Sequence myseq = { NULL, };
 
 typedef struct {
 	Window origin;			/* origin of message sequence */
@@ -3785,8 +3809,7 @@ free_entry(Entry *e)
 	}
 	free(e->path);
 	e->path = NULL;
-	if (e != &myent)
-		free(e);
+	free(e);
 }
 
 static Sequence *unref_sequence(Sequence *seq);
@@ -3812,18 +3835,18 @@ show_source(Window w, Window c)
 static void
 show_sequence(const char *prefix, Sequence *seq)
 {
-	const char **label;
+	const StartupElement *element;
 	char **field;
 
 	if (options.debug < 2 && options.output < 2)
 		return;
 	if (prefix)
 		fprintf(stderr, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
-	for (label = StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+	for (element = StartupNotifyElements, field = seq->fields; element->label; element++, field++) {
 		if (*field)
-			fprintf(stderr, "%s=%s\n", *label, *field);
+			fprintf(stderr, "%s=%s\n", element->label, *field);
 		else
-			fprintf(stderr, "%s=\n", *label);
+			fprintf(stderr, "%s=\n", element->label);
 	}
 	fflush(stderr);
 }
@@ -3831,18 +3854,18 @@ show_sequence(const char *prefix, Sequence *seq)
 static void
 info_sequence(const char *prefix, Sequence *seq)
 {
-	const char **label;
+	const StartupElement *element;
 	char **field;
 
 	if (options.output < 1)
 		return;
 	if (prefix)
 		fprintf(stdout, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
-	for (label = StartupNotifyFields, field = seq->fields; *label; label++, field++) {
+	for (element = StartupNotifyElements, field = seq->fields; element->label; element++, field++) {
 		if (*field)
-			fprintf(stdout, "%s=%s\n", *label, *field);
+			fprintf(stdout, "%s=%s\n", element->label, *field);
 		else
-			fprintf(stdout, "%s=\n", *label);
+			fprintf(stdout, "%s=\n", element->label);
 	}
 	fflush(stdout);
 }
@@ -3862,40 +3885,6 @@ update_startup_client(Sequence *seq)
 	if (!seq->f.id) {
 		EPRINTF("Sequence without id!\n");
 		return;
-	}
-	if (myseq.f.id) {
-		if (strcmp(seq->f.id, myseq.f.id)) {
-			DPRINTF(1, "Sequence for unrelated id %s\n", seq->f.id);
-			remove_sequence(seq);
-			return;
-		}
-		OPRINTF(1, "Related sequence received:\n");
-		switch (seq->state) {
-		case StartupNotifyIdle:
-			break;
-		case StartupNotifyNew:
-			if (options.output > 1)
-				show_sequence("New sequence:", seq);
-			if (options.info)
-				info_sequence("New sequence:", seq);
-			break;
-		case StartupNotifyChanged:
-			if (options.output > 1)
-				show_sequence("Change sequence:", seq);
-			if (options.info)
-				info_sequence("Change sequence:", seq);
-			break;
-		case StartupNotifyComplete:
-			if (options.output > 1)
-				show_sequence("Completed sequence:", seq);
-			if (options.info)
-				info_sequence("Completed sequence:", seq);
-			if (options.toolwait || options.assist) {
-				OPRINTF(1, "Startup notification complete!\n");
-				running = False;
-			}
-			break;
-		}
 	}
 	for (c = clients; c; c = c->next)
 		need_retest(c);
@@ -3996,8 +3985,7 @@ unref_sequence(Sequence *seq)
 			free_sequence_fields(seq);
 			free_entry(seq->e);
 			seq->e = NULL;
-			if (seq != &myseq)
-				free(seq);
+			free(seq);
 			return (NULL);
 		} else
 			DPRINTF(1, "sequence still has %d references\n", seq->refs);
@@ -4106,199 +4094,82 @@ add_sequence(Sequence *seq)
 }
 
 static void
-process_startup_msg(Message *m)
+process_sequence(Sequence *seq)
 {
-	Sequence cmd = { NULL, }, *seq;
-	char *p = m->data, *k, *v, *q, *copy, *b;
-	const char **f;
-	int i;
-	int escaped, quoted;
+	Sequence *old, *new;
 
-	cmd.from = m->origin;
-	DPRINTF(1, "Got message from 0x%08lx (%s): %s\n", m->origin,
-		show_source(cmd.from, cmd.client), m->data);
-	if (!strncmp(p, "new:", 4)) {
-		cmd.state = StartupNotifyNew;
-	} else if (!strncmp(p, "change:", 7)) {
-		cmd.state = StartupNotifyChanged;
-	} else if (!strncmp(p, "remove:", 7)) {
-		cmd.state = StartupNotifyComplete;
-	} else {
-		free(m->data);
-		free(m);
-		return;
-	}
-	p = strchr(p, ':') + 1;
-	while (*p != '\0') {
-		while (*p == ' ')
-			p++;
-		k = p;
-		if (!(v = strchr(k, '='))) {
-			free_sequence_fields(&cmd);
-			DPRINTF(1, "mangled message\n");
-			return;
-		} else {
-			*v++ = '\0';
-			p = q = v;
-			escaped = quoted = 0;
-			for (;;) {
-				if (!escaped) {
-					if (*p == '"') {
-						p++;
-						quoted ^= 1;
-						continue;
-					} else if (*p == '\\') {
-						p++;
-						escaped = 1;
-						continue;
-					} else if (*p == '\0' || (*p == ' ' && !quoted)) {
-						if (quoted) {
-							free_sequence_fields(&cmd);
-							DPRINTF(1, "mangled message\n");
-							return;
-						}
-						if (*p == ' ')
-							p++;
-						*q = '\0';
-						break;
-					}
-				}
-				*q++ = *p++;
-				escaped = 0;
-			}
-			for (i = 0, f = StartupNotifyFields; f[i] != NULL; i++)
-				if (strcmp(f[i], k) == 0)
-					break;
-			if (f[i] != NULL)
-				cmd.fields[i] = strdup(v);
-		}
-	}
-	free(m->data);
-	free(m);
-	if (!cmd.f.id) {
-		free_sequence_fields(&cmd);
-		DPRINTF(1, "message with no ID= field\n");
-		return;
-	}
-	/* get information from ID */
-	do {
-		p = q = copy = strdup(cmd.f.id);
-		if (!(p = strchr(q, '/')))
-			break;
-		*p++ = '\0';
-		while ((b = strchr(q, '|')))
-			*b = '/';
-		if (!cmd.f.launcher)
-			cmd.f.launcher = strdup(q);
-		q = p;
-		if (!(p = strchr(q, '/')))
-			break;
-		*p++ = '\0';
-		while ((b = strchr(q, '|')))
-			*b = '/';
-		if (!cmd.f.launchee)
-			cmd.f.launchee = strdup(q);
-		q = p;
-		if (!(p = strchr(q, '-')))
-			break;
-		*p++ = '\0';
-		if (!cmd.f.pid)
-			cmd.f.pid = strdup(q);
-		q = p;
-		if (!(p = strchr(q, '-')))
-			break;
-		*p++ = '\0';
-		if (!cmd.f.sequence)
-			cmd.f.sequence = strdup(q);
-		q = p;
-		if (!(p = strstr(q, "_TIME")))
-			break;
-		*p++ = '\0';
-		if (!cmd.f.hostname)
-			cmd.f.hostname = strdup(q);
-		q = p + 4;
-		if (!cmd.f.timestamp)
-			cmd.f.timestamp = strdup(q);
-		if (!cmd.f.bin)
-			cmd.f.bin = strdup(cmd.f.launchee);
-	} while (0);
-	free(copy);
-	/* get timestamp from ID if necessary */
-	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
-		cmd.f.timestamp = strdup(p + 5);
-	convert_sequence_fields(&cmd);
-	if (!(seq = find_seq_by_id(cmd.f.id))) {
-		switch (cmd.state) {
+	if (!(old = find_seq_by_id(seq->f.id))) {
+		switch (seq->state) {
 		default:
-			free_sequence_fields(&cmd);
+			free_sequence_fields(seq);
 			DPRINTF(1, "message out of sequence\n");
 			return;
 		case StartupNotifyNew:
 		case StartupNotifyComplete:
 			break;
 		}
-		if (!(seq = calloc(1, sizeof(*seq)))) {
-			free_sequence_fields(&cmd);
+		if (!(new = calloc(1, sizeof(*seq)))) {
+			free_sequence_fields(seq);
 			DPRINTF(1, "no memory\n");
 			return;
 		}
-		*seq = cmd;
-		add_sequence(seq);
+		*new = *seq;
+		add_sequence(new);
 		return;
 	}
-	switch (seq->state) {
+	switch (old->state) {
 	case StartupNotifyIdle:
-		switch (cmd.state) {
+		switch (seq->state) {
 		case StartupNotifyIdle:
 			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
+			old->state = StartupNotifyComplete;
 			/* remove sequence */
 			break;
 		case StartupNotifyNew:
-			seq->state = StartupNotifyNew;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			old->state = StartupNotifyNew;
+			copy_sequence_fields(old, seq);
+			update_startup_client(old);
 			return;
 		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			old->state = StartupNotifyChanged;
+			copy_sequence_fields(old, seq);
+			update_startup_client(old);
 			return;
 		}
 		break;
 	case StartupNotifyNew:
-		switch (cmd.state) {
+		switch (seq->state) {
 		case StartupNotifyIdle:
 			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
+			old->state = StartupNotifyComplete;
 			/* remove sequence */
 			break;
 		case StartupNotifyNew:
 		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			old->state = StartupNotifyChanged;
+			copy_sequence_fields(old, seq);
+			update_startup_client(old);
 			return;
 		}
 		break;
 	case StartupNotifyChanged:
-		switch (cmd.state) {
+		switch (seq->state) {
 		case StartupNotifyIdle:
 			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
+			old->state = StartupNotifyComplete;
 			/* remove sequence */
 			break;
 		case StartupNotifyNew:
 		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			old->state = StartupNotifyChanged;
+			copy_sequence_fields(old, seq);
+			update_startup_client(old);
 			return;
 		}
 		break;
@@ -4307,9 +4178,191 @@ process_startup_msg(Message *m)
 		break;
 	}
 	/* remove sequence */
-	copy_sequence_fields(seq, &cmd);
-	update_startup_client(seq);
-	remove_sequence(seq);
+	copy_sequence_fields(old, seq);
+	update_startup_client(old);
+	remove_sequence(old);
+}
+
+static void
+parse_id(Sequence *seq)
+{
+	char *q, *p, *b, *copy, *e = NULL;
+	unsigned long n;
+
+	/* get information from ID */
+	do {
+		p = q = copy = strdup(seq->f.id);
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!seq->f.launcher)
+			seq->f.launcher = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '/')))
+			break;
+		*p++ = '\0';
+		while ((b = strchr(q, '|')))
+			*b = '/';
+		if (!seq->f.launchee)
+			seq->f.launchee = strdup(q);
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!seq->f.pid) {
+			n = strtoul(q, &e, 0);
+			if (!e[0]) {
+				seq->f.pid = strdup(q);
+				seq->n.pid = n;
+			} else {
+				EPRINTF("PARSE ERROR: found pid '%s' but contains illegal character '%c'\n", q, e[0]);
+				q = p;
+				break;
+			}
+		}
+		q = p;
+		if (!(p = strchr(q, '-')))
+			break;
+		*p++ = '\0';
+		if (!seq->f.sequence) {
+			n = strtoul(q, &e, 0);
+			if (!e[0]) {
+				seq->f.sequence = strdup(q);
+				seq->n.sequence = n;
+			} else {
+				EPRINTF("PARSE ERROR: found sequence '%s' but contains illegal character '%c'\n", q, e[0]);
+				q = p;
+				break;
+			}
+		}
+		q = p;
+		if (!(p = strstr(q, "_TIME")))
+			break;
+		*p++ = '\0';
+		if (!seq->f.hostname)
+			seq->f.hostname = strdup(q);
+		q = p + 4;
+		if (!seq->f.timestamp) {
+			n = strtoul(q, &e, 0);
+			if (!e[0]) {
+				seq->f.timestamp = strdup(q);
+				seq->n.timestamp = n;
+			} else {
+				EPRINTF("PARSE ERROR: found timestamp '%s' but contains illegal character '%c'\n", q, e[0]);
+				break;
+			}
+		}
+		if (!seq->f.bin)
+			seq->f.bin = strdup(seq->f.launchee);
+	} while (0);
+	/* get timestamp from ID if necessary */
+	if (!seq->f.timestamp && (p = strstr(q, "_TIME")) && (q = p + 5)) {
+		n = strtoul(q, &e, 0);
+		if (!e[0]) {
+			seq->f.timestamp = strdup(q);
+			seq->n.timestamp = n;
+		} else {
+			EPRINTF("PARSE ERROR: found timestamp '%s' but contains illegal character '%c'\n", q, e[0]);
+		}
+	}
+	free(copy);
+}
+
+static Bool
+process_startup_msg(Message *m)
+{
+	Sequence cmd = { NULL, };
+	char *s, *d, *k, *v, *e = NULL;
+	const StartupElement *element;
+	unsigned long n;
+	int i;
+	int escaped, quoted;
+
+	cmd.from = m->origin;
+	DPRINTF(1, "Got message from 0x%08lx (%s): %s\n", m->origin,
+		show_source(cmd.from, cmd.client), m->data);
+	s = m->data;
+	if (!strncmp(s, "new:", 4)) {
+		cmd.state = StartupNotifyNew;
+	} else if (!strncmp(s, "change:", 7)) {
+		cmd.state = StartupNotifyChanged;
+	} else if (!strncmp(s, "remove:", 7)) {
+		cmd.state = StartupNotifyComplete;
+	} else {
+		EPRINTF("message from 0x%lx without command: discarding\n", cmd.from);
+		free(m->data);
+		free(m);
+		return False;
+	}
+	s = strchr(s, ':') + 1;
+	while (*s != '\0') {
+		while (*s == ' ')
+			s++;
+		k = s;
+		if (!(v = strchr(k, '='))) {
+			free_sequence_fields(&cmd);
+			DPRINTF(1, "mangled message from 0x%lx: discarding\n", cmd.from);
+			free(m->data);
+			free(m);
+			return False;
+		} else {
+			*v++ = '\0';
+			s = d = v;
+			escaped = quoted = 0;
+			for (;;) {
+				if (!escaped) {
+					if (*s == '"') {
+						s++;
+						quoted ^= 1;
+						continue;
+					} else if (*s == '\\') {
+						s++;
+						escaped = 1;
+						continue;
+					} else if (*s == '\0' || (*s == ' ' && !quoted)) {
+						if (quoted) {
+							free_sequence_fields(&cmd);
+							DPRINTF(1, "mangled message from 0x%lx: discarding\n", cmd.from);
+							free(m->data);
+							free(m);
+							return False;
+						}
+						if (*s == ' ')
+							s++;
+						*d = '\0';
+						break;
+					}
+				}
+				*d++ = *s++;
+				escaped = 0;
+			}
+			for (i = 0, element = StartupNotifyElements; element[i].label; i++)
+				if (strcmp(element[i].label, k) == 0)
+					break;
+			if (element[i].label) {
+				if (element[i].numeric) {
+					n = strtoul(v, &e, 0);
+					if (e[0])
+						continue;
+					cmd.numbers[element[i].index] = n;
+				}
+				cmd.fields[i] = strdup(v);
+			}
+		}
+	}
+	free(m->data);
+	free(m);
+	if (!cmd.f.id) {
+		free_sequence_fields(&cmd);
+		DPRINTF(1, "message with no ID= field\n");
+		return False;
+	}
+	parse_id(&cmd);
+	convert_sequence_fields(&cmd);
+	process_sequence(&cmd);
+	return True;
 }
 
 static void
@@ -6108,12 +6161,12 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 	cm_handler_t handle = NULL;
 	char *name = NULL;
 
-	if (XFindContext(dpy, e->message_type, ClientMessageContext, (XPointer *) &handle)
-	    == Success)
+	if (XFindContext(dpy, e->message_type, ClientMessageContext, (XPointer *) &handle) == Success)
 		(*handle) (e, c);
+	else if (c)
+		CPRINTF(1, c, "no ClientMessage handler for %s\n", (name = XGetAtomName(dpy, e->message_type)));
 	else
-		CPRINTF(1, c, "no ClientMessage handler for %s\n",
-			(name = XGetAtomName(dpy, e->message_type)));
+		DPRINTF(1, "no ClientMessage handler for %s\n", (name = XGetAtomName(dpy, e->message_type)));
 	if (name) {
 		XFree(name);
 		name = NULL;
