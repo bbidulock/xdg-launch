@@ -6642,6 +6642,46 @@ main_loop(int argc, char *argv[])
 }
 
 static void
+startup_notification_complete(Window selwin)
+{
+	const char *id;
+
+	if ((id = getenv("DESKTOP_STARTUP_ID"))) {
+		int l, len = 20 + strlen(id);
+		XEvent xev = { 0, };
+		Window from;
+		char *msg, *p;
+
+		msg = calloc(len + 1, sizeof(*msg));
+		snprintf(msg, len, "remove: ID=%s", id);
+
+		if (!(from = selwin))
+			from = XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
+		xev.type = ClientMessage;
+		xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
+		xev.xclient.display = dpy;
+		xev.xclient.window = from;
+		xev.xclient.format = 8;
+
+		l = strlen((p = msg)) + 1;
+		while (l > 0) {
+			strncpy(xev.xclient.data.b, p, 20);
+			p += 20;
+			l -= 20;
+			/* just PropertyChange mask in the spec doesn't work :( */
+			if (!XSendEvent(dpy, scr->root, False, StructureNotifyMask | SubstructureNotifyMask |
+					SubstructureRedirectMask | PropertyChangeMask, &xev))
+				EPRINTF("XSendEvent: failed!\n");
+			xev.xclient.message_type = _XA_NET_STARTUP_INFO;
+		}
+		XSync(dpy, False);
+
+		if (from != selwin)
+			XDestroyWindow(dpy, from);
+	}
+}
+
+static void
 announce_selection(void)
 {
 	XEvent ev;
@@ -6736,6 +6776,7 @@ do_run(int argc, char *argv[])
 	}
 	s = DefaultScreen(dpy);
 	scr = screens + s;
+	startup_notification_complete(scr->selwin);
 	main_loop(argc, argv);
 }
 
@@ -6781,6 +6822,7 @@ do_replace(int argc, char *argv[])
 		XIfEvent(dpy, &ev, &selectionreleased, (XPointer) &selcount);
 		announce_selection();
 	}
+	startup_notification_complete(scr->selwin);
 	main_loop(argc, argv);
 }
 
