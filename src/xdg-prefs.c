@@ -895,7 +895,7 @@ main(int argc, char *argv[])
 			break;
 		case 'b':	/* -b, --button BUTTON */
 			val = strtoul(optarg, &endptr, 0);
-			if (endptr && *endptr)
+			if (*endptr)
 				goto bad_option;
 			if (val < 0 || val > 8)
 				goto bad_option;
@@ -937,7 +937,8 @@ main(int argc, char *argv[])
 				options.debug++;
 				break;
 			}
-			if ((val = strtol(optarg, NULL, 0)) < 0)
+			val = strtol(optarg, &endptr, 0);
+			if (*endptr || val < 0)
 				goto bad_option;
 			options.debug = val;
 			break;
@@ -947,7 +948,8 @@ main(int argc, char *argv[])
 				options.output++;
 				break;
 			}
-			if ((val = strtol(optarg, NULL, 0)) < 0)
+			val = strtol(optarg, &endptr, 0);
+			if (*endptr || val < 0)
 				goto bad_option;
 			options.output = val;
 			break;

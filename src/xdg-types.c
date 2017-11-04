@@ -817,6 +817,7 @@ main(int argc, char *argv[])
 
 	while (1) {
 		int c, val;
+		char *endptr = NULL;
 
 #ifdef _GNU_SOURCE
 		int option_index = 0;
@@ -898,7 +899,8 @@ main(int argc, char *argv[])
 				options.debug++;
 				break;
 			}
-			if ((val = strtol(optarg, NULL, 0)) < 0)
+			val = strtol(optarg, &endptr, 0);
+			if (*endptr || val < 0)
 				goto bad_option;
 			options.debug = val;
 			break;
@@ -909,7 +911,8 @@ main(int argc, char *argv[])
 				options.output++;
 				break;
 			}
-			if ((val = strtol(optarg, NULL, 0)) < 0)
+			val = strtol(optarg, &endptr, 0);
+			if (*endptr || val < 0)
 				goto bad_option;
 			options.output = val;
 			break;

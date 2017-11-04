@@ -4186,7 +4186,7 @@ process_sequence(Sequence *seq)
 static void
 parse_id(Sequence *seq)
 {
-	char *q, *p, *b, *copy, *e = NULL;
+	char *q, *p, *b, *copy, *endptr = NULL;
 	unsigned long n;
 
 	/* get information from ID */
@@ -4212,12 +4212,12 @@ parse_id(Sequence *seq)
 			break;
 		*p++ = '\0';
 		if (!seq->f.pid) {
-			n = strtoul(q, &e, 0);
-			if (!e[0]) {
+			n = strtoul(q, &endptr, 0);
+			if (!*endptr) {
 				seq->f.pid = strdup(q);
 				seq->n.pid = n;
 			} else {
-				EPRINTF("PARSE ERROR: found pid '%s' but contains illegal character '%c'\n", q, e[0]);
+				EPRINTF("PARSE ERROR: found pid '%s' but contains illegal character '%c'\n", q, *endptr);
 				q = p;
 				break;
 			}
@@ -4227,12 +4227,12 @@ parse_id(Sequence *seq)
 			break;
 		*p++ = '\0';
 		if (!seq->f.sequence) {
-			n = strtoul(q, &e, 0);
-			if (!e[0]) {
+			n = strtoul(q, &endptr, 0);
+			if (!*endptr) {
 				seq->f.sequence = strdup(q);
 				seq->n.sequence = n;
 			} else {
-				EPRINTF("PARSE ERROR: found sequence '%s' but contains illegal character '%c'\n", q, e[0]);
+				EPRINTF("PARSE ERROR: found sequence '%s' but contains illegal character '%c'\n", q, *endptr);
 				q = p;
 				break;
 			}
@@ -4245,12 +4245,12 @@ parse_id(Sequence *seq)
 			seq->f.hostname = strdup(q);
 		q = p + 4;
 		if (!seq->f.timestamp) {
-			n = strtoul(q, &e, 0);
-			if (!e[0]) {
+			n = strtoul(q, &endptr, 0);
+			if (!*endptr) {
 				seq->f.timestamp = strdup(q);
 				seq->n.timestamp = n;
 			} else {
-				EPRINTF("PARSE ERROR: found timestamp '%s' but contains illegal character '%c'\n", q, e[0]);
+				EPRINTF("PARSE ERROR: found timestamp '%s' but contains illegal character '%c'\n", q, *endptr);
 				break;
 			}
 		}
@@ -4259,12 +4259,12 @@ parse_id(Sequence *seq)
 	} while (0);
 	/* get timestamp from ID if necessary */
 	if (!seq->f.timestamp && (p = strstr(q, "_TIME")) && (q = p + 5)) {
-		n = strtoul(q, &e, 0);
-		if (!e[0]) {
+		n = strtoul(q, &endptr, 0);
+		if (!*endptr) {
 			seq->f.timestamp = strdup(q);
 			seq->n.timestamp = n;
 		} else {
-			EPRINTF("PARSE ERROR: found timestamp '%s' but contains illegal character '%c'\n", q, e[0]);
+			EPRINTF("PARSE ERROR: found timestamp '%s' but contains illegal character '%c'\n", q, *endptr);
 		}
 	}
 	free(copy);
@@ -4274,7 +4274,7 @@ static Bool
 process_startup_msg(Message *m)
 {
 	Sequence cmd = { NULL, };
-	char *s, *d, *k, *v, *e = NULL;
+	char *s, *d, *k, *v, *endptr = NULL;
 	const StartupElement *element;
 	unsigned long n;
 	int i;
@@ -4343,8 +4343,8 @@ process_startup_msg(Message *m)
 					break;
 			if (element[i].label) {
 				if (element[i].numeric) {
-					n = strtoul(v, &e, 0);
-					if (e[0])
+					n = strtoul(v, &endptr, 0);
+					if (*endptr)
 						continue;
 					cmd.numbers[element[i].index] = n;
 				}
@@ -7055,9 +7055,8 @@ main(int argc, char *argv[])
 			if (!optarg)
 				options.guard = 15000;
 			else {
-				if ((val = strtol(optarg, &endptr, 0)) < 0)
-					goto bad_option;
-				if (!endptr || *endptr)
+				val = strtol(optarg, &endptr, 0);
+				if (*endptr || val < 0)
 					goto bad_option;
 				options.guard = val;
 			}
@@ -7068,9 +7067,8 @@ main(int argc, char *argv[])
 			if (!optarg) {
 				options.debug++;
 			} else {
-				if ((val = strtol(optarg, &endptr, 0)) < 0)
-					goto bad_option;
-				if (!endptr || *endptr)
+				val = strtol(optarg, &endptr, 0);
+				if (*endptr || val < 0)
 					goto bad_option;
 				options.debug = val;
 			}
@@ -7081,9 +7079,8 @@ main(int argc, char *argv[])
 				options.output++;
 				break;
 			}
-			if ((val = strtol(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (!endptr || *endptr)
+			val = strtol(optarg, &endptr, 0);
+			if (*endptr || val < 0)
 				goto bad_option;
 			options.output = val;
 			break;

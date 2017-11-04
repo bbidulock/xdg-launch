@@ -7954,7 +7954,7 @@ set_wmclass(Sequence *s, Entry *e)
 void
 set_pid(Sequence *s)
 {
-	char *p, *q;
+	char *p, *q, *endptr = NULL;
 
 	PTRACE(5);
 	free(s->f.pid);
@@ -7963,7 +7963,7 @@ set_pid(Sequence *s)
 		snprintf(s->f.pid, 64, "%d", options.pid);
 	else if ((p = s->f.id) &&
 		 (p = strchr(p, '/')) && p++ && (p = strchr(p, '/')) && p++ && (q = strchr(p, '-'))
-		 && strtoul(p, NULL, 0))
+		 && strtoul(p, &endptr, 0) && endptr == q)
 		s->f.pid = strncpy(s->f.pid, p, q - p);
 	else
 		snprintf(s->f.pid, 64, "%d", (int) getpid());
@@ -7999,14 +7999,14 @@ set_sequence(Sequence *s)
 void
 set_timestamp(Sequence *s)
 {
-	char *p;
+	char *p, *endptr = NULL;
 
 	PTRACE(5);
 	free(s->f.timestamp);
 	s->f.timestamp = calloc(64, sizeof(*s->f.timestamp));
 	if (options.timestamp)
 		snprintf(s->f.timestamp, 64, "%lu", options.timestamp);
-	else if (s->f.id && (p = strstr(s->f.id, "_TIME")) && strtoul(p + 5, NULL, 0))
+	else if (s->f.id && (p = strstr(s->f.id, "_TIME")) && strtoul(p + 5, &endptr, 0) && !*endptr)
 		strncpy(s->f.timestamp, p + 5, 63);
 	else {
 		XEvent ev;
@@ -8601,7 +8601,7 @@ ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer use
 	GList *item = g_list_first(*list);
 	RecentItem *cur = item ? item->data : NULL;
 	const gchar *name;
-	char *buf, *end = NULL;
+	char *buf, *endptr = NULL;
 	unsigned long int val;
 
 	name = g_markup_parse_context_get_element(ctx);
@@ -8614,8 +8614,8 @@ ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer use
 	} else if (!strcmp(name, "Timestamp")) {
 		cur->stamp = 0;
 		buf = strndup(text, len);
-		val = strtoul(buf, &end, 0);
-		if (end && *end == '\0')
+		val = strtoul(buf, &endptr, 0);
+		if (!*endptr)
 			cur->stamp = val;
 		free(buf);
 	} else if (!strcmp(name, "Group")) {
@@ -9855,24 +9855,21 @@ main(int argc, char *argv[])
 			defaults.hostname = options.hostname = strdup(optarg);
 			break;
 		case 'm':	/* -m, --monitor MONITOR */
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr)
 				goto bad_option;
 			defaults.monitor = options.monitor = val;
 			break;
 		case 's':	/* -s, --screen SCREEN */
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr)
 				goto bad_option;
 			defaults.screen = options.screen = val;
 			break;
 		case 'p':	/* -p, --pid PID */
 			if (optarg) {
-				if ((val = strtoul(optarg, &endptr, 0)) < 0)
-					goto bad_option;
-				if (endptr && *endptr)
+				val = strtoul(optarg, &endptr, 0);
+				if (*endptr)
 					goto bad_option;
 				defaults.pid = options.pid = val;
 			} else {
@@ -9880,16 +9877,14 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'w':	/* -w, --workspace WORKSPACE */
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr)
 				goto bad_option;
 			defaults.desktop = options.desktop = val;
 			break;
 		case 't':	/* -t, --timestamp TIMESTAMP */
-			if ((val = strtoul(optarg, &endptr, 0)) <= 0)
-				goto bad_option;
-			if (endptr && *endptr)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr || val <= 0)
 				goto bad_option;
 			defaults.timestamp = options.timestamp = val;
 			break;
@@ -9986,11 +9981,8 @@ main(int argc, char *argv[])
 			defaults.launcher = options.launcher = strdup("xdg-session");
 			break;
 		case 'k':	/* -k, --keep NUMBER */
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
-				goto bad_option;
-			if (val < 1 || val > 100)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr || val < 1 || val > 100)
 				goto bad_option;
 			defaults.keep = options.keep = val;
 			break;
@@ -10009,20 +10001,14 @@ main(int argc, char *argv[])
 				defaults.timeout = options.timeout = 0;
 				break;
 			}
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
-				goto bad_option;
-			if (val < 1 || val > 120)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr || val < 1 || val > 120)
 				goto bad_option;
 			defaults.timeout = options.timeout = val;
 			break;
 		case 2:	/* --mappings MAPPINGS */
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
-				goto bad_option;
-			if (val < 1 || val > 10)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr || val < 1 || val > 10)
 				goto bad_option;
 			defaults.mappings = options.mappings = val;
 			break;
@@ -10063,9 +10049,8 @@ main(int argc, char *argv[])
 				defaults.guard = options.guard = 0;
 				break;
 			}
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr)
 				goto bad_option;
 			defaults.guard = options.guard = val;
 			break;
@@ -10076,9 +10061,8 @@ main(int argc, char *argv[])
 				options.debug++;
 				break;
 			}
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
-				goto bad_option;
-			if (endptr && *endptr)
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr)
 				goto bad_option;
 			options.debug = val;
 			break;
@@ -10089,9 +10073,9 @@ main(int argc, char *argv[])
 				options.output++;
 				break;
 			}
-			if ((val = strtoul(optarg, &endptr, 0)) < 0)
+			val = strtoul(optarg, &endptr, 0);
 				goto bad_option;
-			if (endptr && *endptr)
+			if (*endptr)
 				goto bad_option;
 			options.output = val;
 			break;
