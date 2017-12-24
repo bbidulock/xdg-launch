@@ -413,7 +413,7 @@ unspecified is 10.
 
 =item B<-r>, B<--recent> I<FILENAME>
 
-Specify the filename of the recent history file.  When in exec mode,
+Specify the I<FILENAME> of the recent history file.  When in exec mode,
 store recent history of the executable in the file, I<FILENAME>.  In
 exec mode, the default is F<$XDG_CONFIG_HOME/xde/run-history>.  When in
 application mode, store recent history of the application in the file,

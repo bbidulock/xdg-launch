@@ -9966,7 +9966,7 @@ main(int argc, char *argv[])
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-xsession");
 			break;
-		case 'U':	/* -S, --autostart */
+		case 'U':	/* -U, --autostart */
 			if (options.xsession || options.session)
 				goto bad_option;
 			defaults.autostart = options.autostart = True;
