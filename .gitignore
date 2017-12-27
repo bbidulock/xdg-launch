@@ -26,6 +26,7 @@ Makefile
 Makefile.in
 *.man
 .nfs*
+NOTES.html
 *.o
 README
 README.html
@@ -36,6 +37,7 @@ stamp-h*
 tags
 *.tar.*
 *.tmp
+TODO.html
 xde-keys
 xde-theme
 xde-theme.man
