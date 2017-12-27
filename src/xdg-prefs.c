@@ -293,6 +293,78 @@ find_default_file(GKeyFile *file, char **desktops, const gchar *directory, const
 	return FALSE;
 }
 
+/*
+ * From freedesktop.org mime-apps specification:
+ *
+ * usr: $XDG_CONFIG_HOME/{$desktop-,}mimeapps.list
+ * sys: $XDG_CONFIG_DIRS/{$desktop-,}mimeapps.list
+ * dep: $XDG_DATA_HOME/applications/{$desktop-,}mimeapps.list (deprecated)
+ * dst: $XDG_DATA_DIRS/applications/{$desktop-,}mimeapps.list
+ *
+ * usr = user, sys = system, dep = deprecated, dst = distro
+ * $desktop is the $XDG_CURRENT_DESKTOP (array) converted to lower-case
+ * $desktop files only specify default (no added or removed associations)
+ *
+ * Added and Removed associations:
+ *
+ * The suggested algorithm for listing (in preference order) the applications
+ * associated to a given mimetype is:
+ *
+ * 1. create an empty list for the results, and a temporary empty blacklist
+ * 2. visit each mimeapps.list file, in turn; a missing file is equivalent to an
+ *    empty file.
+ * 3. add to the results list any "Added Associations" in the mimeapps.list,
+ *    excluding tiems on the blacklist.
+ * 4. add to the blacklist any "Removed Associations" in the mimeapps.list.
+ * 5. add to the results list any .desktop file found in the same directory as
+ *    the mimeapps.list that lists the given type in its MimeType= line,
+ *    excluding any desktop files already in the blacklist.  For directories
+ *    based on $XDG_CONFIG_HOME and $XDG_CONFIG_DIRS, there are (by definition)
+ *    no desktop files in the same directory.
+ * 6. add to the blacklist the names of any desktop files found in the same
+ *    directory as the mimeapps.list file (which for directories based on
+ *    $XDG_CONFIG_HOME and $XDG_CONFIG_DIRS, is none).
+ * 7. repeat steps 3 thru 6 for each subsequent directory.
+ *
+ * The above process is repeated for each mimetype from the most specific to the
+ * least specific.  Note in particular that an application "Added" with a more
+ * specific mime type will keep that association, even if it is "Removed" in a
+ * higher-precedence directory, using a less specific type.
+ *
+ * Default Associations:
+ *
+ * The suggested algorithm for determining the default application for a given
+ * mimetype is:
+ *
+ * 1. get the list of desktop ids for the given mimetype under the "Default
+ *    Applications" group in the first mimeapps.list.
+ * 2. for each desktop ID in the list, attempt to load the named desktop file,
+ *    using the normal rules.
+ * 3. If a valid desktop file is found, verify that it is associated with the
+ *    type (as in the previous section).
+ * 4. If a valid association is found, we have found the default application.
+ * 5. If after all list items are handled, we have not yet found a default
+ *    application, proceed to the nex mimeapps.list file in the search order and
+ *    repeat.
+ * 6. If after all files are handled, we have not yet found a default
+ *    application, select the most-preferred application (according to
+ *    associations) that supports the type.
+ *
+ * The above process is repeated for each mimetype from the most specific to the
+ * least specific.  Note in particular that an application that can handle a
+ * more specific type will eb used in preference to an application explicitly
+ * marked as the default for a less-specific type.
+ *
+ * Note that, unlike adding and removing associations, a desktop ID set as the
+ * default for an application can refer to a desktop file of the same name found
+ * in a directory of higher precedence.
+ *
+ * Note as well that the default application for a given type must be an
+ * application that is associated with the type.  This means that
+ * implementations should either ensure that such an association exists or add
+ * one explicitly when setting an application as the default for a type.
+ *
+ */
 void
 read_mime_apps(void)
 {
