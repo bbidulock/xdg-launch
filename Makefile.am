@@ -67,3 +67,9 @@ README.html: README.md
 README.txt: README.html
 	$(AM_V_GEN)$(LINKS) -dump -width 80 $< >$@
 
+NOTES.html: NOTES
+	$(AM_V_GEN)$(ASCIIDOC) -o - $< >$@
+
+TODO.html: TODO
+	$(AM_V_GEN)$(ASCIIDOC) -o - $< >$@
+
