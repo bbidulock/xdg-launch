@@ -1,26 +1,33 @@
 xdg-launch -- todo file.  2016-07-08
 
-- [X] handle XDG_CURRENT_DESKTOP that has multiple fields separated by ':'
-- [X] handle applications desktop entry file id's correctly
-- [X] handle Desktop Action and provide option to launch specified action
+General tasks:
+
+- [x] handle XDG_CURRENT_DESKTOP that has multiple fields separated by ':'
+- [x] handle applications desktop entry file id's correctly
+- [x] handle Desktop Action and provide option to launch specified action
 - [ ] handle DBusName and DBusPath for dbus launching
-- [X] make xdg-launch register with .recently-used and .recently-used.xbel
-- [X] make xdg-launch use GtkRecentManager object
-- [X] make xdg-launch also use ~/.config/xde/run-history
-- [X] make xdg-launch also use ~/.config/xde/recent-applications
-- [X] make xdg-launch use XML Simple from glib instead of gtk2
-- [X] make xdg-launch use GBookmarkFile from glib instead of gtk2
+- [x] make xdg-launch register with .recently-used and .recently-used.xbel
+- [x] make xdg-launch use GtkRecentManager object
+- [x] make xdg-launch also use ~/.config/xde/run-history
+- [x] make xdg-launch also use ~/.config/xde/recent-applications
+- [x] make xdg-launch use XML Simple from glib instead of gtk2
+- [x] make xdg-launch use GBookmarkFile from glib instead of gtk2
 
 - [ ] there should be a way to specify the terminal to use in a
       configuration file instead of just using xterm
-- [X] terminal applications should set the WMCLASS instance to that of
+- [x] terminal applications should set the WMCLASS instance to that of
       the application instead of, for example, "xterm".
-- [.] should observe the informal "AsRoot=true" keyword: perhaps
+- [ ] should observe the informal "AsRoot=true" keyword: perhaps
       behavior can be somewhat different based on "Terminal=" (i.e.
       sudo in command vs. gksu or equivalent).
-- [X] should add a wait-for-window-manager option that waits for a
+- [x] should add a wait-for-window-manager option that waits for a
       window manager whenever a WMCLASS would be used
-- [X] similarly, could add a wait-for-systray and wait-for-pager option
+- [x] similarly, could add a wait-for-systray and wait-for-pager option
 - [ ] make xdg-which and xdg-types work without gio-unix-2.0
 
-# vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn:
+xdg-prefs:
+
+- [ ] actually read and write mime and category key files and don't
+  just use gio.
+
+// vim: set ft=asciidoc tw=72 nocin nosi fo+=tcqlorn spell:
