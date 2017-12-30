@@ -1,0 +1,108 @@
+=pod
+
+=head1 NAME
+
+ xdg-icon - command-line XDG icon lookup tool
+
+=head1 SYNOPSIS
+
+ xdg-icon [ OPTIONS ] [NAME[ NAME ...]]
+
+=head1 DESCRIPTION
+
+B<xdg-icon> is a command line tool for looking up icons in accordance
+with the XDG icon specification.
+
+
+=head1 ARGUMENTS
+
+The program accepts the following arguments:
+
+=over
+
+=item I<NAME>[,I<NAME>][ I<NAME> ...]
+
+B<xdg-icon> treats all non-option arguments as a list of alternate icon
+names to seek.  Each non-option argument may itself be a list of
+comma-separated icon names.
+
+=back
+
+=head1 OPTIONS
+
+B<xdg-icon> accepts the following options:
+
+=over
+
+=item B<--help>,B<-h>
+
+Print usage information and then exit.
+
+=item B<--verbose>,B<-v>
+
+Print the parameters of the search to standard error before searching.
+
+=item B<--theme>,B<-t> I<THEME>
+
+Specify the default theme, I<THEME>, to use when lookup up icons.  The
+default theme when unspecified will be looked up from normal sources.
+
+=item B<--size>,B<-s> I<SIZE>
+
+Specify the preferred size of the icon, I<SIZE>.  The default size when
+unspecified is 16.
+
+=item B<--icon>,B<--name>,B<-n> I<NAME>[,I<NAME>]
+
+Specify a comma separated list of alternate icon names to look up in
+addition to any non-option arguments.  The option may be repeated or
+specified using non-option arguments.
+
+=item B<--extensions>,B<-e> I<EXTENSION>[,I<EXTENSION>]
+
+Specify a comma separated list of file name extensions, I<EXTENSION>,
+(without the '.') that may be returned.  The order of preference is the
+order specified.  This option may be repeated.
+
+=item B<--append>,B<-a> I<DIRECTORY>[:I<DIRECTORY>]
+
+Specify the colon-separated list of directories to append to the list of
+search directories (in the order specified).  This option may be
+repeated to list additional directories to append.
+
+=item B<--prepend>,B<-a> I<DIRECTORY>[:I<DIRECTORY>]
+
+Specify the colon-separated list of directories to prepend to the list
+of search directories (in the order specified).  This option may be
+repeated to list additional directories to prepend.
+
+=back
+
+=head1 EXAMPLES
+
+The following example will look up the 32x32 icon named C<start-here> in
+the theme C<Mist>.  If not found, the icon named C<unknown> will be
+looked up before resorting to fallback locations.
+
+ xdg-icon --theme Mist --size 32 start-here unknown
+
+=head1 HISTORY
+
+I wrote B<xdg-icon> because there were no command line tools for
+determining which icon would be used by XDG compliant tools (such as
+L<Gtk2(3pm)>).
+
+The modules used by this tool are also used by L<xdg-menugen(1p)> for
+when generating menus for XDE supported window managers.
+
+=head1 SEE ALSO
+
+L<XDG Icon Specification>.
+
+=head1 AUTHOR
+
+Brian Bidulock L<mailto:bidulock@openss7.org>
+
+=cut
+
+# vim: set sw=4 tw=72 nocin spell spelllang=en_ca:

@@ -1,42 +1,44 @@
 
 xdg_man1_files = \
-	     xdg-launch.man \
-	     xdg-assist.man \
-	     dmenu_launch.man \
-	     xdg-xsession.man \
-	     xdg-autostart.man \
-	     xdg-whereis.man \
-	     xdg-which.man \
-	     xdg-entry.man \
-	     xdg-toolwait.man \
-	     xdg-list.man \
-	     xdg-session.man \
-	     xdg-types.man
+	dmenu_launch.man \
+	xdg-assist.man \
+	xdg-autostart.man \
+	xdg-entry.man \
+	xdg-icon.man \
+	xdg-launch.man \
+	xdg-list.man \
+	xdg-session.man \
+	xdg-toolwait.man \
+	xdg-types.man \
+	xdg-whereis.man \
+	xdg-which.man \
+	xdg-xsession.man
 
 if HAVE_GIO_GLIB2_SUPPORT
 xdg_man1_files += \
-	     xdg-prefs.man \
-	     xdg-find.man
+	xdg-find.man \
+	xdg-prefs.man
 endif
 
 nodist_man1_MANS = $(xdg_man1_files)
 CLEANFILES = $(xdg_man1_files)
 
 EXTRA_DIST = \
-	     xdg-launch.pod \
-	     xdg-assist.pod \
-	     dmenu_launch.pod \
-	     xdg-xsession.pod \
-	     xdg-autostart.pod \
-	     xdg-whereis.pod \
-	     xdg-which.pod \
-	     xdg-entry.pod \
-	     xdg-toolwait.pod \
-	     xdg-list.pod \
-	     xdg-session.pod \
-	     xdg-types.pod \
-	     xdg-prefs.pod \
-	     xdg-find.pod
+	dmenu_launch.pod \
+	xdg-assist.pod \
+	xdg-autostart.pod \
+	xdg-entry.pod \
+	xdg-icon.pod \
+	xdg-find.pod \
+	xdg-launch.pod \
+	xdg-list.pod \
+	xdg-prefs.pod \
+	xdg-session.pod \
+	xdg-toolwait.pod \
+	xdg-types.pod \
+	xdg-whereis.pod \
+	xdg-which.pod \
+	xdg-xsession.pod
 
 $(xdg_man1_files): %.man: %.pod
 	$(AM_V_GEN)pod2man --center="User Commands" \
