@@ -344,7 +344,7 @@ find_default_file(GKeyFile *file, char **desktops, const gchar *directory, const
  *    type (as in the previous section).
  * 4. If a valid association is found, we have found the default application.
  * 5. If after all list items are handled, we have not yet found a default
- *    application, proceed to the nex mimeapps.list file in the search order and
+ *    application, proceed to the next mimeapps.list file in the search order and
  *    repeat.
  * 6. If after all files are handled, we have not yet found a default
  *    application, select the most-preferred application (according to
@@ -393,6 +393,29 @@ read_mime_apps(void)
 			*desktop = dlower;
 		}
 	}
+	const gchar *cdir, *const *cdirs;
+	const gchar *ddir, *const *ddirs;
+	const gchar *dir;
+	gchar **dirs;
+	unsigned i, n = 0, ndir = 0;
+
+	if ((cdir = g_get_user_config_dir()))
+		ndir++;
+	if ((ddir = g_get_user_data_dir()))
+		ndir++;
+	if ((cdirs = g_get_system_config_dirs()))
+		ndir += g_strv_length(cdirs);
+	if ((ddirs = g_get_system_data_dirs()))
+		ndir += g_strv_length(ddirs);
+	dirs = g_malloc0_n(ndir + 1, sizeof(gchar *));
+	if (cdir)
+		dirs[n++] = g_strdup(cdir);
+	for (i = 0; i < g_strv_length(cdirs); i++)
+		dirs[n++] = g_strdup(cdirs[i]);
+	if (ddir)
+		dirs[n++] = g_build_filename(ddir, "applications", NULL);
+	for (i = 0; i < g_strv_length(ddirs); i++)
+		dirs[n++] = g_build_filename(ddirs[i], "applications", NULL);
 	(void) base;
 	/* TODO */
 	/* TODO */
