@@ -1,9 +1,9 @@
-[xdg-launch -- read me first file.  2017-05-07]: #
+[xdg-launch -- read me first file.  2018-03-25]: #
 
 xdg-launch
 ===============
 
-Package `xdg-launch-1.5` was released under GPLv3 license 2017-05-07.
+Package `xdg-launch-1.6` was released under GPLv3 license 2018-03-25.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -20,7 +20,7 @@ wrapper scripts.
 Release
 -------
 
-This is the `xdg-launch-1.5` package, released 2017-05-07.  This
+This is the `xdg-launch-1.6` package, released 2018-03-25.  This
 release, and the latest version, can be obtained from [GitHub][1], using
 a command such as:
 
@@ -77,12 +77,17 @@ The following programs are included in `xdg-launch`:
    `xdg-launch(1)` and dmenu(1) to provide an application menu.
 
  - __`xdg-autostart(1)`__ -- This is a little script that invokes
-   xdg-launch(1) as a launcher for autostart programs instead of
+   xdg-launch(1) as a launcher for auto-start programs instead of
    applications.
 
  - __`xdg-xsession(1)`__ -- This is a little script that invokes
    `xdg-launch(1)` as a launcher for X Sessions programs (window
    managers) instead of applications.
+
+ - __`xdg-session(1)`__ -- This is a little script that invokes
+   `xdg-launch(1)` as a launcher for X Sessions programs (window
+   managers) instead of applications a simple session and full
+   auto-start procedure.
 
  - __`xdg-entry(1)`__ -- This is a little script that invokes
    xdg-launch(1)` with the --info option and lists which information
@@ -102,19 +107,19 @@ The following programs are included in `xdg-launch`:
    also assists window managers with supporting startup notification and
    other EWMH/NetWM features.
 
-Also provided (when `glib2` is available) are some little tools for the
-XDG desktop:
-
  - __`xdg-list(1)`__ -- lists desktop entry files.
 
  - __`xdg-types(1)`__ -- shows the content types provided by a desktop
    application.
 
- - __`xdg-find(1)`__ -- finds desktop entry files based on a number of
-   search criteria.
-
  - __`xdg-which(1)`__ -- determine which XDG desktop entries correspond
    to a given application id.
+
+Also provided (when `glib2` is available) are some little tools for the
+XDG desktop:
+
+ - __`xdg-find(1)`__ -- finds desktop entry files based on a number of
+   search criteria.
 
  - __`xdg-prefs(1)`__ -- locates or sets preferred applications by
    category or mime type.
@@ -129,12 +134,12 @@ Report issues on GitHub [here][2].
 
 [1]: https://github.com/bbidulock/xdg-launch
 [2]: https://github.com/bbidulock/xdg-launch/issues
-[3]: https://github.com/bbidulock/xdg-launch/blob/master/NEWS
-[4]: https://github.com/bbidulock/xdg-launch/blob/master/ChangeLog
-[5]: https://github.com/bbidulock/xdg-launch/blob/master/TODO
-[6]: https://github.com/bbidulock/xdg-launch/blob/master/COMPLIANCE
-[7]: https://github.com/bbidulock/xdg-launch/blob/master/INSTALL
-[8]: https://github.com/bbidulock/xdg-launch/blob/master/LICENSE
-[9]: https://github.com/bbidulock/xdg-launch/blob/master/COPYING
+[3]: https://github.com/bbidulock/xdg-launch/blob/1.6/NEWS
+[4]: https://github.com/bbidulock/xdg-launch/blob/1.6/ChangeLog
+[5]: https://github.com/bbidulock/xdg-launch/blob/1.6/TODO
+[6]: https://github.com/bbidulock/xdg-launch/blob/1.6/COMPLIANCE
+[7]: https://github.com/bbidulock/xdg-launch/blob/1.6/INSTALL
+[8]: https://github.com/bbidulock/xdg-launch/blob/1.6/LICENSE
+[9]: https://github.com/bbidulock/xdg-launch/blob/1.6/COPYING
 
 [ vim: set ft=markdown sw=4 tw=72 nocin nosi fo+=tcqlorn spell: ]: #

@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xdg-launch],[1.5],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
-AC_REVISION([1.5])
+AC_INIT([xdg-launch],[1.6],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
+AC_REVISION([1.6])
 
 AC_CONFIG_SRCDIR([src/xdg-launch.c])
 AC_CONFIG_HEADERS([autoconf.h])
@@ -12,10 +12,10 @@ AC_CONFIG_AUX_DIR([scripts])
 AC_USE_SYSTEM_EXTENSIONS
 AC_CANONICAL_TARGET
 
-DATE='2017-05-07'
+DATE='2018-03-25'
 AC_SUBST([DATE])
 
-BRANCH='master'
+BRANCH='1.6'
 AC_SUBST([BRANCH])
 
 # Initialize Automake
