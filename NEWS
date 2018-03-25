@@ -5,7 +5,7 @@ Release xdg-launch-1.6 released 2018-03-25
 
 git shortlog -e -n -w80,6,8 1.5...1.6
 
-Brian Bidulock <bidulock@openss7.org> (90):
+Brian Bidulock <bidulock@openss7.org> (92):
       copyright and typo
       more copyright update
       do not frag out g_bookmark_file_add_group
@@ -96,6 +96,8 @@ Brian Bidulock <bidulock@openss7.org> (90):
       document mime preferences
       add manpage for xdg-icon
       some additions to xdg-prefs
+      update release files
+      corrections to xdg-prefs updates
 
 
 Release xdg-launch-1.5 released 2017-05-07

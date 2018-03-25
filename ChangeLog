@@ -1,5 +1,28 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit ea940f9abab514df61b597ecb9447aab415cba36
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Mar 25 15:11:24 2018 -0600
+
+    corrections to xdg-prefs updates
+
+ src/xdg-prefs.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+commit d9cbee5ff845eb4841f22560f91338fe86726e78
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Mar 25 14:58:17 2018 -0600
+
+    update release files
+
+ AUTHORS      |   2 +-
+ ChangeLog    | 850 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ NEWS         | 218 +++++++-------
+ README       |  39 +--
+ README.md    |  39 +--
+ configure.ac |   8 +-
+ 6 files changed, 999 insertions(+), 157 deletions(-)
+
 commit 034cbcf9073a906878da8ca2a826b440c2f49abe
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Mar 25 14:54:08 2018 -0600
