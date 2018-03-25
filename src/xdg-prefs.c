@@ -393,9 +393,8 @@ read_mime_apps(void)
 			*desktop = dlower;
 		}
 	}
-	const gchar *cdir, *const *cdirs;
-	const gchar *ddir, *const *ddirs;
-	const gchar *dir;
+	const gchar *cdir; const gchar *const *cdirs;
+	const gchar *ddir; const gchar *const *ddirs;
 	gchar **dirs;
 	unsigned i, n = 0, ndir = 0;
 
@@ -404,17 +403,17 @@ read_mime_apps(void)
 	if ((ddir = g_get_user_data_dir()))
 		ndir++;
 	if ((cdirs = g_get_system_config_dirs()))
-		ndir += g_strv_length(cdirs);
+		ndir += g_strv_length((gchar **)cdirs);
 	if ((ddirs = g_get_system_data_dirs()))
-		ndir += g_strv_length(ddirs);
+		ndir += g_strv_length((gchar **)ddirs);
 	dirs = g_malloc0_n(ndir + 1, sizeof(gchar *));
 	if (cdir)
 		dirs[n++] = g_strdup(cdir);
-	for (i = 0; i < g_strv_length(cdirs); i++)
+	for (i = 0; i < g_strv_length((gchar **)cdirs); i++)
 		dirs[n++] = g_strdup(cdirs[i]);
 	if (ddir)
 		dirs[n++] = g_build_filename(ddir, "applications", NULL);
-	for (i = 0; i < g_strv_length(ddirs); i++)
+	for (i = 0; i < g_strv_length((gchar **)ddirs); i++)
 		dirs[n++] = g_build_filename(ddirs[i], "applications", NULL);
 	(void) base;
 	/* TODO */
