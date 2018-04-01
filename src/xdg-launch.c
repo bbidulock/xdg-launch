@@ -10074,7 +10074,6 @@ main(int argc, char *argv[])
 				break;
 			}
 			val = strtoul(optarg, &endptr, 0);
-				goto bad_option;
 			if (*endptr)
 				goto bad_option;
 			options.output = val;
