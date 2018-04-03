@@ -9243,6 +9243,27 @@ session(Process *wm)
 			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
 	}
 
+	if (getpid() == getpgid(0)) {
+		pid_t pid;
+		int status = 0;
+
+		put_display();
+		switch ((pid = fork())) {
+			case -1:
+			case 0:
+				/* child continues (or parent if fork failed) */
+				break;
+			default:
+				/* parent waits for child to exit and then exits too */
+				if (waitpid(pid, &status, 0) == -1) {
+					EPRINTF("waitpid: %s\n", strerror(errno));
+					exit(EXIT_FAILURE);
+				}
+				if (WIFEXITED(status))
+					exit(WEXITSTATUS(status));
+				exit(EXIT_SUCCESS);
+		}
+	}
 	if ((sid = setsid()) == (pid_t) -1)
 		EPRINTF("cannot become session leader: %s\n", strerror(errno));
 	else
@@ -9381,16 +9402,46 @@ session(Process *wm)
 			pp_prev = &pr->next;
 		}
 		for (pr = processes; pr; pr = pr->next) {
+			pid_t pid = getpid();
+
+			put_display();
+			if ((pid = fork()) < 0) {
+				EPRINTF("%s\n", strerror(errno));
+				get_display();
+				continue;
+			}
+			if (pid) {
+				DPRINTF(1, "parent says child pid is %d\n", pid);
+				get_display();
+				continue;
+			}
 			/* should actually be done after child forks */
+			get_display();
 			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
 				set_all(pr->seq, pr->ent);
 				if (options.output > 1)
 					show_sequence("Associated sequence", pr->seq);
 				if (options.info)
 					info_sequence("Associated sequence", pr->seq);
+				launch(pr->seq, pr->ent);
 			}
+			exit(EXIT_FAILURE);
 		}
 	}
+
+	options.session = False;
+	options.xsession = True;
+	options.autostart = False;
+
+	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
+		set_all(wm->seq, wm->ent);
+		if (options.output > 1)
+			show_sequence("Associated sequence", wm->seq);
+		if (options.info)
+			info_sequence("Associated sequence", wm->seq);
+		launch(wm->seq, wm->ent);
+	}
+	exit(EXIT_SUCCESS);
 }
 
 static void
