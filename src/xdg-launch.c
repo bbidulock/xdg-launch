@@ -921,11 +921,11 @@ xerror(Display *display, XErrorEvent *eev)
 		XGetErrorDatabaseText(dpy, "XRequest", num, def, req, sizeof(req) - 1);
 		if (XGetErrorText(dpy, eev->error_code, msg, sizeof(msg) - 1) != Success)
 			msg[0] = '\0';
-		fprintf(stderr, "X error %s(0x%lx): %s\n", req, eev->resourceid, msg);
-		fprintf(stderr, "\tResource id 0x%lx\n", eev->resourceid);
-		fprintf(stderr, "\tFailed request  %lu\n", eev->serial);
-		fprintf(stderr, "\tNext request is %lu\n", NextRequest(dpy));
-		fprintf(stderr, "\tLast request is %lu\n", LastKnownRequestProcessed(dpy));
+		fprintf(stderr, NAME ": X error %s(0x%lx): %s\n", req, eev->resourceid, msg);
+		fprintf(stderr, NAME ":\tResource id 0x%lx\n", eev->resourceid);
+		fprintf(stderr, NAME ":\tFailed request  %lu\n", eev->serial);
+		fprintf(stderr, NAME ":\tNext request is %lu\n", NextRequest(dpy));
+		fprintf(stderr, NAME ":\tLast request is %lu\n", LastKnownRequestProcessed(dpy));
 	}
 	if (options.debug) {
 		void *buffer[BUFSIZ];
@@ -935,7 +935,7 @@ xerror(Display *display, XErrorEvent *eev)
 
 		if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 			for (i = 0; i < nptr; i++)
-				fprintf(stderr, "\tbt> %s\n", strings[i]);
+				fprintf(stderr, NAME ":\tbt> %s\n", strings[i]);
 	}
 	return (0);
 }
@@ -948,10 +948,10 @@ xioerror(Display *display)
 	char **strings;
 	int i;
 
-	fprintf(stderr, "X I/O Error: %s\n", strerror(errno));
+	fprintf(stderr, NAME ": X I/O Error: %s\n", strerror(errno));
 	if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
-			fprintf(stderr, "\tbt> %s\n", strings[i]);
+			fprintf(stderr, NAME ":\tbt> %s\n", strings[i]);
 	exit(EXIT_FAILURE);
 }
 
