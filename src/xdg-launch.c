@@ -911,37 +911,52 @@ intern_atoms(void)
 }
 
 int
-handler(Display *display, XErrorEvent *xev)
+xerror(Display *display, XErrorEvent *eev)
 {
 	if (options.debug) {
-		char msg[80], req[80], num[80], def[80];
+		char msg[81] = { 0, }, req[81] = { 0, }, num[81] = { 0, }, def[81] = { 0, };
 
-		snprintf(num, sizeof(num), "%d", xev->request_code);
-		snprintf(def, sizeof(def), "[request_code=%d]", xev->request_code);
-		XGetErrorDatabaseText(dpy, "xdg-launch", num, def, req, sizeof(req));
-		if (XGetErrorText(dpy, xev->error_code, msg, sizeof(msg)) != Success)
+		snprintf(num, sizeof(num) - 1, "%d", eev->request_code);
+		snprintf(def, sizeof(def) - 1, "[request_code=%d]", eev->request_code);
+		XGetErrorDatabaseText(dpy, "XRequest", num, def, req, sizeof(req) - 1);
+		if (XGetErrorText(dpy, eev->error_code, msg, sizeof(msg) - 1) != Success)
 			msg[0] = '\0';
-		fprintf(stderr, "X error %s(0x%08lx): %s\n", req, xev->resourceid, msg);
+		fprintf(stderr, "X error %s(0x%lx): %s\n", req, eev->resourceid, msg);
+		fprintf(stderr, "\tResource id 0x%lx\n", eev->resourceid);
+		fprintf(stderr, "\tFailed request  %lu\n", eev->serial);
+		fprintf(stderr, "\tNext request is %lu\n", NextRequest(dpy));
+		fprintf(stderr, "\tLast request is %lu\n", LastKnownRequestProcessed(dpy));
+	}
+	if (options.debug) {
+		void *buffer[BUFSIZ];
+		int nptr;
+		char **strings;
+		int i;
+
+		if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
+			for (i = 0; i < nptr; i++)
+				fprintf(stderr, "\tbt> %s\n", strings[i]);
 	}
 	return (0);
 }
 
 int
-iohandler(Display *display)
+xioerror(Display *display)
 {
-	void *buffer[1024];
+	void *buffer[BUFSIZ];
 	int nptr;
 	char **strings;
 	int i;
 
-	if ((nptr = backtrace(buffer, 1023)) && (strings = backtrace_symbols(buffer, nptr)))
+	fprintf(stderr, "X I/O Error: %s\n", strerror(errno));
+	if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
-			fprintf(stderr, "backtrace> %s\n", strings[i]);
+			fprintf(stderr, "\tbt> %s\n", strings[i]);
 	exit(EXIT_FAILURE);
 }
 
-int (*oldhandler) (Display *, XErrorEvent *) = NULL;
-int (*oldiohandler) (Display *) = NULL;
+int (*xerrorxlib) (Display *, XErrorEvent *) = NULL;
+int (*xioerrorxlib) (Display *) = NULL;
 
 static void init_screen(void);
 
@@ -957,8 +972,8 @@ get_display(void)
 			EPRINTF("cannot open display\n");
 			exit(EXIT_FAILURE);
 		}
-		oldhandler = XSetErrorHandler(handler);
-		oldiohandler = XSetIOErrorHandler(iohandler);
+		xerrorxlib = XSetErrorHandler(xerror);
+		xioerrorxlib = XSetIOErrorHandler(xioerror);
 
 		PropertyContext = XUniqueContext();
 		ClientMessageContext = XUniqueContext();
@@ -981,9 +996,10 @@ get_display(void)
 				     ExposureMask | VisibilityChangeMask |
 				     StructureNotifyMask | SubstructureNotifyMask |
 				     FocusChangeMask | PropertyChangeMask);
-			scr->selwin =
-			    XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative,
-						ParentRelative);
+			scr->selwin = XCreateSimpleWindow(dpy, scr->root,
+							  0, 0, 1, 1, 0,
+							  BlackPixel(dpy, s),
+							  BlackPixel(dpy, s));
 			snprintf(sel, sizeof(sel), "WM_S%d", s);
 			scr->icccm_atom = XInternAtom(dpy, sel, False);
 			snprintf(sel, sizeof(sel), "_NET_SYSTEM_TRAY_S%d", s);
@@ -1009,8 +1025,8 @@ put_display(void)
 {
 	PTRACE(5);
 	if (dpy) {
-		XSetErrorHandler(oldhandler);
-		XSetIOErrorHandler(oldiohandler);
+		XSetErrorHandler(xerrorxlib);
+		XSetIOErrorHandler(xioerrorxlib);
 		XCloseDisplay(dpy);
 		dpy = NULL;
 	}
@@ -2639,7 +2655,9 @@ send_msg(char *msg)
 
 	if (!(from = scr->selwin)) {
 		EPRINTF("no selection window, creating one!\n");
-		from = XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0, ParentRelative, ParentRelative);
+		from = XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0,
+				BlackPixel(dpy, scr->screen),
+				BlackPixel(dpy, scr->screen));
 	}
 
 	xev.type = ClientMessage;
