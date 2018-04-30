@@ -104,23 +104,23 @@
 #define XPRINTF(_args...) do { } while (0)
 
 #define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
-		fprintf(stderr, NAME ": D: %12s: +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME "[%d]: D: %12s: +%4d : %s() : ", getpid(), __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
-		fprintf(stderr, NAME ": E: %12s +%4d : %s() : ", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME "[%d]: E: %12s +%4d : %s() : ", getpid(), __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } while (0)
 
 #define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
-		fprintf(stdout, NAME ": I: "); \
+		fprintf(stdout, NAME "[%d]: I: ", getpid()); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 #define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
-		fprintf(stderr, NAME ": T: %12s +%4d : %s()\n", __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME "[%d]: T: %12s +%4d : %s()\n", getpid(), __FILE__, __LINE__, __func__); \
 		fflush(stderr); } } while (0)
 
 #define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
-		fprintf(stdout, NAME ": C: 0x%08lx client (%c) ", c->win, c->managed ?  'M' : 'U'); \
+		fprintf(stdout, NAME "[%d]: C: 0x%08lx client (%c) ", getpid(), c->win, c->managed ?  'M' : 'U'); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 void
@@ -921,11 +921,11 @@ xerror(Display *display, XErrorEvent *eev)
 		XGetErrorDatabaseText(dpy, "XRequest", num, def, req, sizeof(req) - 1);
 		if (XGetErrorText(dpy, eev->error_code, msg, sizeof(msg) - 1) != Success)
 			msg[0] = '\0';
-		fprintf(stderr, NAME ": X error %s(0x%lx): %s\n", req, eev->resourceid, msg);
-		fprintf(stderr, NAME ":\tResource id 0x%lx\n", eev->resourceid);
-		fprintf(stderr, NAME ":\tFailed request  %lu\n", eev->serial);
-		fprintf(stderr, NAME ":\tNext request is %lu\n", NextRequest(dpy));
-		fprintf(stderr, NAME ":\tLast request is %lu\n", LastKnownRequestProcessed(dpy));
+		DPRINTF(1, NAME ": X error %s(0x%lx): %s\n", req, eev->resourceid, msg);
+		DPRINTF(1, NAME ":\tResource id 0x%lx\n", eev->resourceid);
+		DPRINTF(1, NAME ":\tFailed request  %lu\n", eev->serial);
+		DPRINTF(1, NAME ":\tNext request is %lu\n", NextRequest(dpy));
+		DPRINTF(1, NAME ":\tLast request is %lu\n", LastKnownRequestProcessed(dpy));
 	}
 	if (options.debug) {
 		void *buffer[BUFSIZ];
@@ -935,7 +935,7 @@ xerror(Display *display, XErrorEvent *eev)
 
 		if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 			for (i = 0; i < nptr; i++)
-				fprintf(stderr, NAME ":\tbt> %s\n", strings[i]);
+				DPRINTF(1, NAME ":\tbt> %s\n", strings[i]);
 	}
 	return (0);
 }
@@ -948,10 +948,10 @@ xioerror(Display *display)
 	char **strings;
 	int i;
 
-	fprintf(stderr, NAME ": X I/O Error: %s\n", strerror(errno));
+	DPRINTF(0, "X I/O Error: %s\n", strerror(errno));
 	if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
-			fprintf(stderr, NAME ":\tbt> %s\n", strings[i]);
+			DPRINTF(0, "\tbt> %s\n", strings[i]);
 	exit(EXIT_FAILURE);
 }
 
@@ -1743,7 +1743,8 @@ get_frame(Window win)
 	get_window(scr->root, _XA__SWM_VROOT, XA_WINDOW, &vroot);
 
 	for (fparent = frame; fparent != froot; frame = fparent) {
-		if (!XQueryTree(dpy, frame, &froot, &fparent, &fchildren, &du)) {
+		if (!frame || !XQueryTree(dpy, frame, &froot, &fparent, &fchildren, &du)) {
+			DPRINTF(4, "could not query tree for window 0x%08lx\n", frame);
 			frame = None;
 			goto done;
 		}
@@ -1814,7 +1815,7 @@ find_window_screen(Window w)
 	Window wroot = 0, dw = 0, *dwp = NULL;
 	unsigned int du = 0;
 
-	if (!XQueryTree(dpy, w, &wroot, &dw, &dwp, &du)) {
+	if (!w || !XQueryTree(dpy, w, &wroot, &dw, &dwp, &du)) {
 		DPRINTF(4, "could not query tree for window 0x%08lx\n", w);
 		return False;
 	}
@@ -1977,13 +1978,13 @@ need_assistance(void)
 	}
 	if (!check_netwm()) {
 		DPRINTF(1, "Failed NetWM check!\n");
-		if (options.info)
+		if (options.info || options.output > 1)
 			fputs("Assistance required: window manager failed NetWM check\n", stdout);
 		return True;
 	}
 	if (!check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
 		DPRINTF(1, "_NET_STARTUP_ID not supported\n");
-		if (options.info)
+		if (options.info || options.output > 1)
 			fputs("Assistance required: window manager does not support _NET_STARTUP_ID\n",
 			     stdout);
 		return True;
@@ -2647,10 +2648,11 @@ send_msg(char *msg)
 
 	DPRINTF(1, "Message to 0x%08lx is: '%s'\n", scr->root, msg);
 
-	if (options.info) {
+	if (options.info || options.output > 1) {
 		fputs("Would send the following startup notification message:\n\n", stdout);
 		fprintf(stdout, "%s\n\n", msg);
-		return;
+		if (options.info)
+			return;
 	}
 
 	if (!(from = scr->selwin)) {
@@ -4155,13 +4157,10 @@ show_entry(const char *prefix, Entry *e)
 	if (options.debug < 2 && options.output < 2)
 		return;
 	if (prefix)
-		fprintf(stderr, "\n%s from file %s\n", prefix, e->path);
+		DPRINTF(2, "%s from file %s\n", prefix, e->path);
 	for (label = DesktopEntryFields, entry = &e->Type; *label; label++, entry++)
 		if (*entry)
-			fprintf(stderr, "%-24s = %s\n", *label, *entry);
-	if (prefix)
-		fputs("\n", stderr);
-	fflush(stderr);
+			DPRINTF(2, "%-24s = %s\n", *label, *entry);
 }
 
 static void
@@ -4173,13 +4172,10 @@ info_entry(const char *prefix, Entry *e)
 	if (options.output < 1)
 		return;
 	if (prefix)
-		fprintf(stdout, "%s: from %s\n", prefix, e->path);
+		OPRINTF(1, "%s: from %s\n", prefix, e->path);
 	for (label = DesktopEntryFields, entry = &e->Type; *label; label++, entry++)
 		if (*entry)
-			fprintf(stdout, "%-24s = %s\n", *label, *entry);
-	if (prefix)
-		fputs("\n", stdout);
-	fflush(stdout);
+			OPRINTF(1, "%-24s = %s\n", *label, *entry);
 }
 
 static void
@@ -4228,14 +4224,13 @@ show_sequence(const char *prefix, Sequence *seq)
 	if (options.debug < 2 && options.output < 2)
 		return;
 	if (prefix)
-		fprintf(stderr, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
+		DPRINTF(2, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
 	for (label = StartupNotifyFields, field = seq->fields; *label; label++, field++) {
 		if (*field)
-			fprintf(stderr, "%s=%s\n", *label, *field);
+			DPRINTF(2, "%s=%s\n", *label, *field);
 		else
-			fprintf(stderr, "%s=\n", *label);
+			DPRINTF(2, "%s=\n", *label);
 	}
-	fflush(stderr);
 }
 
 static void
@@ -4247,14 +4242,13 @@ info_sequence(const char *prefix, Sequence *seq)
 	if (options.output < 1)
 		return;
 	if (prefix)
-		fprintf(stdout, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
+		OPRINTF(1, "%s: from 0x%08lx (%s)\n", prefix, seq->from, show_source(seq->from, seq->client));
 	for (label = StartupNotifyFields, field = seq->fields; *label; label++, field++) {
 		if (*field)
-			fprintf(stdout, "%s=%s\n", *label, *field);
+			OPRINTF(1, "%s=%s\n", *label, *field);
 		else
-			fprintf(stdout, "%s=\n", *label);
+			OPRINTF(1, "%s=\n", *label);
 	}
-	fflush(stdout);
 }
 
 static Sequence *remove_sequence(Sequence *del);
@@ -6455,7 +6449,8 @@ pc_handle_atom(XPropertyEvent *e, Client *c)
 	pc_handler_t handle = NULL;
 	char *name = NULL;
 
-	if (XFindContext(dpy, e->atom, PropertyContext, (XPointer *) &handle) == Success)
+	if (XFindContext(dpy, e->atom, PropertyContext, (XPointer *) &handle)
+			== Success && handle)
 		(*handle) (e, c);
 	else
 		DPRINTF(1, "no PropertyNotify handler for %s\n",
@@ -6471,10 +6466,10 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 	char *name = NULL;
 
 	if (XFindContext(dpy, e->message_type, ClientMessageContext, (XPointer *) &handle)
-	    == Success)
+			== Success && handle)
 		(*handle) (e, c);
 	else
-		CPRINTF(1, c, "no ClientMessage handler for %s\n",
+		DPRINTF(1, "no ClientMessage handler for %s\n",
 			(name = XGetAtomName(dpy, e->message_type)));
 	if (name)
 		XFree(name);
@@ -6916,6 +6911,7 @@ assist(Sequence *s, Entry *e)
 	setup_to_assist(s);
 	XSync(dpy, False);
 	reset_pid(pid, s, e);
+	DPRINTF(1, "Launching with wm assistance\n");
 	if (options.info) {
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
@@ -6934,8 +6930,6 @@ assist(Sequence *s, Entry *e)
 	}
 	/* continue on monitoring */
 	get_display();
-	if (options.guard)
-		alarm(options.guard);
 	{
 		int xfd;
 		XEvent ev;
@@ -6947,6 +6941,8 @@ assist(Sequence *s, Entry *e)
 		signal(SIGQUIT, sighandler);
 		signal(SIGALRM, sighandler);
 
+		if (options.guard)
+			alarm(options.guard);
 		/* main event loop */
 		running = True;
 		DPRINTF(1, "Addressing X Server!\n");
@@ -7016,6 +7012,7 @@ toolwait(Sequence *s, Entry *e)
 	PTRACE(5);
 	setup_to_assist(s);
 	XSync(dpy, False);
+	DPRINTF(1, "Launching with tool wait support\n");
 	if (options.info) {
 		fputs("Would launch with tool wait support\n\n", stdout);
 		reset_pid(pid, s, e);
@@ -7035,8 +7032,6 @@ toolwait(Sequence *s, Entry *e)
 	}
 	/* continue on monitoring */
 	get_display();
-	if (options.guard)
-		alarm(options.guard);
 	{
 		int xfd;
 		XEvent ev;
@@ -7048,6 +7043,8 @@ toolwait(Sequence *s, Entry *e)
 		signal(SIGQUIT, sighandler);
 		signal(SIGALRM, sighandler);
 
+		if (options.guard)
+			alarm(options.guard);
 		/* main event loop */
 		running = True;
 		XSync(dpy, False);
@@ -7104,6 +7101,7 @@ normal(Sequence *s, Entry *e)
 	pid_t pid = getpid();
 
 	PTRACE(5);
+	DPRINTF(1, "Launching without assistance or tool wait\n");
 	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
 	reset_pid(pid, s, e);
@@ -7124,6 +7122,8 @@ wait_for_condition(Window (*until) (void))
 	signal(SIGQUIT, sighandler);
 	signal(SIGALRM, sighandler);
 
+	if (options.guard)
+		alarm(options.guard);
 	/* main event loop */
 	running = True;
 	XSync(dpy, False);
@@ -7132,8 +7132,10 @@ wait_for_condition(Window (*until) (void))
 		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 
 		if (signum) {
-			if (signum == SIGALRM)
+			if (signum == SIGALRM) {
+				EPRINTF("Continuing on timeout!\n");
 				return True;
+			}
 			exit(EXIT_SUCCESS);
 		}
 		if (poll(&pfd, 1, -1) == -1) {
@@ -7212,30 +7214,31 @@ wait_for_window_manager(void)
 {
 	PTRACE(5);
 	if (check_for_window_manager()) {
-		if (options.info) {
+		if (options.info || options.output > 1) {
 			fputs("Have a window manager:\n\n", stdout);
 			if (scr->netwm_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window NetWM/EWMH",
+				OPRINTF(0, "%-24s = 0x%08lx\n", "Window NetWM/EWMH",
 					scr->netwm_check);
 			if (scr->winwm_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WinWM/GNOME",
+				OPRINTF(0, "%-24s = 0x%08lx\n", "Window WinWM/GNOME",
 					scr->winwm_check);
 			if (scr->maker_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window WindowMaker",
+				OPRINTF(0, "%-24s = 0x%08lx\n", "Window WindowMaker",
 					scr->maker_check);
 			if (scr->motif_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window OSF/MOTIF",
+				OPRINTF(0, "%-24s = 0x%08lx\n", "Window OSF/MOTIF",
 					scr->motif_check);
 			if (scr->icccm_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window ICCCM 2.0",
+				OPRINTF(0, "%-24s = 0x%08lx\n", "Window ICCCM 2.0",
 					scr->icccm_check);
 			if (scr->redir_check)
-				fprintf(stdout, "%-24s = 0x%08lx\n", "Window redirection",
+				OPRINTF(0, "%-24s = 0x%08lx\n", "Window redirection",
 					scr->redir_check);
 			fputs("\n", stdout);
 		}
 		return;
 	} else {
+		DPRINTF(1, "Waiting for window manager\n");
 		if (options.info) {
 			fputs("Would wait for window manager\n", stdout);
 			return;
@@ -7249,15 +7252,16 @@ wait_for_system_tray(void)
 {
 	PTRACE(5);
 	if (check_stray()) {
+		DPRINTF(1, "Have a system tray: system tray window = 0x%08lx\n", scr->stray_owner);
 		if (options.info) {
-			fputs("Have a system tray:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "System Tray window", scr->stray_owner);
-			fputs("\n", stdout);
+			OPRINTF(0, "Have a system tray:\n");
+			OPRINTF(0, "%-24s = 0x%08lx\n", "System Tray window", scr->stray_owner);
 		}
 		return;
 	} else {
+		DPRINTF(1, "Will wait for system tray\n");
 		if (options.info) {
-			fputs("Would wait for system tray\n", stdout);
+			OPRINTF(0, "Would wait for system tray\n");
 			return;
 		}
 	}
@@ -7269,16 +7273,16 @@ wait_for_desktop_pager(void)
 {
 	PTRACE(5);
 	if (check_pager()) {
+		DPRINTF(1, "Have a desktop pager: Desktop pager window = 0x%08lx\n", scr->pager_owner);
 		if (options.info) {
-			fputs("Have a desktop pager:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "Desktop pager window",
-				scr->pager_owner);
-			fputs("\n", stdout);
+			OPRINTF(0, "Have a desktop pager:\n");
+			OPRINTF(0, "%-24s = 0x%08lx\n", "Desktop pager window", scr->pager_owner);
 		}
 		return;
 	} else {
+		DPRINTF(1, "Will wait for desktop pager\n");
 		if (options.info) {
-			fputs("Would wait for desktop pager\n", stdout);
+			OPRINTF(0, "Would wait for desktop pager\n");
 			return;
 		}
 	}
@@ -7290,16 +7294,16 @@ wait_for_composite_manager(void)
 {
 	PTRACE(5);
 	if (check_compm()) {
+		DPRINTF(1, "Have a composite manager: composite manager window = 0x%08lx\n", scr->compm_owner);
 		if (options.info) {
-			fputs("Have a composite manager:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "Composite manager window",
-				scr->compm_owner);
-			fputs("\n", stdout);
+			OPRINTF(0, "Have a composite manager:\n");
+			OPRINTF(0, "%-24s = 0x%08lx\n", "Composite manager window", scr->compm_owner);
 		}
 		return;
 	} else {
+		DPRINTF(1, "Will wait for composite manager\n");
 		if (options.info) {
-			fputs("Would wait for composite manager\n", stdout);
+			OPRINTF(0, "Would wait for composite manager\n");
 			return;
 		}
 	}
@@ -7311,15 +7315,16 @@ wait_for_audio_server(void)
 {
 	PTRACE(5);
 	if (check_audio()) {
+		DPRINTF(1, "Have an audio server: Audio server window = 0x%08lx\n", scr->compm_owner);
 		if (options.info) {
-			fputs("Have an audio server:\n\n", stdout);
-			fprintf(stdout, "%-24s = 0x%08lx\n", "Audio server window", scr->audio_owner);
-			fputs("\n", stdout);
+			OPRINTF(0, "Have an audio server:\n\n");
+			OPRINTF(0, "%-24s = 0x%08lx\n", "Audio server window", scr->audio_owner);
 		}
 		return;
 	} else {
+		DPRINTF(1, "Will wait for audio server\n");
 		if (options.info) {
-			fputs("Would wait for audio server\n", stdout);
+			OPRINTF(0, "Would wait for audio server\n");
 			return;
 		}
 	}
@@ -7521,11 +7526,19 @@ launch(Sequence *s, Entry *e)
 		if (options.info) {
 			char **p;
 
-			fputs("Command would be:\n\n", stdout);
+			OPRINTF(0, "Command would be:");
 			for (p = &eargv[0]; p && *p; p++)
 				fprintf(stdout, "'%s' ", *p);
-			fputs("\n\n", stdout);
+			fputs("\n", stdout);
 			return;
+		}
+		if (options.debug >= 1) {
+			char **p;
+
+			DPRINTF(1, "Command will be:");
+			for (p = &eargv[0]; p && *p; p++)
+				fprintf(stderr, "'%s' ", *p);
+			fputs("\n", stderr);
 		}
 		execvp(eargv[0], eargv);
 	} else {
@@ -7561,13 +7574,20 @@ launch(Sequence *s, Entry *e)
 		if (options.info) {
 			char **p;
 
-			fputs("Command would be:\n\n", stdout);
+			OPRINTF(0, "Command would be:");
 			for (p = &we.we_wordv[0]; p && *p; p++)
 				fprintf(stdout, "'%s' ", *p);
-			fputs("\n\n", stdout);
+			fputs("\n", stdout);
 			return;
 		}
-		OPRINTF(1, "Command is: '%s'\n", s->f.command);
+		if (options.debug >= 1) {
+			char **p;
+
+			DPRINTF(1, "Command will be:");
+			for (p = &we.we_wordv[0]; p && *p; p++)
+				fprintf(stderr, "'%s' ", *p);
+			fputs("\n", stderr);
+		}
 		execvp(we.we_wordv[0], we.we_wordv);
 	}
 	EPRINTF("Should never get here!\n");
@@ -10340,7 +10360,7 @@ main(int argc, char *argv[])
 	}
 	/* populate some fields */
 	if (options.id) {
-		if (options.info)
+		if (options.info || options.output > 1)
 			fprintf(stdout, "Setting desktop startup id to: %s\n", options.id);
 		free(s->f.id);
 		s->f.id = strdup(options.id);
