@@ -1,11 +1,33 @@
-xdg-launch -- history of user-visible changes.  2018-03-25
+xdg-launch -- history of user-visible changes.  2018-04-30
+
+Release xdg-launch-1.7 released 2018-04-30
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.6...1.7
+
+Brian Bidulock <bidulock@openss7.org> (14):
+      remove stray line
+      try to bring up autostart processes
+      update copyright statement
+      update copyright statement
+      update copyright statement
+      update copyright statement
+      update copyright statement
+      update copyright statement
+      update copyright statement
+      a bit better xerror logging
+      better still
+      check for zero window
+      better debugging, caught several core dumps
+      Merge branch 'master' of github.com:bbidulock/xdg-launch
+
 
 Release xdg-launch-1.6 released 2018-03-25
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 1.5...1.6
 
-Brian Bidulock <bidulock@openss7.org> (92):
+Brian Bidulock <bidulock@openss7.org> (93):
       copyright and typo
       more copyright update
       do not frag out g_bookmark_file_add_group
@@ -98,6 +120,7 @@ Brian Bidulock <bidulock@openss7.org> (92):
       some additions to xdg-prefs
       update release files
       corrections to xdg-prefs updates
+      post-release update
 
 
 Release xdg-launch-1.5 released 2017-05-07
@@ -252,23 +275,5 @@ git shortlog -e -n -w80,6,8 0.6...0.7
 
 Brian Bidulock <bidulock@openss7.org> (2):
       add wait for audio server
-      update release files
-
-
-Release xdg-launch-0.6 released 2016-03-17
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.5...0.6
-
-Brian Bidulock <bidulock@openss7.org> (10):
-      minor update to build system
-      add xdg-list manual page
-      correct printf type
-      add xdg-list program
-      first working xdg-list
-      list in wrong place
-      document output of xdg-list
-      support all option
-      add options to documentation
       update release files
 

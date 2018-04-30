@@ -1,5 +1,139 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 03edae18b6b4f03388bdca110ec49b5564f70d49
+Merge: 770ee0d 86350cf
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 30 04:58:00 2018 +0000
+
+    Merge branch 'master' of github.com:bbidulock/xdg-launch
+
+commit 770ee0d5e171a8b2228dc5701b63015a8c82bf3d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 30 04:57:22 2018 +0000
+
+    better debugging, caught several core dumps
+
+ src/xdg-launch.c | 172 ++++++++++++++++++++++++++++-----------------------
+ 1 file changed, 96 insertions(+), 76 deletions(-)
+
+commit 86350cfefd927fa28a1d1277ab73ca8c068978c8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 30 00:04:14 2018 +0000
+
+    check for zero window
+
+ src/xdg-launch.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+commit d72623ab083b1886568e4a32d828b3e11174ed80
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 8 02:07:26 2018 -0600
+
+    better still
+
+ src/xdg-launch.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+commit c31038c08f43f10749dd8adc1d1ef1af34a56384
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 8 02:03:44 2018 -0600
+
+    a bit better xerror logging
+
+ src/xdg-launch.c | 60 ++++++++++++++++++++++++++++++++++------------------
+ 1 file changed, 39 insertions(+), 21 deletions(-)
+
+commit 42b6c0ea93b931c3e98b26c82e7958742b16a085
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:39:45 2018 -0600
+
+    update copyright statement
+
+ src/xdg-which.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 75c2b9f4f417475543fe11c08bf3cb6b5debc26e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:39:39 2018 -0600
+
+    update copyright statement
+
+ src/xdg-types.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 5f60a57bb2d79c27818ea7b33cfb94c7fab92a22
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:39:30 2018 -0600
+
+    update copyright statement
+
+ src/xdg-prefs.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit d3f91a37c3d93a5597b4849092afe96c85931e41
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:39:24 2018 -0600
+
+    update copyright statement
+
+ src/xdg-list.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 116b322fbadd3f736a55fe7ce1b63351da70d013
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:39:19 2018 -0600
+
+    update copyright statement
+
+ src/xdg-launch.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 3bc3fd8e1441f7da8c837abcbf91b5ec56ae567b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:39:10 2018 -0600
+
+    update copyright statement
+
+ src/xdg-find.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 9e8ef03fe3294fc241153ab11430b4bec919731b
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Mon Apr 2 23:38:53 2018 -0600
+
+    update copyright statement
+
+ src/xdg-assist.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 8a8a64e07613088aeed8f26c8ecf7c80261d5b5e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Apr 3 05:05:19 2018 +0000
+
+    try to bring up autostart processes
+
+ src/xdg-launch.c | 51 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 51 insertions(+)
+
+commit 1579aec43a552f3a28bc011c1fb2b0ba4549e098
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Apr 1 07:43:55 2018 +0000
+
+    remove stray line
+
+ src/xdg-launch.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit d082aadbffd9dd2b8880e25543eb1db7f2363c2f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Mar 25 15:13:26 2018 -0600
+
+    post-release update
+
+ ChangeLog | 23 +++++++++++++++++++++++
+ NEWS      |  4 +++-
+ 2 files changed, 26 insertions(+), 1 deletion(-)
+
 commit ea940f9abab514df61b597ecb9447aab415cba36
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Mar 25 15:11:24 2018 -0600
