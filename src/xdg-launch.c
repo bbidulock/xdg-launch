@@ -1743,7 +1743,8 @@ get_frame(Window win)
 	get_window(scr->root, _XA__SWM_VROOT, XA_WINDOW, &vroot);
 
 	for (fparent = frame; fparent != froot; frame = fparent) {
-		if (!XQueryTree(dpy, frame, &froot, &fparent, &fchildren, &du)) {
+		if (!frame || !XQueryTree(dpy, frame, &froot, &fparent, &fchildren, &du)) {
+			DPRINTF(4, "could not query tree for window 0x%08lx\n", frame);
 			frame = None;
 			goto done;
 		}
@@ -1814,7 +1815,7 @@ find_window_screen(Window w)
 	Window wroot = 0, dw = 0, *dwp = NULL;
 	unsigned int du = 0;
 
-	if (!XQueryTree(dpy, w, &wroot, &dw, &dwp, &du)) {
+	if (!w || !XQueryTree(dpy, w, &wroot, &dw, &dwp, &du)) {
 		DPRINTF(4, "could not query tree for window 0x%08lx\n", w);
 		return False;
 	}
