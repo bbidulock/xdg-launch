@@ -9313,7 +9313,7 @@ session(Process *wm)
 
 	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
 
-	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || *dirs)
+	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || !*dirs)
 		dirs = "/etc/xdg";
 	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
 		strcpy(home, env);
