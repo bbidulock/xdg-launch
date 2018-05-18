@@ -178,6 +178,7 @@ typedef struct {
 	char *file;
 	char *url;
 	pid_t pid;
+	pid_t ppid;
 	char *id;
 	Bool keyboard;
 	Bool pointer;
@@ -236,6 +237,7 @@ Options options = {
 	.file = NULL,
 	.url = NULL,
 	.pid = 0,
+	.ppid = 0,
 	.id = NULL,
 	.keyboard = False,
 	.pointer = False,
@@ -293,6 +295,7 @@ Options defaults = {
 	.file = "",
 	.url = "",
 	.pid = 0,
+	.ppid = 0,
 	.id = "$DESKTOP_STARTUP_ID",
 	.keyboard = False,
 	.pointer = False,
@@ -9885,6 +9888,7 @@ main(int argc, char *argv[])
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
+			{"ppid",	required_argument,	NULL,  10},
 
 			{"toolwait",	no_argument,		NULL, 'T'},
 			{"timeout",	optional_argument,	NULL,  1 },
@@ -10081,6 +10085,12 @@ main(int argc, char *argv[])
 			break;
 		case 'I':	/* -I, --info */
 			defaults.info = options.info = True;
+			break;
+		case 10:	/* --ppid PPID */
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr || val < 0)
+				goto bad_option;
+			defaults.ppid = val;
 			break;
 		case 'T':	/* -T, --toolwait */
 			defaults.toolwait = options.toolwait = True;
