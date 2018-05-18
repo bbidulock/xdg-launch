@@ -9793,6 +9793,22 @@ set_default_files(void)
 }
 
 static void
+set_default_pids(void)
+{
+	const char *env;
+	char *endptr = NULL;
+	pid_t ppid;
+
+	if ((env = getenv("XDG_SESSION_PID"))) {
+		ppid = strtoul(env, &endptr, 0);
+		if (!*endptr && ppid > 0) {
+			defaults.ppid = options.ppid = ppid;
+		}
+	}
+	defaults.pid = options.pid = getpid();
+}
+
+static void
 set_defaults(int argc, char *argv[])
 {
 	char *buf, *disp, *p;
@@ -9816,7 +9832,7 @@ set_defaults(int argc, char *argv[])
 	buf = defaults.hostname = options.hostname = calloc(65, sizeof(*buf));
 	gethostname(buf, 64);
 
-	defaults.pid = options.pid = getpid();
+	set_default_pids();
 
 	if ((disp = getenv("DISPLAY")))
 		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
