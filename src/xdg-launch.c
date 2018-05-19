@@ -82,6 +82,7 @@
 #include <regex.h>
 #include <wordexp.h>
 #include <execinfo.h>
+#include <sys/prctl.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -7469,6 +7470,34 @@ need_assist(Sequence *s)
 	return need_assist;
 }
 
+/** @brief launch the application
+  *
+  * I want to rethink this a bit and user prctl() to set the subreaper to the
+  * desktop session process:
+  *
+  * The issue here has always been that the PID must be included in the
+  * broadcast desktop startup sequence "new" command, but the PID of the child
+  * (if we fork) is not known until the child has actually forked.  One way to
+  * deal with this is to always have the child send the desktop startup
+  * notification before execvp(); however, we do not want to reinitialize the
+  * display after fork and we will be using the parent's display connection
+  * otherwise.  Perhaps a better way to do that consistent with letting the
+  * parent send the notification is to have the child stop itself with
+  * kill(getpid(), SIGSTOP) when it is ready to execvp and have the parent
+  * kill(childpid, SIGCONT) after the startup notification has been sent.  Then
+  * we can simply set O_CLOSEXEC on the DISPLAY connection.
+  *
+  * This would allow us to launch the application even before a toolwait, and
+  * then only signal SIGCONT when the toolwait condition has been met.
+  *
+  * With the above worked out, when we have a desktop session pid
+  * (XDG_SESSION_PID) the child can use prctl() to set its subreaper to the
+  * desktop session.  Then the desktop session need only listen for desktop
+  * startup notifications to obtain the pid of the application and then monitor
+  * the application process using its pid and SIGCHLD.  This serves to get the
+  * child process out from under the window manager when xdg-launch(1) has been
+  * invoked by the window manager in response to a keystroke.
+  */
 void
 launch(Sequence *s, Entry *e)
 {
@@ -9259,6 +9288,23 @@ check_exec(const char *tryexec, const char *exec)
   *
   * First attempt to become new session leader.  This establishes a new
   * foreground process group.
+  *
+  * The reason I was having problems here is not because the session was not a
+  * session leader, but because the forked child applications belonged to the
+  * same process group as the parent.  When the process group leader exits,
+  * SIGHUP is sent to all the members of the process group.
+  *
+  * "The POSIX.1 definition of an orphaned process group is one in which the
+  *  parent of every member is either itself a member of the group or is not a
+  *  member of the group's session.  Another way of wording this is that the
+  *  process group is not orphaned as long as there is a process in the group
+  *  that has a parent in a different process group but in the same session."
+  *  --Stevens
+  *
+  * "...POSIX.1 requires that every process in the newly orphaned process group
+  *  that is stopped ... be sent the hang-up signal (SIGHUP) followed by the
+  *  continue signal (SIGCONT)."--Stevens
+  *
   */
 
 void
