@@ -6778,59 +6778,59 @@ handle_event(XEvent *e)
 
 	switch (e->type) {
 	case PropertyNotify:
-		XPRINTF("got PropertyNotify event\n");
+		DPRINTF(3,"got PropertyNotify event\n");
 		handle_property_event(&e->xproperty);
 		break;
 	case FocusIn:
 	case FocusOut:
-		XPRINTF("got FocusIn/FocusOut event\n");
+		DPRINTF(3,"got FocusIn/FocusOut event\n");
 		handle_focus_change_event(&e->xfocus);
 		break;
 	case Expose:
-		XPRINTF("got Expose event\n");
+		DPRINTF(3,"got Expose event\n");
 		handle_expose_event(&e->xexpose);
 		break;
 	case VisibilityNotify:
-		XPRINTF("got VisibilityNotify event\n");
+		DPRINTF(3,"got VisibilityNotify event\n");
 		handle_visibility_event(&e->xvisibility);
 		break;
 	case CreateNotify:
-		XPRINTF("got CreateNotify event\n");
+		DPRINTF(3,"got CreateNotify event\n");
 		handle_create_window_event(&e->xcreatewindow);
 		break;
 	case DestroyNotify:
-		XPRINTF("got DestroyNotify event\n");
+		DPRINTF(3,"got DestroyNotify event\n");
 		handle_destroy_window_event(&e->xdestroywindow);
 		break;
 	case MapNotify:
-		XPRINTF("got MapNotify event\n");
+		DPRINTF(3,"got MapNotify event\n");
 		handle_map_event(&e->xmap);
 		break;
 	case UnmapNotify:
-		XPRINTF("got UnmapNotify event\n");
+		DPRINTF(3,"got UnmapNotify event\n");
 		handle_unmap_event(&e->xunmap);
 		break;
 	case ReparentNotify:
-		XPRINTF("got ReparentNotify event\n");
+		DPRINTF(3,"got ReparentNotify event\n");
 		handle_reparent_event(&e->xreparent);
 		break;
 	case ConfigureNotify:
-		XPRINTF("got ConfigureNotify event\n");
+		DPRINTF(3,"got ConfigureNotify event\n");
 		handle_configure_event(&e->xconfigure);
 		break;
 	case ClientMessage:
-		XPRINTF("got ClientMessage event\n");
+		DPRINTF(3,"got ClientMessage event\n");
 		handle_client_message_event(&e->xclient);
 		break;
 	case MappingNotify:
-		XPRINTF("got MappingNotify event\n");
+		DPRINTF(3,"got MappingNotify event\n");
 		handle_mapping_event(&e->xmapping);
 		break;
 	default:
 		DPRINTF(1, "unexpected xevent %d\n", (int) e->type);
 		break;
 	case SelectionClear:
-		XPRINTF("got SelectionClear event\n");
+		DPRINTF(3,"got SelectionClear event\n");
 		handle_selection_clear(&e->xselectionclear);
 		break;
 	}
@@ -7187,7 +7187,7 @@ wait_for_condition(Window (*until) (void))
 			exit(EXIT_FAILURE);
 		}
 		if (pfd.revents & (POLLIN)) {
-			DPRINTF(1,"Got POLLIN condition, running loop...");
+			DPRINTF(1,"Got POLLIN condition, running loop...\n");
 			while (XPending(dpy) && running) {
 				XNextEvent(dpy, &ev);
 				handle_event(&ev);
