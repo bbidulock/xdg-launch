@@ -7486,6 +7486,8 @@ want_wait_for(Entry *e)
 void
 wait_for_resource(Entry *e)
 {
+	if (options.xsession)
+		return;
 	if (e->AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
@@ -9704,7 +9706,7 @@ session(Process *wm)
 	options.autostart = False;
 	options.autoassist = False;
 	options.assist = False;
-	// options.autowait = False;
+	options.autowait = False;
 
 	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
 		set_all(wm->seq, wm->ent);
@@ -9712,6 +9714,7 @@ session(Process *wm)
 			show_sequence("Associated sequence", wm->seq);
 		if (options.info)
 			info_sequence("Associated sequence", wm->seq);
+		DPRINTF(1,"Launching window manager\n");
 		launch(wm->seq, wm->ent);
 	}
 	exit(EXIT_SUCCESS);
