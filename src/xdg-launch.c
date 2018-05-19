@@ -7163,6 +7163,7 @@ wait_for_condition(Window (*until) (void))
 			exit(EXIT_FAILURE);
 		}
 		if (pfd.revents & (POLLIN)) {
+			DPRINTF(1,"Got POLLIN condition, running loop...");
 			while (XPending(dpy) && running) {
 				XNextEvent(dpy, &ev);
 				handle_event(&ev);
@@ -7362,6 +7363,8 @@ int
 need_wait_for(void)
 {
 	int mask = WAITFOR_ALL;
+
+	handle_wmchange();
 
 	if (check_audio())
 		mask &= ~WAITFOR_AUDIOSERVER;
