@@ -6956,6 +6956,11 @@ assist(Sequence *s, Entry *e)
 		DPRINTF(1, "Addressing X Server!\n");
 		XSync(dpy, False);
 		xfd = ConnectionNumber(dpy);
+		/* clear pending events */
+		while(XPending(dpy) && running) {
+			XNextEvent(dpy, &ev);
+			handle_event(&ev);
+		}
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 			int sig;
@@ -7059,6 +7064,11 @@ toolwait(Sequence *s, Entry *e)
 		running = True;
 		XSync(dpy, False);
 		xfd = ConnectionNumber(dpy);
+		/* clear pending events */
+		while(XPending(dpy) && running) {
+			XNextEvent(dpy, &ev);
+			handle_event(&ev);
+		}
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 			int sig;
@@ -7141,6 +7151,13 @@ wait_for_condition(Window (*until) (void))
 	running = True;
 	XSync(dpy, False);
 	xfd = ConnectionNumber(dpy);
+	/* clear pending events */
+	while(XPending(dpy) && running) {
+		XNextEvent(dpy, &ev);
+		handle_event(&ev);
+		if (until())
+			return True;
+	}
 	while (running) {
 		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 		int sig;
