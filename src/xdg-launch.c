@@ -208,6 +208,7 @@ typedef struct {
 	Bool pager;
 	Bool composite;
 	Bool audio;
+	Bool autowait;
 	Bool assist;
 	Bool autoassist;
 	int guard;
@@ -267,6 +268,7 @@ Options options = {
 	.pager = False,
 	.composite = False,
 	.audio = False,
+	.autowait = True,
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
@@ -324,6 +326,7 @@ Options defaults = {
 	.pager = False,
 	.composite = False,
 	.audio = False,
+	.autowait = True,
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
@@ -502,6 +505,7 @@ typedef struct {
 typedef struct _Process {
 	struct _Process *next;		/* next entry */
 	Bool running;			/* is this process running? */
+	int wait_for;			/* things to wait for */
 	pid_t pid;			/* pid for this process */
 	char *path;			/* path to .desktop file */
 	char *appid;			/* application id portion of path */
@@ -7335,6 +7339,115 @@ wait_for_audio_server(void)
 	wait_for_condition(&check_audio);
 }
 
+typedef enum {
+	WaitFor_AudioServer,
+#define WAITFOR_AUDIOSERVER		(1<<WaitFor_AudioServer)
+	WaitFor_WindowManager,
+#define WAITFOR_WINDOWMANAGER		(1<<WaitFor_WindowManager)
+	WaitFor_CompositeManager,
+#define WAITFOR_COMPOSITEMANAGER	(1<<WaitFor_CompositeManager)
+	WaitFor_SystemTray,
+#define WAITFOR_SYSTEMTRAY		(1<<WaitFor_SystemTray)
+	WaitFor_DesktopPager,
+#define WAITFOR_DESKTOPPAGER		(1<<WaitFor_DesktopPager)
+} WaitFor;
+
+#define WAITFOR_ALL	(WAITFOR_AUDIOSERVER| \
+			 WAITFOR_WINDOWMANAGER| \
+			 WAITFOR_COMPOSITEMANAGER| \
+			 WAITFOR_SYSTEMTRAY| \
+			 WAITFOR_DESKTOPPAGER)
+
+int
+need_wait_for(void)
+{
+	int mask = WAITFOR_ALL;
+
+	if (check_audio())
+		mask &= ~WAITFOR_AUDIOSERVER;
+	if (check_for_window_manager())
+		mask &= ~WAITFOR_WINDOWMANAGER;
+	if (check_compm())
+		mask &= ~WAITFOR_COMPOSITEMANAGER;
+	if (check_pager())
+		mask &= ~WAITFOR_DESKTOPPAGER;
+	if (check_stray())
+		mask &= ~WAITFOR_SYSTEMTRAY;
+	return (mask);
+}
+
+int
+want_wait_for(Entry *e)
+{
+	int mask = 0;
+
+	/* Xsessions cannot wait (responsible for all). */
+	if (options.xsession)
+		return (mask);
+	if (!e) /* safety */
+		return (mask);
+
+	/* set values from options */
+	if (options.audio)
+		mask |= WAITFOR_AUDIOSERVER;
+	if (options.manager)
+		mask |= WAITFOR_WINDOWMANAGER;
+	if (options.composite)
+		mask |= WAITFOR_COMPOSITEMANAGER;
+	if (options.tray)
+		mask |= WAITFOR_SYSTEMTRAY;
+	if (options.pager)
+		mask |= WAITFOR_DESKTOPPAGER;
+
+	if (e->AutostartPhase) {
+		/* When autostarting we should use the autostart phase to determine the
+		   resources for which to wait. */
+		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
+			/* PreDisplayServer: do not wait for anything. */
+			mask = 0;
+		} else if (strcmp(e->AutostartPhase, "Initializing") == 0) {
+			/* Initializing: do not wait for anything. */
+			mask = 0;
+		} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
+			/* WindowManager: do not wait for anything, except perhaps audio.  */
+			mask &= WAITFOR_AUDIOSERVER;
+		} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
+			/* Panel: wait only for window and composite manager (if
+			   requested?). */
+			mask &= WAITFOR_COMPOSITEMANAGER;
+			mask |= WAITFOR_WINDOWMANAGER;
+		} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
+			/* Desktop: wait only for window and composite manager (if
+			   requested?). */
+			mask &= WAITFOR_COMPOSITEMANAGER;
+			mask |= WAITFOR_WINDOWMANAGER;
+		} else if (strcmp(e->AutostartPhase, "Application") == 0) {
+			/* Application(s): wait for window manager, others if requested. */
+			mask |= WAITFOR_WINDOWMANAGER;
+		} else {
+			/* default is same as Application */
+			mask |= WAITFOR_WINDOWMANAGER;
+		}
+	} else if (options.autostart) {
+		mask |= WAITFOR_WINDOWMANAGER;
+		if (e->Categories) {
+			if (strstr(e->Categories, "Audio"))
+				mask |= WAITFOR_AUDIOSERVER;
+			if (strstr(e->Categories, "TrayIcon"))
+				mask |= WAITFOR_SYSTEMTRAY;
+			if (strstr(e->Categories, "DockApp"))
+				mask |= WAITFOR_WINDOWMANAGER;
+			if (strstr(e->Categories, "SystemTray"))
+				mask &= ~WAITFOR_SYSTEMTRAY;
+			if (strstr(e->Categories, "Pager"))
+				mask &= ~WAITFOR_DESKTOPPAGER;
+			if (strstr(e->Categories, "Panel"))
+				mask &= ~(WAITFOR_DESKTOPPAGER|WAITFOR_SYSTEMTRAY);
+		}
+	}
+	return (mask);
+}
+
 /* NOTES:
  *
  * We really need a guard timer option setting.  We should typically only wait
@@ -7346,10 +7459,6 @@ wait_for_audio_server(void)
 void
 wait_for_resource(Entry *e)
 {
-	if (options.xsession) {
-		DPRINTF(1, "Cannot wait for resources when launching xsessions.\n");
-		return;
-	}
 	if (e->AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
@@ -7368,8 +7477,7 @@ wait_for_resource(Entry *e)
 			options.tray = False;
 			options.pager = False;
 		} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
-			/* WindowManager: do not wait for anything, except perhaps audio. 
-			 */
+			/* WindowManager: do not wait for anything, except perhaps audio.  */
 			options.manager = False;
 			options.composite = False;
 			options.tray = False;
@@ -7402,6 +7510,12 @@ wait_for_resource(Entry *e)
 				options.manager = True;
 			if (strstr(e->Categories, "SystemTray"))
 				options.tray = False;
+			if (strstr(e->Categories, "Pager"))
+				options.pager = False;
+			if (strstr(e->Categories, "Panel")) {
+				options.tray = False;
+				options.pager = False;
+			}
 		}
 	}
 	if (options.xsession) {
@@ -7412,20 +7526,19 @@ wait_for_resource(Entry *e)
 		options.tray = False;
 		options.pager = False;
 	}
-
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
 	if (options.manager || options.tray || options.pager || options.composite || options.audio) {
-		if (options.audio)
-			wait_for_audio_server();
-		if (options.manager)
-			wait_for_window_manager();
-		if (options.composite)
-			wait_for_composite_manager();
-		if (options.tray)
-			wait_for_system_tray();
 		if (options.pager)
 			wait_for_desktop_pager();
+		else if (options.tray)
+			wait_for_system_tray();
+		else if (options.composite)
+			wait_for_composite_manager();
+		else if (options.manager)
+			wait_for_window_manager();
+		else if (options.audio)
+			wait_for_audio_server();
 	} else
 		DPRINTF(1, "No resource wait requested.\n");
 }
@@ -7506,7 +7619,8 @@ launch(Sequence *s, Entry *e)
 	Bool change_only = False;
 
 	PTRACE(5);
-	wait_for_resource(e);
+	if (options.autowait)
+		wait_for_resource(e);
 	if (options.autoassist)
 		options.assist = need_assist(s);
 
@@ -9381,11 +9495,15 @@ session(Process *wm)
 				exit(EXIT_SUCCESS);
 		}
 	}
+#if 0
 	if ((sid = setsid()) == (pid_t) -1)
 		EPRINTF("cannot become session leader: %s\n", strerror(errno));
 	else
 		DPRINTF(3, "new session id %d\n", (int) sid);
+#else
 	(void) sid;
+	setpgrp(); /* become a process group leader */
+#endif
 
 	char *xdg, *dirs, *env;
 	char *p, *q;
@@ -9478,6 +9596,9 @@ session(Process *wm)
 		options.autostart = True;
 		options.autoassist = False;
 		options.assist = False;
+		// options.autowait = False;
+
+		int need_wait = need_wait_for();
 
 		// free(options.launcher);
 		// options.launcher = strdup("xdg-autostart");
@@ -9515,6 +9636,7 @@ session(Process *wm)
 				delete_pr(pp_prev);
 				continue;
 			}
+			pr->wait_for = (want_wait_for(ent) & need_wait);
 			if (options.output > 1)
 				show_entry("Parsed entries", ent);
 			if (options.info)
@@ -9554,6 +9676,7 @@ session(Process *wm)
 	options.autostart = False;
 	options.autoassist = False;
 	options.assist = False;
+	// options.autowait = False;
 
 	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
 		set_all(wm->seq, wm->ent);
@@ -9986,6 +10109,7 @@ main(int argc, char *argv[])
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
 			{"ppid",	required_argument,	NULL,  10},
+			{"no-autowait",	no_argument,		NULL,  11},
 
 			{"toolwait",	no_argument,		NULL, 'T'},
 			{"timeout",	optional_argument,	NULL,  1 },
@@ -10188,6 +10312,9 @@ main(int argc, char *argv[])
 			if (*endptr || val < 0)
 				goto bad_option;
 			defaults.ppid = val;
+			break;
+		case 11:	/* --no-autowait */
+			defaults.autowait = options.autowait = False;
 			break;
 		case 'T':	/* -T, --toolwait */
 			defaults.toolwait = options.toolwait = True;
