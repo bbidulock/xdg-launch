@@ -7285,13 +7285,15 @@ wait_for_window_manager(void)
 		}
 		return;
 	} else {
-		DPRINTF(1, "Waiting for window manager\n");
+		DPRINTF(1, "Will wait for window manager\n");
 		if (options.info) {
 			fputs("Would wait for window manager\n", stdout);
 			return;
 		}
 	}
+	DPRINTF(1, "Waiting for check_anywm\n");
 	wait_for_condition(&check_anywm);
+	DPRINTF(1, "Waited for check_anywm\n");
 }
 
 static void
@@ -7312,7 +7314,9 @@ wait_for_system_tray(void)
 			return;
 		}
 	}
+	DPRINTF(1, "Waiting for check_stray\n");
 	wait_for_condition(&check_stray);
+	DPRINTF(1, "Waited for check_stray\n");
 }
 
 static void
@@ -7333,7 +7337,9 @@ wait_for_desktop_pager(void)
 			return;
 		}
 	}
+	DPRINTF(1, "Waiting for check_pager\n");
 	wait_for_condition(&check_pager);
+	DPRINTF(1, "Waited for check_pager\n");
 }
 
 static void
@@ -7354,7 +7360,9 @@ wait_for_composite_manager(void)
 			return;
 		}
 	}
+	DPRINTF(1, "Waiting for check_compm\n");
 	wait_for_condition(&check_compm);
+	DPRINTF(1, "Waited for check_compm\n");
 }
 
 static void
@@ -7375,7 +7383,9 @@ wait_for_audio_server(void)
 			return;
 		}
 	}
+	DPRINTF(1, "Waiting for check_audio\n");
 	wait_for_condition(&check_audio);
+	DPRINTF(1, "Waited for check_audio\n");
 }
 
 typedef enum {
