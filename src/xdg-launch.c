@@ -9305,6 +9305,16 @@ check_exec(const char *tryexec, const char *exec)
   *  that is stopped ... be sent the hang-up signal (SIGHUP) followed by the
   *  continue signal (SIGCONT)."--Stevens
   *
+  * Some notes:
+  *
+  * When we are run by startx, the shell puts startx in its own process group
+  * and makes it the foreground process group for the terminal session.  xinit
+  * runs as a child of startx in the foreground processs group.  xinit forks
+  * two children, one is the X server and the other is the client program.  The
+  * default client executes .xinitrc in a shell.  Both the X child and the
+  * client program child become process group leaders (either startx when
+  * forking or they make themselves process group leaders).  They are not
+  * session leaders and still belong to the login session.
   */
 
 void
@@ -9315,6 +9325,13 @@ session(Process *wm)
 	size_t i, count = 0;
 	Entry *e = wm->ent;
 
+	if (!getenv("XDG_SESSION_PID")) {
+		char buf[24] = { 0, };
+
+		options.ppid = getpid();
+		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
+		setenv("XDG_SESSION_PID", buf, 1);
+	}
 	if (e->DesktopNames)
 		setenv("XDG_CURRENT_DESKTOP", e->DesktopNames, 1);
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
@@ -9329,7 +9346,20 @@ session(Process *wm)
 		} else
 			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
 	}
+	/* Note: the normal case where we are launched by xinit is to make the
+	   X server and client process group leaders before execting the X
+	   server and .xinitrc.  So we are normally a process group leader in
+	   the terminal session that launched xinit in the foreground.
 
+	   There may be something to be said about launcing autostart processes
+	   as children of the window manager with the window manager in its own
+	   process group: then the window manager process group cannot be
+	   orphaned while we are alive, but if the window manager exits, it will
+	   take down all of the autostart processes and its other children.
+
+	   On the other hand, it migh be bad because we cannot exit the window
+	   manager without tearing down all of the autostart procsses too.
+	 */
 	if (getpid() == getpgid(0)) {
 		pid_t pid;
 		int status = 0;
@@ -9446,6 +9476,9 @@ session(Process *wm)
 		options.session = False;
 		options.xsession = False;
 		options.autostart = True;
+		options.autoassist = False;
+		options.assist = False;
+
 		// free(options.launcher);
 		// options.launcher = strdup("xdg-autostart");
 		for (pp_prev = &processes; (pr = *pp_prev);) {
@@ -9519,6 +9552,8 @@ session(Process *wm)
 	options.session = False;
 	options.xsession = True;
 	options.autostart = False;
+	options.autoassist = False;
+	options.assist = False;
 
 	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
 		set_all(wm->seq, wm->ent);
