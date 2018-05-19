@@ -9709,6 +9709,7 @@ session(Process *wm)
 					show_sequence("Associated sequence", pr->seq);
 				if (options.info)
 					info_sequence("Associated sequence", pr->seq);
+				DPRINTF(1,"Launching application %s\n", pr->appid);
 				launch(pr->seq, pr->ent);
 			}
 			exit(EXIT_FAILURE);
