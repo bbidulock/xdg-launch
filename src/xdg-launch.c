@@ -6958,9 +6958,11 @@ assist(Sequence *s, Entry *e)
 		xfd = ConnectionNumber(dpy);
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+			int sig;
 
-			if (signum) {
-				if (signum == SIGALRM)
+			if ((sig = signum)) {
+				signum = 0;
+				if (sig == SIGALRM)
 					EPRINTF("Exiting on timeout!\n");
 				exit(EXIT_SUCCESS);
 			}
@@ -7059,9 +7061,11 @@ toolwait(Sequence *s, Entry *e)
 		xfd = ConnectionNumber(dpy);
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+			int sig;
 
-			if (signum) {
-				if (signum == SIGALRM)
+			if ((sig = signum)) {
+				signum = 0;
+				if (sig == SIGALRM)
 					EPRINTF("Exiting on timeout!\n");
 				exit(EXIT_SUCCESS);
 			}
@@ -7124,6 +7128,7 @@ wait_for_condition(Window (*until) (void))
 	XEvent ev;
 
 	PTRACE(5);
+	signum = 0;
 	signal(SIGHUP, sighandler);
 	signal(SIGINT, sighandler);
 	signal(SIGTERM, sighandler);
@@ -7138,9 +7143,11 @@ wait_for_condition(Window (*until) (void))
 	xfd = ConnectionNumber(dpy);
 	while (running) {
 		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
+		int sig;
 
-		if (signum) {
-			if (signum == SIGALRM) {
+		if ((sig = signum)) {
+			signum = 0;
+			if (sig == SIGALRM) {
 				EPRINTF("Continuing on timeout!\n");
 				return True;
 			}
