@@ -9483,6 +9483,7 @@ session(Process *wm)
 			case -1:
 			case 0:
 				/* child continues (or parent if fork failed) */
+				get_display();
 				break;
 			default:
 				/* parent waits for child to exit and then exits too */
