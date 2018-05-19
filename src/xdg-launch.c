@@ -102,14 +102,28 @@
 #include <gio/gdesktopappinfo.h>
 #endif
 
+const char *
+_timestamp(void)
+{
+	static struct timeval tv = { 0, 0 };
+	static struct tm tm = { 0, };
+	static char buf[BUFSIZ];
+	size_t len;
+
+	gettimeofday(&tv, NULL);
+	len = strftime(buf, sizeof(buf) - 1, "%b %d %T", gmtime_r(&tv.tv_sec, &tm));
+	snprintf(buf + len, sizeof(buf) - len - 1, ".%06ld", tv.tv_usec);
+	return buf;
+}
+
 #define XPRINTF(_args...) do { } while (0)
 
 #define DPRINTF(_num, _args...) do { if (options.debug >= _num) { \
-		fprintf(stderr, NAME "[%d]: D: %12s: +%4d : %s() : ", getpid(), __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME "[%d]: D: [%s] %12s: +%4d : %s() : ", getpid(), _timestamp(), __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } } while (0)
 
 #define EPRINTF(_args...) do { \
-		fprintf(stderr, NAME "[%d]: E: %12s +%4d : %s() : ", getpid(), __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME "[%d]: E: [%s] %12s +%4d : %s() : ", getpid(), _timestamp(), __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } while (0)
 
 #define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
@@ -117,7 +131,7 @@
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 #define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
-		fprintf(stderr, NAME "[%d]: T: %12s +%4d : %s()\n", getpid(), __FILE__, __LINE__, __func__); \
+		fprintf(stderr, NAME "[%d]: T: [%s] %12s +%4d : %s()\n", getpid(), _timestamp(), __FILE__, __LINE__, __func__); \
 		fflush(stderr); } } while (0)
 
 #define CPRINTF(_num, c, _args...) do { if (options.output > _num) { \
