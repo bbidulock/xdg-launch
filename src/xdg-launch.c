@@ -7168,6 +7168,12 @@ normal(Sequence *s, Entry *e)
 	return;
 }
 
+static Window
+check_wait(void)
+{
+	return None;
+}
+
 static Bool
 wait_for_condition(Window (*until) (void))
 {
@@ -7189,7 +7195,7 @@ wait_for_condition(Window (*until) (void))
 	XSync(dpy, False);
 	xfd = ConnectionNumber(dpy);
 	/* clear pending events */
-	while(XPending(dpy) && running) {
+	while (XPending(dpy) && running) {
 		XNextEvent(dpy, &ev);
 		handle_event(&ev);
 		if (until())
@@ -7224,12 +7230,16 @@ wait_for_condition(Window (*until) (void))
 			exit(EXIT_FAILURE);
 		}
 		if (pfd.revents & (POLLIN)) {
-			DPRINTF(1,"Got POLLIN condition, running loop...\n");
+			DPRINTF(1, "Got POLLIN condition, running loop...\n");
 			while (XPending(dpy) && running) {
 				XNextEvent(dpy, &ev);
 				handle_event(&ev);
-				if (until())
-					return True;
+				if (until()) {
+					until = &check_wait;
+					/* wait one more second for condition
+					 * to stabilize */
+					alarm(1);
+				}
 			}
 		}
 	}
