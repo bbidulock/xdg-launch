@@ -9690,6 +9690,11 @@ session(Process *wm)
 				delete_pr(pp_prev);
 				continue;
 			}
+			if (ent->AutostartPhase && !strcmp(ent->AutostartPhase, "PreDisplayServer")) {
+				DPRINTF(3, "%s: %s: is autostart phase PreDisplayServer: discarding\n", pr->appid, pr->path);
+				delete_pr(pp_prev);
+				continue;
+			}
 			pr->wait_for = (want_wait_for(ent) & need_wait);
 			if (options.output > 1)
 				show_entry("Parsed entries", ent);
