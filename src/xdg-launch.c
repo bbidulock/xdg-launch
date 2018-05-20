@@ -2492,6 +2492,65 @@ lookup_file_by_type(const char *type)
 	return NULL;
 }
 
+char *
+lookup_init_script(const char *wmname, const char *name)
+{
+	char *path = NULL, *script;
+
+	script = calloc(PATH_MAX + 1, sizeof(*script));
+	strncat(script, name, PATH_MAX);
+
+	if (strstr(script, ".sh") != script + strlen(script) - 3)
+		strncat(script, ".sh", PATH_MAX);
+	{
+		char *home, *copy, *dirs, *env;
+
+		if ((env = getenv("XDG_CONFIG_DIRS")) && *env)
+			dirs = env;
+		else
+			dirs = "/etc/xdg";
+		home = calloc(PATH_MAX, sizeof(*home));
+		if ((env = getenv("XDG_CONFIG_HOME")) && *env)
+			strcpy(home, env);
+		else {
+			if ((env = getenv("HOME")))
+				strcpy(home, env);
+			else
+				strcpy(home, ".");
+			strcat(home, "/.config");
+		}
+		strcat(home, ":");
+		strcat(home, dirs);
+		copy = strdup(home);
+		for (dirs = copy; !path && strlen(dirs);) {
+			char *p;
+
+			if ((p = strchr(dirs, ':'))) {
+				*p = '\0';
+				path = strdup(dirs);
+				dirs = p + 1;
+			} else {
+				path = strdup(dirs);
+				*dirs = '\0';
+			}
+			path = realloc(path, PATH_MAX + 1);
+			strcat(path, "/");
+			strcat(path, wmname);
+			strcat(path, "/");
+			strcat(path, script);
+			if (access(path, X_OK)) {
+				free(path);
+				path = NULL;
+				continue;
+			}
+		}
+		free(copy);
+		free(home);
+	}
+	free(script);
+	return (path);
+}
+
 #ifdef GIO_GLIB2_SUPPORT
 static char **
 get_desktops(void)
@@ -7754,6 +7813,24 @@ launch(Sequence *s, Entry * e)
 	strcat(disp, s->f.screen);
 	setenv("DISPLAY", disp, 1);
 
+	end_display();
+	if (options.ppid && options.ppid != getppid() && options.ppid != getpid())
+		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+	if (options.xsession) {
+		char *setup, *start;
+
+		if ((setup = lookup_init_script(s->f.application_id, "setup"))) {
+			DPRINTF(1, "Setting up window manager with %s\n", setup);
+			if (system(setup)) ;
+			free(setup);
+		}
+		if ((start = lookup_init_script(s->f.application_id, "start"))) {
+			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
+			execl("/bin/sh", "sh", "-c", start, NULL);
+			EPRINTF("Should never get here!\n");
+			exit(127);
+		}
+	}
 	if (eargv) {
 		if (options.info) {
 			char **p;
@@ -7772,9 +7849,6 @@ launch(Sequence *s, Entry * e)
 				fprintf(stderr, "'%s' ", *p);
 			fputs("\n", stderr);
 		}
-		end_display();
-		if (options.ppid && options.ppid != getppid())
-			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 		execvp(eargv[0], eargv);
 	} else {
 		if (options.info) {
@@ -7782,10 +7856,7 @@ launch(Sequence *s, Entry * e)
 			return;
 		}
 		DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
-		end_display();
-		if (options.ppid && options.ppid != getppid())
-			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
-		execlp("sh", "sh", "-c", s->f.command, NULL);
+		execl("/bin/sh", "sh", "-c", s->f.command, NULL);
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
