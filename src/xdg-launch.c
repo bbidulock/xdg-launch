@@ -7773,7 +7773,7 @@ launch(Sequence *s, Entry * e)
 			fputs("\n", stderr);
 		}
 		end_display();
-		if (options.ppid)
+		if (options.ppid && options.ppid != getppid())
 			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 		execvp(eargv[0], eargv);
 	} else {
@@ -7783,7 +7783,7 @@ launch(Sequence *s, Entry * e)
 		}
 		DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
 		end_display();
-		if (options.ppid)
+		if (options.ppid && options.ppid != getppid())
 			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 		execlp("sh", "sh", "-c", s->f.command, NULL);
 	}
@@ -9525,6 +9525,8 @@ session(Process *wm)
 	   On the other hand, it migh be bad because we cannot exit the window
 	   manager without tearing down all of the autostart procsses too.
 	 */
+
+#if 0 // let the window manager replace us
 	if (getpid() == getpgid(0)) {
 		pid_t pid;
 		int status = 0;
@@ -9546,6 +9548,7 @@ session(Process *wm)
 				exit(EXIT_SUCCESS);
 		}
 	}
+#endif
 #if 0
 	if ((sid = setsid()) == (pid_t) -1)
 		EPRINTF("cannot become session leader: %s\n", strerror(errno));
