@@ -923,12 +923,25 @@ intern_atoms(void)
 	free(atom_names);
 	free(atom_values);
 	for (atom = atoms; atom->name; atom++) {
-		if (atom->pc_handler)
-			XSaveContext(dpy, atom->value, PropertyContext,
-				     (XPointer) atom->pc_handler);
-		if (atom->cm_handler)
-			XSaveContext(dpy, atom->value, ClientMessageContext,
-				     (XPointer) atom->cm_handler);
+
+		if (atom->pc_handler) {
+			char *name = NULL;
+
+			DPRINTF(3, "saving PropertyNotify handler for %s\n",
+				(name = XGetAtomName(dpy, atom->value)));
+			XSaveContext(dpy, atom->value, PropertyContext, (XPointer) atom->pc_handler);
+			if (name)
+				XFree(name);
+		}
+		if (atom->cm_handler) {
+			char *name = NULL;
+
+			DPRINTF(3, "saving ClientMessage handler for %s\n",
+				(name = XGetAtomName(dpy, atom->value)));
+			XSaveContext(dpy, atom->value, ClientMessageContext, (XPointer) atom->cm_handler);
+			if (name)
+				XFree(name);
+		}
 	}
 }
 
@@ -6471,12 +6484,12 @@ pc_handle_atom(XPropertyEvent *e, Client *c)
 	pc_handler_t handle = NULL;
 	char *name = NULL;
 
-	if (XFindContext(dpy, e->atom, PropertyContext, (XPointer *) &handle)
-			== Success && handle)
+	if (XFindContext(dpy, e->atom, PropertyContext, (XPointer *) &handle) == Success && handle) {
+		DPRINTF(3, "calling PropertyNotify handler for %s\n", (name = XGetAtomName(dpy, e->atom)));
 		(*handle) (e, c);
-	else
-		DPRINTF(1, "no PropertyNotify handler for %s\n",
-			(name = XGetAtomName(dpy, e->atom)));
+	} else {
+		DPRINTF(1, "no PropertyNotify handler for %s\n", (name = XGetAtomName(dpy, e->atom)));
+	}
 	if (name)
 		XFree(name);
 }
@@ -6487,12 +6500,12 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 	cm_handler_t handle = NULL;
 	char *name = NULL;
 
-	if (XFindContext(dpy, e->message_type, ClientMessageContext, (XPointer *) &handle)
-			== Success && handle)
+	if (XFindContext(dpy, e->message_type, ClientMessageContext, (XPointer *) &handle) == Success && handle) {
+		DPRINTF(3, "calling ClientMessage handler for %s\n", (name = XGetAtomName(dpy, e->message_type)));
 		(*handle) (e, c);
-	else
-		DPRINTF(1, "no ClientMessage handler for %s\n",
-			(name = XGetAtomName(dpy, e->message_type)));
+	} else {
+		DPRINTF(1, "no ClientMessage handler for %s\n", (name = XGetAtomName(dpy, e->message_type)));
+	}
 	if (name)
 		XFree(name);
 }
