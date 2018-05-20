@@ -927,8 +927,7 @@ intern_atoms(void)
 		if (atom->pc_handler) {
 			char *name = NULL;
 
-			DPRINTF(3, "saving PropertyNotify handler for %s\n",
-				(name = XGetAtomName(dpy, atom->value)));
+			// DPRINTF(3, "saving PropertyNotify handler for %s\n", (name = XGetAtomName(dpy, atom->value)));
 			XSaveContext(dpy, atom->value, PropertyContext, (XPointer) atom->pc_handler);
 			if (name)
 				XFree(name);
@@ -936,8 +935,7 @@ intern_atoms(void)
 		if (atom->cm_handler) {
 			char *name = NULL;
 
-			DPRINTF(3, "saving ClientMessage handler for %s\n",
-				(name = XGetAtomName(dpy, atom->value)));
+			// DPRINTF(3, "saving ClientMessage handler for %s\n", (name = XGetAtomName(dpy, atom->value)));
 			XSaveContext(dpy, atom->value, ClientMessageContext, (XPointer) atom->cm_handler);
 			if (name)
 				XFree(name);
