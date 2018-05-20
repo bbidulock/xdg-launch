@@ -7254,8 +7254,8 @@ check_anywm(void)
 	return None;
 }
 
-static Bool
-check_for_window_manager(void)
+static Window
+check_wmngr(void)
 {
 	PTRACE(5);
 	OPRINTF(1, "checking NetWM/EWMH compliance\n");
@@ -7276,14 +7276,14 @@ check_for_window_manager(void)
 	OPRINTF(1, "checking redirection\n");
 	if (check_redir())
 		OPRINTF(1, "redirection on window 0x%08lx\n", scr->redir_check);
-	return check_anywm() ? True : False;
+	return check_anywm();
 }
 
 static void
 wait_for_window_manager(void)
 {
 	PTRACE(5);
-	if (check_for_window_manager()) {
+	if (check_wmngr()) {
 		if (options.info || options.output > 1) {
 			fputs("Have a window manager:\n\n", stdout);
 			if (scr->netwm_check)
@@ -7315,7 +7315,7 @@ wait_for_window_manager(void)
 		}
 	}
 	DPRINTF(1, "Waiting for check_anywm\n");
-	wait_for_condition(&check_anywm);
+	wait_for_condition(&check_wmngr);
 	DPRINTF(1, "Waited for check_anywm\n");
 }
 
@@ -7439,7 +7439,7 @@ need_wait_for(void)
 
 	if (check_audio())
 		mask &= ~WAITFOR_AUDIOSERVER;
-	if (check_for_window_manager())
+	if (check_wmngr())
 		mask &= ~WAITFOR_WINDOWMANAGER;
 	if (check_compm())
 		mask &= ~WAITFOR_COMPOSITEMANAGER;
