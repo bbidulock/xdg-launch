@@ -2745,6 +2745,7 @@ apply_quotes(char **str, char *q)
 }
 
 volatile Bool running = False;
+Window (*condition)(void) = NULL;
 
 void
 send_msg(char *msg)
@@ -6948,6 +6949,8 @@ handle_event(XEvent *e)
 				if (c->need_change)
 					change_client(c);
 	}
+	if (condition && (*condition)())
+		running = False;
 }
 
 void set_pid(Sequence *s);
@@ -6998,6 +7001,19 @@ sighandler(int sig)
 Bool get_display(void);
 void put_display(void);
 
+Bool
+relax(void)
+{
+	XEvent ev;
+
+	/* clear pending events */
+	while (XPending(dpy) && running) {
+		XNextEvent(dpy, &ev);
+		handle_event(&ev);
+	}
+	return (running);
+}
+
 /** @brief assist the window manager.
   *
   * Assist the window manager to do the right thing with respect to focus and
@@ -7038,7 +7054,6 @@ assist(Sequence *s, Entry *e)
 	new_display();
 	{
 		int xfd;
-		XEvent ev;
 
 		signum = 0;
 		signal(SIGHUP, sighandler);
@@ -7054,11 +7069,7 @@ assist(Sequence *s, Entry *e)
 		DPRINTF(1, "Addressing X Server!\n");
 		XSync(dpy, False);
 		xfd = ConnectionNumber(dpy);
-		/* clear pending events */
-		while(XPending(dpy) && running) {
-			XNextEvent(dpy, &ev);
-			handle_event(&ev);
-		}
+		relax();
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 			int sig;
@@ -7087,10 +7098,7 @@ assist(Sequence *s, Entry *e)
 				exit(EXIT_FAILURE);
 			}
 			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-				}
+				relax();
 			}
 		}
 		DPRINTF(1, "Event Loop Done!\n");
@@ -7145,7 +7153,6 @@ toolwait(Sequence *s, Entry *e)
 	/* continue on monitoring */
 	{
 		int xfd;
-		XEvent ev;
 
 		signum = 0;
 		signal(SIGHUP, sighandler);
@@ -7160,11 +7167,7 @@ toolwait(Sequence *s, Entry *e)
 		running = True;
 		XSync(dpy, False);
 		xfd = ConnectionNumber(dpy);
-		/* clear pending events */
-		while(XPending(dpy) && running) {
-			XNextEvent(dpy, &ev);
-			handle_event(&ev);
-		}
+		relax();
 		while (running) {
 			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
 			int sig;
@@ -7192,10 +7195,7 @@ toolwait(Sequence *s, Entry *e)
 				exit(EXIT_FAILURE);
 			}
 			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-				}
+				relax();
 			}
 		}
 		DPRINTF(1, "Event Loop Done!\n");
@@ -7227,17 +7227,10 @@ normal(Sequence *s, Entry *e)
 	return;
 }
 
-static Window
-check_wait(void)
-{
-	return None;
-}
-
 static Bool
 wait_for_condition(Window (*until) (void))
 {
 	int xfd;
-	XEvent ev;
 
 	PTRACE(5);
 	signum = 0;
@@ -7251,14 +7244,12 @@ wait_for_condition(Window (*until) (void))
 		alarm(options.guard);
 	/* main event loop */
 	running = True;
+	condition = until;
 	XSync(dpy, False);
 	xfd = ConnectionNumber(dpy);
-	/* clear pending events */
-	while (XPending(dpy) && running) {
-		XNextEvent(dpy, &ev);
-		handle_event(&ev);
-		if (until())
-			return True;
+	if (!relax()) {
+		condition = NULL;
+		return True;
 	}
 	while (running) {
 		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
@@ -7290,15 +7281,13 @@ wait_for_condition(Window (*until) (void))
 		}
 		if (pfd.revents & (POLLIN)) {
 			DPRINTF(1, "Got POLLIN condition, running loop...\n");
-			while (XPending(dpy) && running) {
-				XNextEvent(dpy, &ev);
-				handle_event(&ev);
-				if (until()) {
-					until = &check_wait;
-					/* wait one more second for condition
-					 * to stabilize */
-					alarm(1);
-				}
+			if (!relax()) {
+				running = True;
+				condition = NULL;
+				/* wait one more second for condition
+				 * to stabilize */
+				alarm(options.guard);
+				relax();
 			}
 		}
 	}
@@ -7728,6 +7717,8 @@ need_assist(Sequence *s)
 	return need_assist;
 }
 
+char *extract_appid(const char *);
+
 /** @brief launch the application
   *
   * I want to rethink this a bit and user prctl() to set the subreaper to the
@@ -7817,14 +7808,12 @@ launch(Sequence *s, Entry * e)
 	if (options.ppid && options.ppid != getppid() && options.ppid != getpid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 	if (options.xsession) {
-		char *setup, *start;
+		char *wmname, *start;
 
-		if ((setup = lookup_init_script(s->f.application_id, "setup"))) {
-			DPRINTF(1, "Setting up window manager with %s\n", setup);
-			if (system(setup)) ;
-			free(setup);
-		}
-		if ((start = lookup_init_script(s->f.application_id, "start"))) {
+		wmname = extract_appid(e->path);
+		start = lookup_init_script(wmname, "start");
+		free(wmname);
+		if (start) {
 			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
 			execl("/bin/sh", "sh", "-c", start, NULL);
 			EPRINTF("Should never get here!\n");
@@ -9561,6 +9550,15 @@ session(Process *wm)
 	size_t i, count = 0;
 	Entry *e = wm->ent;
 
+	options.session = False;
+	options.xsession = False;
+	options.autostart = True;
+	options.autoassist = False;
+	options.assist = False;
+	// options.autowait = False;
+	running = True;
+	relax();
+
 	if (!getenv("XDG_SESSION_PID")) {
 		char buf[24] = { 0, };
 
@@ -9582,6 +9580,20 @@ session(Process *wm)
 		} else
 			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
 	}
+	relax();
+	{
+		char *wmname, *setup;
+
+		wmname = extract_appid(e->path);
+		setup = lookup_init_script(wmname, "setup");
+		free(wmname);
+		if (setup) {
+			DPRINTF(1, "Setting up window manager with %s\n", setup);
+			if (system(setup)) ;
+			free(setup);
+		}
+	}
+	relax();
 	/* Note: the normal case where we are launched by xinit is to make the
 	   X server and client process group leaders before execting the X
 	   server and .xinitrc.  So we are normally a process group leader in
@@ -9716,12 +9728,6 @@ session(Process *wm)
 			DPRINTF(4, "%s: %s\n", pr->appid, pr->path);
 		}
 		free(array);
-		options.session = False;
-		options.xsession = False;
-		options.autostart = True;
-		options.autoassist = False;
-		options.assist = False;
-		// options.autowait = False;
 
 		int need_wait = need_wait_for();
 
@@ -9776,6 +9782,9 @@ session(Process *wm)
 		for (pr = processes; pr; pr = pr->next) {
 			pid_t pid = getpid();
 
+			relax();
+			usleep(1000);
+			relax();
 			if ((pid = fork()) < 0) {
 				EPRINTF("%s\n", strerror(errno));
 				continue;
@@ -9786,6 +9795,7 @@ session(Process *wm)
 			}
 			/* should actually be done after child forks */
 			new_display();
+			relax();
 			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
 				set_all(pr->seq, pr->ent);
 				if (options.output > 1)
