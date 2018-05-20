@@ -4375,7 +4375,7 @@ convert_sequence_fields(Sequence *seq)
 	if (seq->f.autostart)
 		seq->n.autostart = atoi(seq->f.autostart);
 	if (seq->f.xsession)
-		seq->n.autostart = atoi(seq->f.xsession);
+		seq->n.xsession = atoi(seq->f.xsession);
 }
 
 static void
