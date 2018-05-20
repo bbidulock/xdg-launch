@@ -1056,6 +1056,22 @@ get_display(void)
 }
 
 void
+end_display(void)
+{
+	if (dpy) {
+		close(ConnectionNumber(dpy));
+		dpy = NULL;
+	}
+}
+
+void
+new_display(void)
+{
+	end_display();
+	get_display();
+}
+
+void
 put_display(void)
 {
 	PTRACE(5);
@@ -6951,7 +6967,6 @@ assist(Sequence *s, Entry *e)
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
 	}
-	put_display();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -6960,11 +6975,10 @@ assist(Sequence *s, Entry *e)
 		OPRINTF(1, "parent says child pid is %d\n", pid);
 		/* parent returns and launches */
 		/* setsid(); */ /* XXX */
-		get_display();
 		return;
 	}
 	/* continue on monitoring */
-	get_display();
+	new_display();
 	{
 		int xfd;
 		XEvent ev;
@@ -7060,7 +7074,6 @@ toolwait(Sequence *s, Entry *e)
 		reset_pid(pid, s, e);
 		return;
 	}
-	put_display();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -7069,11 +7082,10 @@ toolwait(Sequence *s, Entry *e)
 	if (!pid) {
 		/* child returns and launches */
 		/* setsid(); */ /* XXX */
-		get_display();
+		new_display();
 		return;
 	}
 	/* continue on monitoring */
-	get_display();
 	{
 		int xfd;
 		XEvent ev;
@@ -7718,7 +7730,7 @@ launch(Sequence *s, Entry *e)
 		send_change(s);
 	else
 		send_new(s);
-	put_display();
+	end_display();
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
@@ -9544,12 +9556,11 @@ session(Process *wm)
 		pid_t pid;
 		int status = 0;
 
-		put_display();
 		switch ((pid = fork())) {
-			case -1:
 			case 0:
+				new_display();
+			case -1:
 				/* child continues (or parent if fork failed) */
-				get_display();
 				break;
 			default:
 				/* parent waits for child to exit and then exits too */
@@ -9713,19 +9724,16 @@ session(Process *wm)
 		for (pr = processes; pr; pr = pr->next) {
 			pid_t pid = getpid();
 
-			put_display();
 			if ((pid = fork()) < 0) {
 				EPRINTF("%s\n", strerror(errno));
-				get_display();
 				continue;
 			}
 			if (pid) {
 				DPRINTF(1, "parent says child pid is %d\n", pid);
-				get_display();
 				continue;
 			}
 			/* should actually be done after child forks */
-			get_display();
+			new_display();
 			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
 				set_all(pr->seq, pr->ent);
 				if (options.output > 1)
