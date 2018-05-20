@@ -7762,6 +7762,7 @@ launch(Sequence *s, Entry *e)
 				fprintf(stderr, "'%s' ", *p);
 			fputs("\n", stderr);
 		}
+		end_display();
 		execvp(eargv[0], eargv);
 	} else {
 		wordexp_t we = { 0, };
@@ -7810,6 +7811,7 @@ launch(Sequence *s, Entry *e)
 				fprintf(stderr, "'%s' ", *p);
 			fputs("\n", stderr);
 		}
+		end_display();
 		execvp(we.we_wordv[0], we.we_wordv);
 	}
 	EPRINTF("Should never get here!\n");
