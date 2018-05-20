@@ -7698,7 +7698,7 @@ need_assist(Sequence *s)
   * invoked by the window manager in response to a keystroke.
   */
 void
-launch(Sequence *s, Entry *e)
+launch(Sequence *s, Entry * e)
 {
 	size_t size;
 	char *disp, *p;
@@ -7777,16 +7777,20 @@ launch(Sequence *s, Entry *e)
 			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 		execvp(eargv[0], eargv);
 	} else {
+		/* not that instead of word expanding we might just sh -c "exec %s", $cmd 
+		 */
+#if 0
 		wordexp_t we = { 0, };
 		int status;
 
 		if ((status = wordexp(s->f.command, &we, 0)) != 0 || we.we_wordc < 1) {
-			switch(status) {
+			switch (status) {
 			case WRDE_BADCHAR:
 				EPRINTF("adwm: bad character in command string: %s\n", s->f.command);
 				break;
 			case WRDE_BADVAL:
-				EPRINTF("adwm: undefined variable substitution in command string: %s\n", s->f.command);
+				EPRINTF("adwm: undefined variable substitution in command string: %s\n",
+					s->f.command);
 				break;
 			case WRDE_CMDSUB:
 				EPRINTF("adwm: command substitution in command string: %s\n", s->f.command);
@@ -7801,7 +7805,7 @@ launch(Sequence *s, Entry *e)
 				EPRINTF("adwm: unknown error processing command string: %s\n", s->f.command);
 				break;
 			}
-			wordfree(&we); /* necessary ??? */
+			wordfree(&we);	/* necessary ??? */
 			if (options.info)
 				return;
 			exit(EXIT_FAILURE);
@@ -7823,10 +7827,27 @@ launch(Sequence *s, Entry *e)
 				fprintf(stderr, "'%s' ", *p);
 			fputs("\n", stderr);
 		}
+#else
+		char cmd[BUFSIZ] = { 0, };
+
+		snprintf(cmd, sizeof(cmd) - 1, "exec %s", s->f.command);
+
+		if (options.info) {
+			OPRINTF(0, "Command would be: sh -c \"%s\"\n", cmd);
+			return;
+		}
+		if (options.debug >= 1) {
+			OPRINTF(1, "Command will be: sh -c \"%s\"\n", cmd);
+		}
+#endif
 		end_display();
 		if (options.ppid)
 			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+#if 0
 		execvp(we.we_wordv[0], we.we_wordv);
+#else
+		execlp("sh", "sh", "-c", cmd, NULL);
+#endif
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
