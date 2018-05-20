@@ -319,6 +319,17 @@ Specifies the command to execute.  This overrides the C<Exec> field of
 the XDG desktop entry file.  When unspecified, the default is the
 C<Exec> field of the XDG desktop entry file.
 
+=item B<--mimetype> I<MIMETYPE>
+
+Specify a registered mime type, I<MIMETYPE>, of the form
+"I<type>B</>I<subtype>".  This corresponds to the mime type of a file or
+scheme handler that will identify the application to launch.
+
+=item B<--category> I<CATEGORY>
+
+Specify an XDG menu specification category, I<CATEGORY>, that identifies
+the application to launch.
+
 =item B<-f>, B<--file> I<FILE>
 
 Specifies a filename, I<FILE>, to be substituted into the XDG desktop
@@ -401,6 +412,16 @@ When no X session is specified, waits after the autostart procedure
 until all children exit.
 
 Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
+
+=item B<--ppid>
+
+Specify the process identity of a sub-reaper process under which the
+launched application should be reparented if its parent terminates.
+This option defaults to the environment variable B<${XDG_SESSION_PID}>.
+To keep it from being set automatically, set it to zero.  This is useful
+for applications launched by a window manager to ensure that if the
+window manager crashes, it may be restarted by the session and the
+application child processes will be re-parented to the session.
 
 =item B<
 
@@ -511,8 +532,32 @@ criteria instead of expecting a C<WM_STATE> property change.
 
 The options that follow are for desktop session control.  They determine
 what conditions will be awaited before launching the application or
-command.  When no session option is specified, B<xdg-launch> will not
-await any desktop resource before launching.
+command.  When no session option is specified, B<xdg-launch> may
+determine automatically which conditions must be awaited depending on
+the setting of the B<--autowait> and B<--no-autowait> options.
+
+=over
+
+=item B<--autowait>
+
+Normally, when  B<xdg-launch> is executing an autostart entry, it will
+determine whether the application needs to wait for resources or a
+startup phase before launching the application.  This option requests
+that B<xdg-launch> perform the wait when required.
+
+=item B<--no-autowait>
+
+Normally, when  B<xdg-launch> is executing an autostart entry, it will
+determine whether the application needs to wait for resources or a
+startup phase before launching the application.  This option requests
+that B<xdg-launch> not wait for any resources or startup phase.
+
+=back
+
+The options that follow are for specifying the conditions that must be
+awaited before B<xdg-launch> will proceed to launch the application.
+None of these options has any effect when the B<--no-autowait> option is
+specified.
 
 =over
 
@@ -588,13 +633,52 @@ wait for a window manager (regardless of the B<--manager> option) before
 continuing.  It will only await other resources if they have been
 explicitly specified with options.
 
-=item C<Application>
+=item C<Applications>
 
 When an autostart phase of B<Desktop> is specified, or when no autostart
 phase is specified and B<--autostart> is given, B<xdg-launch> will wait
 for a window manager (regardless of the B<--manager> option) before
 continuing; however, it will only await other resources if they have
 been explicitly specified with options.
+
+=back
+
+When the C<AutostartPhase> is not specified, B<xdg-launch> may use the
+category in the F<.desktop> file of an application to determine the
+autostart phase in which the application should be launched, as follows:
+
+=over
+
+=item C<DockApp>
+
+Applications in this category will be launched in the C<Applications>
+phase.
+
+=item C<TrayIcon>
+
+Applications in this category will be launched in the C<Applications>
+phase, and will wait for a system tray to appear before launching.
+
+=item C<Audio>
+
+Applications in this category will wait for an audio server to appear.
+
+=item C<SystemTray>
+
+Application is this category will not wait for a system tray as the
+application provides one.
+
+=item C<Pager>
+
+Application is this category will not wait for a desktop pager as the
+application provides one.
+
+=item C<Panel>
+
+Application is this category will not wait for a system tray nor a
+desktop pager (as most panels provide these).
+
+
 
 =back
 
@@ -910,6 +994,13 @@ directories.  This defaults to F</etc/xdg>.  The F<autostart>
 subdirectory under these directories are searched in order to locate
 desktop entry files.  See the XDG Desktop Entry file specification for
 more information.
+
+=item B<XDG_SESSION_PID>
+
+Used by B<xdg-launch> to set the sub-reaper process of launched
+applications.  Note that when performing autostart, B<xdg-launch> will
+set this environment variable to its own PID when the variable is not
+already set.
 
 =back
 

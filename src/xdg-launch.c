@@ -10162,6 +10162,7 @@ main(int argc, char *argv[])
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
 			{"ppid",	required_argument,	NULL,  10},
+			{"autowait",	no_argument,		NULL,  12},
 			{"no-autowait",	no_argument,		NULL,  11},
 
 			{"toolwait",	no_argument,		NULL, 'T'},
@@ -10365,6 +10366,9 @@ main(int argc, char *argv[])
 			if (*endptr || val < 0)
 				goto bad_option;
 			defaults.ppid = val;
+			break;
+		case 12:	/* --autowait */
+			defaults.autowait = options.autowait = True;
 			break;
 		case 11:	/* --no-autowait */
 			defaults.autowait = options.autowait = False;
