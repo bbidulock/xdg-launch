@@ -9742,6 +9742,9 @@ session(Process *wm)
 				DPRINTF(1, "parent says child pid is %d\n", pid);
 				continue;
 			}
+			if (options.ppid)
+				prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+
 			/* should actually be done after child forks */
 			new_display();
 			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
