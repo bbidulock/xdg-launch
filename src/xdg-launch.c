@@ -7777,77 +7777,15 @@ launch(Sequence *s, Entry * e)
 			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 		execvp(eargv[0], eargv);
 	} else {
-		/* not that instead of word expanding we might just sh -c "exec %s", $cmd 
-		 */
-#if 0
-		wordexp_t we = { 0, };
-		int status;
-
-		if ((status = wordexp(s->f.command, &we, 0)) != 0 || we.we_wordc < 1) {
-			switch (status) {
-			case WRDE_BADCHAR:
-				EPRINTF("adwm: bad character in command string: %s\n", s->f.command);
-				break;
-			case WRDE_BADVAL:
-				EPRINTF("adwm: undefined variable substitution in command string: %s\n",
-					s->f.command);
-				break;
-			case WRDE_CMDSUB:
-				EPRINTF("adwm: command substitution in command string: %s\n", s->f.command);
-				break;
-			case WRDE_NOSPACE:
-				EPRINTF("adwm: out of memory processing command string: %s\n", s->f.command);
-				break;
-			case WRDE_SYNTAX:
-				EPRINTF("adwm: syntax error in command string: %s\n", s->f.command);
-				break;
-			default:
-				EPRINTF("adwm: unknown error processing command string: %s\n", s->f.command);
-				break;
-			}
-			wordfree(&we);	/* necessary ??? */
-			if (options.info)
-				return;
-			exit(EXIT_FAILURE);
-		}
 		if (options.info) {
-			char **p;
-
-			OPRINTF(0, "Command would be:");
-			for (p = &we.we_wordv[0]; p && *p; p++)
-				fprintf(stdout, "'%s' ", *p);
-			fputs("\n", stdout);
+			OPRINTF(0, "Command would be: sh -c \"%s\"\n", s->f.command);
 			return;
 		}
-		if (options.debug >= 1) {
-			char **p;
-
-			DPRINTF(1, "Command will be:");
-			for (p = &we.we_wordv[0]; p && *p; p++)
-				fprintf(stderr, "'%s' ", *p);
-			fputs("\n", stderr);
-		}
-#else
-		char cmd[BUFSIZ] = { 0, };
-
-		snprintf(cmd, sizeof(cmd) - 1, "exec %s", s->f.command);
-
-		if (options.info) {
-			OPRINTF(0, "Command would be: sh -c \"%s\"\n", cmd);
-			return;
-		}
-		if (options.debug >= 1) {
-			OPRINTF(1, "Command will be: sh -c \"%s\"\n", cmd);
-		}
-#endif
+		DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
 		end_display();
 		if (options.ppid)
 			prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
-#if 0
-		execvp(we.we_wordv[0], we.we_wordv);
-#else
-		execlp("sh", "sh", "-c", cmd, NULL);
-#endif
+		execlp("sh", "sh", "-c", s->f.command, NULL);
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
