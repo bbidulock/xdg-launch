@@ -469,24 +469,11 @@ struct fields {
 	char *url;
 };
 
-typedef enum {
-	StartupNotifyIdle,
-	StartupNotifyNew,
-	StartupNotifyChanged,
-	StartupNotifyComplete,
-} StartupNotifyState;
-
-typedef struct _Client Client;
-
 typedef struct _Sequence {
-	struct _Sequence *next;
-	int refs;
-	StartupNotifyState state;
 	Bool removed;
 	Window from;
 	Window remover;
 	Window client;
-	Entry *e;
 	union {
 		char *fields[sizeof(struct fields) / sizeof(char *)];
 		struct fields f;
@@ -502,12 +489,8 @@ typedef struct _Sequence {
 		unsigned autostart;
 		unsigned xsession;
 	} n;
-#ifdef GIO_GLIB2_SUPPORT
-	gint timer;
-#endif					/* GIO_GLIB2_SUPPORT */
 } Sequence;
 
-Sequence *sequences;
 const char *myid = NULL;
 
 typedef struct {
@@ -516,8 +499,29 @@ typedef struct {
 	int len;			/* number of message bytes */
 } Message;
 
+typedef enum {
+	StartupNotifyIdle,
+	StartupNotifyNew,
+	StartupNotifyChanged,
+	StartupNotifyComplete,
+} StartupNotifyState;
+
+typedef enum {
+	AutostartPhase_PreDisplayServer,
+	AutostartPhase_Initializing,
+	AutostartPhase_WindowManager,
+	AutostartPhase_Panel,
+	AutostartPhase_Desktop,
+	AutostartPhase_Application,
+} AutostartPhase;
+
+typedef struct _Client Client;
+
 typedef struct _Process {
 	struct _Process *next;		/* next entry */
+	int refs;			/* references to this process */
+	StartupNotifyState state;	/* startup notification state */
+	AutostartPhase phase;		/* autostart phase */
 	Bool running;			/* is this process running? */
 	int wait_for;			/* things to wait for */
 	pid_t pid;			/* pid for this process */
@@ -525,9 +529,13 @@ typedef struct _Process {
 	char *appid;			/* application id portion of path */
 	Entry *ent;			/* parsed entry for this process */
 	Sequence *seq;			/* startup notification sequence */
+#ifdef GIO_GLIB2_SUPPORT
+	gint timer;
+#endif					/* GIO_GLIB2_SUPPORT */
 } Process;
 
 Process *processes = NULL;
+Process *autostart = NULL;
 
 typedef struct {
 	int screen;			/* screen number */
@@ -597,7 +605,7 @@ typedef struct {
 
 struct _Client {
 	Client *next;			/* next client in list */
-	Sequence *seq;			/* associated startup sequence */
+	Process *pr;			/* associated startup process */
 	int screen;			/* screen number */
 	Window win;			/* client window */
 	Window icon_win;		/* icon window */
@@ -900,7 +908,7 @@ XContext ScreenContext;			/* window to screen context */
 XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
-void
+static void
 intern_atoms(void)
 {
 	int i, j, n;
@@ -943,7 +951,7 @@ intern_atoms(void)
 	}
 }
 
-int
+static int
 xerror(Display *display, XErrorEvent *eev)
 {
 	if (options.debug) {
@@ -973,7 +981,7 @@ xerror(Display *display, XErrorEvent *eev)
 	return (0);
 }
 
-int
+static int
 xioerror(Display *display)
 {
 	void *buffer[BUFSIZ];
@@ -993,7 +1001,7 @@ int (*xioerrorxlib) (Display *) = NULL;
 
 static void init_screen(void);
 
-Bool
+static Bool
 get_display(void)
 {
 	PTRACE(5);
@@ -1053,7 +1061,7 @@ get_display(void)
 	return (dpy ? True : False);
 }
 
-void
+static void
 end_display(void)
 {
 	if (dpy) {
@@ -1062,14 +1070,14 @@ end_display(void)
 	}
 }
 
-void
+static void
 new_display(void)
 {
 	end_display();
 	get_display();
 }
 
-void
+/* UNUSED */ void
 put_display(void)
 {
 	PTRACE(5);
@@ -1146,7 +1154,7 @@ get_window(Window win, Atom prop, Atom type, Window *win_ret)
 	return get_cardinal(win, prop, type, (long *) win_ret);
 }
 
-Time *
+/* UNUSED */ Time *
 get_times(Window win, Atom prop, Atom type, long *n)
 {
 	return (Time *) get_cardinals(win, prop, type, n);
@@ -1164,13 +1172,13 @@ get_atoms(Window win, Atom prop, Atom type, long *n)
 	return (Atom *) get_cardinals(win, prop, type, n);
 }
 
-Bool
+/* UNUSED */ Bool
 get_atom(Window win, Atom prop, Atom type, Atom *atom_ret)
 {
 	return get_cardinal(win, prop, type, (long *) atom_ret);
 }
 
-XWMState *
+static XWMState *
 XGetWMState(Display *d, Window win)
 {
 	Atom real;
@@ -1193,7 +1201,7 @@ XGetWMState(Display *d, Window win)
 
 }
 
-XEmbedInfo *
+static XEmbedInfo *
 XGetEmbedInfo(Display *d, Window win)
 {
 	Atom real;
@@ -1215,7 +1223,7 @@ XGetEmbedInfo(Display *d, Window win)
 	return NULL;
 }
 
-Bool
+static Bool
 latertime(Time last, Time time)
 {
 	if (time == CurrentTime)
@@ -1225,14 +1233,14 @@ latertime(Time last, Time time)
 	return False;
 }
 
-void
+static void
 pushtime(Time *last, Time time)
 {
 	if (latertime(*last, time))
 		*last = time;
 }
 
-void
+static void
 pulltime(Time *last, Time time)
 {
 	if (!latertime(*last, time))
@@ -1244,7 +1252,7 @@ pulltime(Time *last, Time time)
   * @param type - property type
   * @return Window - the recursive window property or None
   */
-Window
+static Window
 check_recursive(Atom atom, Atom type)
 {
 	Atom real;
@@ -1295,7 +1303,7 @@ check_recursive(Atom atom, Atom type)
   * @param atom - property type
   * @return Window - the recursive window property or None
   */
-Window
+static Window
 check_nonrecursive(Atom atom, Atom type)
 {
 	Atom real;
@@ -1667,7 +1675,7 @@ check_compm(void)
 	return (scr->compm_owner = win);
 }
 
-Window
+static Window
 check_audio(void)
 {
 	char *text;
@@ -1758,7 +1766,7 @@ pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 	handle_wmchange();
 }
 
-Bool
+static Bool
 set_screen_of_root(Window sroot)
 {
 	int s;
@@ -1781,7 +1789,7 @@ set_screen_of_root(Window sroot)
  * This only really works for reparenting window managers (which are the most
  * common).  It watches out for virual roots.
  */
-Window
+static Window
 get_frame(Window win)
 {
 	Window frame = win, fparent, froot = None, *fchildren = NULL, *vroots, vroot = None;
@@ -1812,7 +1820,7 @@ get_frame(Window win)
 	return frame;
 }
 
-Window
+static Window
 get_focus_frame(void)
 {
 	Window focus;
@@ -1826,7 +1834,7 @@ get_focus_frame(void)
 	return get_frame(focus);
 }
 
-Bool
+static Bool
 find_focus_screen(void)
 {
 	Window frame, froot;
@@ -1846,7 +1854,7 @@ find_focus_screen(void)
 	return False;
 }
 
-Bool
+static Bool
 find_pointer_screen(void)
 {
 	Window proot = None, dw;
@@ -1858,7 +1866,7 @@ find_pointer_screen(void)
 	return set_screen_of_root(proot);
 }
 
-Bool
+static Bool
 find_window_screen(Window w)
 {
 	Window wroot = 0, dw = 0, *dwp = NULL;
@@ -1879,7 +1887,7 @@ find_window_screen(Window w)
 	return False;
 }
 
-Bool
+static Bool
 find_screen(Window w)
 {
 	Client *c = NULL;
@@ -1895,7 +1903,7 @@ find_screen(Window w)
 	return find_window_screen(w);
 }
 
-Client *
+static Client *
 find_client_noscreen(Window w)
 {
 	Client *c = NULL;
@@ -1905,7 +1913,7 @@ find_client_noscreen(Window w)
 	return (c);
 }
 
-Client *
+static Client *
 find_client(Window w)
 {
 	Client *c = NULL;
@@ -1918,7 +1926,7 @@ find_client(Window w)
 	return (c);
 }
 
-void
+static void
 del_group(Client *c, Groups group)
 {
 	Client *l, **m;
@@ -1946,9 +1954,7 @@ del_group(Client *c, Groups group)
 	c->leads[group] = NULL;
 }
 
-static Client *get_client(Window win);
-
-const char *
+static const char *
 show_group(Groups group)
 {
 	switch (group) {
@@ -1963,7 +1969,9 @@ show_group(Groups group)
 	}
 }
 
-void
+static Client *get_client(Window win);
+
+static void
 add_group(Client *c, Window leader, Groups group)
 {
 	Client *l;
@@ -2018,7 +2026,7 @@ add_group(Client *c, Window leader, Groups group)
  * the window should start in addition to the above; also, it should be able to
  * determine from WMCLASS= which messages belong to which newly mapped window.
  */
-Bool
+static Bool
 need_assistance(void)
 {
 	if (check_shelp()) {
@@ -2043,7 +2051,7 @@ need_assistance(void)
 
 static void free_entry(Entry *e);
 
-Entry *
+static Entry *
 parse_file(char *path)
 {
 	FILE *file;
@@ -2261,7 +2269,7 @@ parse_file(char *path)
   * /etc/xdg/autostart);
   *
   */
-char *
+static char *
 lookup_file_by_name(const char *name)
 {
 	char *path = NULL, *appid;
@@ -2441,7 +2449,7 @@ lookup_file_by_name(const char *name)
   *
   * Use glib to make the association.
   */
-char *
+static char *
 lookup_file_by_type(const char *type)
 {
 
@@ -2492,7 +2500,7 @@ lookup_file_by_type(const char *type)
 	return NULL;
 }
 
-char *
+static char *
 lookup_init_script(const char *wmname, const char *name)
 {
 	char *path = NULL, *script;
@@ -2602,7 +2610,7 @@ get_searchdirs(void)
   *
   * Use glib to make the association.
   */
-char *
+static char *
 lookup_file_by_kind(const char *type)
 {
 #ifdef GIO_GLIB2_SUPPORT
@@ -2729,7 +2737,7 @@ lookup_file_by_kind(const char *type)
 #endif
 }
 
-void
+static void
 apply_quotes(char **str, char *q)
 {
 	char *p;
@@ -2746,7 +2754,7 @@ apply_quotes(char **str, char *q)
 
 volatile Bool running = False;
 
-void
+static void
 send_msg(char *msg)
 {
 	XEvent xev;
@@ -2823,7 +2831,7 @@ struct {
 	/* *INDENT-ON* */
 };
 
-void
+static void
 add_field(Sequence *seq, char **p, char *label, FieldOffset offset)
 {
 	char *value;
@@ -2834,7 +2842,7 @@ add_field(Sequence *seq, char **p, char *label, FieldOffset offset)
 	}
 }
 
-void
+static void
 add_fields(Sequence *seq, char *msg)
 {
 	int i;
@@ -2848,18 +2856,19 @@ add_fields(Sequence *seq, char *msg)
   *
   * We do not really use this in this program...
   */
-void
-send_new(Sequence *seq)
+static void
+send_new(Process *pr)
 {
 	char *msg, *p;
 
+	assert(pr->seq != NULL);
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "new:");
-	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
-	add_fields(seq, p);
+	add_field(pr->seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_fields(pr->seq, p);
 	send_msg(msg);
 	free(msg);
-	seq->state = StartupNotifyNew;
+	pr->state = StartupNotifyNew;
 }
 
 /** @brief send a 'change' startup notification message
@@ -2869,18 +2878,19 @@ send_new(Sequence *seq)
   * update information determined about the client (if a client is associated)
   * before closing or waiting for the closure of the sequence.
   */
-void
-send_change(Sequence *seq)
+static void
+send_change(Process *pr)
 {
 	char *msg, *p;
 
+	assert(pr->seq != NULL);
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "change:");
-	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
-	add_fields(seq, p);
+	add_field(pr->seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_fields(pr->seq, p);
 	send_msg(msg);
 	free(msg);
-	seq->state = StartupNotifyChanged;
+	pr->state = StartupNotifyChanged;
 }
 
 /** @brief send a 'remove' startup notification message
@@ -2890,16 +2900,17 @@ send_change(Sequence *seq)
   * sequence that is awaiting the mapping of a window.
   */
 static void
-send_remove(Sequence *seq)
+send_remove(Process *pr)
 {
 	char *msg, *p;
 
+	assert(pr->seq != NULL);
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "remove:");
-	add_field(seq, &p, " ID=", FIELD_OFFSET_ID);
+	add_field(pr->seq, &p, " ID=", FIELD_OFFSET_ID);
 	send_msg(msg);
 	free(msg);
-	seq->state = StartupNotifyComplete;
+	pr->state = StartupNotifyComplete;
 }
 
 /** @brief - get a proc file and read it into a buffer
@@ -2911,7 +2922,7 @@ send_remove(Sequence *seq)
   * Used to get a proc file for a pid by name and read the entire file into a
   * buffer.  Returns the buffer and the size of the buffer read.
   */
-char *
+static char *
 get_proc_file(pid_t pid, char *name, size_t *size)
 {
 	struct stat st;
@@ -2960,7 +2971,7 @@ get_proc_file(pid_t pid, char *name, size_t *size)
   * /proc/%d/environ contains the evironment for the process.  The entries are
   * separated by null bytes ('\0'), and there may be a null byte at the end.
   */
-char *
+static char *
 get_proc_startup_id(pid_t pid)
 {
 	char *buf, *pos, *end;
@@ -2987,7 +2998,7 @@ get_proc_startup_id(pid_t pid)
   *
   * Obtains the command line of a process.
   */
-char *
+static char *
 get_proc_comm(pid_t pid)
 {
 	size_t size;
@@ -3011,7 +3022,7 @@ get_proc_comm(pid_t pid)
   * process.  In a multithreaded process, the contents of this symblic link are
   * not available if the main thread has already terminated.
   */
-char *
+static char *
 get_proc_exec(pid_t pid)
 {
 	char *file, *buf;
@@ -3047,7 +3058,7 @@ get_proc_exec(pid_t pid)
   * is, a readon on this file will return 0 characters.  The command-line
   * arguments appear in this file as a set of null ('\0') terminated strings.
   */
-char *
+static char *
 get_proc_argv0(pid_t pid)
 {
 	size_t size;
@@ -3055,7 +3066,7 @@ get_proc_argv0(pid_t pid)
 	return get_proc_file(pid, "cmdline", &size);
 }
 
-void
+static void
 need_update(Client *c)
 {
 	if (!c)
@@ -3067,12 +3078,12 @@ need_update(Client *c)
 	}
 }
 
-void
+static void
 need_retest(Client *c)
 {
 	if (!c)
 		return;
-	if (c->seq) {
+	if (c->pr) {
 		if (c->need_retest) {
 			CPRINTF(1, c, "[nr] false alarm\n");
 			c->need_retest = False;
@@ -3094,7 +3105,7 @@ need_retest(Client *c)
 	}
 }
 
-void
+static void
 group_needs_retest(Client *c, Groups group)
 {
 	Group *g;
@@ -3107,7 +3118,7 @@ group_needs_retest(Client *c, Groups group)
 			need_retest(*m);
 }
 
-void
+static void
 groups_need_retest(Client *c)
 {
 	group_needs_retest(c, WindowGroup);
@@ -3116,7 +3127,7 @@ groups_need_retest(Client *c)
 	need_retest(c);
 }
 
-Bool
+static Bool
 samehost(const char *dom1, const char *dom2)
 {
 	const char *str;
@@ -3133,7 +3144,7 @@ samehost(const char *dom1, const char *dom2)
 	return False;
 }
 
-Bool
+static Bool
 islocalhost(const char *host)
 {
 	char buf[65] = { 0, };
@@ -3147,7 +3158,7 @@ islocalhost(const char *host)
 
 /** @brief test a client against a startup notification sequence
   * @param c - client to test
-  * @param seq - sequence against which to test
+  * @param pr - process against which to test
   * @return Bool - True if the client matches the sequence, False otherwise
   *
   * We should only test windows that are considered managed and that have not
@@ -3155,14 +3166,17 @@ islocalhost(const char *host)
   * properties of the window match the application launch sequence.
   */
 static Bool
-test_client(Client *c, Sequence *seq)
+test_client(Client *c, Process *pr)
 {
 	pid_t pid;
 	Client *l;
+	Sequence *seq;
 	char *str, *startup_id, *hostname, *res_name, *res_class;
 	char **command;
 	int count;
 
+	if (!(seq = pr->seq))
+		return False;
 	CPRINTF(1, c, "[tc] seq '%s': testing\n", seq->f.id);
 	/* correct _NET_WM_STARTUP_ID */
 	startup_id = c->startup_id;
@@ -3351,7 +3365,7 @@ test_client(Client *c, Sequence *seq)
 	return False;
 }
 
-static Sequence *ref_sequence(Sequence *seq);
+static Process *ref_process(Process *pr);
 
 /** @brief perform a quick assist on the client and window manager
   * @param c - the client to assist
@@ -3368,21 +3382,24 @@ static Sequence *ref_sequence(Sequence *seq);
   * WM_STATE property exists afterward, a client message should be sent to the
   * root for the window manager that switches the window to that desktop.
   */
-void
-assist_client(Client *c, Sequence *seq)
+static void
+assist_client(Client *c, Process *pr)
 {
+	Sequence *seq;
 	long data;
 
-	if (c->seq) {
+	if (c->pr) {
 		EPRINTF("client already set up!\n");
 		return;
 	}
-	c->seq = ref_sequence(seq);
+	c->pr = ref_process(pr);
+	seq = c->pr->seq;
+	assert(seq != NULL);
 	seq->client = c->win;
 
 	/* Some clients will post windows with startup notification identifiers that have 
 	   long expired (such as roxterm).  Never assist a completed sequence. */
-	if (seq->state == StartupNotifyComplete)
+	if (pr->state == StartupNotifyComplete)
 		return;
 
 	/* set up _NET_STARTUP_ID */
@@ -3425,9 +3442,6 @@ assist_client(Client *c, Sequence *seq)
 	}
 }
 
-static Bool is_dockapp(Client *c);
-static Bool is_trayicon(Client *c);
-
 static Bool
 same_client(Window a, Window b)
 {
@@ -3452,7 +3466,7 @@ msg_from_wm(Window w)
 	if (same_client(w, scr->icccm_check))
 		goto yes;
 	return False;
-yes:
+      yes:
 	return True;
 }
 
@@ -3480,6 +3494,9 @@ msg_from_ap(Window w, Window c)
 	return True;
 }
 
+static Bool is_dockapp(Client *c);
+static Bool is_trayicon(Client *c);
+
 /** @brief assist some clients by adding information missing from window
   *
   * Setting up the client consists of setting some EWMH and other properties on
@@ -3494,20 +3511,21 @@ msg_from_ap(Window w, Window c)
   * Also do things like use /proc/[pid]/cmdline to set up WM_COMMAND if not
   * present.
   */
-void
+static void
 setup_client(Client *c)
 {
 	Entry *e;
+	Process *pr;
 	Sequence *seq;
 	Bool need_change = False;
 
 	PTRACE(5);
-	if (!(seq = c->seq))
+	if (!(pr = c->pr) || !(seq = pr->seq))
 		return;
 
 	/* Some clients will post windows with startup notification identifiers that have 
 	   long expired (such as roxterm).  Never setup a completed sequence. */
-	if (seq->state == StartupNotifyComplete)
+	if (pr->state == StartupNotifyComplete)
 		return;
 
 	seq->client = c->win;
@@ -3663,16 +3681,16 @@ setup_client(Client *c)
 	if (need_change) {
 		CPRINTF(1, c, "[sc] change required to %s\n", seq->f.id);
 		if (options.assist)
-			send_change(seq);
+			send_change(pr);
 	}
 
 	/* Perform some checks on the information available in .desktop file vs. that
 	   which was discovered when the window was launched. */
 
-	if (!(e = seq->e))
+	if (!(e = c->pr->ent))
 		return;
 
-	if (seq->state == StartupNotifyComplete) {
+	if (pr->state == StartupNotifyComplete) {
 		if (msg_from_wm(seq->remover)) {
 			CPRINTF(1, c, "[sc] window manager completed sequence %s\n", seq->f.id);
 			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
@@ -3750,9 +3768,10 @@ setup_client(Client *c)
 static void
 change_client(Client *c)
 {
+	Process *pr;
 	Sequence *seq;
 
-	if (!(seq = c->seq)) {
+	if (!(pr = c->pr) || !(seq = pr->seq)) {
 		CPRINTF(1, c, "[cc] called too soon!\n");
 		return;
 	}
@@ -3775,7 +3794,7 @@ change_client(Client *c)
 			}
 			if (!running) {
 #endif
-				switch (seq->state) {
+				switch (pr->state) {
 				case StartupNotifyIdle:
 				case StartupNotifyComplete:
 					break;
@@ -3788,7 +3807,7 @@ change_client(Client *c)
 						   generate the completion or wait for a
 						   supporting window manager to do so. */
 						if (options.assist)
-							send_remove(seq);
+							send_remove(pr);
 					} else {
 						/* We are expecting that the client will
 						   generate startup notification
@@ -3849,10 +3868,10 @@ is_trayicon(Client *c)
 static void
 retest_client(Client *c)
 {
-	Sequence *seq;
+	Process *pr;
 
 	PTRACE(5);
-	if (c->seq) {
+	if (c->pr) {
 		if (c->need_retest) {
 			CPRINTF(1, c, "[rc] false alarm!\n");
 			need_retests--;
@@ -3864,13 +3883,13 @@ retest_client(Client *c)
 		CPRINTF(1, c, "[rc] false alarm!\n");
 		return;
 	}
-	for (seq = sequences; seq; seq = seq->next) {
-		if (test_client(c, seq)) {
+	for (pr = processes; pr; pr = pr->next) {
+		if (test_client(c, pr)) {
 			CPRINTF(1, c, "[rc] --------------!\n");
 			CPRINTF(1, c, "[rc] IS THE ONE(tm)!\n");
 			CPRINTF(1, c, "[rc] --------------!\n");
-			c->seq = ref_sequence(seq);
-			seq->client = c->win;
+			c->pr = ref_process(pr);
+			pr->seq->client = c->win;
 			change_client(c);
 			break;
 		}
@@ -3881,7 +3900,7 @@ retest_client(Client *c)
 	}
 }
 
-const char *
+static const char *
 show_state(int state)
 {
 	switch (state) {
@@ -3899,7 +3918,7 @@ show_state(int state)
 	return ("UnknownState");
 }
 
-const char *
+static const char *
 show_atoms(Atom *atoms, int n)
 {
 	static char buf[BUFSIZ + 1] = { 0, };
@@ -3920,7 +3939,7 @@ show_atoms(Atom *atoms, int n)
 	return (buf);
 }
 
-const char *
+static const char *
 show_command(char *argv[], int argc)
 {
 	static char buf[BUFSIZ + 1] = { 0, };
@@ -3967,6 +3986,7 @@ update_client(Client *c)
 	    ExposureMask | VisibilityChangeMask | StructureNotifyMask |
 	    SubstructureNotifyMask | FocusChangeMask | PropertyChangeMask;
 	Client *tmp = NULL;
+	Process *pr;
 	Sequence *seq;
 	Bool mismatch = False;
 
@@ -4028,20 +4048,22 @@ update_client(Client *c)
 	/* _NET_STARTUP_ID */
 	if ((c->startup_id = get_text(c->win, _XA_NET_STARTUP_ID))) {
 		CPRINTF(1, c, "[uc] _NET_STARTUP_ID = \"%s\"\n", c->startup_id);
-		if (!c->seq && !mismatch) {
-			for (seq = sequences; seq; seq = seq->next) {
+		if (!c->pr && !mismatch) {
+			for (pr = processes; pr; pr = pr->next) {
+				if (!(seq = pr->seq))
+					continue;	/* safety */
 				if (!seq->f.id)
 					continue;	/* safety */
 				if (!strcmp(c->startup_id, seq->f.id)) {
 					CPRINTF(1, c, "[uc] found sequence by _NET_STARTUP_ID\n");
-					assist_client(c, seq);
+					assist_client(c, pr);
 					break;
 				}
 			}
 			/* NOTE: if we have a startup_id and don't match it is an
 			   absolute negative.  Don't perform any further checks if we did 
 			   not match on an existing startup_id. */
-			if (!c->seq)
+			if (!c->pr)
 				mismatch = True;
 		}
 	}
@@ -4054,42 +4076,48 @@ update_client(Client *c)
 
 		c->pid = card;
 		CPRINTF(1, c, "[uc] _NET_WM_PID = %d\n", c->pid);
-		if (!c->seq && !mismatch && c->hostname) {
-			for (seq = sequences; seq; seq = seq->next) {
+		if (!c->pr && !mismatch && c->hostname) {
+			for (pr = processes; pr; pr = pr->next) {
+				if (!(seq = pr->seq))
+					continue;
 				if (!seq->f.pid || c->pid != seq->n.pid)
 					continue;
 				if (!seq->f.hostname)
 					continue;
 				if (samehost(seq->f.hostname, c->hostname)) {
 					CPRINTF(1, c, "[uc] found sequence by _NET_WM_PID\n");
-					assist_client(c, seq);
+					assist_client(c, pr);
 					break;
 				}
 			}
 		}
-		if (!c->seq && !mismatch && islocalhost(c->hostname)
+		if (!c->pr && !mismatch && islocalhost(c->hostname)
 		    && (str = get_proc_startup_id(c->pid))) {
-			for (seq = sequences; seq; seq = seq->next) {
+			for (pr = processes; pr; pr = pr->next) {
+				if (!(seq = pr->seq))
+					continue;
 				if (!seq->f.id)
 					continue;
 				if (!strcmp(seq->f.id, str)) {
 					CPRINTF(1, c, "[uc] found sequence by _NET_WM_PID\n");
-					assist_client(c, seq);
+					assist_client(c, pr);
 					break;
 				}
 			}
 			/* NOTE: if we have a startup_id and don't match it is an
 			   absolute negative.  Don't perform any further checks if we did 
 			   not match on an existing startup_id. */
-			if (!c->seq)
+			if (!c->pr)
 				mismatch = True;
 		}
 	}
 	/* WM_CLASS: determine the resource name and class */
 	if (XGetClassHint(dpy, c->win, &c->ch)) {
 		CPRINTF(1, c, "[uc] WM_CLASS = (%s,%s)\n", c->ch.res_name, c->ch.res_class);
-		if (!c->seq && !mismatch && (c->ch.res_name || c->ch.res_class)) {
-			for (seq = sequences; seq; seq = seq->next) {
+		if (!c->pr && !mismatch && (c->ch.res_name || c->ch.res_class)) {
+			for (pr = processes; pr; pr = pr->next) {
+				if (!(seq = pr->seq))
+					continue;
 				if (!seq->f.wmclass)
 					continue;
 				if ((c->ch.res_name &&
@@ -4097,7 +4125,7 @@ update_client(Client *c)
 				    (c->ch.res_class &&
 				     !strcasecmp(seq->f.wmclass, c->ch.res_class))) {
 					CPRINTF(1, c, "[uc] found sequence by WM_CLASS\n");
-					assist_client(c, seq);
+					assist_client(c, pr);
 					break;
 				}
 			}
@@ -4108,13 +4136,15 @@ update_client(Client *c)
 		CPRINTF(1, c, "[uc] _NET_WM_USER_TIME = %lu\n", time);
 		pushtime(&c->user_time, time);
 		pushtime(&last_user_time, c->user_time);
-		if (!c->seq && !mismatch && c->user_time) {
-			for (seq = sequences; seq; seq = seq->next) {
+		if (!c->pr && !mismatch && c->user_time) {
+			for (pr = processes; pr; pr = pr->next) {
+				if (!(seq = pr->seq))
+					continue;
 				if (!seq->f.timestamp)
 					continue;
 				if (c->user_time == seq->n.timestamp) {
 					CPRINTF(1, c, "[uc] found sequence by _NET_WM_USER_TIME\n");
-					assist_client(c, seq);
+					assist_client(c, pr);
 					break;
 				}
 			}
@@ -4123,10 +4153,12 @@ update_client(Client *c)
 	/* WM_COMMAND */
 	if (XGetCommand(dpy, c->win, &c->command, &c->count)) {
 		CPRINTF(1, c, "[uc] WM_COMMAND = %s\n", show_command(c->command, c->count));
-		if (!c->seq && !mismatch && c->command) {
-			for (seq = sequences; seq; seq = seq->next) {
+		if (!c->pr && !mismatch && c->command) {
+			for (pr = processes; pr; pr = pr->next) {
 				wordexp_t we = { 0, };
 
+				if (!(seq = pr->seq))
+					continue;
 				if (!seq->f.command)
 					continue;
 				if (!wordexp(seq->f.command, &we, 0)) {
@@ -4139,7 +4171,7 @@ update_client(Client *c)
 						if (i == c->count) {
 							CPRINTF(1, c,
 								"[uc] found sequence by WM_COMMAND\n");
-							assist_client(c, seq);
+							assist_client(c, pr);
 							wordfree(&we);
 							break;
 						}
@@ -4151,30 +4183,32 @@ update_client(Client *c)
 
 	}
 	/* _NET_STARTUP_INFO BIN= field */
-	if (!c->seq && !mismatch && c->pid && c->hostname && islocalhost(c->hostname)) {
-		for (seq = sequences; seq; seq = seq->next) {
+	if (!c->pr && !mismatch && c->pid && c->hostname && islocalhost(c->hostname)) {
+		for (pr = processes; pr; pr = pr->next) {
 			char *str;
 
+			if (!(seq = pr->seq))
+				continue;
 			if (!seq->f.bin)
 				continue;
 			if ((str = get_proc_comm(c->pid)) && !strcmp(seq->f.bin, str)) {
 				CPRINTF(1, c, "[uc] found sequence by _NET_STARTUP_ID binary\n");
 				free(str);
-				assist_client(c, seq);
+				assist_client(c, pr);
 				break;
 			}
 			free(str);
 			if ((str = get_proc_exec(c->pid)) && !strcmp(seq->f.bin, str)) {
 				CPRINTF(1, c, "[uc] found sequence by _NET_STARTUP_ID binary\n");
 				free(str);
-				assist_client(c, seq);
+				assist_client(c, pr);
 				break;
 			}
 			free(str);
 			if ((str = get_proc_argv0(c->pid)) && !strcmp(seq->f.bin, str)) {
 				CPRINTF(1, c, "[uc] found sequence by _NET_STARTUP_ID binary\n");
 				free(str);
-				assist_client(c, seq);
+				assist_client(c, pr);
 				break;
 			}
 			free(str);
@@ -4303,7 +4337,6 @@ free_entry(Entry *e)
 	free(e);
 }
 
-static Sequence *unref_sequence(Sequence *seq);
 static Bool msg_from_wm(Window w);
 static Bool msg_from_la(Window w);
 static Bool msg_from_me(Window w);
@@ -4359,7 +4392,7 @@ info_sequence(const char *prefix, Sequence *seq)
 	}
 }
 
-static Sequence *remove_sequence(Sequence *del);
+static Process *remove_process(Process *pr);
 
 /** @brief update client from startup notification sequence
   * @param seq - the sequence that has changed state
@@ -4367,22 +4400,23 @@ static Sequence *remove_sequence(Sequence *del);
   * Update the client associated with a startup notification sequence.
   */
 static void
-update_startup_client(Sequence *seq)
+update_startup_client(Process *pr)
 {
+	Sequence *seq;
 	Client *c;
 
-	if (!seq->f.id) {
+	if (!(seq = pr->seq) || !seq->f.id) {
 		EPRINTF("Sequence without id!\n");
 		return;
 	}
 	if (myid) {
 		if (strcmp(seq->f.id, myid)) {
 			DPRINTF(1, "Sequence for unrelated id %s\n", seq->f.id);
-			remove_sequence(seq);
+			remove_process(pr);
 			return;
 		}
 		OPRINTF(1, "Related sequence received:\n");
-		switch (seq->state) {
+		switch (pr->state) {
 		case StartupNotifyIdle:
 			break;
 		case StartupNotifyNew:
@@ -4467,81 +4501,90 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 		info_sequence("Updated sequence fields", old);
 }
 
-static Sequence *
-find_seq_by_id(char *id)
+static Process *
+find_pr_by_id(char *id)
 {
-	Sequence *seq;
+	Process *pr;
 
-	for (seq = sequences; seq; seq = seq->next)
-		if (!strcmp(seq->f.id, id))
+	for (pr = processes; pr; pr = pr->next)
+		if (pr->seq && !strcmp(pr->seq->f.id, id))
 			break;
-	return (seq);
+	return (pr);
 }
 
 static void
-close_sequence(Sequence *seq)
+close_process(Process *pr)
 {
 #ifdef GIO_GLIB2_SUPPORT
-	if (seq->timer) {
+	if (pr->timer) {
 		DPRINTF(1, "removing timer\n");
-		g_source_remove(seq->timer);
-		seq->timer = 0;
+		g_source_remove(pr->timer);
+		pr->timer = 0;
 	}
 #endif				/* GIO_GLIB2_SUPPORT */
 }
 
-static Sequence *
-unref_sequence(Sequence *seq)
+static Process *
+unref_process(Process *pr)
 {
-	if (seq) {
-		if (--seq->refs <= 0) {
-			Sequence *s, **prev;
+	if (pr) {
+		if (--pr->refs <= 0) {
+			Process *p, **prev;
 
 			DPRINTF(1, "deleting sequence\n");
-			for (prev = &sequences, s = *prev; s && s != seq;
-			     prev = &s->next, s = *prev) ;
-			if (s) {
-				*prev = s->next;
-				s->next = NULL;
+			for (prev = &processes, p = *prev; p && p != pr; prev = &p->next, p = *prev) ;
+			if (p) {
+				*prev = p->next;
+				p->next = NULL;
 			}
-			close_sequence(seq);
-			free_sequence_fields(seq);
-			free_entry(seq->e);
-			seq->e = NULL;
-			free(seq);
+			close_process(pr);
+			if (pr->seq) {
+				free_sequence_fields(pr->seq);
+				free(pr->seq);
+				pr->seq = NULL;
+			}
+			if (pr->ent) {
+				free_entry(pr->ent);
+				pr->ent = NULL;
+			}
+			free(pr);
 			return (NULL);
 		} else
-			DPRINTF(1, "sequence still has %d references\n", seq->refs);
+			DPRINTF(1, "sequence still has %d references\n", pr->refs);
 	} else
 		EPRINTF("called with null pointer\n");
-	return (seq);
+	return (pr);
 }
 
-static Sequence *
-ref_sequence(Sequence *seq)
+static Process *
+ref_process(Process *pr)
 {
-	if (seq)
-		++seq->refs;
-	return (seq);
+	if (pr)
+		++pr->refs;
+	return (pr);
 }
 
-static Sequence *
-remove_sequence(Sequence *seq)
+static Process *
+remove_process(Process *pr)
 {
-	if (seq->removed) {
-		OPRINTF(1, "==> originally removed by 0x%08lx (%s)\n", seq->remover,
+	Sequence *seq;
+
+	if ((seq = pr->seq)) {
+		if (seq->removed) {
+			OPRINTF(1, "==> originally removed by 0x%08lx (%s)\n", seq->remover,
 				show_source(seq->remover, seq->client));
-		OPRINTF(1, "==> redundant  removal by 0x%08lx (%s)\n", seq->from,
+			OPRINTF(1, "==> redundant  removal by 0x%08lx (%s)\n", seq->from,
 				show_source(seq->from, seq->client));
-		return (NULL);
+			return (NULL);
+		}
+		if (options.output > 1)
+			show_sequence("Removing sequence", seq);
+		if (options.info)
+			info_sequence("Removing sequence", seq);
+		seq->removed = True;
+		seq->remover = seq->from;
 	}
-	if (options.output > 1)
-		show_sequence("Removing sequence", seq);
-	if (options.info)
-		info_sequence("Removing sequence", seq);
-	seq->removed = True;
-	seq->remover = seq->from;
-	return unref_sequence(seq);
+	return unref_process(pr);
 }
 
 #ifdef GIO_GLIB2_SUPPORT
@@ -4549,17 +4592,17 @@ remove_sequence(Sequence *seq)
 static gboolean
 sequence_timeout_callback(gpointer data)
 {
-	Sequence *seq = (typeof(seq)) data;
+	Process *pr = (typeof(pr)) data;
 
-	if (seq->state == StartupNotifyComplete) {
-		remove_sequence(seq);
-		seq->timer = 0;
+	if (pr->state == StartupNotifyComplete) {
+		remove_process(pr);
+		pr->timer = 0;
 		return FALSE;	/* stop timeout interval */
 	}
 	/* for now, just generate a remove message after the guard time */
 	if (options.assist) {
-		send_remove(seq);
-		seq->timer = 0;
+		send_remove(pr);
+		pr->timer = 0;
 		return FALSE;	/* remove timeout source */
 	}
 	return TRUE;	/* continue timeout interval */
@@ -4578,13 +4621,17 @@ sequence_timeout_callback(gpointer data)
   * sequence will always be removed at some point.
   */
 static void
-add_sequence(Sequence *seq)
+add_process(Process *pr)
 {
-	seq->refs = 1;
+	Sequence *seq = pr->seq;
+
+	assert(seq != NULL);
+	pr->refs = 1;
 	seq->client = None;
-	seq->next = sequences;
-	sequences = seq;
-	if (!seq->e && islocalhost(seq->f.hostname)) {
+
+	pr->next = processes;
+	processes = pr;
+	if (!pr->ent && islocalhost(seq->f.hostname)) {
 		char *path, *appid;
 
 		if (!(appid = seq->f.application_id) && seq->f.bin) {
@@ -4596,7 +4643,7 @@ add_sequence(Sequence *seq)
 
 			DPRINTF(1, "found desktop file %s\n", path);
 			if ((e = parse_file(path))) {
-				seq->e = e;
+				pr->ent = e;
 				if (options.output > 1)
 					show_entry("Parsed entries", e);
 				if (options.info)
@@ -4606,7 +4653,7 @@ add_sequence(Sequence *seq)
 		}
 	}
 #ifdef GIO_GLIB2_SUPPORT
-	seq->timer = g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) seq);
+	pr->timer = g_timeout_add(options.guard, sequence_timeout_callback, (gpointer) pr);
 #endif				/* GIO_GLIB2_SUPPORT */
 	if (options.output > 1)
 		show_sequence("Added sequence", seq);
@@ -4617,9 +4664,11 @@ add_sequence(Sequence *seq)
 static void
 process_startup_msg(Message *m)
 {
-	Sequence cmd = { NULL, }, *seq;
+	Sequence cmd = { 0, };
+	StartupNotifyState state;
 	char *p = m->data, *k, *v, *q, *copy, *b;
 	const char **f;
+	Process *pr;
 	int i;
 	int escaped, quoted;
 
@@ -4627,11 +4676,11 @@ process_startup_msg(Message *m)
 	DPRINTF(1, "Got message from 0x%08lx (%s): %s\n", m->origin,
 		show_source(cmd.from, cmd.client), m->data);
 	if (!strncmp(p, "new:", 4)) {
-		cmd.state = StartupNotifyNew;
+		state = StartupNotifyNew;
 	} else if (!strncmp(p, "change:", 7)) {
-		cmd.state = StartupNotifyChanged;
+		state = StartupNotifyChanged;
 	} else if (!strncmp(p, "remove:", 7)) {
-		cmd.state = StartupNotifyComplete;
+		state = StartupNotifyComplete;
 	} else {
 		free(m->data);
 		free(m);
@@ -4736,8 +4785,8 @@ process_startup_msg(Message *m)
 	if (!cmd.f.timestamp && (p = strstr(cmd.f.id, "_TIME")) != NULL)
 		cmd.f.timestamp = strdup(p + 5);
 	convert_sequence_fields(&cmd);
-	if (!(seq = find_seq_by_id(cmd.f.id))) {
-		switch (cmd.state) {
+	if (!(pr = find_pr_by_id(cmd.f.id))) {
+		switch (state) {
 		default:
 			free_sequence_fields(&cmd);
 			DPRINTF(1, "message out of sequence\n");
@@ -4746,68 +4795,70 @@ process_startup_msg(Message *m)
 		case StartupNotifyComplete:
 			break;
 		}
-		if (!(seq = calloc(1, sizeof(*seq)))) {
+		if (!(pr = calloc(1, sizeof(*pr))) || !(pr->seq = calloc(1, sizeof(*pr->seq)))) {
+			free(pr);
 			free_sequence_fields(&cmd);
 			DPRINTF(1, "no memory\n");
 			return;
 		}
-		*seq = cmd;
-		add_sequence(seq);
+		*pr->seq = cmd;
+		pr->state = state;
+		add_process(pr);
 		return;
 	}
-	switch (seq->state) {
+	switch (pr->state) {
 	case StartupNotifyIdle:
-		switch (cmd.state) {
+		switch (state) {
 		case StartupNotifyIdle:
 			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
+			pr->state = StartupNotifyComplete;
 			/* remove sequence */
 			break;
 		case StartupNotifyNew:
-			seq->state = StartupNotifyNew;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			pr->state = StartupNotifyNew;
+			copy_sequence_fields(pr->seq, &cmd);
+			update_startup_client(pr);
 			return;
 		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			pr->state = StartupNotifyChanged;
+			copy_sequence_fields(pr->seq, &cmd);
+			update_startup_client(pr);
 			return;
 		}
 		break;
 	case StartupNotifyNew:
-		switch (cmd.state) {
+		switch (state) {
 		case StartupNotifyIdle:
 			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
+			pr->state = StartupNotifyComplete;
 			/* remove sequence */
 			break;
 		case StartupNotifyNew:
 		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			pr->state = StartupNotifyChanged;
+			copy_sequence_fields(pr->seq, &cmd);
+			update_startup_client(pr);
 			return;
 		}
 		break;
 	case StartupNotifyChanged:
-		switch (cmd.state) {
+		switch (state) {
 		case StartupNotifyIdle:
 			DPRINTF(1, "message state error\n");
 			return;
 		case StartupNotifyComplete:
-			seq->state = StartupNotifyComplete;
+			pr->state = StartupNotifyComplete;
 			/* remove sequence */
 			break;
 		case StartupNotifyNew:
 		case StartupNotifyChanged:
-			seq->state = StartupNotifyChanged;
-			copy_sequence_fields(seq, &cmd);
-			update_startup_client(seq);
+			pr->state = StartupNotifyChanged;
+			copy_sequence_fields(pr->seq, &cmd);
+			update_startup_client(pr);
 			return;
 		}
 		break;
@@ -4816,9 +4867,9 @@ process_startup_msg(Message *m)
 		break;
 	}
 	/* remove sequence */
-	copy_sequence_fields(seq, &cmd);
-	update_startup_client(seq);
-	remove_sequence(seq);
+	copy_sequence_fields(pr->seq, &cmd);
+	update_startup_client(pr);
+	remove_process(pr);
 }
 
 static void
@@ -5034,14 +5085,14 @@ remove_client(Client *c)
 	del_group(c, TransiGroup);
 	del_group(c, WindowGroup);
 	del_group(c, ClientGroup);
-	if (c->seq) {
-		unref_sequence(c->seq);
-		c->seq = NULL;
+	if (c->pr) {
+		unref_process(c->pr);
+		c->pr = NULL;
 	}
 	free(c);
 }
 
-void
+static void
 del_client(Client *r)
 {
 	Client *c, **cp;
@@ -6551,7 +6602,7 @@ pc_handle_NET_DESKTOP_LAYOUT(XPropertyEvent *e, Client *c)
 	return;
 }
 
-void
+static void
 pc_handle_atom(XPropertyEvent *e, Client *c)
 {
 	pc_handler_t handle = NULL;
@@ -6567,7 +6618,7 @@ pc_handle_atom(XPropertyEvent *e, Client *c)
 		XFree(name);
 }
 
-void
+static void
 cm_handle_atom(XClientMessageEvent *e, Client *c)
 {
 	cm_handler_t handle = NULL;
@@ -6583,7 +6634,7 @@ cm_handle_atom(XClientMessageEvent *e, Client *c)
 		XFree(name);
 }
 
-void
+static void
 handle_property_event(XPropertyEvent *e)
 {
 	Client *c;
@@ -6604,7 +6655,7 @@ handle_property_event(XPropertyEvent *e)
   * If a client receives a FocusIn event (receives the focus); then it was
   * mapped and is managed.  We can updated the client and mark it as managed.
   */
-void
+static void
 handle_focus_change_event(XFocusChangeEvent *e)
 {
 	Client *c = NULL;
@@ -6617,7 +6668,7 @@ handle_focus_change_event(XFocusChangeEvent *e)
 	}
 }
 
-void
+static void
 handle_expose_event(XExposeEvent *e)
 {
 	Client *c = NULL;
@@ -6636,7 +6687,7 @@ handle_expose_event(XExposeEvent *e)
   * and visible, and was managed.  We can update the client and mark it as
   * managed.
   */
-void
+static void
 handle_visibility_event(XVisibilityEvent *e)
 {
 	Client *c = NULL;
@@ -6655,7 +6706,7 @@ handle_visibility_event(XVisibilityEvent *e)
   * When a top-level, non-override-redirect window is created, add it to the
   * potential client list as unmanaged.
   */
-void
+static void
 handle_create_window_event(XCreateWindowEvent *e)
 {
 	Client *c = NULL;
@@ -6674,7 +6725,7 @@ handle_create_window_event(XCreateWindowEvent *e)
   * When the window destroyed is one of our check windows, recheck the
   * compliance of the window manager to the appropriate check.
   */
-void
+static void
 handle_destroy_window_event(XDestroyWindowEvent *e)
 {
 	Client *c = NULL;
@@ -6725,7 +6776,7 @@ handle_destroy_window_event(XDestroyWindowEvent *e)
   * If a client becomes mapped, then it is mapped and visible, and was managed.
   * We can update the client and mark it as managed.
   */
-void
+static void
 handle_map_event(XMapEvent *e)
 {
 	Client *c = NULL;
@@ -6754,7 +6805,7 @@ handle_map_event(XMapEvent *e)
   * If the client is unmapped (can be synthetic), we can perform deletion of
   * managed client window information.
   */
-void
+static void
 handle_unmap_event(XUnmapEvent *e)
 {
 	/* we can't tell much from a simple unmap event */
@@ -6762,7 +6813,7 @@ handle_unmap_event(XUnmapEvent *e)
 
 /** @brief handle Reparent event
   */
-void
+static void
 handle_reparent_event(XReparentEvent *e)
 {
 	Client *c = NULL;
@@ -6820,12 +6871,12 @@ handle_reparent_event(XReparentEvent *e)
 	}
 }
 
-void
+static void
 handle_configure_event(XConfigureEvent *e)
 {
 }
 
-void
+static void
 handle_client_message_event(XClientMessageEvent *e)
 {
 	Client *c;
@@ -6836,12 +6887,12 @@ handle_client_message_event(XClientMessageEvent *e)
 	cm_handle_atom(e, c);
 }
 
-void
+static void
 handle_mapping_event(XMappingEvent *e)
 {
 }
 
-void
+static void
 handle_selection_clear(XSelectionClearEvent *e)
 {
 #if 0
@@ -6871,7 +6922,7 @@ handle_selection_clear(XSelectionClearEvent *e)
   * able to track the last focused window at the time that the app started (not
   * all apps support _NET_WM_USER_TIME).
   */
-void
+static void
 handle_event(XEvent *e)
 {
 	Client *c;
@@ -6950,27 +7001,27 @@ handle_event(XEvent *e)
 	}
 }
 
-void set_pid(Sequence *s);
-void set_id(Sequence *s, Entry *e);
+static void set_pid(Process *pr);
+static void set_id(Process *pr);
 
-void
-reset_pid(pid_t pid, Sequence *s, Entry *e)
+static void
+reset_pid(pid_t pid, Process *pr)
 {
 	PTRACE(5);
 	if (pid) {
 		/* this is the parent */
-		options.pid = pid;
-		set_pid(s);
-		set_id(s, e);
+		pr->pid = pid;
+		set_pid(pr);
+		set_id(pr);
 		if (options.output > 1)
-			show_sequence("Final notify fields", s);
+			show_sequence("Final notify fields", pr->seq);
 		if (options.info)
-			info_sequence("Final notify fields", s);
+			info_sequence("Final notify fields", pr->seq);
 	} else {
 		/* this is the child */
-		options.pid = getpid();
-		set_pid(s);
-		set_id(s, e);
+		pr->pid = getpid();
+		set_pid(pr);
+		set_id(pr);
 	}
 }
 
@@ -6980,23 +7031,20 @@ reset_pid(pid_t pid, Sequence *s, Entry *e)
   * acutal launch so that this information is immediately available to the child
   * process before the launch.
   */
-void
-setup_to_assist(Sequence *s)
+static void
+setup_to_assist(Process *pr)
 {
-	if (s->f.timestamp && s->n.timestamp)
-		pushtime(&launch_time, (Time) s->n.timestamp);
+	if (pr->seq->f.timestamp && pr->seq->n.timestamp)
+		pushtime(&launch_time, (Time) pr->seq->n.timestamp);
 }
 
 volatile int signum = 0;
 
-void
+static void
 sighandler(int sig)
 {
 	signum = sig;
 }
-
-Bool get_display(void);
-void put_display(void);
 
 /** @brief assist the window manager.
   *
@@ -7010,15 +7058,15 @@ void put_display(void);
   * startup notification before executing the command.  The child performs
   * assistance and then exits.  The child owns the display connection.
   */
-void
-assist(Sequence *s, Entry *e)
+static void
+assist(Process *pr)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	setup_to_assist(s);
+	setup_to_assist(pr);
 	XSync(dpy, False);
-	reset_pid(pid, s, e);
+	reset_pid(pid, pr);
 	DPRINTF(1, "Launching with wm assistance\n");
 	if (options.info) {
 		fputs("Would launch with wm assistance\n\n", stdout);
@@ -7117,25 +7165,25 @@ assist(Sequence *s, Entry *e)
   * EWMH properties are set on initial windows that are not set by the
   * application.
   */
-void
-toolwait(Sequence *s, Entry *e)
+static void
+toolwait(Process *pr)
 {
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	setup_to_assist(s);
+	setup_to_assist(pr);
 	XSync(dpy, False);
 	DPRINTF(1, "Launching with tool wait support\n");
 	if (options.info) {
 		fputs("Would launch with tool wait support\n\n", stdout);
-		reset_pid(pid, s, e);
+		reset_pid(pid, pr);
 		return;
 	}
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	reset_pid(pid, s, e);
+	reset_pid(pid, pr);
 	if (!pid) {
 		/* child returns and launches */
 		/* setsid(); */ /* XXX */
@@ -7213,8 +7261,8 @@ toolwait(Sequence *s, Entry *e)
   * that the window manager or application will complete startup notification
   * and set the appropriate EWMH properties on all windows.
   */
-void
-normal(Sequence *s, Entry *e)
+static void
+normal(Process *pr)
 {
 	pid_t pid = getpid();
 
@@ -7222,7 +7270,7 @@ normal(Sequence *s, Entry *e)
 	DPRINTF(1, "Launching without assistance or tool wait\n");
 	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
-	reset_pid(pid, s, e);
+	reset_pid(pid, pr);
 	/* main process returns and launches */
 	return;
 }
@@ -7499,7 +7547,7 @@ typedef enum {
 			 WAITFOR_SYSTEMTRAY| \
 			 WAITFOR_DESKTOPPAGER)
 
-int
+static int
 need_wait_for(void)
 {
 	int mask = WAITFOR_ALL;
@@ -7519,16 +7567,12 @@ need_wait_for(void)
 	return (mask);
 }
 
-int
-want_wait_for(Entry *e)
+static int
+want_resource(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	int mask = 0;
-
-	/* Xsessions cannot wait (responsible for all). */
-	if (options.xsession)
-		return (mask);
-	if (!e) /* safety */
-		return (mask);
 
 	/* set values from options */
 	if (options.audio)
@@ -7542,7 +7586,7 @@ want_wait_for(Entry *e)
 	if (options.pager)
 		mask |= WAITFOR_DESKTOPPAGER;
 
-	if (e->AutostartPhase) {
+	if (e && e->AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
 		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
@@ -7552,18 +7596,19 @@ want_wait_for(Entry *e)
 			/* Initializing: do not wait for anything. */
 			mask = 0;
 		} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
-			/* WindowManager: do not wait for anything, except perhaps audio.  */
+			/* WindowManager: do not wait for anything, except perhaps audio. 
+			 */
 			mask &= WAITFOR_AUDIOSERVER;
 		} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
 			/* Panel: wait only for window and composite manager (if
 			   requested?). */
-			mask &= WAITFOR_COMPOSITEMANAGER;
 			mask |= WAITFOR_WINDOWMANAGER;
+			mask &= WAITFOR_COMPOSITEMANAGER;
 		} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
 			/* Desktop: wait only for window and composite manager (if
 			   requested?). */
-			mask &= WAITFOR_COMPOSITEMANAGER;
 			mask |= WAITFOR_WINDOWMANAGER;
+			mask &= WAITFOR_COMPOSITEMANAGER;
 		} else if (strcmp(e->AutostartPhase, "Application") == 0) {
 			/* Application(s): wait for window manager, others if requested. */
 			mask |= WAITFOR_WINDOWMANAGER;
@@ -7571,24 +7616,69 @@ want_wait_for(Entry *e)
 			/* default is same as Application */
 			mask |= WAITFOR_WINDOWMANAGER;
 		}
-	} else if (options.autostart) {
+	}
+	if (s && s->n.xsession) {
+		mask &= WAITFOR_AUDIOSERVER;
+	}
+	if (s && s->n.autostart) {
 		mask |= WAITFOR_WINDOWMANAGER;
-		if (e->Categories) {
+		if (e && e->Categories) {
 			if (strstr(e->Categories, "Audio"))
 				mask |= WAITFOR_AUDIOSERVER;
-			if (strstr(e->Categories, "TrayIcon"))
-				mask |= WAITFOR_SYSTEMTRAY;
 			if (strstr(e->Categories, "DockApp"))
 				mask |= WAITFOR_WINDOWMANAGER;
 			if (strstr(e->Categories, "SystemTray"))
 				mask &= ~WAITFOR_SYSTEMTRAY;
 			if (strstr(e->Categories, "Pager"))
 				mask &= ~WAITFOR_DESKTOPPAGER;
+			if (strstr(e->Categories, "TrayIcon"))
+				mask |= WAITFOR_SYSTEMTRAY;
 			if (strstr(e->Categories, "Panel"))
-				mask &= ~(WAITFOR_DESKTOPPAGER|WAITFOR_SYSTEMTRAY);
+				mask &= ~(WAITFOR_DESKTOPPAGER | WAITFOR_SYSTEMTRAY);
 		}
 	}
 	return (mask);
+}
+
+static AutostartPhase
+want_phase(Process *pr)
+{
+	AutostartPhase phase = AutostartPhase_Application;
+	Entry *e = pr->ent;
+
+	if (e && e->AutostartPhase) {
+		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0)
+			phase = AutostartPhase_PreDisplayServer;
+		else if (strcmp(e->AutostartPhase, "Initializing") == 0)
+			phase = AutostartPhase_Initializing;
+		else if (strcmp(e->AutostartPhase, "WindowManager") == 0)
+			phase = AutostartPhase_WindowManager;
+		else if (strcmp(e->AutostartPhase, "Panel") == 0)
+			phase = AutostartPhase_Panel;
+		else if (strcmp(e->AutostartPhase, "Desktop") == 0)
+			phase = AutostartPhase_Desktop;
+		else if (strcmp(e->AutostartPhase, "Application") == 0)
+			phase = AutostartPhase_Application;
+		else
+			phase = AutostartPhase_Application;
+	} else {
+		int mask = want_resource(pr);
+
+		if (mask & WAITFOR_DESKTOPPAGER) {
+			phase = AutostartPhase_Application;
+		} else if (mask & WAITFOR_SYSTEMTRAY) {
+			phase = AutostartPhase_Desktop;
+		} else if (mask & WAITFOR_COMPOSITEMANAGER) {
+			phase = AutostartPhase_Panel;
+		} else if (mask & WAITFOR_WINDOWMANAGER) {
+			phase = AutostartPhase_Panel;
+		} else if (mask & WAITFOR_AUDIOSERVER) {
+			phase = AutostartPhase_WindowManager;
+		} else {
+			phase = AutostartPhase_Initializing;
+		}
+	}
+	return (phase);
 }
 
 /* NOTES:
@@ -7599,97 +7689,30 @@ want_wait_for(Entry *e)
  *
  * When options.xsession is true, we should never wait for resources.
  */
-void
-wait_for_resource(Entry *e)
+static void
+wait_for_resource(Process *pr)
 {
-	if (options.xsession)
-		return;
-	if (e->AutostartPhase) {
-		/* When autostarting we should use the autostart phase to determine the
-		   resources for which to wait. */
-		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
-			/* PreDisplayServer: do not wait for anything. */
-			options.audio = False;
-			options.manager = False;
-			options.composite = False;
-			options.tray = False;
-			options.pager = False;
-		} else if (strcmp(e->AutostartPhase, "Initializing") == 0) {
-			/* Initializing: do not wait for anything. */
-			options.audio = False;
-			options.manager = False;
-			options.composite = False;
-			options.tray = False;
-			options.pager = False;
-		} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
-			/* WindowManager: do not wait for anything, except perhaps audio.  */
-			options.manager = False;
-			options.composite = False;
-			options.tray = False;
-			options.pager = False;
-		} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
-			/* Panel: wait only for window and composite manager (if
-			   requested?). */
-			options.manager = True;
-			options.tray = False;
-			options.pager = False;
-		} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
-			/* Desktop: wait only for window and composite manager (if
-			   requested?). */
-			options.manager = True;
-		} else if (strcmp(e->AutostartPhase, "Application") == 0) {
-			/* Application(s): wait for window manager, others if requested. */
-			options.manager = True;
-		} else {
-			/* default is same as Application */
-			options.manager = True;
-		}
-	} else if (options.autostart) {
-		options.manager = True;
-		if (e->Categories) {
-			if (strstr(e->Categories, "Audio"))
-				options.audio = True;
-			if (strstr(e->Categories, "TrayIcon"))
-				options.tray = True;
-			if (strstr(e->Categories, "DockApp"))
-				options.manager = True;
-			if (strstr(e->Categories, "SystemTray"))
-				options.tray = False;
-			if (strstr(e->Categories, "Pager"))
-				options.pager = False;
-			if (strstr(e->Categories, "Panel")) {
-				options.tray = False;
-				options.pager = False;
-			}
-		}
-	}
-	if (options.xsession) {
-		/* Xsessions cannot wait (responsible for all). */
-		options.audio = False;
-		options.manager = False;
-		options.composite = False;
-		options.tray = False;
-		options.pager = False;
-	}
+	int mask = pr->wait_for = want_resource(pr);
+
 	/* Be sure to wait for window manager before checking whether assistance is
 	   needed. */
-	if (options.manager || options.tray || options.pager || options.composite || options.audio) {
-		if (options.pager)
+	if (mask) {
+		if (mask & WAITFOR_DESKTOPPAGER)
 			wait_for_desktop_pager();
-		else if (options.tray)
+		else if (mask & WAITFOR_SYSTEMTRAY)
 			wait_for_system_tray();
-		else if (options.composite)
+		else if (mask & WAITFOR_COMPOSITEMANAGER)
 			wait_for_composite_manager();
-		else if (options.manager)
+		else if (mask & WAITFOR_WINDOWMANAGER)
 			wait_for_window_manager();
-		else if (options.audio)
+		else if (mask & WAITFOR_AUDIOSERVER)
 			wait_for_audio_server();
 	} else
 		DPRINTF(1, "No resource wait requested.\n");
 }
 
-Bool
-need_assist(Sequence *s)
+static Bool
+need_assist(Process *pr)
 {
 	Bool need_assist = (!options.autoassist && options.assist) ? True : False;
 
@@ -7712,13 +7735,13 @@ need_assist(Sequence *s)
 			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
 	} else if (need_assistance()) {
 		OPRINTF(1, "WindowManager: needs assistance\n");
-		if (s->f.wmclass) {
+		if (pr->seq->f.wmclass) {
 			OPRINTF(1, "WMCLASS: requires assistance\n");
 			need_assist = True;
 			if (options.info)
 				fputs("Launching StartupWMClass entry always requires assistance.\n", stdout);
 		}
-		if (s->f.silent && s->n.silent) {
+		if (pr->seq->f.silent && pr->seq->n.silent) {
 			OPRINTF(1, "SILENT: requires assistance\n");
 			need_assist = True;
 			if (options.info)
@@ -7756,18 +7779,20 @@ need_assist(Sequence *s)
   * child process out from under the window manager when xdg-launch(1) has been
   * invoked by the window manager in response to a keystroke.
   */
-void
-launch(Sequence *s, Entry * e)
+static void
+launch(Process *pr)
 {
 	size_t size;
 	char *disp, *p;
 	Bool change_only = False;
+	Sequence *seq = pr->seq;
 
 	PTRACE(5);
+	assert(seq != NULL);
 	if (options.autowait)
-		wait_for_resource(e);
+		wait_for_resource(pr);
 	if (options.autoassist)
-		options.assist = need_assist(s);
+		options.assist = need_assist(pr);
 
 	/* make the call... */
 
@@ -7775,42 +7800,41 @@ launch(Sequence *s, Entry * e)
 		OPRINTF(1, "Tool wait requested\n");
 		if (options.info)
 			fputs("Tool wait requested\n\n", stdout);
-		toolwait(s, e);
+		toolwait(pr);
 	} else if (options.assist) {
 		OPRINTF(1, "Assistance is required\n");
 		if (options.info)
 			fputs("Assistance is required\n\n", stdout);
-		assist(s, e);
+		assist(pr);
 	} else {
 		OPRINTF(1, "Assistance is NOT needed, no tool wait\n");
 		if (options.info)
 			fputs("Assistance is NOT needed, no tool wait\n\n", stdout);
-		normal(s, e);
+		normal(pr);
 	}
 
 	if (options.id)
 		change_only = True;
 
-	s->e = e;
-	add_sequence(s);
+	add_process(pr);
 	if (change_only)
-		send_change(s);
+		send_change(pr);
 	else
-		send_new(s);
+		send_new(pr);
 	end_display();
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
-	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
+	setenv("DESKTOP_STARTUP_ID", seq->f.id, 1);
 
 	/* set the DISPLAY environment variable */
 	p = getenv("DISPLAY");
-	size = strlen(p) + strlen(s->f.screen) + 2;
+	size = strlen(p) + strlen(seq->f.screen) + 2;
 	disp = calloc(size, sizeof(*disp));
 	strcpy(disp, p);
 	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
 		*p = '\0';
 	strcat(disp, ".");
-	strcat(disp, s->f.screen);
+	strcat(disp, seq->f.screen);
 	setenv("DISPLAY", disp, 1);
 
 	end_display();
@@ -7819,12 +7843,12 @@ launch(Sequence *s, Entry * e)
 	if (options.xsession) {
 		char *setup, *start;
 
-		if ((setup = lookup_init_script(s->f.application_id, "setup"))) {
+		if ((setup = lookup_init_script(seq->f.application_id, "setup"))) {
 			DPRINTF(1, "Setting up window manager with %s\n", setup);
 			if (system(setup)) ;
 			free(setup);
 		}
-		if ((start = lookup_init_script(s->f.application_id, "start"))) {
+		if ((start = lookup_init_script(seq->f.application_id, "start"))) {
 			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
 			execl("/bin/sh", "sh", "-c", start, NULL);
 			EPRINTF("Should never get here!\n");
@@ -7852,19 +7876,23 @@ launch(Sequence *s, Entry * e)
 		execvp(eargv[0], eargv);
 	} else {
 		if (options.info) {
-			OPRINTF(0, "Command would be: sh -c \"%s\"\n", s->f.command);
+			OPRINTF(0, "Command would be: sh -c \"%s\"\n", seq->f.command);
 			return;
 		}
-		DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
-		execl("/bin/sh", "sh", "-c", s->f.command, NULL);
+		DPRINTF(1, "Command will be: sh -c \"%s\"\n", seq->f.command);
+		execl("/bin/sh", "sh", "-c", seq->f.command, NULL);
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
 }
 
-void
-set_screen(Sequence *s)
+static void
+set_screen(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
+	assert(s != NULL && e != NULL);
 	free(s->f.screen);
 	s->f.screen = calloc(64, sizeof(*s->f.screen));
 	if (options.screen != -1 && 0 <= options.screen && options.screen < ScreenCount(dpy))
@@ -7918,7 +7946,7 @@ area_overlap(int xmin1, int ymin1, int xmax1, int ymax1, int xmin2, int ymin2, i
 	return (w && h) ? (w * h) : 0;
 }
 
-Bool
+static Bool
 find_focus_monitor(int *monitor)
 {
 #if defined XINERAMA || defined XRANDR
@@ -7997,7 +8025,7 @@ find_focus_monitor(int *monitor)
 	return False;
 }
 
-Bool
+static Bool
 find_pointer_monitor(int *monitor)
 {
 #if defined XINERAMA || defined XRANDR
@@ -8056,9 +8084,13 @@ find_pointer_monitor(int *monitor)
 	return False;
 }
 
-void
-set_monitor(Sequence *s)
+static void
+set_monitor(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
+	assert(s != NULL && e != NULL);
 	free(s->f.monitor);
 	s->f.monitor = calloc(64, sizeof(*s->f.monitor));
 	if (options.monitor != -1)
@@ -8076,15 +8108,18 @@ set_monitor(Sequence *s)
 	}
 }
 
-void
-set_desktop(Sequence *s)
+static void
+set_desktop(Process *pr)
 {
 	Atom atom, real;
 	int format, monitor = 0;
 	unsigned long nitems, after;
 	unsigned long *data = NULL;
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	if (options.monitor != -1)
 		monitor = options.monitor;
 	free(s->f.desktop);
@@ -8144,12 +8179,15 @@ set_desktop(Sequence *s)
 	return;
 }
 
-void
-set_name(Sequence *s, Entry *e)
+static void
+set_name(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *pos;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.name);
 	if (options.name)
 		s->f.name = strdup(options.name);
@@ -8161,10 +8199,14 @@ set_name(Sequence *s, Entry *e)
 		s->f.name = strdup("");	/* must be included in new: message */
 }
 
-void
-set_description(Sequence *s, Entry *e)
+static void
+set_description(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.description);
 	if (options.description)
 		s->f.description = strdup(options.description);
@@ -8174,12 +8216,15 @@ set_description(Sequence *s, Entry *e)
 		s->f.description = NULL;
 }
 
-void
-set_icon(Sequence *s, Entry *e)
+static void
+set_icon(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *icon, *p;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.icon);
 	icon = calloc(512, sizeof(*icon));
 	if (options.icon)
@@ -8203,10 +8248,14 @@ set_icon(Sequence *s, Entry *e)
 	}
 }
 
-void
-set_action(Sequence *s)
+static void
+set_action(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.action);
 	if (options.action)
 		s->f.action = strdup(options.action);
@@ -8214,36 +8263,53 @@ set_action(Sequence *s)
 		s->f.action = NULL;
 }
 
-void
-set_autostart(Sequence *s)
+static void
+set_autostart(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.action);
 	s->f.autostart = calloc(2, sizeof(*s->f.autostart));
-	if (options.autostart)
+	if (options.autostart) {
 		strcpy(s->f.autostart, "1");
-	else
+		s->n.autostart = 1;
+	} else {
 		strcpy(s->f.autostart, "0");
+		s->n.autostart = 0;
+	}
 }
 
-void
-set_xsession(Sequence *s)
+static void
+set_xsession(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.action);
 	s->f.xsession = calloc(2, sizeof(*s->f.xsession));
-	if (options.xsession || options.session)
+	if (options.xsession || options.session) {
 		strcpy(s->f.xsession, "1");
-	else
+		s->n.xsession = 1;
+	} else {
 		strcpy(s->f.xsession, "0");
+		s->n.xsession = 0;
+	}
 }
 
-char *
-set_wmclass(Sequence *s, Entry *e)
+static char *
+set_wmclass(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *pos;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.wmclass);
 	if (options.wmclass)
 		s->f.wmclass = strdup(options.wmclass);
@@ -8257,16 +8323,19 @@ set_wmclass(Sequence *s, Entry *e)
 	return s->f.wmclass;
 }
 
-void
-set_pid(Sequence *s)
+static void
+set_pid(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *p, *q, *endptr = NULL;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.pid);
 	s->f.pid = calloc(64, sizeof(*s->f.pid));
-	if (options.pid)
-		snprintf(s->f.pid, 64, "%d", options.pid);
+	if (pr->pid || (pr->pid = options.pid))
+		snprintf(s->f.pid, 64, "%d", pr->pid);
 	else if ((p = s->f.id) &&
 		 (p = strchr(p, '/')) && p++ && (p = strchr(p, '/')) && p++ && (q = strchr(p, '-'))
 		 && strtoul(p, &endptr, 0) && endptr == q)
@@ -8275,10 +8344,14 @@ set_pid(Sequence *s)
 		snprintf(s->f.pid, 64, "%d", (int) getpid());
 }
 
-void
-set_hostname(Sequence *s)
+static void
+set_hostname(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.hostname);
 	if (options.hostname)
 		s->f.hostname = strdup(options.hostname);
@@ -8288,10 +8361,14 @@ set_hostname(Sequence *s)
 	}
 }
 
-void
-set_sequence(Sequence *s)
+static void
+set_sequence(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.sequence);
 	s->f.sequence = calloc(64, sizeof(*s->f.sequence));
 	if (options.sequence)
@@ -8302,12 +8379,15 @@ set_sequence(Sequence *s)
 		snprintf(s->f.sequence, 64, "%d", 0);
 }
 
-void
-set_timestamp(Sequence *s)
+static void
+set_timestamp(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *p, *endptr = NULL;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.timestamp);
 	s->f.timestamp = calloc(64, sizeof(*s->f.timestamp));
 	if (options.timestamp)
@@ -8329,7 +8409,7 @@ set_timestamp(Sequence *s)
 	}
 }
 
-void
+static void
 do_subst(char *cmd, char *chars, char *str)
 {
 	int len = 0;
@@ -8348,12 +8428,14 @@ do_subst(char *cmd, char *chars, char *str)
 	}
 }
 
-void
-subst_command(char *cmd, Sequence *s)
+static void
+subst_command(char *cmd, Process *pr)
 {
+	Sequence *s = pr->seq;
 	int len;
 	char *p;
 
+	assert(s != NULL);
 	do_subst(cmd, "i", s->f.icon);
 	do_subst(cmd, "c", s->f.name);
 	do_subst(cmd, "C", s->f.wmclass);
@@ -8370,7 +8452,7 @@ subst_command(char *cmd, Sequence *s)
 		*p = '\0';
 }
 
-Bool
+static Bool
 truth_value(char *p)
 {
 	if (!p)
@@ -8388,12 +8470,15 @@ truth_value(char *p)
 	return False;
 }
 
-char *
-set_command(Sequence *s, Entry *e)
+static char *
+set_command(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *cmd;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.command);
 	cmd = calloc(2048, sizeof(*cmd));
 	if (truth_value(e->Terminal)) {
@@ -8431,23 +8516,27 @@ set_command(Sequence *s, Entry *e)
 	}
 	free(options.rawcmd);
 	options.rawcmd = strdup(cmd);
-	subst_command(cmd, s);
+	subst_command(cmd, pr);
 	return (s->f.command = cmd);
 }
 
-void
-set_silent(Sequence *s, Entry *e)
+static void
+set_silent(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.silent);
-	if (!truth_value(e->StartupNotify) && !s->f.wmclass && !set_wmclass(s, e)) {
+	if (!truth_value(e->StartupNotify) && !s->f.wmclass && !set_wmclass(pr)) {
 		s->f.silent = calloc(64, sizeof(*s->f.silent));
 		snprintf(s->f.silent, 64, "%d", 1);
 	} else
 		s->f.silent = NULL;
 }
 
-char *
+static char *
 first_word(const char *str)
 {
 	char *q = strchrnul(str, ' ');
@@ -8455,7 +8544,7 @@ first_word(const char *str)
 	return strndup(str, q - str);
 }
 
-char *
+static char *
 strip_desktop(const char *p)
 {
 	char *q;
@@ -8465,7 +8554,7 @@ strip_desktop(const char *p)
 			: strdup(p));
 }
 
-char *
+static char *
 extract_appid(const char *path)
 {
 	const char *p;
@@ -8474,12 +8563,15 @@ extract_appid(const char *path)
 	return (strip_desktop(p));
 }
 
-char *
-set_bin(Sequence *s, Entry *e)
+static char *
+set_bin(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *p, *q;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.bin);
 	if (options.binary)
 		s->f.bin = strdup(options.binary);
@@ -8491,7 +8583,7 @@ set_bin(Sequence *s, Entry *e)
 		s->f.bin = first_word(e->TryExec);
 	else if (e->Exec)
 		s->f.bin = first_word(e->Exec);
-	else if (!truth_value(e->Terminal) && (s->f.command || set_command(s, e)))
+	else if (!truth_value(e->Terminal) && (s->f.command || set_command(pr)))
 		s->f.bin = first_word(s->f.command);
 	else
 		s->f.bin = NULL;
@@ -8499,10 +8591,14 @@ set_bin(Sequence *s, Entry *e)
 	return s->f.bin;
 }
 
-char *
-set_application_id(Sequence *s, Entry *e)
+static char *
+set_application_id(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.application_id);
 	if (e->path) {
 		s->f.application_id = extract_appid(e->path);
@@ -8513,12 +8609,15 @@ set_application_id(Sequence *s, Entry *e)
 	return s->f.application_id;
 }
 
-void
-set_launcher(Sequence *s)
+static void
+set_launcher(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *p;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.launcher);
 	if (options.launcher)
 		s->f.launcher = strdup(options.launcher);
@@ -8535,32 +8634,38 @@ set_launcher(Sequence *s)
 	for (; (p = strchr(s->f.launcher, '|')); *p = '/') ;
 }
 
-void
-set_launchee(Sequence *s, Entry *e)
+static void
+set_launchee(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *p, *q;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.launchee);
 	if (options.launchee)
 		s->f.launchee = strdup(options.launchee);
 	else if (s->f.id && (p = strchr(s->f.id, '/')) && p++ && (q = strchr(p, '/')))
 		s->f.launchee = strndup(p, q - p);
-	else if (s->f.bin || set_bin(s, e))
+	else if (s->f.bin || set_bin(pr))
 		s->f.launchee = strdup(s->f.bin);
-	else if (s->f.application_id || set_application_id(s, e))
+	else if (s->f.application_id || set_application_id(pr))
 		s->f.launchee = strdup(s->f.application_id);
 	else
 		s->f.launchee = strdup("");
 	for (; (p = strchr(s->f.launchee, '|')); *p = '/') ;
 }
 
-void
-set_id(Sequence *s, Entry *e)
+static void
+set_id(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	char *launcher, *launchee, *p;
 
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	free(s->f.id);
 	s->f.id = NULL;
 	myid = NULL;
@@ -8571,17 +8676,17 @@ set_id(Sequence *s, Entry *e)
 		return;
 	}
 	if (!s->f.launcher)
-		set_launcher(s);
+		set_launcher(pr);
 	if (!s->f.launchee)
-		set_launchee(s, e);
+		set_launchee(pr);
 	if (!s->f.pid)
-		set_pid(s);
+		set_pid(pr);
 	if (!s->f.sequence)
-		set_sequence(s);
+		set_sequence(pr);
 	if (!s->f.hostname)
-		set_hostname(s);
+		set_hostname(pr);
 	if (!s->f.timestamp)
-		set_timestamp(s);
+		set_timestamp(pr);
 
 	/* canonicalize paths */
 	launcher = strdup(s->f.launcher);
@@ -8597,53 +8702,57 @@ set_id(Sequence *s, Entry *e)
 	free(launchee);
 }
 
-void
-set_all(Sequence *s, Entry *e)
+static void
+set_all(Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
 	PTRACE(5);
+	assert(s != NULL && e != NULL);
 	if (!s->f.name)
-		set_name(s, e);
+		set_name(pr);
 	if (!s->f.icon)
-		set_icon(s, e);
+		set_icon(pr);
 	if (!s->f.bin)
-		set_bin(s, e);
+		set_bin(pr);
 	if (!s->f.description)
-		set_description(s, e);
+		set_description(pr);
 	if (!s->f.wmclass)
-		set_wmclass(s, e);
+		set_wmclass(pr);
 	if (!s->f.silent)
-		set_silent(s, e);
+		set_silent(pr);
 	if (!s->f.application_id)
-		set_application_id(s, e);
+		set_application_id(pr);
 	if (!s->f.screen)
-		set_screen(s);
+		set_screen(pr);
 	/* must be on correct screen before doing monitor */
 	if (!s->f.monitor)
-		set_monitor(s);
+		set_monitor(pr);
 	/* must be on correct screen before doing desktop */
 	if (!s->f.desktop)
-		set_desktop(s);
+		set_desktop(pr);
 	if (!s->f.timestamp)
-		set_timestamp(s);
+		set_timestamp(pr);
 	if (!s->f.hostname)
-		set_hostname(s);
+		set_hostname(pr);
 	if (!s->f.action)
-		set_action(s);
+		set_action(pr);
 	if (!s->f.command)
-		set_command(s, e);
+		set_command(pr);
 	if (!s->f.pid)
-		set_pid(s);
+		set_pid(pr);
 	if (!s->f.autostart)
-		set_autostart(s);
+		set_autostart(pr);
 	if (!s->f.xsession)
-		set_xsession(s);
+		set_xsession(pr);
 	if (!s->f.id)
-		set_id(s, e);
+		set_id(pr);
 }
 
 #ifdef GIO_GLIB2_SUPPORT
 
-char *
+static char *
 get_mime_type(const char *uri)
 {
 	GFile *file;
@@ -8670,8 +8779,11 @@ get_mime_type(const char *uri)
 }
 
 static void
-set_mime_type(Entry *e)
+set_mime_type(Process *pr)
 {
+	Entry *e = pr->ent;
+
+	assert(e != NULL);
 	if (!options.mimetype && options.url)
 		options.mimetype = get_mime_type(options.url);
 	if (!options.mimetype && e->MimeType) {
@@ -8684,7 +8796,7 @@ set_mime_type(Entry *e)
 }
 
 static void
-put_recently_used_info(Sequence *s)
+put_recently_used_info(Process *pr)
 {
 	char *desktop_id = NULL;
 	GDesktopAppInfo *info = NULL;
@@ -8702,7 +8814,8 @@ put_recently_used_info(Sequence *s)
 		DPRINTF(1, "do not recommend without a mime type\n");
 		return;
 	}
-	if (!s->f.application_id) {
+	// FIXME: set and use pr->appid
+	if (!pr->seq->f.application_id) {
 		DPRINTF(1, "do not recommend without an application id\n");
 		return;
 	}
@@ -8711,7 +8824,8 @@ put_recently_used_info(Sequence *s)
 		return;
 	}
 	if (!info) {
-		if (!(desktop_id = g_strdup_printf("%s.desktop", s->f.application_id))) {
+		// FIXME: set and use pr->appid
+		if (!(desktop_id = g_strdup_printf("%s.desktop", pr->seq->f.application_id))) {
 			EPRINTF("cannot allocate desktop_id\n");
 			return;
 		}
@@ -8735,8 +8849,9 @@ put_recently_used_info(Sequence *s)
 }
 
 static void
-put_recent_applications_xbel(char *filename, Sequence *s)
+put_recent_applications_xbel(char *filename, Process *pr)
 {
+	Sequence *s = pr->seq;
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
 	char *file;
@@ -8770,6 +8885,7 @@ put_recent_applications_xbel(char *filename, Sequence *s)
 	}
 
 	/* 2) append new information (uri only) */
+	assert(s != NULL);
 	if (s->f.name)
 		g_bookmark_file_set_title(bookmark, options.uri, s->f.name);
 	if (s->f.description)
@@ -8796,8 +8912,10 @@ put_recent_applications_xbel(char *filename, Sequence *s)
 }
 
 static void
-put_recently_used_xbel(char *filename, Sequence *s, Entry *e)
+put_recently_used_xbel(char *filename, Process *pr)
 {
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	GBookmarkFile *bookmark;
 	GError *error = NULL;
 	char *file;
@@ -8834,6 +8952,7 @@ put_recently_used_xbel(char *filename, Sequence *s, Entry *e)
 		g_bookmark_file_set_mime_type(bookmark, options.url, options.mimetype);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
+	assert(s != NULL && e != NULL);
 	if (s->f.application_id) {
 		char *exec;
 		int len;
@@ -8930,7 +9049,7 @@ ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer use
 	}
 }
 
-gint
+static gint
 recent_sort(gconstpointer a, gconstpointer b)
 {
 	const RecentItem *A = a;
@@ -9148,7 +9267,7 @@ put_recent_applications(char *filename)
 }
 
 static void
-put_recently_used(char *filename, Entry *e)
+put_recently_used(char *filename, Process *pr)
 {
 	FILE *f;
 	int dummy;
@@ -9237,10 +9356,10 @@ put_recently_used(char *filename, Entry *e)
 	} else
 		used = item->data;
 
-	if (e->Categories) {
+	if (pr->ent && pr->ent->Categories) {
 		char *grp, *p;
 
-		grp = strdup(e->Categories);
+		grp = strdup(pr->ent->Categories);
 		if ((p = strchr(grp, ';')))
 			*p = '\0';
 		if (!(item = g_list_find_custom(used->groups, grp, grps_match)))
@@ -9366,22 +9485,24 @@ put_line_history(char *file, char *line)
 }
 
 static void
-put_history(Sequence *s, Entry *e)
+put_history(Process *pr)
 {
-	put_line_history(options.runhist, s->f.command);
-	put_line_history(options.recapps, s->f.application_id);
+	assert(pr->seq != NULL);
+	put_line_history(options.runhist, pr->seq->f.command);
+	// FIXME: set and use pr->appid
+	put_line_history(options.recapps, pr->seq->f.application_id);
 #ifdef GIO_GLIB2_SUPPORT
-	set_mime_type(e);
-	put_recently_used_info(s);
+	set_mime_type(pr);
+	put_recently_used_info(pr);
 	if (options.uri) {
 		if (options.url) {
-			put_recently_used(".recently-used", e);
-			put_recently_used_xbel("recently-used.xbel", s, e);
+			put_recently_used(".recently-used", pr);
+			put_recently_used_xbel("recently-used.xbel", pr);
 		}
 		put_recent_applications(".recently-used");
 		put_recent_applications(".recent-applications");
-		put_recent_applications_xbel("recently-used.xbel", s);
-		put_recent_applications_xbel("recent-applications.xbel", s);
+		put_recent_applications_xbel("recently-used.xbel", pr);
+		put_recent_applications_xbel("recent-applications.xbel", pr);
 	}
 #endif				/* GIO_GLIB2_SUPPORT */
 }
@@ -9553,7 +9674,7 @@ check_exec(const char *tryexec, const char *exec)
   * session leaders and still belong to the login session.
   */
 
-void
+static void
 session(Process *wm)
 {
 	pid_t sid;
@@ -9676,7 +9797,7 @@ session(Process *wm)
 				len = q - d->d_name;
 				strncpy(appid, d->d_name, len);
 				appid[len] = '\0';
-				for (pr = processes; pr && strcmp(pr->appid, appid); pr = pr->next) ;
+				for (pr = autostart; pr && strcmp(pr->appid, appid); pr = pr->next) ;
 				if (pr) {
 					pr->path = realloc(pr->path, PATH_MAX + 1);
 					strncpy(pr->path, path, PATH_MAX);
@@ -9689,8 +9810,8 @@ session(Process *wm)
 					strncpy(pr->path, path, len);
 					strncat(pr->path, appid, len);
 					strncat(pr->path, ".desktop", len);
-					pr->next = processes;
-					processes = pr;
+					pr->next = autostart;
+					autostart = pr;
 					count++;
 				}
 			}
@@ -9702,13 +9823,13 @@ session(Process *wm)
 		Process **array, *pr, **pp, **pp_prev;
 
 		array = calloc(count, sizeof(*array));
-		for (pp = array, pr = processes; pr; pr = pr->next) {
-			DPRINTF(6, "adding %s from %s to processes\n", pr->appid, pr->path);
+		for (pp = array, pr = autostart; pr; pr = pr->next) {
+			DPRINTF(6, "adding %s from %s to autostart\n", pr->appid, pr->path);
 			*pp++ = pr;
 		}
 		qsort(array, count, sizeof(*pp), sort_by_appid);
 		/* rebuild list sorted */
-		for (processes = NULL, pp_prev = &processes, i = 0; i < count; i++) {
+		for (autostart = NULL, pp_prev = &autostart, i = 0; i < count; i++) {
 			pr = array[i];
 			pr->next = NULL;
 			*pp_prev = pr;
@@ -9727,7 +9848,7 @@ session(Process *wm)
 
 		// free(options.launcher);
 		// options.launcher = strdup("xdg-autostart");
-		for (pp_prev = &processes; (pr = *pp_prev);) {
+		for (pp_prev = &autostart; (pr = *pp_prev);) {
 			Entry *ent;
 
 			if (!(pr->ent = ent = parse_file(pr->path))) {
@@ -9766,14 +9887,15 @@ session(Process *wm)
 				delete_pr(pp_prev);
 				continue;
 			}
-			pr->wait_for = (want_wait_for(ent) & need_wait);
+			pr->wait_for = (want_resource(pr) & need_wait);
+			pr->phase = want_phase(pr);
 			if (options.output > 1)
 				show_entry("Parsed entries", ent);
 			if (options.info)
 				info_entry("Parsed entries", ent);
 			pp_prev = &pr->next;
 		}
-		for (pr = processes; pr; pr = pr->next) {
+		for (pr = autostart; pr; pr = pr->next) {
 			pid_t pid = getpid();
 
 			if ((pid = fork()) < 0) {
@@ -9787,13 +9909,13 @@ session(Process *wm)
 			/* should actually be done after child forks */
 			new_display();
 			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
-				set_all(pr->seq, pr->ent);
+				set_all(pr);
 				if (options.output > 1)
 					show_sequence("Associated sequence", pr->seq);
 				if (options.info)
 					info_sequence("Associated sequence", pr->seq);
 				DPRINTF(1,"Launching application %s\n", pr->appid);
-				launch(pr->seq, pr->ent);
+				launch(pr);
 			}
 			exit(EXIT_FAILURE);
 		}
@@ -9807,13 +9929,13 @@ session(Process *wm)
 	options.autowait = False;
 
 	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
-		set_all(wm->seq, wm->ent);
+		set_all(wm);
 		if (options.output > 1)
 			show_sequence("Associated sequence", wm->seq);
 		if (options.info)
 			info_sequence("Associated sequence", wm->seq);
 		DPRINTF(1,"Launching window manager\n");
-		launch(wm->seq, wm->ent);
+		launch(wm);
 	}
 	exit(EXIT_SUCCESS);
 }
@@ -10737,14 +10859,14 @@ main(int argc, char *argv[])
 	get_display();
 	if (eargv || e->Exec) {
 		/* fill out all fields */
-		set_all(s, e);
+		set_all(pr);
 		if (!options.info)
-			put_history(s, e);
+			put_history(pr);
 	}
 	if (options.session)
 		session(pr);
 	else
-		launch(s, e);
+		launch(pr);
 	exit(EXIT_SUCCESS);
 }
 
