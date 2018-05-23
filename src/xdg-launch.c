@@ -7128,17 +7128,17 @@ handle_event(Display *dpy, XEvent *e)
 }
 
 static void set_pid(Process *pr);
-static void set_id(Display *, Process *pr);
+static void set_id(Process *pr);
 
 static void
-reset_pid(Display *dpy, pid_t pid, Process *pr)
+reset_pid(pid_t pid, Process *pr)
 {
 	PTRACE(5);
 	if (pid) {
 		/* this is the parent */
 		pr->pid = pid;
 		set_pid(pr);
-		set_id(dpy, pr);
+		set_id(pr);
 		if (options.output > 1)
 			show_sequence("Final notify fields", pr->seq);
 		if (options.info)
@@ -7147,7 +7147,7 @@ reset_pid(Display *dpy, pid_t pid, Process *pr)
 		/* this is the child */
 		pr->pid = getpid();
 		set_pid(pr);
-		set_id(dpy, pr);
+		set_id(pr);
 	}
 }
 
@@ -7385,7 +7385,7 @@ assist(Display *dpy, Process *pr)
 	PTRACE(5);
 	setup_to_assist(pr);
 	XSync(dpy, False);
-	reset_pid(dpy, pid, pr);
+	reset_pid(pid, pr);
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	DPRINTF(1, "Launching with wm assistance\n");
 	if (options.info) {
@@ -7438,7 +7438,7 @@ toolwait(Display *dpy, Process *pr)
 	DPRINTF(1, "Launching with tool wait support\n");
 	if (options.info) {
 		fputs("Would launch with tool wait support\n\n", stdout);
-		reset_pid(dpy, pid, pr);
+		reset_pid(pid, pr);
 		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		return;
 	}
@@ -7446,7 +7446,7 @@ toolwait(Display *dpy, Process *pr)
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	reset_pid(dpy, pid, pr);
+	reset_pid(pid, pr);
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	if (!pid) {
 		/* child returns and launches */
@@ -7478,7 +7478,7 @@ normal(Display *dpy, Process *pr)
 	DPRINTF(1, "Launching without assistance or tool wait\n");
 	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
-	reset_pid(dpy, pid, pr);
+	reset_pid(pid, pr);
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	/* main process returns and launches */
 	return;
@@ -8696,7 +8696,7 @@ set_launchee(Process *pr)
 }
 
 static void
-set_id(Display *dpy, Process *pr)
+set_id(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8785,7 +8785,7 @@ set_all(Display *dpy, Process *pr)
 	if (!s->f.xsession)
 		set_xsession(pr);
 	if (!s->f.id)
-		set_id(dpy, pr);
+		set_id(pr);
 }
 
 #ifdef GIO_GLIB2_SUPPORT
@@ -9855,7 +9855,7 @@ spawn_child(Display *dpy, Process *pr)
 	}
 	if (pr->pid) {
 		/* parent */
-		reset_pid(dpy, pr->pid, pr);
+		reset_pid(pr->pid, pr);
 		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		pr->started = True;
 		return wait_stopped_proc(pr);
@@ -9867,7 +9867,7 @@ spawn_child(Display *dpy, Process *pr)
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
-	reset_pid(dpy, pr->pid, pr);
+	reset_pid(pr->pid, pr);
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
 	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", s->f.id);
@@ -9910,7 +9910,7 @@ setup_window_manager(Display *dpy, Process *pr)
 	if (options.info)
 		info_sequence("Associated sequence", s);
 
-	reset_pid(dpy, pid, pr);
+	reset_pid(pid, pr);
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 
 	if (options.ppid && options.ppid != pid && options.ppid != getppid())
