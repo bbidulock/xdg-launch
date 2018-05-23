@@ -8412,12 +8412,11 @@ set_sequence(Process *pr)
 }
 
 static void
-set_timestamp(Display *dpy, Process *pr)
+set_timestamp(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 	char *p, *endptr = NULL;
-	XdgScreen *scr = screens + DefaultScreen(dpy);
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
@@ -8428,17 +8427,23 @@ set_timestamp(Display *dpy, Process *pr)
 	else if (s->f.id && (p = strstr(s->f.id, "_TIME")) && strtoul(p + 5, &endptr, 0) && !*endptr)
 		strncpy(s->f.timestamp, p + 5, 63);
 	else {
-		XEvent ev;
-		Atom atom = _XA_TIMESTAMP_PROP;
-		unsigned char data = 'a';
+		Display *dpy;
 
-		XSelectInput(dpy, scr->root, PropertyChangeMask);
-		XSync(dpy, False);
-		XChangeProperty(dpy, scr->root, atom, atom, 8, PropModeReplace, &data, 1);
-		XMaskEvent(dpy, PropertyChangeMask, &ev);
-		XSelectInput(dpy, scr->root, NoEventMask);
+		if ((dpy = XOpenDisplay(0))) {
+			XEvent ev;
+			unsigned char data = 'a';
+			Atom atom = XInternAtom(dpy, "_TIMESTAMP_PROP", False);
+			Window root = DefaultRootWindow(dpy);
 
-		snprintf(s->f.timestamp, 64, "%lu", ev.xproperty.time);
+			XSelectInput(dpy, root, PropertyChangeMask);
+			XSync(dpy, False);
+			XChangeProperty(dpy, root, atom, atom, 8, PropModeReplace, &data, 1);
+			XMaskEvent(dpy, PropertyChangeMask, &ev);
+			XSelectInput(dpy, root, NoEventMask);
+			XCloseDisplay(dpy);
+			options.timestamp = ev.xproperty.time;
+		}
+		snprintf(s->f.timestamp, 64, "%lu", options.timestamp);
 	}
 }
 
@@ -8719,7 +8724,7 @@ set_id(Display *dpy, Process *pr)
 	if (!s->f.hostname)
 		set_hostname(pr);
 	if (!s->f.timestamp)
-		set_timestamp(dpy, pr);
+		set_timestamp(pr);
 
 	/* canonicalize paths */
 	launcher = strdup(s->f.launcher);
@@ -8766,7 +8771,7 @@ set_all(Display *dpy, Process *pr)
 	if (!s->f.desktop)
 		set_desktop(dpy, pr);
 	if (!s->f.timestamp)
-		set_timestamp(dpy, pr);
+		set_timestamp(pr);
 	if (!s->f.hostname)
 		set_hostname(pr);
 	if (!s->f.action)
