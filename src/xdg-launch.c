@@ -8424,26 +8424,27 @@ set_timestamp(Process *pr)
 	s->f.timestamp = calloc(64, sizeof(*s->f.timestamp));
 	if (options.timestamp)
 		snprintf(s->f.timestamp, 64, "%lu", options.timestamp);
-	else if (s->f.id && (p = strstr(s->f.id, "_TIME")) && strtoul(p + 5, &endptr, 0) && !*endptr)
-		strncpy(s->f.timestamp, p + 5, 63);
 	else {
-		Display *dpy;
+		ulong ts = 0UL;
 
-		if ((dpy = XOpenDisplay(0))) {
-			XEvent ev;
+		EPRINTF("options.timestamp was not set by get_defaults()!\n");
+		if (s->f.id && (p = strstr(s->f.id, "_TIME")) && (ts = strtoul(p + 5, &endptr, 0)) && !*endptr) {
+			EPRINTF("using timestamp DESKTOP_STARTUP_ID time %lu\n", ts);
+		} else if (screens) {
+			Display *dpy = screens[0].display;
 			unsigned char data = 'a';
-			Atom atom = XInternAtom(dpy, "_TIMESTAMP_PROP", False);
-			Window root = DefaultRootWindow(dpy);
+			XEvent ev;
 
-			XSelectInput(dpy, root, PropertyChangeMask);
-			XSync(dpy, False);
-			XChangeProperty(dpy, root, atom, atom, 8, PropModeReplace, &data, 1);
+			XChangeProperty(dpy, DefaultRootWindow(dpy), _XA_TIMESTAMP_PROP, _XA_TIMESTAMP_PROP, 8, PropModeReplace, &data, 1);
 			XMaskEvent(dpy, PropertyChangeMask, &ev);
-			XSelectInput(dpy, root, NoEventMask);
-			XCloseDisplay(dpy);
-			options.timestamp = ev.xproperty.time;
+			ts = ev.xproperty.time;
+			EPRINTF("using timestamp property change event time %lu\n", ts);
+		} else {
+			ts = 0UL;
+			EPRINTF("using timestamp zero!");
 		}
-		snprintf(s->f.timestamp, 64, "%lu", options.timestamp);
+		snprintf(s->f.timestamp, 64, "%lu", ts);
+		options.timestamp = ts;
 	}
 }
 
