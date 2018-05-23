@@ -1122,7 +1122,7 @@ new_display(void)
 	get_display();
 }
 
-/* UNUSED */ void
+static void
 put_display(void)
 {
 	PTRACE(5);
@@ -7344,22 +7344,6 @@ wait_for_completion(Process *pr, int guard)
 	return wait_for_condition(&check_for_completion, (XPointer) pr, guard);
 }
 
-static void
-sig_child(int signum)
-{
-}
-
-static void
-handle_sigchld(void)
-{
-	sigset_t ss;
-
-	signal(SIGCHLD, &sig_child); // anything but ignore
-	sigemptyset(&ss);
-	sigaddset(&ss, SIGCHLD);
-	sigprocmask(SIG_UNBLOCK, &ss, NULL);
-}
-
 /** @brief assist the window manager.
   *
   * Assist the window manager to do the right thing with respect to focus and
@@ -7387,7 +7371,6 @@ assist(Process *pr)
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
 	}
-	handle_sigchld();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -7438,7 +7421,6 @@ toolwait(Process *pr)
 		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		return;
 	}
-	handle_sigchld();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -9701,7 +9683,6 @@ wait_stopped_pid(pid_t pid)
 	int status = 0;
 
 	DPRINTF(1, "Waiting for %d to stop...\n", pid);
-	handle_sigchld();
 	if (waitpid(pid, &status, WUNTRACED) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
 		return (False);
@@ -9750,7 +9731,6 @@ wait_continued_pid(pid_t pid)
 	int status = 0;
 
 	DPRINTF(1, "Waiting for %d to continue...\n", pid);
-	handle_sigchld();
 	if (waitpid(pid, &status, WCONTINUED) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
 		return (False);
@@ -9795,7 +9775,6 @@ wait_exited_pid(pid_t pid)
 	int status = 0;
 
 	DPRINTF(1, "Waiting for %d to exit...\n", pid);
-	handle_sigchld();
 	if (waitpid(pid, &status, 0) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
 		return (False);
@@ -9837,7 +9816,6 @@ spawn_child(Process *pr)
 	if (options.info)
 		info_sequence("Associated sequence", s);
 
-	handle_sigchld();
 	if ((pr->pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		return (False);
@@ -10019,7 +9997,6 @@ dispatcher(void)
 	sigset_t ss;
 	pid_t pid;
 
-	handle_sigchld();
 	if ((pid = fork()) < 0) {
 		EPRINTF("fork(): %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -10136,7 +10113,6 @@ session(Process *wm)
 		pid_t pid;
 		int status = 0;
 
-		handle_sigchld();
 		switch ((pid = fork())) {
 			case 0:
 				new_display();
