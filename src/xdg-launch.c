@@ -7953,6 +7953,7 @@ set_screen(Process *pr)
 	snprintf(buf, sizeof(buf) - 1, "%d", screen);
 	s->f.screen = strdup(buf);
 	s->n.screen = screen;
+	return;
 }
 
 static int
@@ -8163,6 +8164,7 @@ set_monitor(Process *pr)
 	snprintf(buf, sizeof(buf) - 1, "%d", monitor);
 	s->f.monitor = strdup(buf);
 	s->n.monitor = monitor;
+	return;
 }
 
 static void
@@ -8174,66 +8176,70 @@ set_desktop(Display *dpy, Process *pr)
 	unsigned long *data = NULL;
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
-	XdgScreen *scr = screens + DefaultScreen(dpy);
+	char buf[24] = { 0, };
+	int desktop = 0;
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
-	if (options.monitor != -1)
-		monitor = options.monitor;
-	free(s->f.desktop);
-	s->f.desktop = calloc(64, sizeof(*s->f.desktop));
-	if (options.desktop != -1) {
-		snprintf(s->f.desktop, 64, "%d", options.desktop);
-		return;
-	}
-	if (check_netwm(scr)) {
-		atom = _XA_NET_CURRENT_DESKTOP;
-		if (XGetWindowProperty(dpy, scr->root, atom, 0L, monitor + 1, False,
-				       AnyPropertyType, &real, &format,
-				       &nitems, &after, (unsigned char **) &data) == Success
-		    && format != 0 && nitems > 0) {
-			snprintf(s->f.desktop, 64, "%lu",
-				 nitems > monitor ? data[monitor] : data[0]);
-			XFree(data);
-			return;
-		}
-		if (data) {
-			XFree(data);
-			data = NULL;
-		}
-		atom = _XA_NET_VISIBLE_DESKTOPS;
-		if (XGetWindowProperty(dpy, scr->root, atom, 0L, monitor + 1, False,
-				       AnyPropertyType, &real, &format,
-				       &nitems, &after, (unsigned char **) &data) == Success
-		    && format != 0 && nitems > 0) {
-			snprintf(s->f.desktop, 64, "%lu",
-				 nitems > monitor ? data[monitor] : data[0]);
-			XFree(data);
-			return;
-		}
-		if (data) {
-			XFree(data);
-			data = NULL;
-		}
-	}
-	if (check_winwm(scr)) {
-		atom = _XA_WIN_WORKSPACE;
-		if (XGetWindowProperty(dpy, scr->root, atom, 0L, monitor + 1, False,
-				       AnyPropertyType, &real, &format,
-				       &nitems, &after, (unsigned char **) &data) == Success
-		    && format != 0 && nitems > 0) {
-			snprintf(s->f.desktop, 64, "%lu",
-				 nitems > monitor ? data[monitor] : data[0]);
-			XFree(data);
-			return;
-		}
-		if (data) {
-			XFree(data);
-			data = NULL;
-		}
-	}
 	free(s->f.desktop);
 	s->f.desktop = NULL;
+	if (options.autostart || options.xsession || options.session)
+		return;
+	if ((desktop = options.desktop) == -1) {
+		if (screens) {
+			Display *dpy = screens[0].display;
+			XdgScreen *scr = screens + DefaultScreen(dpy);
+
+			do {
+				if (check_netwm(scr)) {
+					atom = _XA_NET_CURRENT_DESKTOP;
+					if (XGetWindowProperty
+					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
+					     &format, &nitems, &after, (unsigned char **) &data) == Success
+					    && format != 0 && nitems > 0) {
+						desktop = nitems > monitor ? data[monitor] : data[0];
+						XFree(data);
+						break;
+					} else if (data) {
+						XFree(data);
+						data = NULL;
+					}
+					atom = _XA_NET_VISIBLE_DESKTOPS;
+					if (XGetWindowProperty
+					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
+					     &format, &nitems, &after, (unsigned char **) &data) == Success
+					    && format != 0 && nitems > 0) {
+						desktop = nitems > monitor ? data[monitor] : data[0];
+						XFree(data);
+						break;
+					} else if (data) {
+						XFree(data);
+						data = NULL;
+					}
+				}
+				if (check_winwm(scr)) {
+					atom = _XA_WIN_WORKSPACE;
+					if (XGetWindowProperty
+					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
+					     &format, &nitems, &after, (unsigned char **) &data) == Success
+					    && format != 0 && nitems > 0) {
+						desktop = nitems > monitor ? data[monitor] : data[0];
+						XFree(data);
+						break;
+					} else if (data) {
+						XFree(data);
+						data = NULL;
+					}
+				}
+				return;
+			} while (0);
+		} else
+			return;
+		options.desktop = desktop;
+	}
+	snprintf(buf, sizeof(buf) - 1, "%d", desktop);
+	s->f.desktop = strdup(buf);
+	s->n.desktop = desktop;
 	return;
 }
 
