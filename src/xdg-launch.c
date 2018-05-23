@@ -83,6 +83,9 @@
 #include <wordexp.h>
 #include <execinfo.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/signalfd.h>
+#include <sys/timerfd.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -517,11 +520,35 @@ typedef enum {
 
 typedef struct _Client Client;
 
+typedef enum {
+	WaitFor_AudioServer,
+#define WAITFOR_AUDIOSERVER		(1<<WaitFor_AudioServer)
+	WaitFor_WindowManager,
+#define WAITFOR_WINDOWMANAGER		(1<<WaitFor_WindowManager)
+	WaitFor_CompositeManager,
+#define WAITFOR_COMPOSITEMANAGER	(1<<WaitFor_CompositeManager)
+	WaitFor_SystemTray,
+#define WAITFOR_SYSTEMTRAY		(1<<WaitFor_SystemTray)
+	WaitFor_DesktopPager,
+#define WAITFOR_DESKTOPPAGER		(1<<WaitFor_DesktopPager)
+	WaitFor_StartupHelper,
+#define WAITFOR_STARTUPHELPER		(1<<WaitFor_StartupHelper)
+} WaitFor;
+
+#define WAITFOR_ALL	(WAITFOR_AUDIOSERVER| \
+			 WAITFOR_WINDOWMANAGER| \
+			 WAITFOR_COMPOSITEMANAGER| \
+			 WAITFOR_SYSTEMTRAY| \
+			 WAITFOR_DESKTOPPAGER| \
+			 WAITFOR_STARTUPHELPER)
+
 typedef struct _Process {
 	struct _Process *next;		/* next entry */
 	int refs;			/* references to this process */
 	StartupNotifyState state;	/* startup notification state */
 	AutostartPhase phase;		/* autostart phase */
+	Bool started;			/* is this process started? */
+	Bool stopped;			/* is this process stopped? */
 	Bool running;			/* is this process running? */
 	int wait_for;			/* things to wait for */
 	pid_t pid;			/* pid for this process */
@@ -536,6 +563,21 @@ typedef struct _Process {
 
 Process *processes = NULL;
 Process *autostart = NULL;
+Process **phases[AutostartPhase_Application + 1] = { NULL, };
+
+int wait_fors[AutostartPhase_Application + 1] = { 0, };
+int mask_fors[AutostartPhase_Application + 1] = {
+	/* *INDENT-OFF* */
+	[AutostartPhase_PreDisplayServer] = 0,
+	[AutostartPhase_Initializing]	  = (WAITFOR_AUDIOSERVER),
+	[AutostartPhase_WindowManager]	  = (WAITFOR_WINDOWMANAGER | WAITFOR_COMPOSITEMANAGER),
+	[AutostartPhase_Panel]		  = (WAITFOR_SYSTEMTRAY | WAITFOR_DESKTOPPAGER),
+	[AutostartPhase_Desktop]	  = (WAITFOR_DESKTOPPAGER),
+	[AutostartPhase_Application]	  = (WAITFOR_STARTUPHELPER),
+	/* *INDENT-ON* */
+};
+
+int counts[AutostartPhase_Application + 1] = { 0, };
 
 typedef struct {
 	int screen;			/* screen number */
@@ -1006,13 +1048,18 @@ get_display(void)
 {
 	PTRACE(5);
 	if (!dpy) {
-		int s;
+		int s, xfd, flags;
 		char sel[64] = { 0, };
 
 		if (!(dpy = XOpenDisplay(0))) {
 			EPRINTF("cannot open display\n");
 			exit(EXIT_FAILURE);
 		}
+		xfd = ConnectionNumber(dpy);
+
+		if ((flags = fcntl(xfd, F_GETFD)) != -1)
+			fcntl(xfd, F_SETFD, flags | FD_CLOEXEC);
+
 		xerrorxlib = XSetErrorHandler(xerror);
 		xioerrorxlib = XSetIOErrorHandler(xioerror);
 
@@ -1038,9 +1085,7 @@ get_display(void)
 				     StructureNotifyMask | SubstructureNotifyMask |
 				     FocusChangeMask | PropertyChangeMask);
 			scr->selwin = XCreateSimpleWindow(dpy, scr->root,
-							  0, 0, 1, 1, 0,
-							  BlackPixel(dpy, s),
-							  BlackPixel(dpy, s));
+							  0, 0, 1, 1, 0, BlackPixel(dpy, s), BlackPixel(dpy, s));
 			snprintf(sel, sizeof(sel), "WM_S%d", s);
 			scr->icccm_atom = XInternAtom(dpy, sel, False);
 			snprintf(sel, sizeof(sel), "_NET_SYSTEM_TRAY_S%d", s);
@@ -4492,6 +4537,7 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 		if (new->fields[i]) {
 			free(old->fields[i]);
 			old->fields[i] = new->fields[i];
+			new->fields[i] = NULL;
 		}
 	}
 	convert_sequence_fields(old);
@@ -4499,6 +4545,34 @@ copy_sequence_fields(Sequence *old, Sequence *new)
 		show_sequence("Updated sequence fields", old);
 	if (options.info)
 		info_sequence("Updated sequence fields", old);
+}
+
+static void
+copy_process_fields(Process *old, Process *new)
+{
+	old->phase = new->phase;
+	old->started = new->started;
+	old->stopped = new->stopped;
+	old->running = new->running;
+	old->wait_for = new->wait_for;
+	old->pid = new->pid;
+	if (new->path) {
+		free(old->path);
+		old->path = new->path;
+		new->path = NULL;
+	}
+	if (new->appid) {
+		free(old->appid);
+		old->appid = new->appid;
+		new->appid = NULL;
+	}
+	if (new->ent) {
+		free_entry(old->ent);
+		old->ent = new->ent;
+		new->ent = NULL;
+	}
+	if (old->seq && new->seq)
+		copy_sequence_fields(old->seq, new->seq);
 }
 
 static Process *
@@ -4659,6 +4733,37 @@ add_process(Process *pr)
 		show_sequence("Added sequence", seq);
 	if (options.info)
 		info_sequence("Added sequence", seq);
+}
+
+static Process *
+begin_process(Process *pr)
+{
+	Process *pr2;
+
+	if (pr) {
+		if ((pr2 = find_pr_by_id(pr->seq->f.id))) {
+			if ((pr2 != pr)) {
+				copy_process_fields(pr2, pr);
+				unref_process(pr);
+				pr = ref_process(pr2);
+			}
+		} else {
+			add_process(pr);
+		}
+		switch (pr->state) {
+		case StartupNotifyIdle:
+			send_new(pr);
+			break;
+		case StartupNotifyNew:
+		case StartupNotifyChanged:
+			send_change(pr);
+			break;
+		default:
+		case StartupNotifyComplete:
+			break;
+		}
+	}
+	return (pr);
 }
 
 static void
@@ -7038,12 +7143,205 @@ setup_to_assist(Process *pr)
 		pushtime(&launch_time, (Time) pr->seq->n.timestamp);
 }
 
-volatile int signum = 0;
+static int signal_fd = -1;
+static struct signalfd_siginfo ssi = { 0, };
+
+static int
+get_signal_fd(void)
+{
+	if (signal_fd == -1) {
+		sigset_t ss;
+
+		sigemptyset(&ss);
+		sigaddset(&ss, SIGCHLD);
+		sigprocmask(SIG_BLOCK, &ss, NULL);
+		signal_fd = signalfd(signal_fd, &ss, SFD_NONBLOCK | SFD_CLOEXEC);
+	}
+	return (signal_fd);
+}
+
+
+static struct signalfd_siginfo *
+read_signal_fd(int fd)
+{
+	if (read(fd, &ssi, sizeof(ssi)) != -1)
+		return (&ssi);
+	return (NULL);
+}
+
+static int
+put_signal_fd(void)
+{
+	if (signal_fd >= 0) {
+		sigset_t ss;
+
+		close(signal_fd);
+		signal_fd = -1;
+
+		sigemptyset(&ss);
+		sigaddset(&ss, SIGCHLD);
+		sigprocmask(SIG_UNBLOCK, &ss, NULL);
+	}
+	return (signal_fd);
+}
+
+static int timer_fd = -1;
+uint64_t timer_timeouts = 0;
+
+static int
+get_timer_fd(void)
+{
+	if (timer_fd == -1) {
+		timer_fd = timerfd_create(CLOCK_MONOTONIC, (TFD_NONBLOCK | TFD_CLOEXEC));
+	}
+	return (timer_fd);
+}
+
+int
+put_timer_fd(void)
+{
+	if (timer_fd != -1) {
+		close(timer_fd);
+		timer_fd = -1;
+	}
+	return (timer_fd);
+}
+
+static uint64_t
+read_timer_fd(int fd)
+{
+	if (read(fd, &timer_timeouts, sizeof(timer_timeouts)) != -1)
+		return (timer_timeouts);
+	return (0);
+}
 
 static void
-sighandler(int sig)
+start_guard_timer(int guard)
 {
-	signum = sig;
+	struct itimerspec it = { {0, 0}, {0, 0} };
+	int fd = get_timer_fd();
+
+	it.it_value.tv_sec = guard;
+	timerfd_settime(fd, 0, &it, NULL);
+}
+
+void
+stop_guard_timer(void)
+{
+	struct itimerspec it = { {0, 0}, {0, 0} };
+	int fd = get_timer_fd();
+
+	timerfd_settime(fd, 0, &it, NULL);
+}
+
+static Bool
+wait_for_condition(Bool (*condition) (XPointer), XPointer data, int guard)
+{
+	int xfd, sfd, tfd, status;
+	XEvent ev;
+
+	if (guard >= 0)
+		start_guard_timer(guard);
+
+	if (condition(data))
+		return (True);
+
+	PTRACE(5);
+	sfd = get_signal_fd();
+	tfd = get_timer_fd();
+	xfd = ConnectionNumber(dpy);
+
+	/* main event loop */
+	running = True;
+	XSync(dpy, False);
+	/* clear pending events */
+	while (XPending(dpy) && running) {
+		XNextEvent(dpy, &ev);
+		handle_event(&ev);
+		if (condition(data)) {
+			running = False;
+			break;
+		}
+	}
+	while (running) {
+		int pfd;
+
+		struct pollfd pfds[] = {
+			{sfd, POLLIN | POLLHUP | POLLERR, 0},
+			{tfd, POLLIN | POLLHUP | POLLERR, 0},
+			{xfd, POLLIN | POLLHUP | POLLERR, 0},
+		};
+
+		if (poll(pfds, 3, -1) == -1) {
+			switch (errno) {
+			case EINTR:
+			case EAGAIN:
+			case ERESTART:
+				continue;
+			}
+			EPRINTF("poll: %s\n", strerror(errno));
+			fflush(stderr);
+			exit(EXIT_FAILURE);
+		}
+		for (pfd = 0; pfd < 3; pfd++) {
+			if (pfds[pfd].revents & (POLLNVAL | POLLHUP | POLLERR)) {
+				EPRINTF("poll: error fd %d\n", pfd);
+				fflush(stderr);
+				exit(EXIT_FAILURE);
+			}
+		}
+		if (pfds[0].revents & (POLLIN)) {
+			struct signalfd_siginfo *ssi;
+
+			DPRINTF(1, "Got signal, processing...\n");
+			if ((ssi = read_signal_fd(sfd)) && ssi->ssi_signo == SIGCHLD)
+				waitpid(-1, &status, WNOHANG);
+		}
+		if (pfds[1].revents & (POLLIN)) {
+			uint64_t counts;
+
+			DPRINTF(1, "Got timeout, processing...\n");
+			if ((counts = read_timer_fd(tfd)))
+				break;
+		}
+		if (pfds[2].revents & (POLLIN)) {
+			DPRINTF(1, "Got POLLIN condition, running loop...\n");
+			while (XPending(dpy) && running) {
+				XNextEvent(dpy, &ev);
+				handle_event(&ev);
+				if (condition(data)) {
+					running = False;
+					break;
+				}
+			}
+		}
+	}
+	put_signal_fd();
+	return (running ? False : True);
+}
+
+static Bool
+check_for_completion(XPointer data)
+{
+	Process *pr = (typeof(pr)) data;
+
+	if (!pr->running)
+		return (True);
+	switch (pr->state) {
+	case StartupNotifyIdle:
+	case StartupNotifyComplete:
+		return (True);
+	default:
+	case StartupNotifyNew:
+	case StartupNotifyChanged:
+		return (False);
+	}
+}
+
+static Bool
+wait_for_completion(Process *pr, int guard)
+{
+	return wait_for_condition(&check_for_completion, (XPointer) pr, guard);
 }
 
 /** @brief assist the window manager.
@@ -7084,65 +7382,7 @@ assist(Process *pr)
 	}
 	/* continue on monitoring */
 	new_display();
-	{
-		int xfd;
-		XEvent ev;
-
-		signum = 0;
-		signal(SIGHUP, sighandler);
-		signal(SIGINT, sighandler);
-		signal(SIGTERM, sighandler);
-		signal(SIGQUIT, sighandler);
-		signal(SIGALRM, sighandler);
-
-		if (options.guard)
-			alarm(options.guard);
-		/* main event loop */
-		running = True;
-		DPRINTF(1, "Addressing X Server!\n");
-		XSync(dpy, False);
-		xfd = ConnectionNumber(dpy);
-		/* clear pending events */
-		while(XPending(dpy) && running) {
-			XNextEvent(dpy, &ev);
-			handle_event(&ev);
-		}
-		while (running) {
-			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
-			int sig;
-
-			if ((sig = signum)) {
-				signum = 0;
-				if (sig == SIGALRM)
-					EPRINTF("Exiting on timeout!\n");
-				exit(EXIT_SUCCESS);
-			}
-
-			if (poll(&pfd, 1, -1) == -1) {
-				switch (errno) {
-				case EINTR:
-				case EAGAIN:
-				case ERESTART:
-					continue;
-				}
-				EPRINTF("poll: %s\n", strerror(errno));
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-				EPRINTF("poll: error\n");
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-				}
-			}
-		}
-		DPRINTF(1, "Event Loop Done!\n");
-	}
+	wait_for_completion(pr, options.guard);
 	exit(EXIT_SUCCESS);
 }
 
@@ -7191,63 +7431,7 @@ toolwait(Process *pr)
 		return;
 	}
 	/* continue on monitoring */
-	{
-		int xfd;
-		XEvent ev;
-
-		signum = 0;
-		signal(SIGHUP, sighandler);
-		signal(SIGINT, sighandler);
-		signal(SIGTERM, sighandler);
-		signal(SIGQUIT, sighandler);
-		signal(SIGALRM, sighandler);
-
-		if (options.guard)
-			alarm(options.guard);
-		/* main event loop */
-		running = True;
-		XSync(dpy, False);
-		xfd = ConnectionNumber(dpy);
-		/* clear pending events */
-		while(XPending(dpy) && running) {
-			XNextEvent(dpy, &ev);
-			handle_event(&ev);
-		}
-		while (running) {
-			struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
-			int sig;
-
-			if ((sig = signum)) {
-				signum = 0;
-				if (sig == SIGALRM)
-					EPRINTF("Exiting on timeout!\n");
-				exit(EXIT_SUCCESS);
-			}
-			if (poll(&pfd, 1, -1) == -1) {
-				switch (errno) {
-				case EINTR:
-				case EAGAIN:
-				case ERESTART:
-					continue;
-				}
-				EPRINTF("poll: %s\n", strerror(errno));
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-				EPRINTF("poll: error\n");
-				fflush(stderr);
-				exit(EXIT_FAILURE);
-			}
-			if (pfd.revents & (POLLIN)) {
-				while (XPending(dpy) && running) {
-					XNextEvent(dpy, &ev);
-					handle_event(&ev);
-				}
-			}
-		}
-		DPRINTF(1, "Event Loop Done!\n");
-	}
+	wait_for_completion(pr, options.guard);
 	exit(EXIT_SUCCESS);
 }
 
@@ -7275,82 +7459,30 @@ normal(Process *pr)
 	return;
 }
 
-static Window
-check_wait(void)
+static Bool
+check_for_resources(XPointer data)
 {
-	return None;
+	long mask = (long) data;
+
+	if ((mask & WAITFOR_AUDIOSERVER) && !check_audio())
+		return (False);
+	if ((mask & WAITFOR_WINDOWMANAGER) && !check_window_manager())
+		return (False);
+	if ((mask & WAITFOR_COMPOSITEMANAGER) && !check_compm())
+		return (False);
+	if ((mask & WAITFOR_SYSTEMTRAY) && !check_stray())
+		return (False);
+	if ((mask & WAITFOR_DESKTOPPAGER) && !check_pager())
+		return (False);
+	if ((mask & WAITFOR_STARTUPHELPER) && !check_shelp())
+		return (False);
+	return (True);
 }
 
 static Bool
-wait_for_condition(Window (*until) (void))
+wait_for_resources(long wait_for, int guard)
 {
-	int xfd;
-	XEvent ev;
-
-	PTRACE(5);
-	signum = 0;
-	signal(SIGHUP, sighandler);
-	signal(SIGINT, sighandler);
-	signal(SIGTERM, sighandler);
-	signal(SIGQUIT, sighandler);
-	signal(SIGALRM, sighandler);
-
-	if (options.guard)
-		alarm(options.guard);
-	/* main event loop */
-	running = True;
-	XSync(dpy, False);
-	xfd = ConnectionNumber(dpy);
-	/* clear pending events */
-	while (XPending(dpy) && running) {
-		XNextEvent(dpy, &ev);
-		handle_event(&ev);
-		if (until())
-			return True;
-	}
-	while (running) {
-		struct pollfd pfd = { xfd, POLLIN | POLLHUP | POLLERR, 0 };
-		int sig;
-
-		if ((sig = signum)) {
-			signum = 0;
-			if (sig == SIGALRM) {
-				EPRINTF("Continuing on timeout!\n");
-				return True;
-			}
-			exit(EXIT_SUCCESS);
-		}
-		if (poll(&pfd, 1, -1) == -1) {
-			switch (errno) {
-			case EINTR:
-			case EAGAIN:
-			case ERESTART:
-				continue;
-			}
-			EPRINTF("poll: %s\n", strerror(errno));
-			fflush(stderr);
-			exit(EXIT_FAILURE);
-		}
-		if (pfd.revents & (POLLNVAL | POLLHUP | POLLERR)) {
-			EPRINTF("poll: error\n");
-			fflush(stderr);
-			exit(EXIT_FAILURE);
-		}
-		if (pfd.revents & (POLLIN)) {
-			DPRINTF(1, "Got POLLIN condition, running loop...\n");
-			while (XPending(dpy) && running) {
-				XNextEvent(dpy, &ev);
-				handle_event(&ev);
-				if (until()) {
-					until = &check_wait;
-					/* wait one more second for condition
-					 * to stabilize */
-					alarm(1);
-				}
-			}
-		}
-	}
-	return False;
+	return wait_for_condition(&check_for_resources, (XPointer) wait_for, guard);
 }
 
 static Window
@@ -7396,7 +7528,14 @@ check_wmngr(void)
 	return check_anywm();
 }
 
-static void
+static Bool
+check_window(XPointer data)
+{
+	Window (*until)(void) = (typeof(until)) data;
+	return (until() ? True : False);
+}
+
+static Bool
 wait_for_window_manager(void)
 {
 	PTRACE(5);
@@ -7423,148 +7562,16 @@ wait_for_window_manager(void)
 					scr->redir_check);
 			fputs("\n", stdout);
 		}
-		return;
+		return (True);
 	} else {
 		DPRINTF(1, "Will wait for window manager\n");
 		if (options.info) {
 			fputs("Would wait for window manager\n", stdout);
-			return;
+			return (True);
 		}
 	}
 	DPRINTF(1, "Waiting for check_anywm\n");
-	wait_for_condition(&check_wmngr);
-	DPRINTF(1, "Waited for check_anywm\n");
-}
-
-static void
-wait_for_system_tray(void)
-{
-	PTRACE(5);
-	if (check_stray()) {
-		DPRINTF(1, "Have a system tray: system tray window = 0x%08lx\n", scr->stray_owner);
-		if (options.info) {
-			OPRINTF(0, "Have a system tray:\n");
-			OPRINTF(0, "%-24s = 0x%08lx\n", "System Tray window", scr->stray_owner);
-		}
-		return;
-	} else {
-		DPRINTF(1, "Will wait for system tray\n");
-		if (options.info) {
-			OPRINTF(0, "Would wait for system tray\n");
-			return;
-		}
-	}
-	DPRINTF(1, "Waiting for check_stray\n");
-	wait_for_condition(&check_stray);
-	DPRINTF(1, "Waited for check_stray\n");
-}
-
-static void
-wait_for_desktop_pager(void)
-{
-	PTRACE(5);
-	if (check_pager()) {
-		DPRINTF(1, "Have a desktop pager: Desktop pager window = 0x%08lx\n", scr->pager_owner);
-		if (options.info) {
-			OPRINTF(0, "Have a desktop pager:\n");
-			OPRINTF(0, "%-24s = 0x%08lx\n", "Desktop pager window", scr->pager_owner);
-		}
-		return;
-	} else {
-		DPRINTF(1, "Will wait for desktop pager\n");
-		if (options.info) {
-			OPRINTF(0, "Would wait for desktop pager\n");
-			return;
-		}
-	}
-	DPRINTF(1, "Waiting for check_pager\n");
-	wait_for_condition(&check_pager);
-	DPRINTF(1, "Waited for check_pager\n");
-}
-
-static void
-wait_for_composite_manager(void)
-{
-	PTRACE(5);
-	if (check_compm()) {
-		DPRINTF(1, "Have a composite manager: composite manager window = 0x%08lx\n", scr->compm_owner);
-		if (options.info) {
-			OPRINTF(0, "Have a composite manager:\n");
-			OPRINTF(0, "%-24s = 0x%08lx\n", "Composite manager window", scr->compm_owner);
-		}
-		return;
-	} else {
-		DPRINTF(1, "Will wait for composite manager\n");
-		if (options.info) {
-			OPRINTF(0, "Would wait for composite manager\n");
-			return;
-		}
-	}
-	DPRINTF(1, "Waiting for check_compm\n");
-	wait_for_condition(&check_compm);
-	DPRINTF(1, "Waited for check_compm\n");
-}
-
-static void
-wait_for_audio_server(void)
-{
-	PTRACE(5);
-	if (check_audio()) {
-		DPRINTF(1, "Have an audio server: Audio server window = 0x%08lx\n", scr->compm_owner);
-		if (options.info) {
-			OPRINTF(0, "Have an audio server:\n\n");
-			OPRINTF(0, "%-24s = 0x%08lx\n", "Audio server window", scr->audio_owner);
-		}
-		return;
-	} else {
-		DPRINTF(1, "Will wait for audio server\n");
-		if (options.info) {
-			OPRINTF(0, "Would wait for audio server\n");
-			return;
-		}
-	}
-	DPRINTF(1, "Waiting for check_audio\n");
-	wait_for_condition(&check_audio);
-	DPRINTF(1, "Waited for check_audio\n");
-}
-
-typedef enum {
-	WaitFor_AudioServer,
-#define WAITFOR_AUDIOSERVER		(1<<WaitFor_AudioServer)
-	WaitFor_WindowManager,
-#define WAITFOR_WINDOWMANAGER		(1<<WaitFor_WindowManager)
-	WaitFor_CompositeManager,
-#define WAITFOR_COMPOSITEMANAGER	(1<<WaitFor_CompositeManager)
-	WaitFor_SystemTray,
-#define WAITFOR_SYSTEMTRAY		(1<<WaitFor_SystemTray)
-	WaitFor_DesktopPager,
-#define WAITFOR_DESKTOPPAGER		(1<<WaitFor_DesktopPager)
-} WaitFor;
-
-#define WAITFOR_ALL	(WAITFOR_AUDIOSERVER| \
-			 WAITFOR_WINDOWMANAGER| \
-			 WAITFOR_COMPOSITEMANAGER| \
-			 WAITFOR_SYSTEMTRAY| \
-			 WAITFOR_DESKTOPPAGER)
-
-static int
-need_wait_for(void)
-{
-	int mask = WAITFOR_ALL;
-
-	handle_wmchange();
-
-	if (check_audio())
-		mask &= ~WAITFOR_AUDIOSERVER;
-	if (check_wmngr())
-		mask &= ~WAITFOR_WINDOWMANAGER;
-	if (check_compm())
-		mask &= ~WAITFOR_COMPOSITEMANAGER;
-	if (check_pager())
-		mask &= ~WAITFOR_DESKTOPPAGER;
-	if (check_stray())
-		mask &= ~WAITFOR_SYSTEMTRAY;
-	return (mask);
+	return wait_for_condition(&check_window, (XPointer) &check_wmngr, options.guard);
 }
 
 static int
@@ -7637,6 +7644,11 @@ want_resource(Process *pr)
 				mask &= ~(WAITFOR_DESKTOPPAGER | WAITFOR_SYSTEMTRAY);
 		}
 	}
+	if (e && (!e->StartupNotify || strcasecmp(e->StartupNotify, "true"))) {
+		mask |= WAITFOR_STARTUPHELPER;
+	} else if (s && s->f.wmclass) {
+		mask |= WAITFOR_STARTUPHELPER;
+	}
 	return (mask);
 }
 
@@ -7644,9 +7656,12 @@ static AutostartPhase
 want_phase(Process *pr)
 {
 	AutostartPhase phase = AutostartPhase_Application;
+	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 
-	if (e && e->AutostartPhase) {
+	if (s && s->n.xsession) {
+		phase = AutostartPhase_WindowManager;
+	} else if (e && e->AutostartPhase) {
 		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0)
 			phase = AutostartPhase_PreDisplayServer;
 		else if (strcmp(e->AutostartPhase, "Initializing") == 0)
@@ -7689,26 +7704,12 @@ want_phase(Process *pr)
  *
  * When options.xsession is true, we should never wait for resources.
  */
-static void
+static Bool
 wait_for_resource(Process *pr)
 {
 	int mask = pr->wait_for = want_resource(pr);
 
-	/* Be sure to wait for window manager before checking whether assistance is
-	   needed. */
-	if (mask) {
-		if (mask & WAITFOR_DESKTOPPAGER)
-			wait_for_desktop_pager();
-		else if (mask & WAITFOR_SYSTEMTRAY)
-			wait_for_system_tray();
-		else if (mask & WAITFOR_COMPOSITEMANAGER)
-			wait_for_composite_manager();
-		else if (mask & WAITFOR_WINDOWMANAGER)
-			wait_for_window_manager();
-		else if (mask & WAITFOR_AUDIOSERVER)
-			wait_for_audio_server();
-	} else
-		DPRINTF(1, "No resource wait requested.\n");
+	return wait_for_resources(mask, options.guard);
 }
 
 static Bool
@@ -9518,22 +9519,39 @@ sort_by_appid(const void *a, const void *b)
 	return strcmp((*pp_a)->appid, (*pp_b)->appid);
 }
 
+static Process *
+remove_pr(Process **prev)
+{
+	Process *pr;
+		
+	if ((pr = *prev)) {
+		*prev = pr->next;
+		pr->next = NULL;
+	}
+	return (pr);
+}
+
+static void
+free_pr(Process *pr)
+{
+	if (pr) {
+		if (pr->ent) {
+			free_entry(pr->ent);
+			pr->ent = NULL;
+		}
+		free(pr->path);
+		pr->path = NULL;
+		free(pr->appid);
+		pr->appid = NULL;
+		free(pr);
+	}
+}
+
 static void
 delete_pr(Process **prev)
 {
-	Process *pr = *prev;
-
-	*prev = pr->next;
-	pr->next = NULL;
-	if (pr->ent) {
-		free_entry(pr->ent);
-		pr->ent = NULL;
-	}
-	free(pr->path);
-	pr->path = NULL;
-	free(pr->appid);
-	pr->appid = NULL;
-	free(pr);
+	Process *pr = remove_pr(prev);
+	free_pr(pr);
 }
 
 static Bool
@@ -9641,6 +9659,350 @@ check_exec(const char *tryexec, const char *exec)
 	return False;
 }
 
+static void
+close_files(void)
+{
+	struct rlimit rlim = { 0, };
+	int i;
+
+	getrlimit(RLIMIT_NOFILE, &rlim);
+
+	/* close all fds except stdin, stdout, stderr */
+
+	for (i = 3; i < rlim.rlim_cur; i++)
+		close(i);
+}
+
+static Bool
+wait_stopped_pid(pid_t pid)
+{
+	siginfo_t si;
+
+	do {
+		si.si_pid = 0;
+		if (waitid(P_PID, pid, &si, (WEXITED | WSTOPPED)) == -1) {
+			EPRINTF("waitid: %s\n", strerror(errno));
+			return (False);
+		}
+	}
+	while (si.si_pid == 0);
+	switch (si.si_code) {
+	case CLD_EXITED:
+		EPRINTF("child exited with status %d!\n", si.si_status);
+		return (False);
+	case CLD_KILLED:
+		EPRINTF("child exited on signal %d!\n", si.si_status);
+		return (False);
+	case CLD_DUMPED:
+		EPRINTF("child exited on signal %d (dumped core)!\n", si.si_status);
+		return (False);
+	case CLD_TRAPPED:
+		EPRINTF("child trapped!\n");
+		return (False);
+	case CLD_STOPPED:
+		if (si.si_status != SIGSTOP) {
+			EPRINTF("child stopped on wrong signal %d!\n", si.si_status);
+			return (True);
+		}
+		DPRINTF(1, "child stopped on signal %d!\n", si.si_status);
+		return (True);
+	default:
+		EPRINTF("invalid si_code field!\n");
+		return (False);
+	}
+}
+
+static Bool
+wait_stopped_proc(Process *pr)
+{
+	Bool result;
+
+	result = wait_stopped_pid(pr->pid);
+	pr->started = False;
+	if (result)
+		pr->stopped = True;
+	return (result);
+}
+
+static Bool
+wait_continued_pid(pid_t pid)
+{
+	siginfo_t si;
+
+	do {
+		si.si_pid = 0;
+		if (waitid(P_PID, pid, &si, (WEXITED | WCONTINUED)) == -1) {
+			EPRINTF("waitid: %s\n", strerror(errno));
+			return (False);
+		}
+	}
+	while (si.si_pid == 0);
+	switch (si.si_code) {
+	case CLD_EXITED:
+		EPRINTF("child exited with status %d!\n", si.si_status);
+		return (False);
+	case CLD_KILLED:
+		EPRINTF("child exited on signal %d!\n", si.si_status);
+		return (False);
+	case CLD_DUMPED:
+		EPRINTF("child exited on signal %d (dumped core)!\n", si.si_status);
+		return (False);
+	case CLD_TRAPPED:
+		EPRINTF("child trapped!\n");
+		return (False);
+	case CLD_CONTINUED:
+		if (si.si_status != SIGCONT) {
+			EPRINTF("child continued on wrong signal %d!\n", si.si_status);
+			return (True);
+		}
+		DPRINTF(1, "child continued on signal %d!\n", si.si_status);
+		return (True);
+	default:
+		EPRINTF("invalid si_code field!\n");
+		return (False);
+	}
+}
+
+Bool
+wait_continued_proc(Process *pr)
+{
+	Bool result;
+
+	result = wait_continued_pid(pr->pid);
+	pr->stopped = False;
+	if (result)
+		pr->running = True;
+	return (result);
+}
+
+Bool
+wait_exited_pid(pid_t pid)
+{
+	siginfo_t si;
+
+	do {
+		si.si_pid = 0;
+		if (waitid(P_PID, pid, &si, WEXITED) == -1) {
+			EPRINTF("waitid: %s\n", strerror(errno));
+			return (False);
+		}
+	}
+	while (si.si_pid == 0);
+	switch (si.si_code) {
+	case CLD_EXITED:
+		if (si.si_status) {
+			EPRINTF("child exited with status %d!\n", si.si_status);
+			return (True);
+		}
+		DPRINTF(1,"child exited with status %d!\n", si.si_status);
+		return (True);
+	case CLD_KILLED:
+		EPRINTF("child exited on signal %d!\n", si.si_status);
+		return (True);
+	case CLD_DUMPED:
+		EPRINTF("child exited on signal %d (dumped core)!\n", si.si_status);
+		return (True);
+	case CLD_TRAPPED:
+		EPRINTF("child trapped!\n");
+		return (True);
+	default:
+		EPRINTF("invalid si_code field!\n");
+		return (False);
+	}
+}
+
+static Bool
+spawn_child(Process *pr)
+{
+	Sequence *s;
+	size_t size;
+	char *disp, *p;
+
+	if (!(s = pr->seq = calloc(1, sizeof(*s))))
+		return (False);
+	set_all(pr);
+	if (options.output > 1)
+		show_sequence("Associated sequence", s);
+	if (options.info)
+		info_sequence("Associated sequence", s);
+
+	if ((pr->pid = fork()) < 0) {
+		EPRINTF("%s\n", strerror(errno));
+		return (False);
+	}
+	if (pr->pid) {
+		/* parent */
+		reset_pid(pr->pid, pr);
+		pr->started = True;
+		return wait_stopped_proc(pr);
+	}
+	/* child continues here */
+	close_files();
+	if (options.ppid && options.ppid != getppid())
+		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+
+	/* set the DESKTOP_STARTUP_ID environment variable */
+	reset_pid(pr->pid, pr);
+	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
+
+	/* set the DISPLAY environment variable */
+	p = getenv("DISPLAY");
+	size = strlen(p) + strlen(s->f.screen) + 2;
+	disp = calloc(size, sizeof(*disp));
+	strcpy(disp, p);
+	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
+		*p = '\0';
+	strcat(disp, ".");
+	strcat(disp, s->f.screen);
+	setenv("DISPLAY", disp, 1);
+
+	/* stop here till parent sends us SIGCONT */
+	kill(0, SIGSTOP);
+
+	DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
+	execl("/bin/sh", "sh", "-c", s->f.command, NULL);
+	exit(EXIT_FAILURE);
+}
+
+static char *
+setup_window_manager(Process *pr)
+{
+	char *setup, *start;
+	Sequence *s;
+	pid_t pid;
+
+	pid = getpid();
+	if (!(s = pr->seq = calloc(1, sizeof(*s))))
+		return (False);
+	set_all(pr);
+	if (options.output > 1)
+		show_sequence("Associated sequence", s);
+	if (options.info)
+		info_sequence("Associated sequence", s);
+
+	reset_pid(pid, pr);
+
+	if (options.ppid && options.ppid != pid && options.ppid != getppid())
+		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+
+	if ((setup = lookup_init_script(s->f.application_id, "setup"))) {
+		DPRINTF(1, "Will set up window manager with %s\n", setup);
+	}
+	if ((start = lookup_init_script(s->f.application_id, "start"))) {
+		DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
+		free(s->f.command);
+		s->f.command = start;
+	}
+	return (setup);
+}
+
+static Bool
+check_for_completions(XPointer data)
+{
+	Process *pr, **pp, **list = (typeof(list)) data;
+
+	for (pp = list; (pr = *pp); pp++)
+		if (!check_for_completion((XPointer) pr))
+			return (False);
+	return (True);
+}
+
+static Bool
+wait_for_completions(Process **list, int guard)
+{
+	return wait_for_condition(&check_for_completions, (XPointer) list, guard);
+}
+
+static Bool
+run_phase(AutostartPhase phase, int guard)
+{
+	Process **pp;
+	Bool result;
+
+	if ((pp = phases[phase])) {
+		Process *pr;
+		pid_t ppid = getppid();
+
+		for (; (pr = begin_process(*pp)); *pp++ = pr) {
+			if (!pr->stopped)
+				continue;
+			pr->stopped = False;
+			/* careful: parent window manager is here too */
+			if (pr->pid != ppid && kill(pr->pid, SIGCONT) == -1) {
+				if (pr->state == StartupNotifyNew || pr->state == StartupNotifyChanged)
+					send_remove(pr);
+				pr->running = False;
+				continue;
+			}
+			pr->running = True;
+		}
+	}
+	start_guard_timer(guard);
+	if ((result = wait_for_completions(phases[phase], -1)))
+		result = wait_for_resources(wait_fors[phase], -1);
+	return (result);
+}
+
+/** @brief autostart dispatcher process
+  * 
+  * Collect all the autostart processes and organize by autostart phase.  Spawn
+  * each as a stopped child of the foreground process group.  Spawn a
+  * stopped dispatcher child that takes over the XDisplay: the group leader (main
+  * process) closes the xfd.  Continue the dispatcher child which continues the
+  * children in the initialization phase and monitors, using the XDisplay, for
+  * completion and then timeouts or completes and stops again.  Upon the second
+  * stop, the group leader continues the dispatcher and performs execl of the
+  * window manager.  The dispatcher child monitors for the appearance of the
+  * window manager and executes any other WindowManager phase autostarts.  If
+  * some pending autostart process wants a composite manager, monitor for the
+  * appearance of the composite manager or time out.  It then exectues the Panel
+  * phase, monitoring for completion.  Upon completion or timeout, if some
+  * pending autostart process wants a system tray, it monitors for the
+  * appearance of the system tray or times out.  It then executes the Desktop
+  * phase, monitoring for completion.  Upon completion or timeout, if some
+  * pending autostart process wants a pager, it monitors for the appearance of
+  * a pager or times out.  It then executes the Application phase, monitoring
+  * for completion.  Upon completion or timeout it determines whether startup
+  * notification assistance is required by the desktop.  If so, it remains and
+  * performs that function; otherwise, it exits.
+  */
+static pid_t
+dispatcher(void)
+{
+	sigset_t ss;
+	pid_t pid;
+
+	if ((pid = fork()) < 0) {
+		EPRINTF("fork(): %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if (pid) {
+		/* parent returns: leaving child with XDisplay */
+		end_display();
+		return (pid);
+	}
+	/* child continues */
+	sigemptyset(&ss);
+	sigaddset(&ss, SIGSTOP);
+	sigprocmask(SIG_UNBLOCK, &ss, NULL);
+
+	/* wait for group leader to tell us to go */
+	kill(0, SIGSTOP);
+	/* perform the initialization phase */
+	run_phase(AutostartPhase_Initializing, options.guard);
+
+	/* stop again to signal leader that initialization phase is over */
+	kill(0, SIGSTOP);
+	/* perform the other phases */
+	wait_for_window_manager();
+	run_phase(AutostartPhase_WindowManager, options.guard);
+	run_phase(AutostartPhase_Panel, options.guard);
+	run_phase(AutostartPhase_Desktop, options.guard);
+	run_phase(AutostartPhase_Application, options.guard);
+	/* check whether assistance is required and wait around if so */
+	exit(EXIT_SUCCESS);
+}
+
 /** @brief create a simple session
   *
   * First attempt to become new session leader.  This establishes a new
@@ -9673,14 +10035,14 @@ check_exec(const char *tryexec, const char *exec)
   * forking or they make themselves process group leaders).  They are not
   * session leaders and still belong to the login session.
   */
-
 static void
 session(Process *wm)
 {
-	pid_t sid;
+	pid_t sid, did;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
 	Entry *e = wm->ent;
+	char *setup;
 
 	if (!getenv("XDG_SESSION_PID")) {
 		char buf[24] = { 0, };
@@ -9753,6 +10115,8 @@ session(Process *wm)
 
 	char *xdg, *dirs, *env;
 	char *p, *q;
+	AutostartPhase phase = AutostartPhase_Application;
+	Process *pr, **pp, **pp_prev;
 
 	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
 
@@ -9787,7 +10151,6 @@ session(Process *wm)
 			struct dirent *d;
 
 			while ((d = readdir(dir))) {
-				Process *pr;
 				char appid[256];
 				size_t len;
 
@@ -9820,7 +10183,7 @@ session(Process *wm)
 	} while (p != xdg);
 
 	if (count) {
-		Process **array, *pr, **pp, **pp_prev;
+		Process **array;
 
 		array = calloc(count, sizeof(*array));
 		for (pp = array, pr = autostart; pr; pr = pr->next) {
@@ -9837,88 +10200,60 @@ session(Process *wm)
 			DPRINTF(4, "%s: %s\n", pr->appid, pr->path);
 		}
 		free(array);
-		options.session = False;
-		options.xsession = False;
-		options.autostart = True;
-		options.autoassist = False;
-		options.assist = False;
-		// options.autowait = False;
+	}
+	options.session = False;
+	options.xsession = False;
+	options.autostart = True;
+	options.autoassist = False;
+	options.assist = False;
+	// options.autowait = False;
 
-		int need_wait = need_wait_for();
+	// free(options.launcher);
+	// options.launcher = strdup("xdg-autostart");
+	for (pp_prev = &autostart; (pr = *pp_prev);) {
+		Entry *ent;
 
-		// free(options.launcher);
-		// options.launcher = strdup("xdg-autostart");
-		for (pp_prev = &autostart; (pr = *pp_prev);) {
-			Entry *ent;
-
-			if (!(pr->ent = ent = parse_file(pr->path))) {
-				EPRINTF("%s: %s: is invalid: discarding\n", pr->appid, pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			if (!ent->Exec) {
-				DPRINTF(3, "%s: %s: no exec: discarding\n", pr->appid, pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			if (ent->Hidden && !strcmp(ent->Hidden, "true")) {
-				DPRINTF(3, "%s: %s: is hidden: discarding\n", pr->appid, pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			if (!check_showin(ent->OnlyShowIn)) {
-				DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid,
-					pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			if (!check_noshow(ent->NotShowIn)) {
-				DPRINTF(3, "%s: %s: desktop is in NotShowIn: discarding\n", pr->appid, pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			if (!check_exec(ent->TryExec, ent->Exec)) {
-				DPRINTF(3, "%s: %s: not executable: discarding\n", pr->appid, pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			if (ent->AutostartPhase && !strcmp(ent->AutostartPhase, "PreDisplayServer")) {
-				DPRINTF(3, "%s: %s: is autostart phase PreDisplayServer: discarding\n", pr->appid, pr->path);
-				delete_pr(pp_prev);
-				continue;
-			}
-			pr->wait_for = (want_resource(pr) & need_wait);
-			pr->phase = want_phase(pr);
-			if (options.output > 1)
-				show_entry("Parsed entries", ent);
-			if (options.info)
-				info_entry("Parsed entries", ent);
-			pp_prev = &pr->next;
+		if (!(pr->ent = ent = parse_file(pr->path))) {
+			EPRINTF("%s: %s: is invalid: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
 		}
-		for (pr = autostart; pr; pr = pr->next) {
-			pid_t pid = getpid();
-
-			if ((pid = fork()) < 0) {
-				EPRINTF("%s\n", strerror(errno));
-				continue;
-			}
-			if (pid) {
-				DPRINTF(1, "parent says child pid is %d\n", pid);
-				continue;
-			}
-			/* should actually be done after child forks */
-			new_display();
-			if ((pr->seq = calloc(1, sizeof(*pr->seq)))) {
-				set_all(pr);
-				if (options.output > 1)
-					show_sequence("Associated sequence", pr->seq);
-				if (options.info)
-					info_sequence("Associated sequence", pr->seq);
-				DPRINTF(1,"Launching application %s\n", pr->appid);
-				launch(pr);
-			}
-			exit(EXIT_FAILURE);
+		if (!ent->Exec) {
+			DPRINTF(3, "%s: %s: no exec: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
 		}
+		if (ent->Hidden && !strcmp(ent->Hidden, "true")) {
+			DPRINTF(3, "%s: %s: is hidden: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!check_showin(ent->OnlyShowIn)) {
+			DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid,
+				pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!check_noshow(ent->NotShowIn)) {
+			DPRINTF(3, "%s: %s: desktop is in NotShowIn: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!check_exec(ent->TryExec, ent->Exec)) {
+			DPRINTF(3, "%s: %s: not executable: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (ent->AutostartPhase && !strcmp(ent->AutostartPhase, "PreDisplayServer")) {
+			DPRINTF(3, "%s: %s: is autostart phase PreDisplayServer: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (options.output > 1)
+			show_entry("Parsed entries", ent);
+		if (options.info)
+			info_entry("Parsed entries", ent);
+		pp_prev = &pr->next;
 	}
 
 	options.session = False;
@@ -9928,16 +10263,64 @@ session(Process *wm)
 	options.assist = False;
 	options.autowait = False;
 
-	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
-		set_all(wm);
-		if (options.output > 1)
-			show_sequence("Associated sequence", wm->seq);
-		if (options.info)
-			info_sequence("Associated sequence", wm->seq);
-		DPRINTF(1,"Launching window manager\n");
-		launch(wm);
+	setup = setup_window_manager(pr);
+
+	phase = wm->phase = want_phase(wm);
+	wm->wait_for = want_resource(wm);
+	if (phase > 0)
+		wait_fors[phase - 1] |= (wm->wait_for & mask_fors[phase - 1]);
+	/* prepend the window manager */
+	phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
+	(phases[phase])[counts[phase]++] = wm;
+	(phases[phase])[counts[phase]] = NULL;
+
+	while ((pr = remove_pr(&autostart))) {
+		phase = pr->phase = want_phase(pr);
+		pr->wait_for = want_resource(pr);
+		if (phase > 0)
+			wait_fors[phase - 1] |= (pr->wait_for & mask_fors[phase - 1]);
+		phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
+		(phases[phase])[counts[phase]++] = pr;
+		(phases[phase])[counts[phase]] = NULL;
 	}
-	exit(EXIT_SUCCESS);
+
+	/* don't care about wait_for, just care about phase for autostart */
+	for (phase = AutostartPhase_Initializing; phase <= AutostartPhase_Application; phase++)
+		if (phases[phase])
+			for (pp = phases[phase]; (pr = *pp); pp++)
+				spawn_child(pr);
+
+	/* fork off dispatcher */
+	did = dispatcher();
+	wait_stopped_pid(did);
+	/* dispatcher startup complete*/
+	kill(did, SIGCONT);
+	wait_continued_pid(did);
+	wait_stopped_pid(did);
+	/* initialization phase complete */
+
+
+	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
+		Sequence *s = wm->seq;
+
+		if (setup) {
+			DPRINTF(1, "Setting up window manager with %s\n", setup);
+			if (system(setup)) ;
+			free(setup);
+		}
+
+		/* set the DESKTOP_STARTUP_ID environment variable */
+		setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
+
+		DPRINTF(1,"Launching window manager\n");
+		DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
+
+		/* tell dispatcher that wm phase is starting */
+		kill(did, SIGCONT);
+
+		execl("/bin/sh", "sh", "-c", s->f.command, NULL);
+	}
+	exit(EXIT_FAILURE);
 }
 
 static void
