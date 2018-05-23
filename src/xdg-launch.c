@@ -7344,6 +7344,22 @@ wait_for_completion(Process *pr, int guard)
 	return wait_for_condition(&check_for_completion, (XPointer) pr, guard);
 }
 
+static void
+sig_child(int signum)
+{
+}
+
+static void
+handle_sigchld(void)
+{
+	sigset_t ss;
+
+	signal(SIGCHLD, &sig_child); // anything but ignore
+	sigemptyset(&ss);
+	sigaddset(&ss, SIGCHLD);
+	sigprocmask(SIG_UNBLOCK, &ss, NULL);
+}
+
 /** @brief assist the window manager.
   *
   * Assist the window manager to do the right thing with respect to focus and
@@ -7365,11 +7381,13 @@ assist(Process *pr)
 	setup_to_assist(pr);
 	XSync(dpy, False);
 	reset_pid(pid, pr);
+	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	DPRINTF(1, "Launching with wm assistance\n");
 	if (options.info) {
 		fputs("Would launch with wm assistance\n\n", stdout);
 		return;
 	}
+	handle_sigchld();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -7417,13 +7435,16 @@ toolwait(Process *pr)
 	if (options.info) {
 		fputs("Would launch with tool wait support\n\n", stdout);
 		reset_pid(pid, pr);
+		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		return;
 	}
+	handle_sigchld();
 	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	reset_pid(pid, pr);
+	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	if (!pid) {
 		/* child returns and launches */
 		/* setsid(); */ /* XXX */
@@ -7455,6 +7476,7 @@ normal(Process *pr)
 	if (options.info)
 		fputs("Would launch without assistance or tool wait\n\n", stdout);
 	reset_pid(pid, pr);
+	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	/* main process returns and launches */
 	return;
 }
@@ -7577,7 +7599,6 @@ wait_for_window_manager(void)
 static int
 want_resource(Process *pr)
 {
-	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 	int mask = 0;
 
@@ -7593,7 +7614,8 @@ want_resource(Process *pr)
 	if (options.pager)
 		mask |= WAITFOR_DESKTOPPAGER;
 
-	if (e && e->AutostartPhase) {
+	assert(e != NULL);
+	if (e->AutostartPhase) {
 		/* When autostarting we should use the autostart phase to determine the
 		   resources for which to wait. */
 		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
@@ -7624,12 +7646,12 @@ want_resource(Process *pr)
 			mask |= WAITFOR_WINDOWMANAGER;
 		}
 	}
-	if (s && s->n.xsession) {
+	if (options.xsession) {
 		mask &= WAITFOR_AUDIOSERVER;
 	}
-	if (s && s->n.autostart) {
+	if (options.autostart) {
 		mask |= WAITFOR_WINDOWMANAGER;
-		if (e && e->Categories) {
+		if (e->Categories) {
 			if (strstr(e->Categories, "Audio"))
 				mask |= WAITFOR_AUDIOSERVER;
 			if (strstr(e->Categories, "DockApp"))
@@ -7644,9 +7666,7 @@ want_resource(Process *pr)
 				mask &= ~(WAITFOR_DESKTOPPAGER | WAITFOR_SYSTEMTRAY);
 		}
 	}
-	if (e && (!e->StartupNotify || strcasecmp(e->StartupNotify, "true"))) {
-		mask |= WAITFOR_STARTUPHELPER;
-	} else if (s && s->f.wmclass) {
+	if (!e->StartupNotify || strcasecmp(e->StartupNotify, "true")) {
 		mask |= WAITFOR_STARTUPHELPER;
 	}
 	return (mask);
@@ -7656,12 +7676,12 @@ static AutostartPhase
 want_phase(Process *pr)
 {
 	AutostartPhase phase = AutostartPhase_Application;
-	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 
-	if (s && s->n.xsession) {
+	assert(e != NULL);
+	if (options.xsession) {
 		phase = AutostartPhase_WindowManager;
-	} else if (e && e->AutostartPhase) {
+	} else if (e->AutostartPhase) {
 		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0)
 			phase = AutostartPhase_PreDisplayServer;
 		else if (strcmp(e->AutostartPhase, "Initializing") == 0)
@@ -7679,7 +7699,9 @@ want_phase(Process *pr)
 	} else {
 		int mask = want_resource(pr);
 
-		if (mask & WAITFOR_DESKTOPPAGER) {
+		if (mask & WAITFOR_STARTUPHELPER) {
+			phase = AutostartPhase_Application;
+		} else if (mask & WAITFOR_DESKTOPPAGER) {
 			phase = AutostartPhase_Application;
 		} else if (mask & WAITFOR_SYSTEMTRAY) {
 			phase = AutostartPhase_Desktop;
@@ -9676,40 +9698,37 @@ close_files(void)
 static Bool
 wait_stopped_pid(pid_t pid)
 {
-	siginfo_t si;
+	int status = 0;
 
-	do {
-		si.si_pid = 0;
-		if (waitid(P_PID, pid, &si, (WEXITED | WSTOPPED)) == -1) {
-			EPRINTF("waitid: %s\n", strerror(errno));
+	DPRINTF(1, "Waiting for %d to stop...\n", pid);
+	handle_sigchld();
+	if (waitpid(pid, &status, WUNTRACED) == -1) {
+		EPRINTF("waitid: %s\n", strerror(errno));
+		return (False);
+	}
+	if (WIFEXITED(status)) {
+		EPRINTF("child exited with status %d!\n", WEXITSTATUS(status));
+		return (False);
+	} else if (WIFSIGNALED(status)) {
+		if (WCOREDUMP(status)) {
+			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
+			return (False);
+		} else {
+			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
 			return (False);
 		}
-	}
-	while (si.si_pid == 0);
-	switch (si.si_code) {
-	case CLD_EXITED:
-		EPRINTF("child exited with status %d!\n", si.si_status);
-		return (False);
-	case CLD_KILLED:
-		EPRINTF("child exited on signal %d!\n", si.si_status);
-		return (False);
-	case CLD_DUMPED:
-		EPRINTF("child exited on signal %d (dumped core)!\n", si.si_status);
-		return (False);
-	case CLD_TRAPPED:
-		EPRINTF("child trapped!\n");
-		return (False);
-	case CLD_STOPPED:
-		if (si.si_status != SIGSTOP) {
-			EPRINTF("child stopped on wrong signal %d!\n", si.si_status);
+	} else if (WIFSTOPPED(status)) {
+		if (WSTOPSIG(status) != SIGSTOP) {
+			EPRINTF("child stopped on wrong signal %d!\n", WSTOPSIG(status));
 			return (True);
 		}
-		DPRINTF(1, "child stopped on signal %d!\n", si.si_status);
+		DPRINTF(1, "child stopped on signal %d!\n", WSTOPSIG(status));
 		return (True);
-	default:
-		EPRINTF("invalid si_code field!\n");
+	} else if (WIFCONTINUED(status)) {
+		EPRINTF("child continued on signal %d!\n", SIGCONT);
 		return (False);
 	}
+	return (False);
 }
 
 static Bool
@@ -9717,6 +9736,7 @@ wait_stopped_proc(Process *pr)
 {
 	Bool result;
 
+	DPRINTF(1, "Waiting for child %s PID %d to stop...\n", pr->appid, pr->pid);
 	result = wait_stopped_pid(pr->pid);
 	pr->started = False;
 	if (result)
@@ -9727,40 +9747,33 @@ wait_stopped_proc(Process *pr)
 static Bool
 wait_continued_pid(pid_t pid)
 {
-	siginfo_t si;
+	int status = 0;
 
-	do {
-		si.si_pid = 0;
-		if (waitid(P_PID, pid, &si, (WEXITED | WCONTINUED)) == -1) {
-			EPRINTF("waitid: %s\n", strerror(errno));
+	DPRINTF(1, "Waiting for %d to continue...\n", pid);
+	handle_sigchld();
+	if (waitpid(pid, &status, WCONTINUED) == -1) {
+		EPRINTF("waitid: %s\n", strerror(errno));
+		return (False);
+	}
+	if (WIFEXITED(status)) {
+		EPRINTF("child exited with status %d!\n", WEXITSTATUS(status));
+		return (False);
+	} else if (WIFSIGNALED(status)) {
+		if (WCOREDUMP(status)) {
+			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
+			return (False);
+		} else {
+			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
 			return (False);
 		}
-	}
-	while (si.si_pid == 0);
-	switch (si.si_code) {
-	case CLD_EXITED:
-		EPRINTF("child exited with status %d!\n", si.si_status);
+	} else if (WIFSTOPPED(status)) {
+		EPRINTF("child stopped on signal %d!\n", WSTOPSIG(status));
 		return (False);
-	case CLD_KILLED:
-		EPRINTF("child exited on signal %d!\n", si.si_status);
-		return (False);
-	case CLD_DUMPED:
-		EPRINTF("child exited on signal %d (dumped core)!\n", si.si_status);
-		return (False);
-	case CLD_TRAPPED:
-		EPRINTF("child trapped!\n");
-		return (False);
-	case CLD_CONTINUED:
-		if (si.si_status != SIGCONT) {
-			EPRINTF("child continued on wrong signal %d!\n", si.si_status);
-			return (True);
-		}
-		DPRINTF(1, "child continued on signal %d!\n", si.si_status);
+	} else if (WIFCONTINUED(status)) {
+		DPRINTF(1, "child continued on signal %d!\n", SIGCONT);
 		return (True);
-	default:
-		EPRINTF("invalid si_code field!\n");
-		return (False);
 	}
+	return (False);
 }
 
 Bool
@@ -9768,6 +9781,7 @@ wait_continued_proc(Process *pr)
 {
 	Bool result;
 
+	DPRINTF(1, "Waiting for child %s PID %d to continue...\n", pr->appid, pr->pid);
 	result = wait_continued_pid(pr->pid);
 	pr->stopped = False;
 	if (result)
@@ -9778,37 +9792,33 @@ wait_continued_proc(Process *pr)
 Bool
 wait_exited_pid(pid_t pid)
 {
-	siginfo_t si;
+	int status = 0;
 
-	do {
-		si.si_pid = 0;
-		if (waitid(P_PID, pid, &si, WEXITED) == -1) {
-			EPRINTF("waitid: %s\n", strerror(errno));
-			return (False);
-		}
-	}
-	while (si.si_pid == 0);
-	switch (si.si_code) {
-	case CLD_EXITED:
-		if (si.si_status) {
-			EPRINTF("child exited with status %d!\n", si.si_status);
-			return (True);
-		}
-		DPRINTF(1,"child exited with status %d!\n", si.si_status);
-		return (True);
-	case CLD_KILLED:
-		EPRINTF("child exited on signal %d!\n", si.si_status);
-		return (True);
-	case CLD_DUMPED:
-		EPRINTF("child exited on signal %d (dumped core)!\n", si.si_status);
-		return (True);
-	case CLD_TRAPPED:
-		EPRINTF("child trapped!\n");
-		return (True);
-	default:
-		EPRINTF("invalid si_code field!\n");
+	DPRINTF(1, "Waiting for %d to exit...\n", pid);
+	handle_sigchld();
+	if (waitpid(pid, &status, 0) == -1) {
+		EPRINTF("waitid: %s\n", strerror(errno));
 		return (False);
 	}
+	if (WIFEXITED(status)) {
+		DPRINTF(1, "child exited with status %d!\n", WEXITSTATUS(status));
+		return (True);
+	} else if (WIFSIGNALED(status)) {
+		if (WCOREDUMP(status)) {
+			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
+			return (False);
+		} else {
+			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
+			return (False);
+		}
+	} else if (WIFSTOPPED(status)) {
+		EPRINTF("child stopped on signal %d!\n", WSTOPSIG(status));
+		return (False);
+	} else if (WIFCONTINUED(status)) {
+		EPRINTF("child continued on signal %d!\n", SIGCONT);
+		return (True);
+	}
+	return (False);
 }
 
 static Bool
@@ -9818,6 +9828,7 @@ spawn_child(Process *pr)
 	size_t size;
 	char *disp, *p;
 
+	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
 	if (!(s = pr->seq = calloc(1, sizeof(*s))))
 		return (False);
 	set_all(pr);
@@ -9826,6 +9837,7 @@ spawn_child(Process *pr)
 	if (options.info)
 		info_sequence("Associated sequence", s);
 
+	handle_sigchld();
 	if ((pr->pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		return (False);
@@ -9833,17 +9845,21 @@ spawn_child(Process *pr)
 	if (pr->pid) {
 		/* parent */
 		reset_pid(pr->pid, pr);
+		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		pr->started = True;
 		return wait_stopped_proc(pr);
 	}
 	/* child continues here */
+	pr->pid = getpid();
 	close_files();
 	if (options.ppid && options.ppid != getppid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	reset_pid(pr->pid, pr);
+	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
+	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", s->f.id);
 
 	/* set the DISPLAY environment variable */
 	p = getenv("DISPLAY");
@@ -9855,9 +9871,11 @@ spawn_child(Process *pr)
 	strcat(disp, ".");
 	strcat(disp, s->f.screen);
 	setenv("DISPLAY", disp, 1);
+	DPRINTF(1, "Set DISPLAY to %s\n", disp);
 
 	/* stop here till parent sends us SIGCONT */
-	kill(0, SIGSTOP);
+	DPRINTF(1, "PID %d is stopping itself\n", pr->pid);
+	kill(pr->pid, SIGSTOP);
 
 	DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
 	execl("/bin/sh", "sh", "-c", s->f.command, NULL);
@@ -9871,6 +9889,7 @@ setup_window_manager(Process *pr)
 	Sequence *s;
 	pid_t pid;
 
+	DPRINTF(1, "Setting up window manager...\n");
 	pid = getpid();
 	if (!(s = pr->seq = calloc(1, sizeof(*s))))
 		return (False);
@@ -9881,6 +9900,7 @@ setup_window_manager(Process *pr)
 		info_sequence("Associated sequence", s);
 
 	reset_pid(pid, pr);
+	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 
 	if (options.ppid && options.ppid != pid && options.ppid != getppid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
@@ -9901,9 +9921,10 @@ check_for_completions(XPointer data)
 {
 	Process *pr, **pp, **list = (typeof(list)) data;
 
-	for (pp = list; (pr = *pp); pp++)
-		if (!check_for_completion((XPointer) pr))
-			return (False);
+	if ((list = (typeof(list)) data))
+		for (pp = list; (pr = *pp); pp++)
+			if (!check_for_completion((XPointer) pr))
+				return (False);
 	return (True);
 }
 
@@ -9913,26 +9934,52 @@ wait_for_completions(Process **list, int guard)
 	return wait_for_condition(&check_for_completions, (XPointer) list, guard);
 }
 
+const char *
+phase_str(AutostartPhase phase)
+{
+	switch (phase) {
+	case AutostartPhase_PreDisplayServer:
+		return("PreDisplayServer");
+	case AutostartPhase_Initializing:
+		return("Initializing");
+	case AutostartPhase_WindowManager:
+		return("WindowManager");
+	case AutostartPhase_Panel:
+		return("Panel");
+	case AutostartPhase_Desktop:
+		return("Desktop");
+	case AutostartPhase_Application:
+		return("Application");
+	default:
+		return("(unknown)");
+	}
+}
+
 static Bool
 run_phase(AutostartPhase phase, int guard)
 {
 	Process **pp;
 	Bool result;
 
+	DPRINTF(1, "Testing phase %s\n", phase_str(phase));
 	if ((pp = phases[phase])) {
 		Process *pr;
 		pid_t ppid = getppid();
 
+		DPRINTF(1, "Running phase %s\n", phase_str(phase));
 		for (; (pr = begin_process(*pp)); *pp++ = pr) {
 			if (!pr->stopped)
 				continue;
 			pr->stopped = False;
 			/* careful: parent window manager is here too */
-			if (pr->pid != ppid && kill(pr->pid, SIGCONT) == -1) {
-				if (pr->state == StartupNotifyNew || pr->state == StartupNotifyChanged)
-					send_remove(pr);
-				pr->running = False;
-				continue;
+			if (pr->pid != ppid) {
+				DPRINTF(1, "Sending SIGCONT to %s child %d\n", pr->appid, pr->pid);
+				if (kill(pr->pid, SIGCONT) == -1) {
+					if (pr->state == StartupNotifyNew || pr->state == StartupNotifyChanged)
+						send_remove(pr);
+					pr->running = False;
+					continue;
+				}
 			}
 			pr->running = True;
 		}
@@ -9972,6 +10019,7 @@ dispatcher(void)
 	sigset_t ss;
 	pid_t pid;
 
+	handle_sigchld();
 	if ((pid = fork()) < 0) {
 		EPRINTF("fork(): %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -9981,18 +10029,21 @@ dispatcher(void)
 		end_display();
 		return (pid);
 	}
+	pid = getpid();
 	/* child continues */
 	sigemptyset(&ss);
 	sigaddset(&ss, SIGSTOP);
 	sigprocmask(SIG_UNBLOCK, &ss, NULL);
 
 	/* wait for group leader to tell us to go */
-	kill(0, SIGSTOP);
+	DPRINTF(1, "PID %d is stopping itself\n", pid);
+	kill(pid, SIGSTOP);
 	/* perform the initialization phase */
 	run_phase(AutostartPhase_Initializing, options.guard);
 
 	/* stop again to signal leader that initialization phase is over */
-	kill(0, SIGSTOP);
+	DPRINTF(1, "PID %d is stopping itself\n", pid);
+	kill(pid, SIGSTOP);
 	/* perform the other phases */
 	wait_for_window_manager();
 	run_phase(AutostartPhase_WindowManager, options.guard);
@@ -10085,6 +10136,7 @@ session(Process *wm)
 		pid_t pid;
 		int status = 0;
 
+		handle_sigchld();
 		switch ((pid = fork())) {
 			case 0:
 				new_display();
@@ -10263,63 +10315,73 @@ session(Process *wm)
 	options.assist = False;
 	options.autowait = False;
 
-	setup = setup_window_manager(pr);
+	setup = setup_window_manager(wm);
 
 	phase = wm->phase = want_phase(wm);
 	wm->wait_for = want_resource(wm);
 	if (phase > 0)
 		wait_fors[phase - 1] |= (wm->wait_for & mask_fors[phase - 1]);
+	DPRINTF(1, "Prepending window manager %s to phase %s wanting 0x%08x\n", wm->appid, phase_str(phase), wm->wait_for);
 	/* prepend the window manager */
 	phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
 	(phases[phase])[counts[phase]++] = wm;
 	(phases[phase])[counts[phase]] = NULL;
+
+	options.session = False;
+	options.xsession = False;
+	options.autostart = True;
+	options.autoassist = False;
+	options.assist = False;
+	// options.autowait = False;
 
 	while ((pr = remove_pr(&autostart))) {
 		phase = pr->phase = want_phase(pr);
 		pr->wait_for = want_resource(pr);
 		if (phase > 0)
 			wait_fors[phase - 1] |= (pr->wait_for & mask_fors[phase - 1]);
+		DPRINTF(1, "Appending autostart application %s to phase %s wanting 0x%08x\n", pr->appid, phase_str(phase), pr->wait_for);
 		phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
 		(phases[phase])[counts[phase]++] = pr;
 		(phases[phase])[counts[phase]] = NULL;
 	}
 
+	DPRINTF(1, "Spawning children...\n");
 	/* don't care about wait_for, just care about phase for autostart */
 	for (phase = AutostartPhase_Initializing; phase <= AutostartPhase_Application; phase++)
 		if (phases[phase])
 			for (pp = phases[phase]; (pr = *pp); pp++)
-				spawn_child(pr);
+				if (pr != wm)
+					spawn_child(pr);
 
 	/* fork off dispatcher */
+	DPRINTF(1, "Creating dispatcher...\n");
 	did = dispatcher();
+	DPRINTF(1, "...dispatcher PID is %d\n", did);
 	wait_stopped_pid(did);
 	/* dispatcher startup complete*/
+	DPRINTF(1, "Sending SIGCONT to %d\n", did);
 	kill(did, SIGCONT);
 	wait_continued_pid(did);
 	wait_stopped_pid(did);
 	/* initialization phase complete */
 
-
-	if ((wm->seq = calloc(1, sizeof(*wm->seq)))) {
-		Sequence *s = wm->seq;
-
-		if (setup) {
-			DPRINTF(1, "Setting up window manager with %s\n", setup);
-			if (system(setup)) ;
-			free(setup);
-		}
-
-		/* set the DESKTOP_STARTUP_ID environment variable */
-		setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
-
-		DPRINTF(1,"Launching window manager\n");
-		DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
-
-		/* tell dispatcher that wm phase is starting */
-		kill(did, SIGCONT);
-
-		execl("/bin/sh", "sh", "-c", s->f.command, NULL);
+	if (setup) {
+		DPRINTF(1, "Setting up window manager with %s\n", setup);
+		if (system(setup)) ;
+		free(setup);
 	}
+
+	/* set the DESKTOP_STARTUP_ID environment variable */
+	setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
+
+	DPRINTF(1,"Launching window manager\n");
+	DPRINTF(1, "Command will be: sh -c \"%s\"\n", wm->seq->f.command);
+
+	/* tell dispatcher that wm phase is starting */
+	DPRINTF(1, "Sending SIGCONT to %d\n", did);
+	kill(did, SIGCONT);
+
+	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
 	exit(EXIT_FAILURE);
 }
 
