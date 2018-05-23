@@ -7755,8 +7755,6 @@ need_assist(Process *pr)
 	return need_assist;
 }
 
-char *extract_appid(const char *);
-
 /** @brief launch the application
   *
   * I want to rethink this a bit and user prctl() to set the subreaper to the
@@ -7847,7 +7845,7 @@ launch(Process *pr)
 	if (options.ppid && options.ppid != getppid() && options.ppid != getpid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 	if (options.xsession) {
-		char *wmname, *start;
+		char *setup, *start;
 
 		if ((setup = lookup_init_script(seq->f.application_id, "setup"))) {
 			DPRINTF(1, "Setting up window manager with %s\n", setup);
@@ -10055,8 +10053,6 @@ session(Process *wm)
 	options.autoassist = False;
 	options.assist = False;
 	// options.autowait = False;
-	running = True;
-	relax();
 
 	if (!getenv("XDG_SESSION_PID")) {
 		char buf[24] = { 0, };
@@ -10079,7 +10075,6 @@ session(Process *wm)
 		} else
 			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
 	}
-	relax();
 	{
 		char *wmname, *setup;
 
@@ -10092,7 +10087,6 @@ session(Process *wm)
 			free(setup);
 		}
 	}
-	relax();
 	/* Note: the normal case where we are launched by xinit is to make the
 	   X server and client process group leaders before execting the X
 	   server and .xinitrc.  So we are normally a process group leader in
