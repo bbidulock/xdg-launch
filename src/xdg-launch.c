@@ -7917,28 +7917,41 @@ launch(Display *dpy, Process *pr)
 }
 
 static void
-set_screen(Display *dpy, Process *pr)
+set_screen(Process *pr)
 {
-	XdgScreen *scr;
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
+	char buf[24] = { 0, };
+	int screen = 0;
 
 	assert(s != NULL && e != NULL);
 	free(s->f.screen);
-	s->f.screen = calloc(64, sizeof(*s->f.screen));
-	if (options.screen != -1 && 0 <= options.screen && options.screen < ScreenCount(dpy))
-		snprintf(s->f.screen, 64, "%d", options.screen);
-	else if (options.keyboard && (scr = find_focus_screen(dpy)))
-		snprintf(s->f.screen, 64, "%d", scr->screen);
-	else if (options.pointer && (scr = find_pointer_screen(dpy)))
-		snprintf(s->f.screen, 64, "%d", scr->screen);
-	else if (!options.keyboard && !options.pointer && ((scr = find_focus_screen(dpy)) || (scr = find_pointer_screen(dpy))))
-		snprintf(s->f.screen, 64, "%d", scr->screen);
-	else {
-		options.screen = DefaultScreen(dpy);
-		scr = screens + DefaultScreen(dpy);
-		snprintf(s->f.screen, 64, "%d", scr->screen);
+	s->f.screen = NULL;
+	if (options.autostart || options.xsession || options.session)
+		return;
+	if ((screen = options.screen) == -1) {
+		if (screens) {
+			Display *dpy = screens[0].display;
+			XdgScreen *scr;
+
+			if (options.keyboard && (scr = find_focus_screen(dpy)))
+				screen = scr->screen;
+			else if (options.pointer && (scr = find_pointer_screen(dpy)))
+				screen = scr->screen;
+			else if (!options.keyboard && !options.pointer
+				 && ((scr = find_focus_screen(dpy)) || (scr = find_pointer_screen(dpy))))
+				screen = scr->screen;
+			else {
+				options.screen = DefaultScreen(dpy);
+				scr = screens + DefaultScreen(dpy);
+				screen = scr->screen;
+			}
+		} else
+			return;
 	}
+	snprintf(buf, sizeof(buf) - 1, "%d", screen);
+	s->f.screen = strdup(buf);
+	s->n.screen = screen;
 }
 
 static int
@@ -8764,7 +8777,7 @@ set_all(Display *dpy, Process *pr)
 	if (!s->f.application_id)
 		set_application_id(pr);
 	if (!s->f.screen)
-		set_screen(dpy, pr);
+		set_screen(pr);
 	/* must be on correct screen before doing monitor */
 	if (!s->f.monitor)
 		set_monitor(dpy, pr);
