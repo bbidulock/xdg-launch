@@ -605,7 +605,6 @@ typedef struct {
 
 XdgScreen *screens;
 
-int nscr;
 XdgScreen *scr;
 
 typedef struct {
@@ -1067,12 +1066,11 @@ get_display(void)
 
 	intern_atoms(dpy);
 
-	nscr = ScreenCount(dpy);
-	if (!(screens = calloc(nscr, sizeof(*screens)))) {
+	if (!(screens = calloc(ScreenCount(dpy), sizeof(*screens)))) {
 		EPRINTF("no memory\n");
 		exit(EXIT_FAILURE);
 	}
-	for (s = 0, scr = screens; s < nscr; s++, scr++) {
+	for (s = 0, scr = screens; s < ScreenCount(dpy); s++, scr++) {
 		scr->screen = s;
 		scr->root = RootWindow(dpy, s);
 		XSaveContext(dpy, scr->root, ScreenContext, (XPointer) scr);
@@ -1799,12 +1797,12 @@ pc_handle_WIN_SUPPORTING_WM_CHECK(Display *dpy, XPropertyEvent *e, Client *c)
 }
 
 static Bool
-set_screen_of_root(Window sroot)
+set_screen_of_root(Display *dpy, Window sroot)
 {
 	int s;
 
 	DPRINTF(4, "searching for screen with root window 0x%08lx\n", sroot);
-	for (s = 0; s < nscr; s++) {
+	for (s = 0; s < ScreenCount(dpy); s++) {
 		DPRINTF(5, "comparing 0x%08lx and 0x%08lx\n", sroot, screens[s].root);
 		if (screens[s].root == sroot) {
 			scr = screens + s;
@@ -1879,7 +1877,7 @@ find_focus_screen(Display *dpy)
 	if (!XGetGeometry(dpy, frame, &froot, &di, &di, &du, &du, &du, &du))
 		return False;
 
-	if (set_screen_of_root(froot)) {
+	if (set_screen_of_root(dpy, froot)) {
 		XSaveContext(dpy, frame, ScreenContext, (XPointer) scr);
 		return True;
 	}
@@ -1895,7 +1893,7 @@ find_pointer_screen(Display *dpy)
 
 	if (XQueryPointer(dpy, scr->root, &proot, &dw, &di, &di, &di, &di, &du))
 		return True;
-	return set_screen_of_root(proot);
+	return set_screen_of_root(dpy, proot);
 }
 
 static Bool
@@ -1912,7 +1910,7 @@ find_window_screen(Display *dpy, Window w)
 		XFree(dwp);
 
 	DPRINTF(4, "window 0x%08lx has root 0x%08lx\n", w, wroot);
-	if (set_screen_of_root(wroot)) {
+	if (set_screen_of_root(dpy, wroot)) {
 		XSaveContext(dpy, w, ScreenContext, (XPointer) scr);
 		return True;
 	}
