@@ -10610,8 +10610,11 @@ usage(int argc, char *argv[])
 		return;
 	(void) fprintf(stderr, "\
 Usage:\n\
-    %1$s [options] [APPID [FILE|URL]]\n\
-    %1$s {-h|--help}\n\
+    %1$s [options] [APPSPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
+    %1$s {-X|--xsession}  [options] [APPID | {-e|--exec} COMMAND]\n\
+    %1$s {-U|--autostart} [options] [APPID | {-e|--exec} COMMAND]\n\
+    %1$s {-E|--session}   [options] [APPID | {-e|--exec} COMMAND]\n\
+    %1$s {-h|--help} [options] [APPPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 ", argv[0]);
@@ -10633,17 +10636,28 @@ help(int argc, char *argv[])
 	/* *INDENT-OFF* */
 	(void) fprintf(stdout, "\
 Usage:\n\
-    %1$s [options] [APPID [FILE|URL]]\n\
-    %1$s {-h|--help}\n\
+    %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
+    %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
+    %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
+    %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
+    %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 Arguments:\n\
+    APPSPEC = {APPID|MIMETYPE|CATEGORY}\n\
+        specification of the XDG application or session to launch\n\
     APPID\n\
         the application identifier of XDG application to launch\n\
+    MIMETYPE\n\
+        the mime-type of the XDG application to launch\n\
+    CATEGORY\n\
+	the XDG menu category of hte application to launch\n\
     FILE\n\
         the file name with which to launch the application\n\
     URL\n\
         the URL with which to launch the application\n\
+    COMMAND\n\
+        the COMMAND to launch the application (with --exec)\n\
 Options:\n\
     -L, --launcher LAUNCHER\n\
         name of launcher for startup id, [default: '%2$s']\n\
