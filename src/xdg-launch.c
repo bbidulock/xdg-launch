@@ -7962,12 +7962,12 @@ launch(Process *pr)
 	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
 		char *setup, *start;
 
-		if ((setup = lookup_init_script(seq->f.application_id, "setup"))) {
+		if ((setup = lookup_init_script(pr->appid, "setup"))) {
 			DPRINTF(1, "Setting up window manager with %s\n", setup);
 			if (system(setup)) ;
 			free(setup);
 		}
-		if ((start = lookup_init_script(seq->f.application_id, "start"))) {
+		if ((start = lookup_init_script(pr->appid, "start"))) {
 			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
 			execl("/bin/sh", "sh", "-c", start, NULL);
 			EPRINTF("Should never get here!\n");
@@ -8964,8 +8964,7 @@ put_recently_used_info(Process *pr)
 		DPRINTF(1, "do not recommend without a mime type\n");
 		return;
 	}
-	// FIXME: set and use pr->appid
-	if (!pr->seq->f.application_id) {
+	if (!pr->appid) {
 		DPRINTF(1, "do not recommend without an application id\n");
 		return;
 	}
@@ -8974,8 +8973,7 @@ put_recently_used_info(Process *pr)
 		return;
 	}
 	if (!info) {
-		// FIXME: set and use pr->appid
-		if (!(desktop_id = g_strdup_printf("%s.desktop", pr->seq->f.application_id))) {
+		if (!(desktop_id = g_strdup_printf("%s.desktop", pr->appid))) {
 			EPRINTF("cannot allocate desktop_id\n");
 			return;
 		}
@@ -9103,13 +9101,13 @@ put_recently_used_xbel(char *filename, Process *pr)
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
 	g_bookmark_file_set_visited(bookmark, options.url, -1);
 	assert(s != NULL && e != NULL);
-	if (s->f.application_id) {
+	if (pr->appid) {
 		char *exec;
 		int len;
 
-		len = strlen(NAME) + 1 + strlen(s->f.application_id) + 1 + strlen("%u") + 1;
+		len = strlen(NAME) + 1 + strlen(pr->appid) + 1 + strlen("%u") + 1;
 		exec = calloc(len, sizeof(*exec));
-		snprintf(exec, len, "%s %s %%u", NAME, s->f.application_id);
+		snprintf(exec, len, "%s %s %%u", NAME, pr->appid);
 
 		g_bookmark_file_add_application(bookmark, options.url, NAME, exec);
 		free(exec);
@@ -9639,8 +9637,7 @@ put_history(Process *pr)
 {
 	assert(pr->seq != NULL);
 	put_line_history(pr, options.runhist, pr->seq->f.command);
-	// FIXME: set and use pr->appid
-	put_line_history(pr, options.recapps, pr->seq->f.application_id);
+	put_line_history(pr, options.recapps, pr->appid);
 #ifdef GIO_GLIB2_SUPPORT
 	set_mime_type(pr);
 	put_recently_used_info(pr);
@@ -10028,10 +10025,10 @@ setup_window_manager(Process *pr)
 	if (options.ppid && options.ppid != pid && options.ppid != getppid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 
-	if ((setup = lookup_init_script(s->f.application_id, "setup"))) {
+	if ((setup = lookup_init_script(pr->appid, "setup"))) {
 		DPRINTF(1, "Will set up window manager with %s\n", setup);
 	}
-	if ((start = lookup_init_script(s->f.application_id, "start"))) {
+	if ((start = lookup_init_script(pr->appid, "start"))) {
 		DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
 		free(s->f.command);
 		s->f.command = start;
