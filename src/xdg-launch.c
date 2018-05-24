@@ -171,6 +171,13 @@ typedef enum {
 	CommandCopying,
 } Command;
 
+typedef enum {
+	LaunchType_Application,		/* just an application */
+	LaunchType_Autostart,		/* an autostart entry */
+	LaunchType_XSession,		/* an xsession (window manager) */
+	LaunchType_Session,		/* a full session (wm and autostart) */
+} LaunchType;
+
 typedef struct {
 	int debug;
 	int output;
@@ -201,9 +208,7 @@ typedef struct {
 	Bool keyboard;
 	Bool pointer;
 	char *action;
-	Bool xsession;
-	Bool autostart;
-	Bool session;
+	LaunchType type;
 	char *uri;
 	char *rawcmd;
 	char *runhist;
@@ -260,9 +265,7 @@ Options options = {
 	.keyboard = False,
 	.pointer = False,
 	.action = NULL,
-	.xsession = False,
-	.autostart = False,
-	.session = False,
+	.type = LaunchType_Application,
 	.uri = NULL,
 	.rawcmd = NULL,
 	.runhist = NULL,
@@ -318,9 +321,7 @@ Options defaults = {
 	.keyboard = False,
 	.pointer = False,
 	.action = "none",
-	.xsession = False,
-	.autostart = False,
-	.session = False,
+	.type = LaunchType_Application,
 	.uri = NULL,
 	.runhist = "~/.config/xde/run-history",
 	.recapps = "~/.config/xde/recent-applications",
@@ -542,6 +543,7 @@ typedef enum {
 typedef struct _Process {
 	struct _Process *next;		/* next entry */
 	int refs;			/* references to this process */
+	LaunchType type;		/* launch type */
 	StartupNotifyState state;	/* startup notification state */
 	AutostartPhase phase;		/* autostart phase */
 	Bool started;			/* is this process started? */
@@ -551,6 +553,7 @@ typedef struct _Process {
 	pid_t pid;			/* pid for this process */
 	char *path;			/* path to .desktop file */
 	char *appid;			/* application id portion of path */
+	char *action;			/* application action or NULL */
 	Entry *ent;			/* parsed entry for this process */
 	Sequence *seq;			/* startup notification sequence */
 } Process;
@@ -2116,14 +2119,14 @@ extract_appid(const char *path)
 }
 
 static Entry *
-parse_file(char *path)
+parse_file(Process *pr, char *path)
 {
 	FILE *file;
 	char buf[4096], *p, *q;
 	int outside_entry = 1;
 	char *section = NULL;
 	char *key, *val, *lang, *llang, *slang;
-	int ok = 0, action_found = options.action ? 0 : 1;
+	int ok = 0, action_found = pr->action ? 0 : 1;
 	Entry *e;
 
 	if (!(e = calloc(1, sizeof(*e))))
@@ -2165,11 +2168,11 @@ parse_file(char *path)
 			free(section);
 			section = strdup(p + 1);
 			outside_entry = strcmp(section, "Desktop Entry");
-			if (outside_entry && options.xsession)
+			if (outside_entry && pr->type == LaunchType_XSession)
 				outside_entry = strcmp(section, "Window Manager");
-			if (outside_entry && options.action &&
+			if (outside_entry && pr->action &&
 			    strstr(section, "Desktop Action ") == section &&
-			    strcmp(section + 15, options.action) == 0) {
+			    strcmp(section + 15, pr->action) == 0) {
 				outside_entry = 0;
 				action_found = 1;
 			}
@@ -2191,8 +2194,8 @@ parse_file(char *path)
 				free(e->Type);
 				e->Type = strdup(val);
 				/* autodetect XSession */
-				if (!strcmp(val, "XSession") && !options.xsession)
-					options.xsession = True;
+				if (!strcmp(val, "XSession") && (pr->type != LaunchType_XSession))
+					pr->type = LaunchType_XSession;
 				ok = 1;
 				continue;
 			}
@@ -2333,7 +2336,7 @@ parse_proc(Process *pr)
 		EPRINTF("No file to parse!\n");
 		return (False);
 	}
-	if (!(pr->ent = parse_file(pr->path))) {
+	if (!(pr->ent = parse_file(pr, pr->path))) {
 		EPRINTF("could not parse file '%s'\n", pr->path);
 		return (False);
 	}
@@ -2352,7 +2355,7 @@ parse_proc(Process *pr)
   *
   */
 static char *
-lookup_file_by_name(const char *name)
+lookup_file_by_name(Process *pr, const char *name)
 {
 	char *path = NULL, *appid;
 
@@ -2364,7 +2367,8 @@ lookup_file_by_name(const char *name)
 	if ((*appid != '/') && (*appid != '.')) {
 		char *home, *copy, *dirs, *env;
 
-		if (options.autostart) {
+		switch (pr->type) {
+		case LaunchType_Autostart:
 			/* need to look in autostart subdirectory of XDG_CONFIG_HOME and
 			   then each of the subdirectories in XDG_CONFIG_DIRS */
 			if ((env = getenv("XDG_CONFIG_DIRS")) && *env)
@@ -2381,7 +2385,10 @@ lookup_file_by_name(const char *name)
 					strcpy(home, ".");
 				strcat(home, "/.config");
 			}
-		} else {
+			break;
+		case LaunchType_Application:
+		case LaunchType_XSession:
+		case LaunchType_Session:
 			/* need to look in applications subdirectory of XDG_DATA_HOME and 
 			   then each of the subdirectories in XDG_DATA_DIRS */
 			if ((env = getenv("XDG_DATA_DIRS")) && *env)
@@ -2398,6 +2405,7 @@ lookup_file_by_name(const char *name)
 					strcpy(home, ".");
 				strcat(home, "/.local/share");
 			}
+			break;
 		}
 		strcat(home, ":");
 		strcat(home, dirs);
@@ -2414,12 +2422,17 @@ lookup_file_by_name(const char *name)
 				*dirs = '\0';
 			}
 			path = realloc(path, PATH_MAX + 1);
-			if (options.autostart)
+			switch (pr->type) {
+			case LaunchType_Autostart:
 				strcat(path, "/autostart/");
-			else if (options.xsession || options.session)
+				break;
+			case LaunchType_XSession:
+			case LaunchType_Session:
 				strcat(path, "/xsessions/");
-			else
+				break;
+			case LaunchType_Application:
 				strcat(path, "/applications/");
+			}
 			strcat(path, appid);
 			if (access(path, R_OK)) {
 				free(path);
@@ -2432,17 +2445,20 @@ lookup_file_by_name(const char *name)
 			return (path);
 		}
 		free(copy);
-		/* only look in autostart for autostart entries */
-		if (options.autostart) {
+		switch (pr->type) {
+		case LaunchType_Autostart:
+			/* only look in autostart for autostart entries */
 			free(home);
 			free(appid);
 			return (NULL);
-		}
-		/* only look in xsessions for xsession entries */
-		else if (options.xsession || options.session) {
+		case LaunchType_XSession:
+		case LaunchType_Session:
+			/* only look in xsessions for xsession entries */
 			free(home);
 			free(appid);
 			return (NULL);
+		case LaunchType_Application:
+			break;
 		}
 		/* next look in fallback subdirectory of XDG_DATA_HOME and then each of
 		   the subdirectories in XDG_DATA_DIRS */
@@ -2530,9 +2546,14 @@ lookup_file_by_name(const char *name)
 static Bool
 lookup_proc_by_name(Process *pr, const char *name)
 {
-	if (!(pr->path = lookup_file_by_name(name)))
+	char *path;
+
+	if (!(path = lookup_file_by_name(pr, name)))
 		return False;
-	pr->appid = extract_appid(pr->path);
+	free(pr->path);
+	pr->path = path;
+	free(pr->appid);
+	pr->appid = extract_appid(path);
 	return True;
 }
 
@@ -2541,7 +2562,7 @@ lookup_proc_by_name(Process *pr, const char *name)
   * Use glib to make the association.
   */
 static char *
-lookup_file_by_type(const char *type)
+lookup_file_by_type(Process *pr, const char *type)
 {
 
 	if (!strchr(type, '/') || (strchr(type, '/') != strrchr(type, '/'))) {
@@ -2558,14 +2579,14 @@ lookup_file_by_type(const char *type)
 			return NULL;
 		}
 		if ((info = g_app_info_get_default_for_type(content, FALSE))) {
-			if ((path = lookup_file_by_name(g_app_info_get_id(info)))) {
+			if ((path = lookup_file_by_name(pr, g_app_info_get_id(info)))) {
 				g_free(content);
 				return path;
 			}
 		}
 		if ((apps = g_app_info_get_recommended_for_type(content))) {
 			for (app = apps; app; app = app->next) {
-				if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+				if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
 					g_list_free(apps);
 					g_free(content);
 					return path;
@@ -2575,7 +2596,7 @@ lookup_file_by_type(const char *type)
 		}
 		if ((apps = g_app_info_get_fallback_for_type(content))) {
 			for (app = apps; app; app = app->next) {
-				if ((path = lookup_file_by_name(g_app_info_get_id(app->data)))) {
+				if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
 					g_list_free(apps);
 					g_free(content);
 					return path;
@@ -2594,9 +2615,14 @@ lookup_file_by_type(const char *type)
 static Bool
 lookup_proc_by_type(Process *pr, const char *type)
 {
-	if (!(pr->path = lookup_file_by_type(type)))
+	char *path;
+
+	if (!(path = lookup_file_by_type(pr, type)))
 		return False;
-	pr->appid = extract_appid(pr->path);
+	free(pr->path);
+	pr->path = path;
+	free(pr->appid);
+	pr->appid = extract_appid(path);
 	return True;
 }
 
@@ -2711,7 +2737,7 @@ get_searchdirs(void)
   * Use glib to make the association.
   */
 static char *
-lookup_file_by_kind(const char *type)
+lookup_file_by_kind(Process *pr, const char *type)
 {
 #ifdef GIO_GLIB2_SUPPORT
 	GDesktopAppInfo *desk;
@@ -2768,7 +2794,7 @@ lookup_file_by_kind(const char *type)
 
 		apps = g_key_file_get_string_list(dfile, "Default Applications", type, NULL, NULL);
 		for (app = apps; app && *app; app++) {
-			if (!(result = lookup_file_by_name(*app)))
+			if (!(result = lookup_file_by_name(pr, *app)))
 				continue;
 			desk = g_desktop_app_info_new_from_filename(result);
 			g_free(result);
@@ -2791,7 +2817,7 @@ lookup_file_by_kind(const char *type)
 
 		if ((apps = g_key_file_get_string_list(dfile, "Added Categories", type, NULL, NULL))) {
 			for (app = apps; app && *app; app++) {
-				if ((result = lookup_file_by_name(*app))) {
+				if ((result = lookup_file_by_name(pr, *app))) {
 					g_strfreev(apps);
 					g_key_file_unref(dfile);
 					g_key_file_unref(afile);
@@ -2840,9 +2866,14 @@ lookup_file_by_kind(const char *type)
 static Bool
 lookup_proc_by_kind(Process *pr, const char *kind)
 {
-	if (!(pr->path = lookup_file_by_kind(kind)))
+	char *path;
+
+	if (!(path = lookup_file_by_kind(pr, kind)))
 		return False;
-	pr->appid = extract_appid(pr->path);
+	free(pr->path);
+	pr->path = path;
+	free(pr->appid);
+	pr->appid = extract_appid(path);
 	return True;
 }
 
@@ -3843,7 +3874,7 @@ setup_client(Display *dpy, Client *c)
 		if (!e->Categories || !strstr(e->Categories, "DockApp")) {
 			OPRINTF(0, "add \"Categories=DockApp\" to %s\n", e->path);
 		}
-		if (options.autostart) {
+		if (pr->type == LaunchType_Autostart) {
 			if (e->AutostartPhase
 			    && strncmp(e->AutostartPhase, "Applications",
 				       strlen(e->AutostartPhase))) {
@@ -3861,7 +3892,7 @@ setup_client(Display *dpy, Client *c)
 		if (!e->Categories || !strstr(e->Categories, "TrayIcon")) {
 			OPRINTF(0, "add \"Categories=TrayIcon\" to %s\n", e->path);
 		}
-		if (options.autostart) {
+		if (pr->type == LaunchType_Autostart) {
 			if (e->AutostartPhase
 			    && strncmp(e->AutostartPhase, "Applications",
 				       strlen(e->AutostartPhase))) {
@@ -4745,24 +4776,20 @@ add_process(Process *pr)
 	pr->next = processes;
 	processes = pr;
 	if (!pr->ent && islocalhost(seq->f.hostname)) {
-		char *path, *appid;
+		char *appid;
 
 		if (!(appid = seq->f.application_id) && seq->f.bin) {
 			appid = strrchr(seq->f.bin, '/');
 			appid = appid ? appid + 1 : seq->f.bin;
 		}
-		if ((path = lookup_file_by_name(appid))) {
-			Entry *e;
-
-			DPRINTF(1, "found desktop file %s\n", path);
-			if ((e = parse_file(path))) {
-				pr->ent = e;
+		if (lookup_proc_by_name(pr, appid)) {
+			DPRINTF(1, "found desktop file %s\n", pr->path);
+			if (parse_proc(pr)) {
 				if (options.output > 1)
-					show_entry("Parsed entries", e);
+					show_entry("Parsed entries", pr->ent);
 				if (options.info)
-					info_entry("Parsed entries", e);
+					info_entry("Parsed entries", pr->ent);
 			}
-			free(path);
 		}
 	}
 	if (options.output > 1)
@@ -7668,56 +7695,48 @@ static int
 want_resource(Process *pr)
 {
 	Entry *e = pr->ent;
-	int mask = 0;
-
-	/* set values from options */
-	if (options.audio)
-		mask |= WAITFOR_AUDIOSERVER;
-	if (options.manager)
-		mask |= WAITFOR_WINDOWMANAGER;
-	if (options.composite)
-		mask |= WAITFOR_COMPOSITEMANAGER;
-	if (options.tray)
-		mask |= WAITFOR_SYSTEMTRAY;
-	if (options.pager)
-		mask |= WAITFOR_DESKTOPPAGER;
+	int mask = pr->wait_for;
 
 	assert(e != NULL);
-	if (e->AutostartPhase) {
-		/* When autostarting we should use the autostart phase to determine the
-		   resources for which to wait. */
-		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
-			/* PreDisplayServer: do not wait for anything. */
-			mask = 0;
-		} else if (strcmp(e->AutostartPhase, "Initializing") == 0) {
-			/* Initializing: do not wait for anything. */
-			mask = 0;
-		} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
-			/* WindowManager: do not wait for anything, except perhaps audio. 
-			 */
-			mask &= WAITFOR_AUDIOSERVER;
-		} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
-			/* Panel: wait only for window and composite manager (if
-			   requested?). */
-			mask |= WAITFOR_WINDOWMANAGER;
-			mask &= WAITFOR_COMPOSITEMANAGER;
-		} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
-			/* Desktop: wait only for window and composite manager (if
-			   requested?). */
-			mask |= WAITFOR_WINDOWMANAGER;
-			mask &= WAITFOR_COMPOSITEMANAGER;
-		} else if (strcmp(e->AutostartPhase, "Application") == 0) {
-			/* Application(s): wait for window manager, others if requested. */
-			mask |= WAITFOR_WINDOWMANAGER;
-		} else {
-			/* default is same as Application */
-			mask |= WAITFOR_WINDOWMANAGER;
+
+	if (pr->type != LaunchType_Application) {
+		if (e->AutostartPhase) {
+			/* When autostarting we should use the autostart phase to
+			   determine the resources for which to wait. */
+			if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
+				/* PreDisplayServer: do not wait for anything. */
+				mask = 0;
+			} else if (strcmp(e->AutostartPhase, "Initializing") == 0) {
+				/* Initializing: do not wait for anything. */
+				mask = 0;
+			} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
+				/* WindowManager: do not wait for anything, except
+				   perhaps audio. */
+				mask &= WAITFOR_AUDIOSERVER;
+			} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
+				/* Panel: wait only for window and composite manager (if
+				   requested?). */
+				mask |= WAITFOR_WINDOWMANAGER;
+				mask &= WAITFOR_COMPOSITEMANAGER;
+			} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
+				/* Desktop: wait only for window and composite manager
+				   (if requested?). */
+				mask |= WAITFOR_WINDOWMANAGER;
+				mask &= WAITFOR_COMPOSITEMANAGER;
+			} else if (strcmp(e->AutostartPhase, "Application") == 0) {
+				/* Application(s): wait for window manager, others if
+				   requested. */
+				mask |= WAITFOR_WINDOWMANAGER;
+			} else {
+				/* default is same as Application */
+				mask |= WAITFOR_WINDOWMANAGER;
+			}
 		}
 	}
-	if (options.xsession) {
+	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
 		mask &= WAITFOR_AUDIOSERVER;
 	}
-	if (options.autostart) {
+	if (pr->type != LaunchType_Autostart) {
 		mask |= WAITFOR_WINDOWMANAGER;
 		if (e->Categories) {
 			if (strstr(e->Categories, "Audio"))
@@ -7747,7 +7766,7 @@ want_phase(Process *pr)
 	Entry *e = pr->ent;
 
 	assert(e != NULL);
-	if (options.xsession) {
+	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
 		phase = AutostartPhase_WindowManager;
 	} else if (e->AutostartPhase) {
 		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0)
@@ -7792,7 +7811,7 @@ want_phase(Process *pr)
  * for 2 seconds for a window manager.  Setting the guard timer to zero should
  * result in indefinite wait.
  *
- * When options.xsession is true, we should never wait for resources.
+ * When XSession, we should never wait for resources.
  */
 static Bool
 wait_for_resource(Display *dpy, Process *pr)
@@ -7814,17 +7833,23 @@ need_assist(Display *dpy, Process *pr)
 			fputs("Assistance requested\n", stdout);
 		return need_assist;
 	}
-	if (options.xsession) {
+	switch (pr->type) {
+	case LaunchType_XSession:
+	case LaunchType_Session:
 		OPRINTF(1, "XSession: always needs assistance\n");
 		need_assist = True;
 		if (options.info)
 			fputs("Launching XSession entry always requires assistance.\n", stdout);
-	} else if (options.autostart) {
+		break;
+	case LaunchType_Autostart:
 		OPRINTF(1, "AutoStart: always needs assistance\n");
 		need_assist = True;
 		if (options.info)
 			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
-	} else if (need_assistance(dpy)) {
+		break;
+	case LaunchType_Application:
+		if (!need_assistance(dpy))
+			break;
 		OPRINTF(1, "WindowManager: needs assistance\n");
 		if (pr->seq->f.wmclass) {
 			OPRINTF(1, "WMCLASS: requires assistance\n");
@@ -7930,9 +7955,11 @@ launch(Process *pr)
 	setenv("DISPLAY", disp, 1);
 
 	end_display(dpy);
+
 	if (options.ppid && options.ppid != getppid() && options.ppid != getpid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
-	if (options.xsession) {
+
+	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
 		char *setup, *start;
 
 		if ((setup = lookup_init_script(seq->f.application_id, "setup"))) {
@@ -7989,7 +8016,7 @@ set_screen(Process *pr)
 	assert(s != NULL && e != NULL);
 	free(s->f.screen);
 	s->f.screen = NULL;
-	if (options.autostart || options.xsession || options.session)
+	if (pr->type != LaunchType_Application)
 		return;
 	if ((screen = options.screen) == -1) {
 		if (screens) {
@@ -8203,7 +8230,7 @@ set_monitor(Process *pr)
 	assert(s != NULL && e != NULL);
 	free(s->f.monitor);
 	s->f.monitor = NULL;
-	if (options.autostart || options.xsession || options.session)
+	if (pr->type != LaunchType_Application)
 		return;
 	if ((monitor = options.monitor) == -1) {
 		if (screens) {
@@ -8245,7 +8272,7 @@ set_desktop(Process *pr)
 	assert(s != NULL && e != NULL);
 	free(s->f.desktop);
 	s->f.desktop = NULL;
-	if (options.autostart || options.xsession || options.session)
+	if (pr->type != LaunchType_Application)
 		return;
 	if ((desktop = options.desktop) == -1) {
 		if (screens) {
@@ -8383,8 +8410,8 @@ set_action(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.action);
-	if (options.action)
-		s->f.action = strdup(options.action);
+	if (pr->action)
+		s->f.action = strdup(pr->action);
 	else
 		s->f.action = NULL;
 }
@@ -8398,12 +8425,11 @@ set_autostart(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.action);
-	s->f.autostart = calloc(2, sizeof(*s->f.autostart));
-	if (options.autostart) {
-		strcpy(s->f.autostart, "1");
+	if (pr->type == LaunchType_Autostart) {
+		s->f.autostart = strdup("1");
 		s->n.autostart = 1;
 	} else {
-		strcpy(s->f.autostart, "0");
+		s->f.autostart = NULL;
 		s->n.autostart = 0;
 	}
 }
@@ -8417,12 +8443,11 @@ set_xsession(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.action);
-	s->f.xsession = calloc(2, sizeof(*s->f.xsession));
-	if (options.xsession || options.session) {
-		strcpy(s->f.xsession, "1");
+	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
+		s->f.xsession = strdup("1");
 		s->n.xsession = 1;
 	} else {
-		strcpy(s->f.xsession, "0");
+		s->f.xsession = NULL;
 		s->n.xsession = 0;
 	}
 }
@@ -8732,18 +8757,30 @@ set_launcher(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.launcher);
+	/* XXX: should likely only do this for applications */
 	if (options.launcher)
 		s->f.launcher = strdup(options.launcher);
 	else if (s->f.id && (p = strchr(s->f.id, '/')))
 		s->f.launcher = strndup(s->f.id, p - s->f.id);
-	else if (options.session)
-		s->f.launcher = strdup("xdg-session");
-	else if (options.autostart)
-		s->f.launcher = strdup("xdg-autostart");
-	else if (options.xsession)
-		s->f.launcher = strdup("xdg-xsession");
-	else
-		s->f.launcher = strdup(NAME);
+	else {
+		const char *launcher = NAME;
+
+		switch (pr->type) {
+		case LaunchType_Session:
+			launcher = "xdg-session";
+			break;
+		case LaunchType_Autostart:
+			launcher = "xdg-autostart";
+			break;
+		case LaunchType_XSession:
+			launcher = "xdg-xsession";
+			break;
+		case LaunchType_Application:
+			launcher = NAME;
+			break;
+		}
+		s->f.launcher = strdup(launcher);
+	}
 	for (; (p = strchr(s->f.launcher, '|')); *p = '/') ;
 }
 
@@ -8919,7 +8956,7 @@ put_recently_used_info(Process *pr)
 		DPRINTF(1, "do not recommend without a uri\n");
 		return;
 	}
-	if (options.autostart || options.xsession || options.session) {
+	if (pr->type != LaunchType_Application) {
 		DPRINTF(1, "do not recommend autostart or xsession invocations\n");
 		return;
 	}
@@ -8973,7 +9010,7 @@ put_recent_applications_xbel(char *filename, Process *pr)
 		EPRINTF("cannot record %s without a uri\n", filename);
 		return;
 	}
-	if (options.autostart || options.xsession || options.session) {
+	if (pr->type != LaunchType_Application) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
@@ -9037,7 +9074,7 @@ put_recently_used_xbel(char *filename, Process *pr)
 		EPRINTF("cannot record %s without a url\n", filename);
 		return;
 	}
-	if (options.autostart || options.xsession || options.session) {
+	if (pr->type != LaunchType_Application) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
@@ -9259,7 +9296,7 @@ recent_free(gpointer data)
 }
 
 static void
-put_recent_applications(char *filename)
+put_recent_applications(char *filename, Process *pr)
 {
 	FILE *f;
 	int dummy;
@@ -9280,7 +9317,7 @@ put_recent_applications(char *filename)
 		g_free(file);
 		return;
 	}
-	if (options.autostart || options.xsession || options.session) {
+	if (pr->type != LaunchType_Application) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		g_free(file);
 		return;
@@ -9401,7 +9438,7 @@ put_recently_used(char *filename, Process *pr)
 		g_free(file);
 		return;
 	}
-	if (options.autostart || options.xsession || options.session) {
+	if (pr->type != LaunchType_Application) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		g_free(file);
 		return;
@@ -9503,7 +9540,7 @@ put_recently_used(char *filename, Process *pr)
 #endif				/* GIO_GLIB2_SUPPORT */
 
 static void
-put_line_history(char *file, char *line)
+put_line_history(Process *pr, char *file, char *line)
 {
 	FILE *f;
 	int dummy;
@@ -9530,7 +9567,7 @@ put_line_history(char *file, char *line)
 		EPRINTF("cannot record history without a line\n");
 		return;
 	}
-	if (options.autostart || options.xsession || options.session) {
+	if (pr->type != LaunchType_Application) {
 		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
@@ -9601,9 +9638,9 @@ static void
 put_history(Process *pr)
 {
 	assert(pr->seq != NULL);
-	put_line_history(options.runhist, pr->seq->f.command);
+	put_line_history(pr, options.runhist, pr->seq->f.command);
 	// FIXME: set and use pr->appid
-	put_line_history(options.recapps, pr->seq->f.application_id);
+	put_line_history(pr, options.recapps, pr->seq->f.application_id);
 #ifdef GIO_GLIB2_SUPPORT
 	set_mime_type(pr);
 	put_recently_used_info(pr);
@@ -9612,8 +9649,8 @@ put_history(Process *pr)
 			put_recently_used(".recently-used", pr);
 			put_recently_used_xbel("recently-used.xbel", pr);
 		}
-		put_recent_applications(".recently-used");
-		put_recent_applications(".recent-applications");
+		put_recent_applications(".recently-used", pr);
+		put_recent_applications(".recent-applications", pr);
 		put_recent_applications_xbel("recently-used.xbel", pr);
 		put_recent_applications_xbel("recent-applications.xbel", pr);
 	}
@@ -10182,6 +10219,8 @@ session(Process *wm)
 	Entry *e = wm->ent;
 	char *setup;
 
+	wm->type = LaunchType_XSession;
+
 	if (!getenv("XDG_SESSION_PID")) {
 		char buf[24] = { 0, };
 
@@ -10256,6 +10295,10 @@ session(Process *wm)
 	AutostartPhase phase = AutostartPhase_Application;
 	Process *pr, **pp, **pp_prev;
 
+	options.autoassist = False;
+	options.assist = False;
+	options.autowait = False;
+
 	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
 
 	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || !*dirs)
@@ -10306,6 +10349,7 @@ session(Process *wm)
 				} else if ((pr = calloc(1, sizeof(*pr)))) {
 					size_t len = strlen(path) + strlen(appid) + 8 + 1;
 
+					pr->type = LaunchType_Autostart;
 					pr->appid = strdup(appid);
 					pr->path = calloc(len + 1, sizeof(*pr->path));
 					strncpy(pr->path, path, len);
@@ -10339,67 +10383,50 @@ session(Process *wm)
 		}
 		free(array);
 	}
-	options.session = False;
-	options.xsession = False;
-	options.autostart = True;
-	options.autoassist = False;
-	options.assist = False;
-	// options.autowait = False;
 
-	// free(options.launcher);
-	// options.launcher = strdup("xdg-autostart");
 	for (pp_prev = &autostart; (pr = *pp_prev);) {
-		Entry *ent;
-
-		if (!(pr->ent = ent = parse_file(pr->path))) {
+		if (!parse_proc(pr)) {
 			EPRINTF("%s: %s: is invalid: discarding\n", pr->appid, pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
-		if (!ent->Exec) {
+		if (!pr->ent->Exec) {
 			DPRINTF(3, "%s: %s: no exec: discarding\n", pr->appid, pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
-		if (ent->Hidden && !strcmp(ent->Hidden, "true")) {
+		if (pr->ent->Hidden && !strcmp(pr->ent->Hidden, "true")) {
 			DPRINTF(3, "%s: %s: is hidden: discarding\n", pr->appid, pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
-		if (!check_showin(ent->OnlyShowIn)) {
+		if (!check_showin(pr->ent->OnlyShowIn)) {
 			DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid,
 				pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
-		if (!check_noshow(ent->NotShowIn)) {
+		if (!check_noshow(pr->ent->NotShowIn)) {
 			DPRINTF(3, "%s: %s: desktop is in NotShowIn: discarding\n", pr->appid, pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
-		if (!check_exec(ent->TryExec, ent->Exec)) {
+		if (!check_exec(pr->ent->TryExec, pr->ent->Exec)) {
 			DPRINTF(3, "%s: %s: not executable: discarding\n", pr->appid, pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
-		if (ent->AutostartPhase && !strcmp(ent->AutostartPhase, "PreDisplayServer")) {
+		if (pr->ent->AutostartPhase && !strcmp(pr->ent->AutostartPhase, "PreDisplayServer")) {
 			DPRINTF(3, "%s: %s: is autostart phase PreDisplayServer: discarding\n", pr->appid, pr->path);
 			delete_pr(pp_prev);
 			continue;
 		}
 		if (options.output > 1)
-			show_entry("Parsed entries", ent);
+			show_entry("Parsed entries", pr->ent);
 		if (options.info)
-			info_entry("Parsed entries", ent);
+			info_entry("Parsed entries", pr->ent);
 		pp_prev = &pr->next;
 	}
-
-	options.session = False;
-	options.xsession = True;
-	options.autostart = False;
-	options.autoassist = False;
-	options.assist = False;
-	options.autowait = False;
 
 	setup = setup_window_manager(wm);
 
@@ -10412,13 +10439,6 @@ session(Process *wm)
 	phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
 	(phases[phase])[counts[phase]++] = wm;
 	(phases[phase])[counts[phase]] = NULL;
-
-	options.session = False;
-	options.xsession = False;
-	options.autostart = True;
-	options.autoassist = False;
-	options.assist = False;
-	// options.autowait = False;
 
 	while ((pr = remove_pr(&autostart))) {
 		phase = pr->phase = want_phase(pr);
@@ -10689,8 +10709,8 @@ Options:\n\
 	, show_bool(defaults.keyboard)
 	, show_bool(defaults.pointer)
 	, defaults.action
-	, show_bool(defaults.xsession)
-	, show_bool(defaults.autostart)
+	, show_bool(defaults.type == LaunchType_XSession)
+	, show_bool(defaults.type == LaunchType_Autostart)
 	, defaults.keep
 	, defaults.recapps
 	, show_bool(defaults.info)
@@ -10801,15 +10821,15 @@ set_defaults(int argc, char *argv[])
 
 	buf = (p = strrchr(argv[0], '/')) ? p + 1 : argv[0];
 	if (!strcmp(buf, "xdg-xsession")) {
-		defaults.xsession = options.xsession = True;
+		defaults.type = options.type = LaunchType_XSession;
 		free(options.launcher);
 		defaults.launcher = options.launcher = strdup(buf);
 	} else if (!strcmp(buf, "xdg-autostart")) {
-		defaults.autostart = options.autostart = True;
+		defaults.type = options.type = LaunchType_Autostart;
 		free(options.launcher);
 		defaults.launcher = options.launcher = strdup(buf);
 	} else if (!strcmp(buf, "xdg-session")) {
-		defaults.session = options.session = True;
+		defaults.type = options.type = LaunchType_Session;
 		free(options.launcher);
 		defaults.launcher = options.launcher = strdup(buf);
 	}
@@ -11056,23 +11076,23 @@ main(int argc, char *argv[])
 			defaults.action = options.action = strdup(optarg);
 			break;
 		case 'X':	/* -X, --xsession */
-			if (options.autostart || options.session)
+			if (options.type != LaunchType_Application)
 				goto bad_option;
-			defaults.xsession = options.xsession = True;
+			defaults.type = options.type = LaunchType_XSession;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-xsession");
 			break;
 		case 'U':	/* -U, --autostart */
-			if (options.xsession || options.session)
+			if (options.type != LaunchType_Application)
 				goto bad_option;
-			defaults.autostart = options.autostart = True;
+			defaults.type = options.type = LaunchType_Autostart;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-autostart");
 			break;
 		case 'E':	/* -E, --session */
-			if (options.autostart || options.xsession)
+			if (options.type != LaunchType_Application)
 				goto bad_option;
-			defaults.session = options.session = True;
+			defaults.type = options.type = LaunchType_Session;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-session");
 			break;
@@ -11264,8 +11284,7 @@ main(int argc, char *argv[])
 				goto bad_nonopt;
 		}
 	}
-	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category
-	    && !options.exec && !options.session) {
+	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec) {
 		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
 	}
@@ -11273,6 +11292,21 @@ main(int argc, char *argv[])
 		EPRINTF("could not alloc process: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+
+	pr->type = options.type;
+	pr->action = options.action ? strdup(options.action) : NULL;
+
+	if (options.audio)
+		pr->wait_for |= WAITFOR_AUDIOSERVER;
+	if (options.manager)
+		pr->wait_for |= WAITFOR_WINDOWMANAGER;
+	if (options.composite)
+		pr->wait_for |= WAITFOR_COMPOSITEMANAGER;
+	if (options.tray)
+		pr->wait_for |= WAITFOR_SYSTEMTRAY;
+	if (options.pager)
+		pr->wait_for |= WAITFOR_DESKTOPPAGER;
+
 	if (eargv) {
 		/* it is not an error if this fails: worth a shot */
 		lookup_proc_by_name(pr, basename(eargv[0]));
@@ -11325,7 +11359,7 @@ main(int argc, char *argv[])
 			pr->ent->Exec = strdup(options.exec);
 		else if (eargv)
 			pr->ent->TryExec = strdup(eargv[0]);
-		else if (!options.session) {
+		else if (pr->type != LaunchType_Session) {
 			EPRINTF("could not find .desktop file for APPSPEC\n");
 			exit(EXIT_FAILURE);
 		}
@@ -11381,10 +11415,11 @@ main(int argc, char *argv[])
 		if (!options.info)
 			put_history(pr);
 	}
-	if (options.session)
+	if (pr->type == LaunchType_Session) {
 		session(pr);
-	else
-		launch(pr);
+		exit(EXIT_SUCCESS);
+	}
+	launch(pr);
 	exit(EXIT_SUCCESS);
 }
 
