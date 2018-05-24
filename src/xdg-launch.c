@@ -129,7 +129,7 @@ _timestamp(void)
 		fprintf(stderr, NAME "[%d]: E: [%s] %12s +%4d : %s() : ", getpid(), _timestamp(), __FILE__, __LINE__, __func__); \
 		fprintf(stderr, _args); fflush(stderr); } while (0)
 
-#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num) { \
+#define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num || options.info) { \
 		fprintf(stdout, NAME "[%d]: I: ", getpid()); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
@@ -176,6 +176,22 @@ typedef enum {
 	LaunchType_XSession,		/* an xsession (window manager) */
 	LaunchType_Session,		/* a full session (wm and autostart) */
 } LaunchType;
+
+static const char *
+show_type(LaunchType type)
+{
+	switch (type) {
+	case LaunchType_Application:		/* just an application */
+		return ("Application");
+	case LaunchType_Autostart:		/* an autostart entry */
+		return ("Autostart");
+	case LaunchType_XSession:		/* an xsession (window manager) */
+		return ("XSession");
+	case LaunchType_Session:		/* a full session (wm and autostart) */
+		return ("Session");
+	}
+	return ("(unknown)");
+}
 
 typedef struct {
 	int debug;
@@ -2564,7 +2580,7 @@ lookup_proc_by_name(Process *pr, const char *name)
 static char *
 lookup_file_by_type(Process *pr, const char *type)
 {
-
+	PTRACE(5);
 	if (!strchr(type, '/') || (strchr(type, '/') != strrchr(type, '/'))) {
 		DPRINTF(1, "incorrect mime-type format: '%s'\n", type);
 	} else {
@@ -2582,28 +2598,34 @@ lookup_file_by_type(Process *pr, const char *type)
 			if ((path = lookup_file_by_name(pr, g_app_info_get_id(info)))) {
 				g_free(content);
 				return path;
-			}
-		}
+			} else
+				DPRINTF(1, "could not find file for default %s\n", g_app_info_get_id(info));
+		} else
+			DPRINTF(1, "could not get default for type %s\n", type);
 		if ((apps = g_app_info_get_recommended_for_type(content))) {
 			for (app = apps; app; app = app->next) {
 				if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
 					g_list_free(apps);
 					g_free(content);
 					return path;
-				}
+				} else
+					DPRINTF(1, "could not find file for recommended %s\n", g_app_info_get_id(app->data));
 			}
 			g_list_free(apps);
-		}
+		} else
+			DPRINTF(1, "could not get recommended for type %s\n", type);
 		if ((apps = g_app_info_get_fallback_for_type(content))) {
 			for (app = apps; app; app = app->next) {
 				if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
 					g_list_free(apps);
 					g_free(content);
 					return path;
-				}
+				} else
+					DPRINTF(1, "could not find file for fallback %s\n", g_app_info_get_id(app->data));
 			}
 			g_list_free(apps);
-		}
+		} else
+			DPRINTF(1, "could not get fallback for type %s\n", type);
 		g_free(content);
 #else
 		EPRINTF("cannot use mime type without GLIB/GIO support\n");
@@ -2770,15 +2792,18 @@ lookup_file_by_kind(Process *pr, const char *type)
 			name = g_strdup_printf("%s-prefapps.list", *desktop);
 			path = g_build_filename(*dir, name, NULL);
 			if (!got_dfile)
-				got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+				if ((got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL)))
+					DPRINTF(1, "got default file from %s\n", path);
 			g_free(path);
 			g_free(name);
 		}
 		path = g_build_filename(*dir, "prefapps.list", NULL);
 		if (!got_dfile)
-			got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL);
+			if ((got_dfile = g_key_file_load_from_file(dfile, path, G_KEY_FILE_NONE, NULL)))
+				DPRINTF(1, "got default categories file from %s\n", path);
 		if (!got_afile)
-			got_afile = g_key_file_load_from_file(afile, path, G_KEY_FILE_NONE, NULL);
+			if ((got_afile = g_key_file_load_from_file(afile, path, G_KEY_FILE_NONE, NULL)))
+				DPRINTF(1, "got added categories file from %s\n", path);
 		g_free(path);
 		if (got_dfile && got_afile)
 			break;
@@ -2796,11 +2821,16 @@ lookup_file_by_kind(Process *pr, const char *type)
 		for (app = apps; app && *app; app++) {
 			if (!(result = lookup_file_by_name(pr, *app)))
 				continue;
+			DPRINTF(1, "found file for default %s: %s\n", *app, result);
 			desk = g_desktop_app_info_new_from_filename(result);
-			g_free(result);
-			if (!desk)
+			if (!desk) {
+				EPRINTF("cannot parse %s file %s\n", *app, result);
+				g_free(result);
 				continue;
+			}
 			if (g_desktop_app_info_get_is_hidden(desk)) {
+				DPRINTF(1, "file is hidden %s: %s\n", *app, result);
+				g_free(result);
 				g_object_unref(desk);
 				continue;
 			}
@@ -7865,6 +7895,9 @@ need_assist(Display *dpy, Process *pr)
 	return need_assist;
 }
 
+static void set_seq_all(Process *pr);
+static void put_history(Process *pr);
+
 /** @brief launch the application
   *
   * I want to rethink this a bit and user prctl() to set the subreaper to the
@@ -7900,10 +7933,18 @@ launch(Process *pr)
 	char *disp, *p;
 	Bool change_only = False;
 	Sequence *seq = pr->seq;
-	Display *dpy = get_display();
+	Display *dpy;
 
 	PTRACE(5);
 	assert(seq != NULL);
+
+	dpy = get_display();
+
+	/* fill out all fields */
+	set_seq_all(pr);
+	if (!options.info)
+		put_history(pr);
+
 	if (options.autowait)
 		wait_for_resource(dpy, pr);
 	if (options.autoassist)
@@ -8543,7 +8584,7 @@ set_seq_timestamp(Process *pr)
 			EPRINTF("using timestamp property change event time %lu\n", ts);
 		} else {
 			ts = 0UL;
-			EPRINTF("using timestamp zero!");
+			EPRINTF("using timestamp zero!\n");
 		}
 		snprintf(s->f.timestamp, 64, "%lu", ts);
 		options.timestamp = ts;
@@ -10611,8 +10652,8 @@ usage(int argc, char *argv[])
 	(void) fprintf(stderr, "\
 Usage:\n\
     %1$s [options] [APPSPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
-    %1$s {-X|--xsession}  [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | {-e|--exec} COMMAND]\n\
+    %1$s {-X|--xsession}  [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-h|--help} [options] [APPPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
     %1$s {-V|--version}\n\
@@ -10637,8 +10678,8 @@ help(int argc, char *argv[])
 	(void) fprintf(stdout, "\
 Usage:\n\
     %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
-    %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
+    %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
     %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
     %1$s {-V|--version}\n\
@@ -11359,8 +11400,9 @@ main(int argc, char *argv[])
 
 		if (optind >= argc)
 			goto bad_nonopt;
-		eargv = calloc(argc - optind + 1, sizeof(*eargv));
 		eargc = argc - optind;
+		DPRINTF(1, "number of command arguments is %d\n", eargc);
+		eargv = calloc(eargc + 1, sizeof(*eargv));
 		for (i = 0; optind < argc; optind++, i++)
 			eargv[i] = strdup(argv[optind]);
 	} else if (optind < argc) {
@@ -11419,49 +11461,85 @@ main(int argc, char *argv[])
 	pr->type = options.type;
 	pr->action = options.action ? strdup(options.action) : NULL;
 
-	if (options.audio)
+	OPRINTF(0, "launch type is %s\n", show_type(pr->type));
+
+	if (options.audio) {
+		OPRINTF(0, "will wait for audio server\n");
 		pr->wait_for |= WAITFOR_AUDIOSERVER;
-	if (options.manager)
+	}
+	if (options.manager) {
+		OPRINTF(0, "will wait for window manager\n");
 		pr->wait_for |= WAITFOR_WINDOWMANAGER;
-	if (options.composite)
+	}
+	if (options.composite) {
+		OPRINTF(0, "will wait for composite manager\n");
 		pr->wait_for |= WAITFOR_COMPOSITEMANAGER;
-	if (options.tray)
+	}
+	if (options.tray) {
+		OPRINTF(0, "will wait for system tray\n");
 		pr->wait_for |= WAITFOR_SYSTEMTRAY;
-	if (options.pager)
+	}
+	if (options.pager) {
+		OPRINTF(0, "will wait for desktop pager\n");
 		pr->wait_for |= WAITFOR_DESKTOPPAGER;
+	}
 
 	if (eargv) {
 		/* it is not an error if this fails: worth a shot */
-		lookup_proc_by_name(pr, basename(eargv[0]));
+		OPRINTF(0, "looking up file by EXEC %s\n", basename(eargv[0]));
+		if (!lookup_proc_by_name(pr, basename(eargv[0]))) {
+			OPRINTF(0, "could not find file for exec '%s'\n", basename(eargv[0]));
+		} else {
+			OPRINTF(0, "found entry at %s\n", pr->path);
+		}
 	} else if (options.appid) {
+		OPRINTF(0, "looking up file by APPID %s\n", options.appid);
 		if (!lookup_proc_by_name(pr, options.appid)) {
 			EPRINTF("could not find file for name '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.mimetype) {
+		OPRINTF(0, "looking up file by MIMETYPE %s\n", options.mimetype);
 		if (!lookup_proc_by_type(pr, options.mimetype)) {
 			EPRINTF("could not find file for type '%s'\n", options.mimetype);
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.category) {
+		OPRINTF(0, "looking up file by CATEGORY %s\n", options.category);
 		if (!lookup_proc_by_kind(pr, options.category)) {
 			EPRINTF("could not find file for kind '%s'\n", options.category);
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.appspec) {
+		OPRINTF(0, "looking up file by APPSPEC %s\n", options.appspec);
 		if (lookup_proc_by_name(pr, options.appspec)) {
+			OPRINTF(0, "found file by APPID %s\n", options.appspec);
 			free(options.appid);
 			options.appid = strdup(options.appspec);
 		} else if (lookup_proc_by_type(pr, options.appspec)) {
+			OPRINTF(0, "found file by MIMETYPE %s\n", options.appspec);
 			free(options.mimetype);
 			options.mimetype = strdup(options.appspec);
 		} else if (lookup_proc_by_kind(pr, options.appspec)) {
+			OPRINTF(0, "found file by CATEGORY %s\n", options.appspec);
 			free(options.category);
 			options.category = strdup(options.appspec);
 		} else {
 			EPRINTF("could not find file for spec '%s'\n", options.appspec);
 			exit(EXIT_FAILURE);
 		}
+	} else if (options.exec) {
+		char *bin = first_word(options.exec);
+
+		OPRINTF(0, "looking up file by EXEC %s\n", basename(bin));
+		if (!lookup_proc_by_name(pr, basename(bin))) {
+			OPRINTF(0, "could not find file for exec '%s'\n", basename(bin));
+		} else {
+			OPRINTF(0, "found entry at %s\n", pr->path);
+		}
+		free(bin);
+	} else {
+		EPRINTF("did not look up file!\n");
 	}
 	if (pr->path) {
 		if (!parse_proc(pr)) {
@@ -11527,23 +11605,26 @@ main(int argc, char *argv[])
 	}
 	/* populate some fields */
 	if (options.id) {
-		if (options.info || options.output > 1)
-			fprintf(stdout, "Setting desktop startup id to: %s\n", options.id);
+		OPRINTF(0, "Setting desktop startup id to: %s\n", options.id);
 		free(s->f.id);
 		s->f.id = strdup(options.id);
 		myid = s->f.id;
 	}
-	if (eargv || pr->ent->Exec) {
-		/* fill out all fields */
-		set_seq_all(pr);
-		if (!options.info)
-			put_history(pr);
-	}
-	if (pr->type == LaunchType_Session) {
-		session(pr);
+	if (options.info) {
+		OPRINTF(0, "Would launch %s %s from %s\n", show_type(pr->type), pr->appid, pr->path);
 		exit(EXIT_SUCCESS);
 	}
-	launch(pr);
+	switch (command) {
+	case CommandLaunch:
+		launch(pr);
+		break;
+	case CommandSession:
+		session(pr);
+		break;
+	default:
+		EPRINTF("invalid command\n");
+		exit(EXIT_FAILURE);
+	}
 	exit(EXIT_SUCCESS);
 }
 
