@@ -551,6 +551,7 @@ typedef struct _Process {
 	Bool running;			/* is this process running? */
 	int wait_for;			/* things to wait for */
 	pid_t pid;			/* pid for this process */
+	pid_t ppid;			/* parent pid for this process */
 	char *path;			/* path to .desktop file */
 	char *appid;			/* application id portion of path */
 	char *action;			/* application action or NULL */
@@ -2112,10 +2113,7 @@ strip_desktop(const char *p)
 static char *
 extract_appid(const char *path)
 {
-	const char *p;
-
-	p = (p = strrchr(path, '/')) ? p + 1 : path;
-	return (strip_desktop(p));
+	return (strip_desktop(basename(path)));
 }
 
 static Entry *
@@ -4778,10 +4776,8 @@ add_process(Process *pr)
 	if (!pr->ent && islocalhost(seq->f.hostname)) {
 		char *appid;
 
-		if (!(appid = seq->f.application_id) && seq->f.bin) {
-			appid = strrchr(seq->f.bin, '/');
-			appid = appid ? appid + 1 : seq->f.bin;
-		}
+		if (!(appid = seq->f.application_id) && seq->f.bin)
+			appid = basename(seq->f.bin);
 		if (lookup_proc_by_name(pr, appid)) {
 			DPRINTF(1, "found desktop file %s\n", pr->path);
 			if (parse_proc(pr)) {
@@ -7215,8 +7211,8 @@ handle_event(Display *dpy, XEvent *e)
 	}
 }
 
-static void set_pid(Process *pr);
-static void set_id(Process *pr);
+static void set_seq_pid(Process *pr);
+static void set_seq_id(Process *pr);
 
 static void
 reset_pid(pid_t pid, Process *pr)
@@ -7225,8 +7221,8 @@ reset_pid(pid_t pid, Process *pr)
 	if (pid) {
 		/* this is the parent */
 		pr->pid = pid;
-		set_pid(pr);
-		set_id(pr);
+		set_seq_pid(pr);
+		set_seq_id(pr);
 		if (options.output > 1)
 			show_sequence("Final notify fields", pr->seq);
 		if (options.info)
@@ -7234,8 +7230,8 @@ reset_pid(pid_t pid, Process *pr)
 	} else {
 		/* this is the child */
 		pr->pid = getpid();
-		set_pid(pr);
-		set_id(pr);
+		set_seq_pid(pr);
+		set_seq_id(pr);
 	}
 }
 
@@ -8006,7 +8002,7 @@ launch(Process *pr)
 }
 
 static void
-set_screen(Process *pr)
+set_seq_screen(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8220,7 +8216,7 @@ find_pointer_monitor(Display *dpy, int *monitor)
 }
 
 static void
-set_monitor(Process *pr)
+set_seq_monitor(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8257,7 +8253,7 @@ set_monitor(Process *pr)
 }
 
 static void
-set_desktop(Process *pr)
+set_seq_desktop(Process *pr)
 {
 	Atom atom, real;
 	int format, monitor = 0;
@@ -8333,27 +8329,22 @@ set_desktop(Process *pr)
 }
 
 static void
-set_name(Process *pr)
+set_seq_name(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
-	char *pos;
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.name);
-	if (options.name)
-		s->f.name = strdup(options.name);
-	else if (e->Name)
+	if (e->Name)
 		s->f.name = strdup(e->Name);
-	else if (eargv)
-		s->f.name = (pos = strrchr(eargv[0], '/')) ? strdup(pos) : strdup(eargv[0]);
 	else
 		s->f.name = strdup("");	/* must be included in new: message */
 }
 
 static void
-set_description(Process *pr)
+set_seq_description(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8361,16 +8352,14 @@ set_description(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.description);
-	if (options.description)
-		s->f.description = strdup(options.description);
-	else if (e->Comment)
+	if (e->Comment)
 		s->f.description = strdup(e->Comment);
 	else
 		s->f.description = NULL;
 }
 
 static void
-set_icon(Process *pr)
+set_seq_icon(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8380,11 +8369,9 @@ set_icon(Process *pr)
 	assert(s != NULL && e != NULL);
 	free(s->f.icon);
 	icon = calloc(512, sizeof(*icon));
-	if (options.icon)
-		strcat(icon, options.icon);
-	else if (e->Icon)
+	if (e->Icon)
 		strcat(icon, e->Icon);
-	if ((p = strchr(icon, '/')) && p++)
+	if ((p = strrchr(icon, '/')) && p++)
 		memmove(icon, p, strlen(p) + 1);
 	if ((p = strstr(icon, ".xpm")) && *(p + 4) == '\0')
 		*p = '\0';
@@ -8402,7 +8389,7 @@ set_icon(Process *pr)
 }
 
 static void
-set_action(Process *pr)
+set_seq_action(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8417,7 +8404,7 @@ set_action(Process *pr)
 }
 
 static void
-set_autostart(Process *pr)
+set_seq_autostart(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8435,7 +8422,7 @@ set_autostart(Process *pr)
 }
 
 static void
-set_xsession(Process *pr)
+set_seq_xsession(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8453,21 +8440,15 @@ set_xsession(Process *pr)
 }
 
 static char *
-set_wmclass(Process *pr)
+set_seq_wmclass(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
-	char *pos;
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.wmclass);
-	if (options.wmclass)
-		s->f.wmclass = strdup(options.wmclass);
-	else if (eargv)
-		s->f.wmclass = (pos = strrchr(eargv[0], '/'))
-		    ? strdup(pos) : strdup(eargv[0]);
-	else if (e->StartupWMClass)
+	if (e->StartupWMClass)
 		s->f.wmclass = strdup(e->StartupWMClass);
 	else
 		s->f.wmclass = NULL;
@@ -8475,7 +8456,7 @@ set_wmclass(Process *pr)
 }
 
 static void
-set_pid(Process *pr)
+set_seq_pid(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8496,7 +8477,7 @@ set_pid(Process *pr)
 }
 
 static void
-set_hostname(Process *pr)
+set_seq_hostname(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8513,7 +8494,7 @@ set_hostname(Process *pr)
 }
 
 static void
-set_sequence(Process *pr)
+set_seq_sequence(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8531,7 +8512,7 @@ set_sequence(Process *pr)
 }
 
 static void
-set_timestamp(Process *pr)
+set_seq_timestamp(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8629,7 +8610,7 @@ truth_value(char *p)
 }
 
 static char *
-set_command(Process *pr)
+set_seq_command(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8648,11 +8629,8 @@ set_command(Process *pr)
 			s->f.wmclass = strdup(s->f.application_id);
 		}
 		if (!s->f.wmclass && s->f.bin) {
-			char *p;
-
 			free(s->f.wmclass);
-			s->f.wmclass = (p = strrchr(s->f.bin, '/')) ?
-			    strdup(p) : strdup(s->f.bin);
+			s->f.wmclass = strdup(basename(s->f.bin));
 		}
 		if (!s->f.wmclass) {
 			free(s->f.wmclass);
@@ -8679,7 +8657,7 @@ set_command(Process *pr)
 }
 
 static void
-set_silent(Process *pr)
+set_seq_silent(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8687,7 +8665,7 @@ set_silent(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.silent);
-	if (!truth_value(e->StartupNotify) && !s->f.wmclass && !set_wmclass(pr)) {
+	if (!truth_value(e->StartupNotify) && !s->f.wmclass && !set_seq_wmclass(pr)) {
 		s->f.silent = calloc(64, sizeof(*s->f.silent));
 		snprintf(s->f.silent, 64, "%d", 1);
 	} else
@@ -8703,7 +8681,7 @@ first_word(const char *str)
 }
 
 static char *
-set_bin(Process *pr)
+set_seq_bin(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8712,17 +8690,13 @@ set_bin(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	free(s->f.bin);
-	if (options.binary)
-		s->f.bin = strdup(options.binary);
-	else if (eargv)
-		s->f.bin = strdup(eargv[0]);
-	else if (s->f.id && (p = strrchr(s->f.id, '/')) && p++ && (q = strchr(p, '-')))
+	if (s->f.id && (p = strrchr(s->f.id, '/')) && p++ && (q = strchr(p, '-')))
 		s->f.bin = strndup(p, q - p);
 	else if (e->TryExec)
 		s->f.bin = first_word(e->TryExec);
 	else if (e->Exec)
 		s->f.bin = first_word(e->Exec);
-	else if (!truth_value(e->Terminal) && (s->f.command || set_command(pr)))
+	else if (!truth_value(e->Terminal) && (s->f.command || set_seq_command(pr)))
 		s->f.bin = first_word(s->f.command);
 	else
 		s->f.bin = NULL;
@@ -8731,7 +8705,7 @@ set_bin(Process *pr)
 }
 
 static char *
-set_application_id(Process *pr)
+set_seq_application_id(Process *pr)
 {
 	Sequence *s = pr->seq;
 
@@ -8748,44 +8722,48 @@ set_application_id(Process *pr)
 }
 
 static void
-set_launcher(Process *pr)
+set_seq_launcher(Process *pr)
 {
 	Sequence *s = pr->seq;
-	Entry *e = pr->ent;
 	char *p;
+	const char *launcher = NAME;
+	size_t len = strlen(NAME);
 
 	PTRACE(5);
-	assert(s != NULL && e != NULL);
+	assert(s != NULL);
 	free(s->f.launcher);
-	/* XXX: should likely only do this for applications */
-	if (options.launcher)
-		s->f.launcher = strdup(options.launcher);
-	else if (s->f.id && (p = strchr(s->f.id, '/')))
-		s->f.launcher = strndup(s->f.id, p - s->f.id);
-	else {
-		const char *launcher = NAME;
-
-		switch (pr->type) {
-		case LaunchType_Session:
-			launcher = "xdg-session";
-			break;
-		case LaunchType_Autostart:
-			launcher = "xdg-autostart";
-			break;
-		case LaunchType_XSession:
-			launcher = "xdg-xsession";
-			break;
-		case LaunchType_Application:
+	switch (pr->type) {
+	case LaunchType_Session:
+		launcher = "xdg-session";
+		len = strlen(launcher);
+		break;
+	case LaunchType_Autostart:
+		launcher = "xdg-autostart";
+		len = strlen(launcher);
+		break;
+	case LaunchType_XSession:
+		launcher = "xdg-xsession";
+		len = strlen(launcher);
+		break;
+	case LaunchType_Application:
+		if (options.launcher) {
+			launcher = options.launcher;
+			len = strlen(launcher);
+		} else if (s->f.id && (p = strchr(s->f.id, '/'))) {
+			launcher = s->f.id;
+			len = p - s->f.id;
+		} else {
 			launcher = NAME;
-			break;
+			len = strlen(launcher);
 		}
-		s->f.launcher = strdup(launcher);
+		break;
 	}
+	s->f.launcher = strndup(launcher, len);
 	for (; (p = strchr(s->f.launcher, '|')); *p = '/') ;
 }
 
 static void
-set_launchee(Process *pr)
+set_seq_launchee(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8798,9 +8776,9 @@ set_launchee(Process *pr)
 		s->f.launchee = strdup(options.launchee);
 	else if (s->f.id && (p = strchr(s->f.id, '/')) && p++ && (q = strchr(p, '/')))
 		s->f.launchee = strndup(p, q - p);
-	else if (s->f.bin || set_bin(pr))
+	else if (s->f.bin || set_seq_bin(pr))
 		s->f.launchee = strdup(s->f.bin);
-	else if (s->f.application_id || set_application_id(pr))
+	else if (s->f.application_id || set_seq_application_id(pr))
 		s->f.launchee = strdup(s->f.application_id);
 	else
 		s->f.launchee = strdup("");
@@ -8808,7 +8786,7 @@ set_launchee(Process *pr)
 }
 
 static void
-set_id(Process *pr)
+set_seq_id(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8826,17 +8804,17 @@ set_id(Process *pr)
 		return;
 	}
 	if (!s->f.launcher)
-		set_launcher(pr);
+		set_seq_launcher(pr);
 	if (!s->f.launchee)
-		set_launchee(pr);
+		set_seq_launchee(pr);
 	if (!s->f.pid)
-		set_pid(pr);
+		set_seq_pid(pr);
 	if (!s->f.sequence)
-		set_sequence(pr);
+		set_seq_sequence(pr);
 	if (!s->f.hostname)
-		set_hostname(pr);
+		set_seq_hostname(pr);
 	if (!s->f.timestamp)
-		set_timestamp(pr);
+		set_seq_timestamp(pr);
 
 	/* canonicalize paths */
 	launcher = strdup(s->f.launcher);
@@ -8853,7 +8831,76 @@ set_id(Process *pr)
 }
 
 static void
-set_all(Process *pr)
+set_ent_all(Process *pr)
+{
+	Entry *e = pr->ent;
+	char *str;
+
+	switch (pr->type) {
+	case LaunchType_Application:
+		free(e->Type);
+		e->Type = strdup("Application");
+		break;
+	case LaunchType_Autostart:
+		free(e->Type);
+		e->Type = strdup("Autostart");
+		break;
+	case LaunchType_XSession:
+	case LaunchType_Session:
+		free(e->Type);
+		e->Type = strdup("XSession");
+		break;
+	}
+	if (options.name) {
+		free(e->Name);
+		e->Name = strdup(options.name);
+	} else if (!e->Name) {
+		if ((str = options.exec)) {
+			str = first_word(options.exec);
+			e->Name = strdup(basename(str));
+			free(str);
+		} else if ((str = options.binary))
+			e->Name = strdup(basename(str));
+		else if (eargv && (str = eargv[0]))
+			e->Name = strdup(basename(str));
+	}
+	if (options.description) {
+		free(e->Comment);
+		e->Comment = strdup(options.description);
+	}
+	if (options.icon) {
+		free(e->Icon);
+		e->Icon = strdup(options.icon);
+	}
+	if (options.exec) {
+		free(e->Exec);
+		e->Exec = strdup(options.exec);
+	} else if (!e->Exec) {
+		if (eargv) {
+			// FIXME: quote command args to Exec
+		}
+	}
+	if (!e->TryExec) {
+		if ((str = options.exec))
+			e->TryExec = first_word(str);
+		else if ((str = options.binary))
+			e->TryExec = strdup(str);
+		else if (eargv && (str = eargv[0]))
+			e->TryExec = strdup(str);
+	}
+	if (options.wmclass) {
+		free(e->StartupWMClass);
+		e->StartupWMClass = strdup(options.wmclass);
+	} else if (!e->StartupWMClass) {
+		if ((str = options.binary))
+			e->StartupWMClass = strdup(basename(str));
+		else if (eargv && (str = eargv[0]))
+			e->StartupWMClass = strdup(basename(str));
+	}
+}
+
+static void
+set_seq_all(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8861,43 +8908,43 @@ set_all(Process *pr)
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
 	if (!s->f.name)
-		set_name(pr);
+		set_seq_name(pr);
 	if (!s->f.icon)
-		set_icon(pr);
+		set_seq_icon(pr);
 	if (!s->f.bin)
-		set_bin(pr);
+		set_seq_bin(pr);
 	if (!s->f.description)
-		set_description(pr);
+		set_seq_description(pr);
 	if (!s->f.wmclass)
-		set_wmclass(pr);
+		set_seq_wmclass(pr);
 	if (!s->f.silent)
-		set_silent(pr);
+		set_seq_silent(pr);
 	if (!s->f.application_id)
-		set_application_id(pr);
+		set_seq_application_id(pr);
 	if (!s->f.screen)
-		set_screen(pr);
+		set_seq_screen(pr);
 	/* must be on correct screen before doing monitor */
 	if (!s->f.monitor)
-		set_monitor(pr);
+		set_seq_monitor(pr);
 	/* must be on correct screen before doing desktop */
 	if (!s->f.desktop)
-		set_desktop(pr);
+		set_seq_desktop(pr);
 	if (!s->f.timestamp)
-		set_timestamp(pr);
+		set_seq_timestamp(pr);
 	if (!s->f.hostname)
-		set_hostname(pr);
+		set_seq_hostname(pr);
 	if (!s->f.action)
-		set_action(pr);
+		set_seq_action(pr);
 	if (!s->f.command)
-		set_command(pr);
+		set_seq_command(pr);
 	if (!s->f.pid)
-		set_pid(pr);
+		set_seq_pid(pr);
 	if (!s->f.autostart)
-		set_autostart(pr);
+		set_seq_autostart(pr);
 	if (!s->f.xsession)
-		set_xsession(pr);
+		set_seq_xsession(pr);
 	if (!s->f.id)
-		set_id(pr);
+		set_seq_id(pr);
 }
 
 #ifdef GIO_GLIB2_SUPPORT
@@ -9952,7 +9999,7 @@ spawn_child(Process *pr)
 	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
 	if (!(s = pr->seq = calloc(1, sizeof(*s))))
 		return (False);
-	set_all(pr);
+	set_seq_all(pr);
 	if (options.output > 1)
 		show_sequence("Associated sequence", s);
 	if (options.info)
@@ -10013,7 +10060,7 @@ setup_window_manager(Process *pr)
 	pid = getpid();
 	if (!(s = pr->seq = calloc(1, sizeof(*s))))
 		return (False);
-	set_all(pr);
+	set_seq_all(pr);
 	if (options.output > 1)
 		show_sequence("Associated sequence", s);
 	if (options.info)
@@ -10816,7 +10863,7 @@ set_defaults(int argc, char *argv[])
 {
 	char *buf, *disp, *p;
 
-	buf = (p = strrchr(argv[0], '/')) ? p + 1 : argv[0];
+	buf = basename(argv[0]);
 	if (!strcmp(buf, "xdg-xsession")) {
 		defaults.type = options.type = LaunchType_XSession;
 		free(options.launcher);
@@ -11110,7 +11157,7 @@ main(int argc, char *argv[])
 			val = strtoul(optarg, &endptr, 0);
 			if (*endptr || val < 0)
 				goto bad_option;
-			defaults.ppid = val;
+			defaults.ppid = options.ppid = val;
 			break;
 		case 12:	/* --autowait */
 			defaults.autowait = options.autowait = True;
@@ -11361,6 +11408,7 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
+	set_ent_all(pr); /* fill in entry from options */
 	if (options.file && options.file[0] && !options.url) {
 		if (options.file[0] == '/') {
 			int size = strlen("file://") + strlen(options.file) + 1;
@@ -11408,7 +11456,7 @@ main(int argc, char *argv[])
 	}
 	if (eargv || pr->ent->Exec) {
 		/* fill out all fields */
-		set_all(pr);
+		set_seq_all(pr);
 		if (!options.info)
 			put_history(pr);
 	}
