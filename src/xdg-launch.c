@@ -204,7 +204,6 @@ typedef struct {
 	Bool xsession;
 	Bool autostart;
 	Bool session;
-	char *path;
 	char *uri;
 	char *rawcmd;
 	char *runhist;
@@ -264,7 +263,6 @@ Options options = {
 	.xsession = False,
 	.autostart = False,
 	.session = False,
-	.path = NULL,
 	.uri = NULL,
 	.rawcmd = NULL,
 	.runhist = NULL,
@@ -323,7 +321,6 @@ Options defaults = {
 	.xsession = False,
 	.autostart = False,
 	.session = False,
-	.path = NULL,
 	.uri = NULL,
 	.runhist = "~/.config/xde/run-history",
 	.recapps = "~/.config/xde/recent-applications",
@@ -2099,6 +2096,25 @@ need_assistance(Display *dpy)
 
 static void free_entry(Entry *e);
 
+static char *
+strip_desktop(const char *p)
+{
+	char *q;
+
+	return (((q = strstr(p, ".desktop")) != p && !q[8])
+			? strndup(p, q - p)
+			: strdup(p));
+}
+
+static char *
+extract_appid(const char *path)
+{
+	const char *p;
+
+	p = (p = strrchr(path, '/')) ? p + 1 : path;
+	return (strip_desktop(p));
+}
+
 static Entry *
 parse_file(char *path)
 {
@@ -2310,6 +2326,24 @@ parse_file(char *path)
 	return (NULL);
 }
 
+static Bool
+parse_proc(Process *pr)
+{
+	if (!pr->path) {
+		EPRINTF("No file to parse!\n");
+		return (False);
+	}
+	if (!(pr->ent = parse_file(pr->path))) {
+		EPRINTF("could not parse file '%s'\n", pr->path);
+		return (False);
+	}
+	free(pr->path);
+	pr->path = strdup(pr->ent->path);
+	free(pr->appid);
+	pr->appid = extract_appid(pr->path);
+	return (True);
+}
+
 /** @brief look up the file from APPID.
   *
   * We search in the applications directories first (i.e.
@@ -2493,6 +2527,15 @@ lookup_file_by_name(const char *name)
 	return path;
 }
 
+static Bool
+lookup_proc_by_name(Process *pr, const char *name)
+{
+	if (!(pr->path = lookup_file_by_name(name)))
+		return False;
+	pr->appid = extract_appid(pr->path);
+	return True;
+}
+
 /** @brief look up the file from MIMETYPE
   *
   * Use glib to make the association.
@@ -2546,6 +2589,15 @@ lookup_file_by_type(const char *type)
 #endif
 	}
 	return NULL;
+}
+
+static Bool
+lookup_proc_by_type(Process *pr, const char *type)
+{
+	if (!(pr->path = lookup_file_by_type(type)))
+		return False;
+	pr->appid = extract_appid(pr->path);
+	return True;
 }
 
 static char *
@@ -2783,6 +2835,15 @@ lookup_file_by_kind(const char *type)
 	EPRINTF("cannot look up by category without GLIB/GIO support\n");
 	return (NULL);
 #endif
+}
+
+static Bool
+lookup_proc_by_kind(Process *pr, const char *kind)
+{
+	if (!(pr->path = lookup_file_by_kind(kind)))
+		return False;
+	pr->appid = extract_appid(pr->path);
+	return True;
 }
 
 static void
@@ -7810,12 +7871,13 @@ need_assist(Display *dpy, Process *pr)
   * invoked by the window manager in response to a keystroke.
   */
 static void
-launch(Display *dpy, Process *pr)
+launch(Process *pr)
 {
 	size_t size;
 	char *disp, *p;
 	Bool change_only = False;
 	Sequence *seq = pr->seq;
+	Display *dpy = get_display();
 
 	PTRACE(5);
 	assert(seq != NULL);
@@ -8168,7 +8230,7 @@ set_monitor(Process *pr)
 }
 
 static void
-set_desktop(Display *dpy, Process *pr)
+set_desktop(Process *pr)
 {
 	Atom atom, real;
 	int format, monitor = 0;
@@ -8616,25 +8678,6 @@ first_word(const char *str)
 }
 
 static char *
-strip_desktop(const char *p)
-{
-	char *q;
-
-	return (((q = strstr(p, ".desktop")) != p && !q[8])
-			? strndup(p, q - p)
-			: strdup(p));
-}
-
-static char *
-extract_appid(const char *path)
-{
-	const char *p;
-
-	p = (p = strrchr(path, '/')) ? p + 1 : path;
-	return (strip_desktop(p));
-}
-
-static char *
 set_bin(Process *pr)
 {
 	Sequence *s = pr->seq;
@@ -8666,16 +8709,15 @@ static char *
 set_application_id(Process *pr)
 {
 	Sequence *s = pr->seq;
-	Entry *e = pr->ent;
 
 	PTRACE(5);
-	assert(s != NULL && e != NULL);
+	assert(s != NULL);
 	free(s->f.application_id);
-	if (e->path) {
-		s->f.application_id = extract_appid(e->path);
-	} else if (options.appid) {
-		s->f.application_id = extract_appid(options.appid);
-	} else
+	if (pr->path)
+		s->f.application_id = extract_appid(pr->path);
+	else if (pr->appid)
+		s->f.application_id = extract_appid(pr->appid);
+	else
 		s->f.application_id = NULL;
 	return s->f.application_id;
 }
@@ -8774,7 +8816,7 @@ set_id(Process *pr)
 }
 
 static void
-set_all(Display *dpy, Process *pr)
+set_all(Process *pr)
 {
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
@@ -8802,7 +8844,7 @@ set_all(Display *dpy, Process *pr)
 		set_monitor(pr);
 	/* must be on correct screen before doing desktop */
 	if (!s->f.desktop)
-		set_desktop(dpy, pr);
+		set_desktop(pr);
 	if (!s->f.timestamp)
 		set_timestamp(pr);
 	if (!s->f.hostname)
@@ -8890,8 +8932,8 @@ put_recently_used_info(Process *pr)
 		DPRINTF(1, "do not recommend without an application id\n");
 		return;
 	}
-	if (options.path && !(info = g_desktop_app_info_new_from_filename(options.path))) {
-		EPRINTF("cannot find desktop file %s\n", options.path);
+	if (pr->path && !(info = g_desktop_app_info_new_from_filename(pr->path))) {
+		EPRINTF("cannot find desktop file %s\n", pr->path);
 		return;
 	}
 	if (!info) {
@@ -9867,7 +9909,7 @@ wait_exited_pid(pid_t pid)
 }
 
 static Bool
-spawn_child(Display *dpy, Process *pr)
+spawn_child(Process *pr)
 {
 	Sequence *s;
 	size_t size;
@@ -9876,7 +9918,7 @@ spawn_child(Display *dpy, Process *pr)
 	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
 	if (!(s = pr->seq = calloc(1, sizeof(*s))))
 		return (False);
-	set_all(dpy, pr);
+	set_all(pr);
 	if (options.output > 1)
 		show_sequence("Associated sequence", s);
 	if (options.info)
@@ -9927,7 +9969,7 @@ spawn_child(Display *dpy, Process *pr)
 }
 
 static char *
-setup_window_manager(Display *dpy, Process *pr)
+setup_window_manager(Process *pr)
 {
 	char *setup, *start;
 	Sequence *s;
@@ -9937,7 +9979,7 @@ setup_window_manager(Display *dpy, Process *pr)
 	pid = getpid();
 	if (!(s = pr->seq = calloc(1, sizeof(*s))))
 		return (False);
-	set_all(dpy, pr);
+	set_all(pr);
 	if (options.output > 1)
 		show_sequence("Associated sequence", s);
 	if (options.info)
@@ -10058,18 +10100,18 @@ run_phase(Display *dpy, AutostartPhase phase, int guard)
   * performs that function; otherwise, it exits.
   */
 static pid_t
-dispatcher(Display *dpy)
+dispatcher(void)
 {
 	sigset_t ss;
 	pid_t pid;
+	Display *dpy;
 
 	if ((pid = fork()) < 0) {
 		EPRINTF("fork(): %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	if (pid) {
-		/* parent returns: leaving child with XDisplay */
-		end_display(dpy);
+		/* parent returns */
 		return (pid);
 	}
 	pid = getpid();
@@ -10077,6 +10119,8 @@ dispatcher(Display *dpy)
 	sigemptyset(&ss);
 	sigaddset(&ss, SIGSTOP);
 	sigprocmask(SIG_UNBLOCK, &ss, NULL);
+
+	dpy = get_display();
 
 	/* wait for group leader to tell us to go */
 	DPRINTF(1, "PID %d is stopping itself\n", pid);
@@ -10130,7 +10174,7 @@ dispatcher(Display *dpy)
   * session leaders and still belong to the login session.
   */
 static void
-session(Display *dpy, Process *wm)
+session(Process *wm)
 {
 	pid_t sid, did;
 	char home[PATH_MAX + 1];
@@ -10357,7 +10401,7 @@ session(Display *dpy, Process *wm)
 	options.assist = False;
 	options.autowait = False;
 
-	setup = setup_window_manager(dpy, wm);
+	setup = setup_window_manager(wm);
 
 	phase = wm->phase = want_phase(wm);
 	wm->wait_for = want_resource(wm);
@@ -10393,11 +10437,11 @@ session(Display *dpy, Process *wm)
 		if (phases[phase])
 			for (pp = phases[phase]; (pr = *pp); pp++)
 				if (pr != wm)
-					spawn_child(dpy, pr);
+					spawn_child(pr);
 
 	/* fork off dispatcher */
 	DPRINTF(1, "Creating dispatcher...\n");
-	did = dispatcher(dpy);
+	did = dispatcher();
 	DPRINTF(1, "...dispatcher PID is %d\n", did);
 	wait_stopped_pid(did);
 	/* dispatcher startup complete*/
@@ -10788,7 +10832,6 @@ main(int argc, char *argv[])
 {
 	int exec_mode = 0;		/* application mode is default */
 	Process *pr;
-	Entry *e;
 	Sequence *s;
 	char *p;
 
@@ -11225,73 +11268,63 @@ main(int argc, char *argv[])
 	    && !options.exec && !options.session) {
 		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
-	} else if (eargv) {
-		p = strrchr(eargv[0], '/');
-		p = p ? p + 1 : eargv[0];
-		free(options.path);
-		options.path = lookup_file_by_name(p);
-	} else if (options.appid) {
-		free(options.path);
-		if (!(options.path = lookup_file_by_name(options.appid))) {
-			EPRINTF("could not find file for name '%s'\n", options.appid);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.mimetype) {
-		free(options.path);
-		if (!(options.path = lookup_file_by_type(options.mimetype))) {
-			EPRINTF("could not find file for type '%s'\n", options.mimetype);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.category) {
-		free(options.path);
-		if (!(options.path = lookup_file_by_kind(options.category))) {
-			EPRINTF("could not find file for kind '%s'\n", options.category);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.appspec) {
-		free(options.path);
-		options.path = NULL;
-		if (!options.path && (options.path = lookup_file_by_name(options.appspec))) {
-			free(options.appid);
-			options.appid = strdup(options.appspec);
-		}
-		if (!options.path && (options.path = lookup_file_by_type(options.appspec))) {
-			free(options.mimetype);
-			options.mimetype = strdup(options.appspec);
-		}
-		if (!options.path && (options.path = lookup_file_by_kind(options.appspec))) {
-			free(options.category);
-			options.category = strdup(options.appspec);
-		}
-		if (!options.path) {
-			EPRINTF("could not find file for spec '%s'\n", options.appspec);
-			exit(EXIT_FAILURE);
-		}
 	}
 	if (!(pr = calloc(1, sizeof(*pr)))) {
 		EPRINTF("could not alloc process: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	if (options.path) {
-		if (!(e = pr->ent = parse_file(options.path))) {
-			EPRINTF("could not parse file '%s'\n", options.path);
+	if (eargv) {
+		/* it is not an error if this fails: worth a shot */
+		lookup_proc_by_name(pr, basename(eargv[0]));
+	} else if (options.appid) {
+		if (!lookup_proc_by_name(pr, options.appid)) {
+			EPRINTF("could not find file for name '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
-		pr->path = strdup(e->path);
-		pr->appid = extract_appid(e->path);
-		if (!e->Exec) {
-			EPRINTF("no exec command in '%s'\n", options.path);
+	} else if (options.mimetype) {
+		if (!lookup_proc_by_type(pr, options.mimetype)) {
+			EPRINTF("could not find file for type '%s'\n", options.mimetype);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.category) {
+		if (!lookup_proc_by_kind(pr, options.category)) {
+			EPRINTF("could not find file for kind '%s'\n", options.category);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.appspec) {
+		if (lookup_proc_by_name(pr, options.appspec)) {
+			free(options.appid);
+			options.appid = strdup(options.appspec);
+		} else if (lookup_proc_by_type(pr, options.appspec)) {
+			free(options.mimetype);
+			options.mimetype = strdup(options.appspec);
+		} else if (lookup_proc_by_kind(pr, options.appspec)) {
+			free(options.category);
+			options.category = strdup(options.appspec);
+		} else {
+			EPRINTF("could not find file for spec '%s'\n", options.appspec);
+			exit(EXIT_FAILURE);
+		}
+	}
+	if (pr->path) {
+		if (!parse_proc(pr)) {
+			EPRINTF("could not parse file '%s'\n", pr->path);
+			exit(EXIT_FAILURE);
+		}
+		if (!pr->ent->Exec) {
+			/* FIXME: some dbus activation apps have no Exec */
+			EPRINTF("no exec command in '%s'\n", pr->path);
 			exit(EXIT_FAILURE);
 		}
 	} else {
-		if (!(e = pr->ent = calloc(1, sizeof(*e)))) {
+		if (!(pr->ent = calloc(1, sizeof(*pr->ent)))) {
 			EPRINTF("could not allocate entry: %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 		if (options.exec)
-			e->Exec = strdup(options.exec);
+			pr->ent->Exec = strdup(options.exec);
 		else if (eargv)
-			e->TryExec = strdup(eargv[0]);
+			pr->ent->TryExec = strdup(eargv[0]);
 		else if (!options.session) {
 			EPRINTF("could not find .desktop file for APPSPEC\n");
 			exit(EXIT_FAILURE);
@@ -11327,9 +11360,9 @@ main(int argc, char *argv[])
 		options.file = strdup(options.url + 7);
 	}
 	if (options.output > 1)
-		show_entry("Entries", e);
+		show_entry("Entries", pr->ent);
 	if (options.info)
-		info_entry("Entries", e);
+		info_entry("Entries", pr->ent);
 	if (!(s = pr->seq = calloc(1, sizeof(*s)))) {
 		EPRINTF("could not allocate sequence: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -11342,18 +11375,16 @@ main(int argc, char *argv[])
 		s->f.id = strdup(options.id);
 		myid = s->f.id;
 	}
-	/* open display now */
-	Display *dpy = get_display();
-	if (eargv || e->Exec) {
+	if (eargv || pr->ent->Exec) {
 		/* fill out all fields */
-		set_all(dpy, pr);
+		set_all(pr);
 		if (!options.info)
 			put_history(pr);
 	}
 	if (options.session)
-		session(dpy, pr);
+		session(pr);
 	else
-		launch(dpy, pr);
+		launch(pr);
 	exit(EXIT_SUCCESS);
 }
 
