@@ -163,9 +163,8 @@ int eargc = 0;
 
 typedef enum {
 	CommandDefault = 0,
-	CommandMonitor,
-	CommandReplace,
-	CommandQuit,
+	CommandLaunch,
+	CommandSession,
 	CommandHelp,
 	CommandVersion,
 	CommandCopying,
@@ -181,6 +180,7 @@ typedef enum {
 typedef struct {
 	int debug;
 	int output;
+	Command command;
 	char *appspec;
 	char *appid;
 	char *mimetype;
@@ -238,6 +238,7 @@ typedef struct {
 Options options = {
 	.debug = 0,
 	.output = 1,
+	.command = CommandDefault,
 	.appspec = NULL,
 	.appid = NULL,
 	.mimetype = NULL,
@@ -295,6 +296,7 @@ Options options = {
 Options defaults = {
 	.debug = 0,
 	.output = 1,
+	.command = CommandDefault,
 	.appspec = "[APPID|MIMETYPE|CATEGORY]",
 	.appid = "[APPID]",
 	.mimetype = "[MIMETYPE]",
@@ -10905,9 +10907,21 @@ set_defaults(int argc, char *argv[])
 	set_default_files();
 }
 
+static void
+get_defaults(int argc, char *argv[])
+{
+	if (!options.recent) {
+		char *recent = eargv ? defaults.runhist : defaults.recapps;
+
+		free(options.recent);
+		defaults.recent = options.recent = strdup(recent);
+	}
+}
+
 int
 main(int argc, char *argv[])
 {
+	Command command = CommandDefault;
 	int exec_mode = 0;		/* application mode is default */
 	Process *pr;
 	Sequence *s;
@@ -11136,6 +11150,11 @@ main(int argc, char *argv[])
 		case 'X':	/* -X, --xsession */
 			if (options.type != LaunchType_Application)
 				goto bad_option;
+			if (options.command != CommandDefault)
+				goto bad_command;
+			if (command == CommandDefault)
+				command = CommandLaunch;
+			options.command = CommandLaunch;
 			defaults.type = options.type = LaunchType_XSession;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-xsession");
@@ -11143,6 +11162,11 @@ main(int argc, char *argv[])
 		case 'U':	/* -U, --autostart */
 			if (options.type != LaunchType_Application)
 				goto bad_option;
+			if (options.command != CommandDefault)
+				goto bad_command;
+			if (command == CommandDefault)
+				command = CommandLaunch;
+			options.command = CommandLaunch;
 			defaults.type = options.type = LaunchType_Autostart;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-autostart");
@@ -11150,6 +11174,11 @@ main(int argc, char *argv[])
 		case 'E':	/* -E, --session */
 			if (options.type != LaunchType_Application)
 				goto bad_option;
+			if (options.command != CommandDefault)
+				goto bad_command;
+			if (command == CommandDefault)
+				command = CommandSession;
+			options.command = CommandSession;
 			defaults.type = options.type = LaunchType_Session;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-session");
@@ -11266,20 +11295,22 @@ main(int argc, char *argv[])
 			break;
 		case 'h':	/* -h, --help */
 		case 'H':	/* -H, --? */
-			if (options.debug)
-				fprintf(stderr, "%s: printing help message\n", argv[0]);
-			help(argc, argv);
-			exit(EXIT_SUCCESS);
+			command = CommandHelp;
+			break;
 		case 'V':	/* -V, --version */
-			if (options.debug)
-				fprintf(stderr, "%s: printing version message\n", argv[0]);
-			version(argc, argv);
-			exit(EXIT_SUCCESS);
+			if (options.command != CommandDefault)
+				goto bad_command;
+			if (command == CommandDefault)
+				command = CommandVersion;
+			options.command = CommandVersion;
+			break;
 		case 'C':	/* -C, --copying */
-			if (options.debug)
-				fprintf(stderr, "%s: printing copying message\n", argv[0]);
-			copying(argc, argv);
-			exit(EXIT_SUCCESS);
+			if (options.command != CommandDefault)
+				goto bad_command;
+			if (command == CommandDefault)
+				command = CommandCopying;
+			options.command = CommandCopying;
+			break;
 		case '?':
 		default:
 		      bad_option:
@@ -11300,17 +11331,14 @@ main(int argc, char *argv[])
 				usage(argc, argv);
 			}
 			exit(2);
+		      bad_command:
+			fprintf(stderr, "%s: only one command option allowed\n", argv[0]);
+			goto bad_usage;
 		}
 	}
 	if (options.debug) {
 		fprintf(stderr, "%s: option index = %d\n", argv[0], optind);
 		fprintf(stderr, "%s: option count = %d\n", argv[0], argc);
-	}
-	if (!options.recent) {
-		char *recent = exec_mode ? defaults.runhist : defaults.recapps;
-
-		free(options.recent);
-		defaults.recent = options.recent = strdup(recent);
 	}
 	if (exec_mode) {
 		int i;
@@ -11342,6 +11370,29 @@ main(int argc, char *argv[])
 				goto bad_nonopt;
 		}
 	}
+
+	get_defaults(argc, argv);
+
+	switch (command) {
+	case CommandHelp:
+		if (options.debug)
+			fprintf(stderr, "%s: printing help message\n", argv[0]);
+		help(argc, argv);
+		exit(EXIT_SUCCESS);
+	case CommandVersion:
+		if (options.debug)
+			fprintf(stderr, "%s: printing version message\n", argv[0]);
+		version(argc, argv);
+		exit(EXIT_SUCCESS);
+	case CommandCopying:
+		if (options.debug)
+			fprintf(stderr, "%s: printing copying message\n", argv[0]);
+		copying(argc, argv);
+		exit(EXIT_SUCCESS);
+	default:
+		break;
+	}
+
 	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec) {
 		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
