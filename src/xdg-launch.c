@@ -10693,38 +10693,46 @@ Options:\n\
         interpret entry as xsession instead of application, [default: '%18$s']\n\
     -U, --autostart\n\
         interpret entry as autostart instead of application, [default: '%19$s']\n\
+    -E, --session\n\
+        interpret entry as xsession with autostart, [default: '%20$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%20$d']\n\
+        specify NUMBER of recent applications to keep, [default: '%21$d']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%21$s']\n\
+        specify FILENAME of recent apps file, [default: '%22$s']\n\
     -I, --info\n\
-        print information about entry instead of launching, [default: '%22$s']\n\
+        print information about entry instead of launching, [default: '%23$s']\n\
+    --ppid\n\
+        specify parent PID of subreaper, [default: '%24$d']\n\
+    --autowait, --no-autowait\n\
+        automatically determine wait for resources, [default: '%25$s']\n\
     -T, --toolwait\n\
-        wait for startup to complete and then exit, [default: '%23$s']\n\
+        wait for startup to complete and then exit, [default: '%26$s']\n\
     --timeout SECONDS\n\
-        consider startup complete after SECONDS seconds, [default: '%24$d']\n\
+        consider startup complete after SECONDS seconds, [default: '%27$d']\n\
     --mappings MAPPINGS\n\
-        consider startup complete after MAPPINGS mappings, [default: '%25$d']\n\
+        consider startup complete after MAPPINGS mappings, [default: '%28$d']\n\
     --withdrawn\n\
-        consider withdrawn state mappings, [default: '%26$s']\n\
+        consider withdrawn state mappings, [default: '%29$s']\n\
     --pid\n\
-        print the pid of the process to standard out, [default: '%27$s']\n\
+        print the pid of the process to standard out, [default: '%30$s']\n\
     --wid\n\
-        print the window id to standard out, [default: '%28$s']\n\
+        print the window id to standard out, [default: '%31$s']\n\
     --noprop\n\
-        use top-level creations instead of mappings, [default: '%29$s']\n\
+        use top-level creations instead of mappings, [default: '%32$s']\n\
+    --assist, --no-assist\n\
+        assist window manager with startup notify complete, [default: '%33$s']\n\
     -M, --manager\n\
-        wait for window manager before launching, [default: '%30$s']\n\
+        wait for window manager before launching, [default: '%34$s']\n\
     -Y, --tray\n\
-        wait for system tray before launching, [default: '%31$s']\n\
+        wait for system tray before launching, [default: '%35$s']\n\
     -G, --pager\n\
-        wait for desktop pager before launching, [default: '%32$s']\n\
+        wait for desktop pager before launching, [default: '%36$s']\n\
     -O, --composite\n\
-        wait for composite manager before launching, [default: '%33$s']\n\
+        wait for composite manager before launching, [default: '%37$s']\n\
     -R, --audio\n\
-        wait for audio server before launching, [default: '%34$s']\n\
+        wait for audio server before launching, [default: '%38$s']\n\
     -g, --guard [SECONDS]\n\
-        only wait for resources for SECONDS, [default: '%35$d']\n\
+        only wait for resources for SECONDS, [default: '%39$d']\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -10755,9 +10763,12 @@ Options:\n\
 	, defaults.action
 	, show_bool(defaults.type == LaunchType_XSession)
 	, show_bool(defaults.type == LaunchType_Autostart)
+	, show_bool(defaults.type == LaunchType_Session)
 	, defaults.keep
 	, defaults.recapps
 	, show_bool(defaults.info)
+	, defaults.ppid
+	, show_bool(defaults.autowait)
 	, show_bool(defaults.toolwait)
 	, defaults.timeout
 	, defaults.mappings
@@ -10765,6 +10776,7 @@ Options:\n\
 	, show_bool(defaults.printpid)
 	, show_bool(defaults.printwid)
 	, show_bool(defaults.noprop)
+	, show_bool(defaults.assist)
 	, show_bool(defaults.manager)
 	, show_bool(defaults.tray)
 	, show_bool(defaults.pager)
@@ -10854,6 +10866,8 @@ set_default_pids(void)
 		if (!*endptr && ppid > 0) {
 			defaults.ppid = options.ppid = ppid;
 		}
+	} else {
+		defaults.ppid = options.ppid = getpgid(0);
 	}
 	defaults.pid = options.pid = getpid();
 }
