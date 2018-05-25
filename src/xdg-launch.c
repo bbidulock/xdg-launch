@@ -8128,7 +8128,12 @@ set_seq_screen(Process *pr)
 	if (pr->type != LaunchType_Application)
 		return;
 	if (options.screen == -1) {
-		Display *dpy = XOpenDisplay(0);
+		Display *dpy;
+
+		if (!(dpy = XOpenDisplay(0))) {
+			EPRINTF("cannot open display %s\n", getenv("DISPLAY"));
+			exit(EXIT_FAILURE);
+		}
 
 		if (options.keyboard || !options.pointer)
 			if (find_focus_screen(dpy, &options.screen))
