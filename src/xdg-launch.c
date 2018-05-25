@@ -1909,7 +1909,7 @@ get_frame(Display *dpy, Window win)
 static Window
 get_focus_frame(Display *dpy)
 {
-	Window focus;
+	Window focus = None;
 	int di;
 
 	XGetInputFocus(dpy, &focus, &di);
@@ -1920,39 +1920,77 @@ get_focus_frame(Display *dpy)
 	return get_frame(dpy, focus);
 }
 
-static XdgScreen *
-find_focus_screen(Display *dpy)
+static Bool
+screen_from_root(Display *dpy, Window sroot, int *screen)
 {
-	Window frame, froot;
-	int di;
-	unsigned int du;
-	XdgScreen *scr = NULL;
+	int s, n;
 
-	if (!(frame = get_focus_frame(dpy)))
-		return (scr);
-
-	if (!XGetGeometry(dpy, frame, &froot, &di, &di, &du, &du, &du, &du))
-		return (scr);
-
-	if ((scr = set_screen_of_root(dpy, froot))) {
-		XSaveContext(dpy, frame, ScreenContext, (XPointer) scr);
-		return (scr);
+	for (s = 0, n = ScreenCount(dpy); s < n; s++) {
+		if (sroot == RootWindow(dpy, s)) {
+			*screen = s;
+			return (True);
+		}
 	}
-
-	return (scr);
+	EPRINTF("could not find screen for root window 0x%08lx\n", sroot);
+	return (False);
 }
 
-static XdgScreen *
-find_pointer_screen(Display *dpy)
+/** @brief find screen that contains the pointer
+  *
+  * We need to simplify this so that it can be done with a simple X display
+  * connection.  Always return a screen number, which is valid after we close
+  * the X display, instead of a structure.  Query the pointer with the default
+  * root window, and check the return value.  If false and proot is not None,
+  * then the look through the Screen structures for one that has the
+  * corresponding root while tracking the screen number.
+  */
+static Bool
+find_pointer_screen(Display *dpy, int *screen)
 {
 	Window proot = None, dw;
-	int di;
 	unsigned int du;
-	XdgScreen *scr = screens;
+	int di;
 
-	if (XQueryPointer(dpy, scr->root, &proot, &dw, &di, &di, &di, &di, &du))
-		return (scr);
-	return set_screen_of_root(dpy, proot);
+	if (XQueryPointer(dpy, DefaultRootWindow(dpy), &proot, &dw, &di, &di, &di, &di, &du)) {
+		*screen = DefaultScreen(dpy);
+		return (True);
+	}
+	return screen_from_root(dpy, proot, screen);
+}
+
+static Bool
+find_focus_screen(Display *dpy, int *screen)
+{
+	Window focus = None, froot = None, dw;
+
+	XGetInputFocus(dpy, &focus, NULL);
+	switch (focus) {
+	case None:
+		/* If focus is None, all keyboard events are discarded until a new focus
+		   window is set.  When this is the case, we should use the default
+		   screen. */
+		DPRINTF(1, "focus = None: cannot find focus screen\n");
+		return (False);
+	case PointerRoot:
+		/* If focus is PointerRoot, the focus window is dynamically taken to be
+		   the root window of whatever screen the point is on at each keyboard
+		   event.  When this is the case, we should use the screen that contains
+		   the pointer. */
+		DPRINTF(1, "focus = PointerRoot: focus screen is pointer screen\n");
+		return find_pointer_screen(dpy, screen);
+	default:
+		/* If the focus is a window, we need to determine the root window of the
+		   window using XQueryTree() and then find the screen from the root
+		   window, perhaps with XRRRootToScreen(), or by iterating through the
+		   screen numbers and matching the root window using the RootWindow()
+		   macro. */
+		DPRINTF(1, "focus = 0x%08lx: searching for focus root and screen\n", focus);
+		if (XQueryTree(dpy, focus, &froot, &dw, NULL, NULL))
+			return screen_from_root(dpy, froot, screen);
+		else
+			EPRINTF("could not query tree for window 0x%08lx\n", focus);
+		return (False);
+	}
 }
 
 static XdgScreen *
@@ -7924,31 +7962,29 @@ static void put_default(Process *pr);
 
 /** @brief launch the application
   *
-  * I want to rethink this a bit and user prctl() to set the subreaper to the
-  * desktop session process:
+  * We are launching a single application here.  We should take the approach
+  * that we are taking for sessions and spawn a stopped child before doing
+  * anything further.  We can use prctl(2) to set the sub-reaper so that the
+  * child will be reparented when we exit.  Careful not to open the display
+  * until after the stopped child is spawned.  Then we can wait for resources
+  * before allowing the child to continue.  If toolwait or assistance is
+  * required, we can hang around after the child is continued and perform the
+  * toolwait and assistance before exiting, which will reparent the child to
+  * the session or process group leader.  That is cleaner than the old approach
+  * of spawning an assistance child, which would turn into a zombie (unless
+  * SIGCHLD was intentionally ignored by the parent before spawning the child
+  * (see wait(2)), and then resetting it before launching: maybe we should
+  * try that first).  Another unfortunate thing is spawning children with the X
+  * display open seems problematic.
   *
-  * The issue here has always been that the PID must be included in the
-  * broadcast desktop startup sequence "new" command, but the PID of the child
-  * (if we fork) is not known until the child has actually forked.  One way to
-  * deal with this is to always have the child send the desktop startup
-  * notification before execvp(); however, we do not want to reinitialize the
-  * display after fork and we will be using the parent's display connection
-  * otherwise.  Perhaps a better way to do that consistent with letting the
-  * parent send the notification is to have the child stop itself with
-  * kill(getpid(), SIGSTOP) when it is ready to execvp and have the parent
-  * kill(childpid, SIGCONT) after the startup notification has been sent.  Then
-  * we can simply set O_CLOSEXEC on the DISPLAY connection.
-  *
-  * This would allow us to launch the application even before a toolwait, and
-  * then only signal SIGCONT when the toolwait condition has been met.
-  *
-  * With the above worked out, when we have a desktop session pid
-  * (XDG_SESSION_PID) the child can use prctl() to set its subreaper to the
-  * desktop session.  Then the desktop session need only listen for desktop
-  * startup notifications to obtain the pid of the application and then monitor
-  * the application process using its pid and SIGCHLD.  This serves to get the
-  * child process out from under the window manager when xdg-launch(1) has been
-  * invoked by the window manager in response to a keystroke.
+  * The other problem is setting all of the startup notification fields before
+  * spawning the child.  This is because the DESKTOP_STARTUP_ID must be set in
+  * the environment before or after spawning the child.  We use the launch
+  * sequence number as the monitor number, so need to determine which monitor we
+  * are on before generating the DESKTOP_STARTUP_ID.  If we didn't do that, it
+  * would not be necessary to start the X display before spawning the child.
+  * Maybe we should take the approach of opening and closing the X display just
+  * to get the monitor number, screen number and desktop number.
   */
 static void
 launch(Process *pr)
@@ -8070,43 +8106,44 @@ launch(Process *pr)
 	exit(127);
 }
 
+/** @brief set the screen to be used in startup notification
+  *
+  * We do not always have to call this function.  Sometimes, when the X display
+  * is on a single screen, the DISPLAY environment variable contains the screen
+  * number (eg. :1.0, where 0 is the screen number).  This is almost always the
+  * case nowadays.  Normally monitors (XINERAMA or RANDR) are used for
+  * multi-head setups instead of screens.  So, in the exceptional cases it might
+  * be ok to open the display just for the purpose of discovering the screen
+  * number.
+  */
 static void
 set_seq_screen(Process *pr)
 {
 	Sequence *s = pr->seq;
-	Entry *e = pr->ent;
 	char buf[24] = { 0, };
-	int screen = 0;
 
-	assert(s != NULL && e != NULL);
+	assert(s != NULL);
 	free(s->f.screen);
 	s->f.screen = NULL;
 	if (pr->type != LaunchType_Application)
 		return;
-	if ((screen = options.screen) == -1) {
-		if (screens) {
-			Display *dpy = screens[0].display;
-			XdgScreen *scr;
+	if (options.screen == -1) {
+		Display *dpy = XOpenDisplay(0);
 
-			if (options.keyboard && (scr = find_focus_screen(dpy)))
-				screen = scr->screen;
-			else if (options.pointer && (scr = find_pointer_screen(dpy)))
-				screen = scr->screen;
-			else if (!options.keyboard && !options.pointer
-				 && ((scr = find_focus_screen(dpy)) || (scr = find_pointer_screen(dpy))))
-				screen = scr->screen;
-			else {
-				options.screen = DefaultScreen(dpy);
-				scr = screens + DefaultScreen(dpy);
-				screen = scr->screen;
-			}
-		} else
+		if (options.keyboard || !options.pointer)
+			if (find_focus_screen(dpy, &options.screen))
+				goto done;
+		if (options.pointer || !options.keyboard)
+			if (find_pointer_screen(dpy, &options.screen))
+				goto done;
+	      done:
+		XCloseDisplay(dpy);
+		if (options.screen == -1)
 			return;
-		options.screen = screen;
 	}
-	snprintf(buf, sizeof(buf) - 1, "%d", screen);
+	snprintf(buf, sizeof(buf) - 1, "%d", options.screen);
 	s->f.screen = strdup(buf);
-	s->n.screen = screen;
+	s->n.screen = options.screen;
 	return;
 }
 
@@ -8225,6 +8262,10 @@ find_focus_monitor(Display *dpy, int *monitor)
 	return False;
 }
 
+/** @brief find the monitor that contains the pointer
+  *
+  * Note, we should be able to set screen and monitor simultaneously.
+  */
 static Bool
 find_pointer_monitor(Display *dpy, int *monitor)
 {
@@ -8236,8 +8277,8 @@ find_pointer_monitor(Display *dpy, int *monitor)
 	XQueryPointer(dpy, DefaultRootWindow(dpy), &proot, &dw, &x, &y, &di, &di, &du);
 #ifdef XINERAMA
 	if (XineramaQueryExtension(dpy, &di, &di) && XineramaIsActive(dpy)) {
-		int i, n;
 		XineramaScreenInfo *si;
+		int i, n;
 
 		if (!(si = XineramaQueryScreens(dpy, &n)) || n < 2)
 			goto no_xinerama;
@@ -8284,6 +8325,8 @@ find_pointer_monitor(Display *dpy, int *monitor)
 	return False;
 }
 
+/** @brief set the monitor to be used in startup notification
+  */
 static void
 set_seq_monitor(Process *pr)
 {
@@ -11691,10 +11734,6 @@ main(int argc, char *argv[])
 		free(s->f.id);
 		s->f.id = strdup(options.id);
 		myid = s->f.id;
-	}
-	if (options.info) {
-		OPRINTF(0, "Would launch %s %s from %s\n", show_type(pr->type), pr->appid, pr->path);
-		exit(EXIT_SUCCESS);
 	}
 	switch (command) {
 	case CommandLaunch:
