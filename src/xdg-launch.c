@@ -8121,31 +8121,30 @@ set_seq_screen(Process *pr)
 {
 	Sequence *s = pr->seq;
 	char buf[24] = { 0, };
+	Display *dpy;
 
 	assert(s != NULL);
 	free(s->f.screen);
 	s->f.screen = NULL;
 	if (pr->type != LaunchType_Application)
 		return;
-	if (options.screen == -1) {
-		Display *dpy;
-
-		if (!(dpy = XOpenDisplay(0))) {
-			EPRINTF("cannot open display %s\n", getenv("DISPLAY"));
-			exit(EXIT_FAILURE);
-		}
-
-		if (options.keyboard || !options.pointer)
-			if (find_focus_screen(dpy, &options.screen))
-				goto done;
-		if (options.pointer || !options.keyboard)
-			if (find_pointer_screen(dpy, &options.screen))
-				goto done;
-	      done:
-		XCloseDisplay(dpy);
-		if (options.screen == -1)
-			return;
+	if (options.screen != -1)
+		goto saveit;
+	if (!screens) {
+		EPRINTF("cannot set screen without X display\n");
+		return;
 	}
+	dpy = screens[0].display;
+
+	if (options.keyboard || !options.pointer)
+		if (find_focus_screen(dpy, &options.screen))
+			goto saveit;
+	if (options.pointer || !options.keyboard)
+		if (find_pointer_screen(dpy, &options.screen))
+			goto saveit;
+	EPRINTF("cannot determine screen\n");
+	return;
+      saveit:
 	snprintf(buf, sizeof(buf) - 1, "%d", options.screen);
 	s->f.screen = strdup(buf);
 	s->n.screen = options.screen;
@@ -8335,30 +8334,30 @@ set_seq_monitor(Process *pr)
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 	char buf[24] = { 0, };
+	Display *dpy;
 
 	assert(s != NULL && e != NULL);
 	free(s->f.monitor);
 	s->f.monitor = NULL;
 	if (pr->type != LaunchType_Application)
 		return;
-	if (options.monitor == -1) {
-		Display *dpy;
-
-		if (!(dpy = XOpenDisplay(0))) {
-			EPRINTF("cannot open display %s\n", getenv("DISPLAY"));
-			exit(EXIT_FAILURE);
-		}
-		if (options.keyboard || !options.pointer)
-			if (find_focus_monitor(dpy, &options.monitor))
-				goto done;
-		if (options.pointer || !options.keyboard)
-			if (find_pointer_monitor(dpy, &options.monitor))
-				goto done;
-	      done:
-		XCloseDisplay(dpy);
-		if (options.monitor == -1)
-			return;
+	if (options.monitor != -1)
+		goto saveit;
+	if (!screens) {
+		EPRINTF("cannot set monitor without X display\n");
+		return;
 	}
+	dpy = screens[0].display;
+
+	if (options.keyboard || !options.pointer)
+		if (find_focus_monitor(dpy, &options.monitor))
+			goto saveit;
+	if (options.pointer || !options.keyboard)
+		if (find_pointer_monitor(dpy, &options.monitor))
+			goto saveit;
+	EPRINTF("cannot determine monitor\n");
+	return;
+      saveit:
 	snprintf(buf, sizeof(buf) - 1, "%d", options.monitor);
 	s->f.monitor = strdup(buf);
 	s->n.monitor = options.monitor;
