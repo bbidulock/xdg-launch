@@ -10774,10 +10774,10 @@ Options:\n\
         filename to use with application\n\
     -u, --url URL\n\
         URL to use with application\n\
-    -K, --keyboard\n\
-        determine screen (monitor) from keyboard focus, [default: '%16$s']\n\
     -P, --pointer\n\
-        determine screen (monitor) from pointer location, [default: '%17$s']\n\
+        determine screen (monitor) from pointer location, [default: '%16$s']\n\
+    -K, --keyboard\n\
+        determine screen (monitor) from keyboard focus, [default: '%17$s']\n\
     -A, --action ACTION\n\
         specify a desktop action other than the default, [default: '%18$s']\n\
     -X, --xsession\n\
@@ -10792,10 +10792,11 @@ Options:\n\
         specify FILENAME of recent apps file, [default: '%23$s']\n\
     -I, --info\n\
         print information about entry instead of launching, [default: '%24$s']\n\
+Job Control Options:\n\
     --ppid\n\
         specify parent PID of subreaper, [default: '%25$d']\n\
-    --autowait, --no-autowait\n\
-        automatically determine wait for resources, [default: '%26$s']\n\
+    --assist, --no-assist\n\
+        assist window manager with startup notify complete, [default: '%26$s']\n\
     -T, --toolwait\n\
         wait for startup to complete and then exit, [default: '%27$s']\n\
     --timeout SECONDS\n\
@@ -10810,8 +10811,9 @@ Options:\n\
         print the window id to standard out, [default: '%32$s']\n\
     --noprop\n\
         use top-level creations instead of mappings, [default: '%33$s']\n\
-    --assist, --no-assist\n\
-        assist window manager with startup notify complete, [default: '%34$s']\n\
+Session Options:\n\
+    --autowait, --no-autowait\n\
+        automatically determine wait for resources, [default: '%34$s']\n\
     -M, --manager\n\
         wait for window manager before launching, [default: '%35$s']\n\
     -Y, --tray\n\
@@ -10824,6 +10826,7 @@ Options:\n\
         wait for audio server before launching, [default: '%39$s']\n\
     -g, --guard [SECONDS]\n\
         only wait for resources for SECONDS, [default: '%40$d']\n\
+Content Type Options:\n\
     --set-default\n\
         set application to preferred by type/category, [default: '%41$s']\n\
     --default, --no-default\n\
@@ -10832,6 +10835,7 @@ Options:\n\
         use recommended applications by type/category, [default: '%43$s']\n\
     --fallback, --no-fallback\n\
         use fallback applications by type/category, [default: '%44$s']\n\
+General Options:\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: '%45$d']\n\
     -v, --verbose [LEVEL]\n\
@@ -10858,8 +10862,8 @@ Options:\n\
 	, defaults.wmclass
 	, defaults.silent
 	, defaults.pid
-	, show_bool(defaults.keyboard)
 	, show_bool(defaults.pointer)
+	, show_bool(defaults.keyboard)
 	, defaults.action
 	, show_bool(defaults.type == LaunchType_XSession)
 	, show_bool(defaults.type == LaunchType_Autostart)
@@ -10868,7 +10872,7 @@ Options:\n\
 	, defaults.recapps
 	, show_bool(defaults.info)
 	, defaults.ppid
-	, show_bool(defaults.autowait)
+	, show_bool(defaults.assist)
 	, show_bool(defaults.toolwait)
 	, defaults.timeout
 	, defaults.mappings
@@ -10876,7 +10880,7 @@ Options:\n\
 	, show_bool(defaults.printpid)
 	, show_bool(defaults.printwid)
 	, show_bool(defaults.noprop)
-	, show_bool(defaults.assist)
+	, show_bool(defaults.autowait)
 	, show_bool(defaults.manager)
 	, show_bool(defaults.tray)
 	, show_bool(defaults.pager)
@@ -11085,10 +11089,10 @@ main(int argc, char *argv[])
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
-			{"ppid",	required_argument,	NULL,  10},
-			{"autowait",	no_argument,		NULL,  12},
-			{"no-autowait",	no_argument,		NULL,  11},
 
+			{"ppid",	required_argument,	NULL,  10},
+			{"assist",	no_argument,		NULL,  6 },
+			{"no-assist",	no_argument,		NULL,  9 },
 			{"toolwait",	no_argument,		NULL, 'T'},
 			{"timeout",	optional_argument,	NULL,  1 },
 			{"mappings",	required_argument,	NULL,  2 },
@@ -11096,9 +11100,8 @@ main(int argc, char *argv[])
 			{"wid",		no_argument,		NULL,  4 },
 			{"noprop",	no_argument,		NULL,  5 },
 
-			{"assist",	no_argument,		NULL,  6 },
-			{"no-assist",	no_argument,		NULL,  9 },
-
+			{"autowait",	no_argument,		NULL,  12},
+			{"no-autowait",	no_argument,		NULL,  11},
 			{"manager",	no_argument,		NULL, 'M'},
 			{"tray",	no_argument,		NULL, 'Y'},
 			{"pager",	no_argument,		NULL, 'G'},

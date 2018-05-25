@@ -71,57 +71,54 @@ Read the manual page after installation:
 
 The following programs are included in `xdg-launch`:
 
- - __`xdg-launch(1)`__ -- This is the primary program.
+ - [__`xdg-launch(1)`__][10] -- This is the primary program.
 
- - __`dmenu_launch(1)`__ -- This is a little script that uses
+ - [__`dmenu_launch(1)`__][11] -- This is a little script that uses
    `xdg-launch(1)` and dmenu(1) to provide an application menu.
 
- - __`xdg-autostart(1)`__ -- This is a little script that invokes
+ - [__`xdg-autostart(1)`__][12] -- This is a little script that invokes
    xdg-launch(1) as a launcher for auto-start programs instead of
    applications.
 
- - __`xdg-xsession(1)`__ -- This is a little script that invokes
+ - [__`xdg-xsession(1)`__][13] -- This is a little script that invokes
    `xdg-launch(1)` as a launcher for X Sessions programs (window
    managers) instead of applications.
 
- - __`xdg-session(1)`__ -- This is a little script that invokes
+ - [__`xdg-session(1)`__][14] -- This is a little script that invokes
    `xdg-launch(1)` as a launcher for X Sessions programs (window
    managers) instead of applications a simple session and full
    auto-start procedure.
 
- - __`xdg-entry(1)`__ -- This is a little script that invokes
+ - [__`xdg-entry(1)`__][15] -- This is a little script that invokes
    xdg-launch(1)` with the --info option and lists which information
    would be used for startup notification and launching of the resulting
    application.
 
- - __`xdg-toolwait(1)`__ -- This is a little script that invokes
+ - [__`xdg-toolwait(1)`__][16] -- This is a little script that invokes
    `xdg-launch(1)` with the --toolwait option.
 
- - __`xdg-which(1)`__, __`xdg-whereis(1)`__ -- Two little programs what
+ - [__`xdg-which(1)`__][17], [__`xdg-whereis(1)`__][18] -- Two little programs what
    parallel `which(1)` and `whereis(1)` for desktop entry files instead
    of binaries.
 
- - __`xdg-assist(1)`__ -- A program to monitor startup notification and
+ - [__`xdg-assist(1)`__][19] -- A program to monitor startup notification and
    provide notification as programs start up and performs startup
    notification completion of applications that do not complete.  It
    also assists window managers with supporting startup notification and
    other EWMH/NetWM features.
 
- - __`xdg-list(1)`__ -- lists desktop entry files.
+ - [__`xdg-list(1)`__][20] -- lists desktop entry files.
 
- - __`xdg-types(1)`__ -- shows the content types provided by a desktop
+ - [__`xdg-types(1)`__][21] -- shows the content types provided by a desktop
    application.
-
- - __`xdg-which(1)`__ -- determine which XDG desktop entries correspond
-   to a given application id.
 
 Also provided (when `glib2` is available) are some little tools for the
 XDG desktop:
 
- - __`xdg-find(1)`__ -- finds desktop entry files based on a number of
+ - [__`xdg-find(1)`__][22] -- finds desktop entry files based on a number of
    search criteria.
 
- - __`xdg-prefs(1)`__ -- locates or sets preferred applications by
+ - [__`xdg-prefs(1)`__][23] -- locates or sets preferred applications by
    category or mime type.
 
 
@@ -141,5 +138,19 @@ Report issues on GitHub [here][2].
 [7]: https://github.com/bbidulock/xdg-launch/blob/1.7/INSTALL
 [8]: https://github.com/bbidulock/xdg-launch/blob/1.7/LICENSE
 [9]: https://github.com/bbidulock/xdg-launch/blob/1.7/COPYING
+[10]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-launch.pod
+[11]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/dmenu_launch.pod
+[12]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-autostart.pod
+[13]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-xsession.pod
+[14]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-session.pod
+[15]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-entry.pod
+[16]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-toolwait.pod
+[17]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-which.pod
+[18]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-whereis.pod
+[19]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-assist.pod
+[20]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-list.pod
+[21]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-types.pod
+[22]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-find.pod
+[23]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-prefs.pod
 
 [ vim: set ft=markdown sw=4 tw=72 nocin nosi fo+=tcqlorn spell: ]: #

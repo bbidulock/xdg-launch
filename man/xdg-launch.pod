@@ -6,9 +6,13 @@ xdg-launch - an XDG compliant startup notification launcher
 
 =head1 SYNOPSIS
 
-B<xdg-launch> [I<OPTIONS>] [I<APPSPEC>] [I<FILE>|I<URL>]
-
-B<xdg-launch> [I<OPTIONS>] -c I<command and arguments>
+B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|B<-e> I<COMMAND>]
+ B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
+ B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
+ B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|B<-e> I<COMMAND>]
+ B<xdg-launch> {B<-V>|B<--version>}
+ B<xdg-launch> {B<-C>|B<--copying>}
 
 =head1 DESCRIPTION
 
@@ -118,7 +122,7 @@ any of the following options are specified, the command mode changes:
 
 =over
 
-=item B<-c>, B<--command> I<command arguments>
+=item B<-e> I<command arguments>
 
 When specified, this option must be the last option on the command line.
 Options processing stops abruptly at this option and remaining arguments
@@ -129,9 +133,9 @@ control in a similar fashion to C<sh -c>.
 =item B<-I>, B<--info>
 
 When specified, instead of launching the application selected, print
-information about the final desktop file selected to launch the the
-actions that would have been taken to launch the desktop entry if this
-option had not been specified.  This is equivalent to a dry run.
+information about the final desktop file selected to launch the actions
+that would have been taken to launch the desktop entry if this option
+had not been specified.  This is equivalent to a dry run.
 
 =item B<-h>, B<--help>
 
@@ -147,9 +151,9 @@ Prints detailed copying permissions and exits.
 
 =back
 
-=head2 CONFIGURATION OPTIONS
+=head2 GENERAL OPTIONS
 
-The following are primary configuration options:
+The following are general options:
 
 =over
 
@@ -305,6 +309,12 @@ but it is set to false.
 Specifies the process identifier for the launch sequence.  The default
 is the process identifier of the xdg-launch program.
 
+=item B<-x>, B<--exec> I<COMMAND>
+
+Specifies the command to execute.  This overrides the C<Exec> field of
+the XDG desktop entry file.  When unspecified, the default is the
+C<Exec> field of the XDG desktop entry file.
+
 =item B<-a>, B<--appid> I<APPLICATION_ID>
 
 Override the application identifier.  This overrides the name of the XDG
@@ -312,12 +322,6 @@ application file.  When unspecified, the default is to use the
 non-option I<APPID> argument to determine the application identifier.
 This value, when available, is placed in the C<APPLICATION_ID> key-value
 entry in the startup notification C<new> message.
-
-=item B<-x>, B<--exec> I<COMMAND>
-
-Specifies the command to execute.  This overrides the C<Exec> field of
-the XDG desktop entry file.  When unspecified, the default is the
-C<Exec> field of the XDG desktop entry file.
 
 =item B<--mimetype> I<MIMETYPE>
 
@@ -413,18 +417,6 @@ until all children exit.
 
 Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
 
-=item B<--ppid>
-
-Specify the process identity of a sub-reaper process under which the
-launched application should be reparented if its parent terminates.
-This option defaults to the environment variable B<${XDG_SESSION_PID}>.
-To keep it from being set automatically, set it to zero.  This is useful
-for applications launched by a window manager to ensure that if the
-window manager crashes, it may be restarted by the session and the
-application child processes will be re-parented to the session.
-
-=item B<
-
 =item B<-k>, B<--keep> I<NUMBER>
 
 Specify the maximum number, I<NUMBER>, of commands or application
@@ -449,6 +441,18 @@ The following job control options provide an equivalent functionality to
 that of L<xtoolwait(1)>.
 
 =over
+
+=item B<--ppid>
+
+Specify the process identity of a sub-reaper process under which the
+launched application should be re-parented when its parent terminates.
+This option defaults to the environment variable B<${XDG_SESSION_PID}>
+and, if that does not exist, the process group leader of the process
+invoking B<xdg-launch>.  To keep it from being set automatically, set it
+to zero.  This is useful for applications launched by a window manager
+to ensure that if the window manager crashes, it may be restarted by the
+session and the application child processes will be re-parented to the
+session.
 
 =item B<--assist>
 
@@ -525,77 +529,6 @@ of B<-pid> or B<-wid> can be specified.
 When using the mapping of a window to determine startup notification
 completion, simply use the creation of a top-level window as the
 criteria instead of expecting a C<WM_STATE> property change.
-
-=back
-
-=head2 SESSION OPTIONS
-
-The options that follow are for desktop session control.  They determine
-what conditions will be awaited before launching the application or
-command.  When no session option is specified, B<xdg-launch> may
-determine automatically which conditions must be awaited depending on
-the setting of the B<--autowait> and B<--no-autowait> options.
-
-=over
-
-=item B<--autowait>
-
-Normally, when  B<xdg-launch> is executing an autostart entry, it will
-determine whether the application needs to wait for resources or a
-startup phase before launching the application.  This option requests
-that B<xdg-launch> perform the wait when required.
-
-=item B<--no-autowait>
-
-Normally, when  B<xdg-launch> is executing an autostart entry, it will
-determine whether the application needs to wait for resources or a
-startup phase before launching the application.  This option requests
-that B<xdg-launch> not wait for any resources or startup phase.
-
-=back
-
-The options that follow are for specifying the conditions that must be
-awaited before B<xdg-launch> will proceed to launch the application.
-None of these options has any effect when the B<--no-autowait> option is
-specified.
-
-=over
-
-=item B<-M>, B<--manager>
-
-Awaits the appearance of a window manager before launching the
-application or command.  The default behaviour is to not wait for any
-desktop resource before launching.
-
-=item B<-Y>, B<--tray>
-
-Awaits the appearance of a system tray before launching the application
-or command.  The default behaviour is to not wait for any desktop
-resource before launching.
-
-=item B<-G>, B<--pager>
-
-Awaits the appearance of a desktop pager (or desktop pager
-specification) before launching the application or command.  The default
-behaviour is to not wait for any desktop resource before launching.
-
-=item B<-O>, B<--composite>
-
-Awaits the appearance of a composite manager before launching the
-application or command.  The default behaviour is to not wait for any
-desktop resource before launching.
-
-=item B<-R>, B<--audio>
-
-Awaits the appearance of an audio server before launching the
-application or command.  The default behaviour is to not wait for any
-desktop resource before launching.
-
-=item B<-g>, B<--guard> [I<SECONDS>]
-
-Await resources for no longer than I<SECONDS> seconds before continuing.
-Not specifying a value or specifying a value of zero (0) indicates to
-wait indefinitely for the resource.  The default value is 2 seconds.
 
 =back
 
@@ -678,7 +611,144 @@ application provides one.
 Application is this category will not wait for a system tray nor a
 desktop pager (as most panels provide these).
 
+=back
 
+=head2 SESSION OPTIONS
+
+The options that follow are for desktop session control.  They determine
+what conditions will be awaited before launching the application or
+command.  When no session option is specified, B<xdg-launch> may
+determine automatically which conditions must be awaited depending on
+the setting of the B<--autowait> and B<--no-autowait> options.
+
+=over
+
+=item B<--autowait>
+
+Normally, when  B<xdg-launch> is executing an autostart entry, it will
+determine whether the application needs to wait for resources or a
+startup phase before launching the application.  This option requests
+that B<xdg-launch> perform the wait when required.
+
+=item B<--no-autowait>
+
+Normally, when  B<xdg-launch> is executing an autostart entry, it will
+determine whether the application needs to wait for resources or a
+startup phase before launching the application.  This option requests
+that B<xdg-launch> not wait for any resources or startup phase.
+
+=back
+
+The options that follow are for specifying the conditions that must be
+awaited before B<xdg-launch> will proceed to launch the application.
+None of these options has any effect when the B<--no-autowait> option is
+specified.
+
+=over
+
+=item B<-M>, B<--manager>
+
+Awaits the appearance of a window manager before launching the
+application or command.  The default behaviour is to not wait for any
+desktop resource before launching.
+
+=item B<-Y>, B<--tray>
+
+Awaits the appearance of a system tray before launching the application
+or command.  The default behaviour is to not wait for any desktop
+resource before launching.
+
+=item B<-G>, B<--pager>
+
+Awaits the appearance of a desktop pager (or desktop pager
+specification) before launching the application or command.  The default
+behaviour is to not wait for any desktop resource before launching.
+
+=item B<-O>, B<--composite>
+
+Awaits the appearance of a composite manager before launching the
+application or command.  The default behaviour is to not wait for any
+desktop resource before launching.
+
+=item B<-R>, B<--audio>
+
+Awaits the appearance of an audio server before launching the
+application or command.  The default behaviour is to not wait for any
+desktop resource before launching.
+
+=item B<-g>, B<--guard> [I<SECONDS>]
+
+Await resources for no longer than I<SECONDS> seconds before continuing.
+Not specifying a value or specifying a value of zero (0) indicates to
+wait indefinitely for the resource.  The default value is 2 seconds.
+
+=back
+
+=head2 CONTENT TYPE OPTIONS
+
+The following options affect the current or future selection of
+application by mime type or XDG category:
+
+=over
+
+=item B<--set-default>
+
+When used with an I<APPID> argument, specifies that the selected
+application id is to be made the default for its mime-types and
+categories when successfully launched.  The default is to not make the
+launch application the default for mime-type nor category.
+
+This is a simple way of making an application the default for its
+mime-types and categories.  For example:
+
+    $> xdg-launch --set-default chromium
+
+will make chromium the default web browser.  Either of the following
+command lines will then result in launching chromium:
+
+    $> xdg-launch text/html
+    $> xdg-launch WebBrowser
+
+If the application id was already on the default list, it will be moved
+to the beginning of the list; otherwise, it will be inserted at the
+beginning of the list.
+
+=item B<--set-preferred>
+
+When used with an I<APPSPEC> argument, specifies that the selected
+application id is to be added to the recommended list for its mime-types
+and categories when successfully launched.
+
+If the application id was already on the recommended list, it will be
+moved to the beginning of the list; otherwise, it will be inserted at
+the beginning of the list.
+
+=item B<--default>, B<--no-default>
+
+When used with a I<MIMETYPE> or I<CATEGORY> argument, specifies whether
+B<xdg-launch> should consider the default application defined for the
+mime-type or category.  (The default application setting is defined by
+the XDG mime-type specifications and is the familiar default used by
+most desktop file managers.)  The default is to consider the default
+application.
+
+=item B<--recommend>, B<--no-recommend>
+
+When used with a I<MIMETYPE> or I<CATEGORY> argument, specifies whether
+B<xdg-launch> should consider the recommended applications defined for
+the mime-type or category.  (The recommended applications setting is
+defined by the XDG mime-type specifications and is the familiar
+recommended list used by most desktop file managers.)  The default is to
+consider the recommended applications.
+
+=item B<--fallback>, B<--no-fallback>
+
+When used with a I<MIMETYPE> or I<CATEGORY> argument, specifies whether
+B<xdg-launch> should consider the fallback applications defined for the
+mime-type or category.  (The fallback applications setting is defined by
+the XDG mime-type specifications and is the familiar recommended list
+used by most desktop file managers.)  The default is to consider the
+fallback applications.
 
 =back
 
