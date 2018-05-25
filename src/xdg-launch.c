@@ -8217,8 +8217,7 @@ find_focus_monitor(Display *dpy, int *monitor)
 			if ((a = area_overlap(xmin, ymin, xmax, ymax,
 					      si[i].x_org,
 					      si[i].y_org,
-					      si[i].x_org + si[i].width,
-					      si[i].y_org + si[i].height)) > area) {
+					      si[i].x_org + si[i].width, si[i].y_org + si[i].height)) > area) {
 				area = a;
 				best = i;
 			}
@@ -8247,9 +8246,7 @@ find_focus_monitor(Display *dpy, int *monitor)
 			if (!ci->width || !ci->height)
 				continue;
 			if ((a = area_overlap(xmin, ymin, xmax, ymax,
-					      ci->x,
-					      ci->y,
-					      ci->x + ci->width, ci->y + ci->height)) > area) {
+					      ci->x, ci->y, ci->x + ci->width, ci->y + ci->height)) > area) {
 				area = a;
 				best = i;
 			}
@@ -8338,34 +8335,33 @@ set_seq_monitor(Process *pr)
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 	char buf[24] = { 0, };
-	int monitor = 0;
 
 	assert(s != NULL && e != NULL);
 	free(s->f.monitor);
 	s->f.monitor = NULL;
 	if (pr->type != LaunchType_Application)
 		return;
-	if ((monitor = options.monitor) == -1) {
-		if (screens) {
-			Display *dpy = screens[0].display;
+	if (options.monitor == -1) {
+		Display *dpy;
 
-			if (options.keyboard && find_focus_monitor(dpy, &monitor))
-				(void) monitor;
-			else if (options.pointer && find_pointer_monitor(dpy, &monitor))
-				(void) monitor;
-			else if (!options.keyboard && !options.pointer
-				 && (find_focus_monitor(dpy, &monitor) || find_pointer_monitor(dpy, &monitor)))
-				(void) monitor;
-			else
-				return;
-			while (0) ;
-		} else
+		if (!(dpy = XOpenDisplay(0))) {
+			EPRINTF("cannot open display %s\n", getenv("DISPLAY"));
+			exit(EXIT_FAILURE);
+		}
+		if (options.keyboard || !options.pointer)
+			if (find_focus_monitor(dpy, &options.monitor))
+				goto done;
+		if (options.pointer || !options.keyboard)
+			if (find_pointer_monitor(dpy, &options.monitor))
+				goto done;
+	      done:
+		XCloseDisplay(dpy);
+		if (options.monitor == -1)
 			return;
-		options.monitor = monitor;
 	}
-	snprintf(buf, sizeof(buf) - 1, "%d", monitor);
+	snprintf(buf, sizeof(buf) - 1, "%d", options.monitor);
 	s->f.monitor = strdup(buf);
-	s->n.monitor = monitor;
+	s->n.monitor = options.monitor;
 	return;
 }
 
