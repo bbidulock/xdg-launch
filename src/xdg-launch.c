@@ -249,6 +249,10 @@ typedef struct {
 	Bool assist;
 	Bool autoassist;
 	int guard;
+	Bool setpref;
+	Bool fallback;
+	Bool recommend;
+	Bool preferred;
 } Options;
 
 Options options = {
@@ -307,6 +311,10 @@ Options options = {
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
+	.setpref = False,
+	.fallback = True,
+	.recommend = True,
+	.preferred = True,
 };
 
 Options defaults = {
@@ -363,6 +371,10 @@ Options defaults = {
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
+	.setpref = False,
+	.fallback = True,
+	.recommend = True,
+	.preferred = True,
 };
 
 static const char *DesktopEntryFields[] = {
@@ -2594,38 +2606,47 @@ lookup_file_by_type(Process *pr, const char *type)
 			DPRINTF(1, "not content type for mime type: '%s'\n", type);
 			return NULL;
 		}
-		if ((info = g_app_info_get_default_for_type(content, FALSE))) {
-			if ((path = lookup_file_by_name(pr, g_app_info_get_id(info)))) {
-				g_free(content);
-				return path;
+		if (options.preferred) {
+			if ((info = g_app_info_get_default_for_type(content, FALSE))) {
+				if ((path = lookup_file_by_name(pr, g_app_info_get_id(info)))) {
+					g_free(content);
+					return path;
+				} else
+					DPRINTF(1, "could not find file for default %s\n",
+						g_app_info_get_id(info));
 			} else
-				DPRINTF(1, "could not find file for default %s\n", g_app_info_get_id(info));
-		} else
-			DPRINTF(1, "could not get default for type %s\n", type);
-		if ((apps = g_app_info_get_recommended_for_type(content))) {
-			for (app = apps; app; app = app->next) {
-				if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
-					g_list_free(apps);
-					g_free(content);
-					return path;
-				} else
-					DPRINTF(1, "could not find file for recommended %s\n", g_app_info_get_id(app->data));
-			}
-			g_list_free(apps);
-		} else
-			DPRINTF(1, "could not get recommended for type %s\n", type);
-		if ((apps = g_app_info_get_fallback_for_type(content))) {
-			for (app = apps; app; app = app->next) {
-				if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
-					g_list_free(apps);
-					g_free(content);
-					return path;
-				} else
-					DPRINTF(1, "could not find file for fallback %s\n", g_app_info_get_id(app->data));
-			}
-			g_list_free(apps);
-		} else
-			DPRINTF(1, "could not get fallback for type %s\n", type);
+				DPRINTF(1, "could not get default for type %s\n", type);
+		}
+		if (options.recommend) {
+			if ((apps = g_app_info_get_recommended_for_type(content))) {
+				for (app = apps; app; app = app->next) {
+					if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
+						g_list_free(apps);
+						g_free(content);
+						return path;
+					} else
+						DPRINTF(1, "could not find file for recommended %s\n",
+							g_app_info_get_id(app->data));
+				}
+				g_list_free(apps);
+			} else
+				DPRINTF(1, "could not get recommended for type %s\n", type);
+		}
+		if (options.fallback) {
+			if ((apps = g_app_info_get_fallback_for_type(content))) {
+				for (app = apps; app; app = app->next) {
+					if ((path = lookup_file_by_name(pr, g_app_info_get_id(app->data)))) {
+						g_list_free(apps);
+						g_free(content);
+						return path;
+					} else
+						DPRINTF(1, "could not find file for fallback %s\n",
+							g_app_info_get_id(app->data));
+				}
+				g_list_free(apps);
+			} else
+				DPRINTF(1, "could not get fallback for type %s\n", type);
+		}
 		g_free(content);
 #else
 		EPRINTF("cannot use mime type without GLIB/GIO support\n");
@@ -2813,7 +2834,7 @@ lookup_file_by_kind(Process *pr, const char *type)
 	if (searchdirs)
 		g_strfreev(searchdirs);
 
-	if (got_dfile) {
+	if (options.preferred && got_dfile) {
 		char **apps, **app;
 		GDesktopAppInfo *desk;
 
@@ -2842,7 +2863,7 @@ lookup_file_by_kind(Process *pr, const char *type)
 		if (apps)
 			g_strfreev(apps);
 	}
-	if (got_afile) {
+	if (options.recommend && got_afile) {
 		char **apps, **app;
 
 		if ((apps = g_key_file_get_string_list(dfile, "Added Categories", type, NULL, NULL))) {
@@ -2860,32 +2881,34 @@ lookup_file_by_kind(Process *pr, const char *type)
 	g_key_file_unref(dfile);
 	g_key_file_unref(afile);
 
-	/* this is actually the fallback approach */
-	category = calloc(PATH_MAX + 1, sizeof(*category));
+	if (options.fallback) {
+		/* this is actually the fallback approach */
+		category = calloc(PATH_MAX + 1, sizeof(*category));
 
-	strncpy(category, ";", PATH_MAX);
-	strncat(category, type, PATH_MAX);
-	strncat(category, ";", PATH_MAX);
+		strncpy(category, ";", PATH_MAX);
+		strncat(category, type, PATH_MAX);
+		strncat(category, ";", PATH_MAX);
 
-	if ((apps = g_app_info_get_all())) {
-		categories = calloc(PATH_MAX + 1, sizeof(*categories));
-		for (app = apps; app; app = app->next) {
-			desk = G_DESKTOP_APP_INFO(app->data);
-			if ((cat = g_desktop_app_info_get_categories(desk))) {
-				strncpy(categories, ";", PATH_MAX);
-				strncat(categories, cat, PATH_MAX);
-				strncat(categories, ";", PATH_MAX);
-				if (strstr(categories, category))
-					if ((path = g_desktop_app_info_get_filename(desk))
-					    && (result = strdup(path)))
-						break;
+		if ((apps = g_app_info_get_all())) {
+			categories = calloc(PATH_MAX + 1, sizeof(*categories));
+			for (app = apps; app; app = app->next) {
+				desk = G_DESKTOP_APP_INFO(app->data);
+				if ((cat = g_desktop_app_info_get_categories(desk))) {
+					strncpy(categories, ";", PATH_MAX);
+					strncat(categories, cat, PATH_MAX);
+					strncat(categories, ";", PATH_MAX);
+					if (strstr(categories, category))
+						if ((path = g_desktop_app_info_get_filename(desk))
+						    && (result = strdup(path)))
+							break;
+				}
 			}
-		}
-		g_list_free(apps);
-		free(categories);
+			g_list_free(apps);
+			free(categories);
 
+		}
+		free(category);
 	}
-	free(category);
 	return result;
 #else
 	EPRINTF("cannot look up by category without GLIB/GIO support\n");
@@ -7897,6 +7920,7 @@ need_assist(Display *dpy, Process *pr)
 
 static void set_seq_all(Process *pr);
 static void put_history(Process *pr);
+static void put_default(Process *pr);
 
 /** @brief launch the application
   *
@@ -7944,6 +7968,8 @@ launch(Process *pr)
 	set_seq_all(pr);
 	if (!options.info)
 		put_history(pr);
+	if (options.setpref)
+		put_default(pr);
 
 	if (options.autowait)
 		wait_for_resource(dpy, pr);
@@ -9744,6 +9770,12 @@ put_history(Process *pr)
 #endif				/* GIO_GLIB2_SUPPORT */
 }
 
+static void
+put_default(Process *pr)
+{
+	EPRINTF("--set-default option not yet supported!\n");
+}
+
 static int
 sort_by_appid(const void *a, const void *b)
 {
@@ -10790,6 +10822,14 @@ Options:\n\
         wait for audio server before launching, [default: '%38$s']\n\
     -g, --guard [SECONDS]\n\
         only wait for resources for SECONDS, [default: '%39$d']\n\
+    --set-default\n\
+        set application to preferred by type/category, [default: '%40$s']\n\
+    --default, --no-default\n\
+        use default applications by type/category, [default: '%41$s']\n\
+    --recommend, --no-recommend\n\
+        use recommended applications by type/category, [default: '%42$s']\n\
+    --fallback, --no-fallback\n\
+        use fallback applications by type/category, [default: '%43$s']\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: 0]\n\
     -v, --verbose [LEVEL]\n\
@@ -10840,6 +10880,10 @@ Options:\n\
 	, show_bool(defaults.composite)
 	, show_bool(defaults.audio)
 	, defaults.guard
+	, show_bool(defaults.setpref)
+	, show_bool(defaults.preferred)
+	, show_bool(defaults.recommend)
+	, show_bool(defaults.fallback)
 	);
 	/* *INDENT-ON* */
 }
@@ -11056,6 +11100,14 @@ main(int argc, char *argv[])
 			{"composite",	no_argument,		NULL, 'O'},
 			{"audio",	no_argument,		NULL, 'R'},
 			{"guard",	optional_argument,	NULL, 'g'},
+
+			{"set-default",	no_argument,		NULL,  13},
+			{"default",	no_argument,		NULL,  14},
+			{"no-default",	no_argument,		NULL,  15},
+			{"recommend", no_argument,		NULL,  18},
+			{"no-recommend", no_argument,		NULL,  19},
+			{"fallback",	no_argument,		NULL,  16},
+			{"no-fallback",	no_argument,		NULL,  17},
 
 			{"debug",	optional_argument,	NULL, 'D'},
 			{"verbose",	optional_argument,	NULL, 'v'},
@@ -11323,6 +11375,28 @@ main(int argc, char *argv[])
 			if (*endptr)
 				goto bad_option;
 			defaults.guard = options.guard = val;
+			break;
+		case 13:	/* --set-default */
+			defaults.setpref = options.setpref = True;
+			EPRINTF("--set-default option not yet supported!\n");
+			break;
+		case 14:	/* --default */
+			defaults.preferred = options.preferred = True;
+			break;
+		case 15:	/* --no-default */
+			defaults.preferred = options.preferred = False;
+			break;
+		case 18:	/* --recommend */
+			defaults.recommend = options.recommend = True;
+			break;
+		case 19:	/* --no-recommend */
+			defaults.recommend = options.recommend = False;
+			break;
+		case 16:	/* --fallback */
+			defaults.fallback = options.fallback = True;
+			break;
+		case 17:	/* --no-fallback */
+			defaults.fallback = options.fallback = False;
 			break;
 		case 'D':	/* -D, --debug [level] */
 			if (options.debug)
