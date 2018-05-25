@@ -10736,30 +10736,32 @@ Options:\n\
         name of launcher for startup id, [default: '%2$s']\n\
     -l, --launchee LAUNCHEE\n\
         name of launchee for startup id, [default: APPID]\n\
+    -S, --sequence SEQUENCE\n\
+        sequence number for startup notification id [default: '%3$s']\n\
     -n, --hostname HOSTNAME\n\
-        hostname to use in startup id, [default: '%3$s']\n\
+        hostname to use in startup id, [default: '%4$s']\n\
     -m, --monitor MONITOR\n\
-        Xinerama monitor to specify in SCREEN tag, [default: %4$d]\n\
+        Xinerama monitor to specify in SCREEN tag, [default: %5$d]\n\
     -s, --screen SCREEN\n\
-        screen to specify in SCREEN tag, [default: %5$d]\n\
+        screen to specify in SCREEN tag, [default: %6$d]\n\
     -w, --workspace DESKTOP\n\
-        workspace to specify in DESKTOP tag, [default: %6$d]\n\
+        workspace to specify in DESKTOP tag, [default: %7$d]\n\
     -t, --timestamp TIMESTAMP\n\
-        X server timestamp for startup id, [default: %7$lu]\n\
+        X server timestamp for startup id, [default: %8$lu]\n\
     -N, --name NAME\n\
-        name of XDG application, [default: '%8$s']\n\
+        name of XDG application, [default: '%9$s']\n\
     -i, --icon ICON\n\
-        icon name of the XDG application, [default: '%9$s']\n\
+        icon name of the XDG application, [default: '%10$s']\n\
     -b, --binary BINARY\n\
-        binary name of the XDG application, [default: '%10$s']\n\
+        binary name of the XDG application, [default: '%11$s']\n\
     -D, --description DESCRIPTION\n\
-        description of the XDG application, [default: '%11$s']\n\
+        description of the XDG application, [default: '%12$s']\n\
     -W, --wmclass WMCLASS\n\
-        resource name or class of the XDG application, [default: '%12$s']\n\
+        resource name or class of the XDG application, [default: '%13$s']\n\
     -q, --silent SILENT\n\
-        whether startup notification is silent (0/1), [default: '%13$s']\n\
+        whether startup notification is silent (0/1), [default: '%14$s']\n\
     -p, --pid PID\n\
-        process id of the XDG application, [default: '%14$d']\n\
+        process id of the XDG application, [default: '%15$d']\n\
     -x, --exec EXEC\n\
         override command to execute\n\
     -a, --appid APPID\n\
@@ -10773,67 +10775,67 @@ Options:\n\
     -u, --url URL\n\
         URL to use with application\n\
     -K, --keyboard\n\
-        determine screen (monitor) from keyboard focus, [default: '%15$s']\n\
+        determine screen (monitor) from keyboard focus, [default: '%16$s']\n\
     -P, --pointer\n\
-        determine screen (monitor) from pointer location, [default: '%16$s']\n\
+        determine screen (monitor) from pointer location, [default: '%17$s']\n\
     -A, --action ACTION\n\
-        specify a desktop action other than the default, [default: '%17$s']\n\
+        specify a desktop action other than the default, [default: '%18$s']\n\
     -X, --xsession\n\
-        interpret entry as xsession instead of application, [default: '%18$s']\n\
+        interpret entry as xsession instead of application, [default: '%19$s']\n\
     -U, --autostart\n\
-        interpret entry as autostart instead of application, [default: '%19$s']\n\
+        interpret entry as autostart instead of application, [default: '%20$s']\n\
     -E, --session\n\
-        interpret entry as xsession with autostart, [default: '%20$s']\n\
+        interpret entry as xsession with autostart, [default: '%21$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%21$d']\n\
+        specify NUMBER of recent applications to keep, [default: '%22$d']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%22$s']\n\
+        specify FILENAME of recent apps file, [default: '%23$s']\n\
     -I, --info\n\
-        print information about entry instead of launching, [default: '%23$s']\n\
+        print information about entry instead of launching, [default: '%24$s']\n\
     --ppid\n\
-        specify parent PID of subreaper, [default: '%24$d']\n\
+        specify parent PID of subreaper, [default: '%25$d']\n\
     --autowait, --no-autowait\n\
-        automatically determine wait for resources, [default: '%25$s']\n\
+        automatically determine wait for resources, [default: '%26$s']\n\
     -T, --toolwait\n\
-        wait for startup to complete and then exit, [default: '%26$s']\n\
+        wait for startup to complete and then exit, [default: '%27$s']\n\
     --timeout SECONDS\n\
-        consider startup complete after SECONDS seconds, [default: '%27$d']\n\
+        consider startup complete after SECONDS seconds, [default: '%28$d']\n\
     --mappings MAPPINGS\n\
-        consider startup complete after MAPPINGS mappings, [default: '%28$d']\n\
+        consider startup complete after MAPPINGS mappings, [default: '%29$d']\n\
     --withdrawn\n\
-        consider withdrawn state mappings, [default: '%29$s']\n\
+        consider withdrawn state mappings, [default: '%30$s']\n\
     --pid\n\
-        print the pid of the process to standard out, [default: '%30$s']\n\
+        print the pid of the process to standard out, [default: '%31$s']\n\
     --wid\n\
-        print the window id to standard out, [default: '%31$s']\n\
+        print the window id to standard out, [default: '%32$s']\n\
     --noprop\n\
-        use top-level creations instead of mappings, [default: '%32$s']\n\
+        use top-level creations instead of mappings, [default: '%33$s']\n\
     --assist, --no-assist\n\
-        assist window manager with startup notify complete, [default: '%33$s']\n\
+        assist window manager with startup notify complete, [default: '%34$s']\n\
     -M, --manager\n\
-        wait for window manager before launching, [default: '%34$s']\n\
+        wait for window manager before launching, [default: '%35$s']\n\
     -Y, --tray\n\
-        wait for system tray before launching, [default: '%35$s']\n\
+        wait for system tray before launching, [default: '%36$s']\n\
     -G, --pager\n\
-        wait for desktop pager before launching, [default: '%36$s']\n\
+        wait for desktop pager before launching, [default: '%37$s']\n\
     -O, --composite\n\
-        wait for composite manager before launching, [default: '%37$s']\n\
+        wait for composite manager before launching, [default: '%38$s']\n\
     -R, --audio\n\
-        wait for audio server before launching, [default: '%38$s']\n\
+        wait for audio server before launching, [default: '%39$s']\n\
     -g, --guard [SECONDS]\n\
-        only wait for resources for SECONDS, [default: '%39$d']\n\
+        only wait for resources for SECONDS, [default: '%40$d']\n\
     --set-default\n\
-        set application to preferred by type/category, [default: '%40$s']\n\
+        set application to preferred by type/category, [default: '%41$s']\n\
     --default, --no-default\n\
-        use default applications by type/category, [default: '%41$s']\n\
+        use default applications by type/category, [default: '%42$s']\n\
     --recommend, --no-recommend\n\
-        use recommended applications by type/category, [default: '%42$s']\n\
+        use recommended applications by type/category, [default: '%43$s']\n\
     --fallback, --no-fallback\n\
-        use fallback applications by type/category, [default: '%43$s']\n\
+        use fallback applications by type/category, [default: '%44$s']\n\
     -D, --debug [LEVEL]\n\
-        increment or set debug LEVEL [default: 0]\n\
+        increment or set debug LEVEL [default: '%45$d']\n\
     -v, --verbose [LEVEL]\n\
-        increment or set output verbosity LEVEL [default: 1]\n\
+        increment or set output verbosity LEVEL [default: '%46$d']\n\
         this option may be repeated.\n\
     -h, --help, -?, --?\n\
         print this usage information and exit\n\
@@ -10843,6 +10845,7 @@ Options:\n\
         print copying permission and exit\n\
 ", argv[0]
 	, defaults.launcher
+	, defaults.sequence
 	, defaults.hostname
 	, defaults.monitor
 	, defaults.screen
@@ -10884,6 +10887,8 @@ Options:\n\
 	, show_bool(defaults.preferred)
 	, show_bool(defaults.recommend)
 	, show_bool(defaults.fallback)
+	, defaults.debug
+	, defaults.output
 	);
 	/* *INDENT-ON* */
 }
