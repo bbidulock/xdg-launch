@@ -130,7 +130,7 @@ _timestamp(void)
 		fprintf(stderr, _args); fflush(stderr); } while (0)
 
 #define OPRINTF(_num, _args...) do { if (options.debug >= _num || options.output > _num || options.info) { \
-		fprintf(stdout, NAME "[%d]: I: ", getpid()); \
+		fprintf(stdout, NAME "[%d]: I: [%s] ", getpid(), _timestamp()); \
 		fprintf(stdout, _args); fflush(stdout); } } while (0)
 
 #define PTRACE(_num) do { if (options.debug >= _num || options.output >= _num) { \
@@ -149,9 +149,11 @@ dumpstack(const char *file, const int line, const char *func)
 	char **strings;
 	int i;
 
-	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr)))
+	if ((nptr = backtrace(buffer, 32)) && (strings = backtrace_symbols(buffer, nptr))) {
 		for (i = 0; i < nptr; i++)
-			fprintf(stderr, NAME ": E: %12s +%4d : %s() : \t%s\n", file, line, func, strings[i]);
+			fprintf(stderr, NAME "[%d]: E: [%s] %12s +%4d : %s() : <stack> %s\n", getpid(), _timestamp(), file, line, func, strings[i]);
+		fflush(stderr);
+	}
 }
 
 const char *program = NAME;
@@ -1059,7 +1061,7 @@ xioerror(Display *dpy)
 	DPRINTF(0, "X I/O Error: %s\n", strerror(errno));
 	if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
-			DPRINTF(0, "\tbt> %s\n", strings[i]);
+			DPRINTF(0, "--- bt> %s\n", strings[i]);
 	exit(EXIT_FAILURE);
 }
 
@@ -1397,7 +1399,7 @@ check_nonrecursive(XdgScreen *scr, Atom atom, Atom type)
   * @return Bool - true if atom is in list
   */
 static Bool
-check_supported(XdgScreen *scr, Atom protocols, Atom supported)
+check_supported(XdgScreen * scr, Atom protocols, Atom supported)
 {
 	Atom real;
 	int format;
@@ -1405,9 +1407,11 @@ check_supported(XdgScreen *scr, Atom protocols, Atom supported)
 	unsigned long *data = NULL;
 	Bool result = False;
 	Display *dpy = scr->display;
+	char *list = NULL, *name = NULL;
 
-	OPRINTF(1, "check for non-compliant NetWM\n");
-
+	if (options.output > 1 || options.info)
+		OPRINTF(1, "    --> check %s for %s support\n",
+			(list = XGetAtomName(dpy, protocols)), (name = XGetAtomName(dpy, supported)));
       try_harder:
 	if (XGetWindowProperty(dpy, scr->root, protocols, 0L, num, False, XA_ATOM, &real,
 			       &format, &nitems, &after, (unsigned char **) &data)
@@ -1418,7 +1422,7 @@ check_supported(XdgScreen *scr, Atom protocols, Atom supported)
 				XFree(data);
 				data = NULL;
 			}
-			DPRINTF(1, "trying harder with num = %lu\n", num);
+			DPRINTF(1, "        trying harder with num = %lu\n", num);
 			goto try_harder;
 		}
 		if (nitems > 0) {
@@ -1436,6 +1440,16 @@ check_supported(XdgScreen *scr, Atom protocols, Atom supported)
 		if (data)
 			XFree(data);
 	}
+	if (options.output > 1 || options.info) {
+		if (result)
+			OPRINTF(1, "        %s supported in %s\n", name, list);
+		else
+			OPRINTF(1, "        %s NOT supported in %s\n", name, list);
+	}
+	if (list)
+		XFree(list);
+	if (name)
+		XFree(name);
 	return result;
 }
 
@@ -1472,6 +1486,7 @@ check_netwm(XdgScreen *scr)
 	Window win;
 	Display *dpy = scr->display;
 
+	OPRINTF(1, "--> checking NetWM/EWMH compliance\n");
 	do {
 		win = check_recursive(scr, _XA_NET_SUPPORTING_WM_CHECK, XA_WINDOW);
 	} while (i++ < 2 && !win);
@@ -1486,6 +1501,8 @@ check_netwm(XdgScreen *scr)
 		DPRINTF(1, "NetWM/EWMH changed from 0x%08lx to 0x%08lx\n", scr->netwm_check, win);
 	if (!win && scr->netwm_check)
 		DPRINTF(1, "NetWM/EWMH removed from 0x%08lx\n", scr->netwm_check);
+	if (win)
+		OPRINTF(1, "    NetWM/EWMH window 0x%08lx\n", win);
 
 	return (scr->netwm_check = win);
 }
@@ -1515,6 +1532,7 @@ check_winwm(XdgScreen *scr)
 	Window win;
 	Display *dpy = scr->display;
 
+	OPRINTF(1, "--> checking GNOME/WMH compliance\n");
 	do {
 		win = check_recursive(scr, _XA_WIN_SUPPORTING_WM_CHECK, XA_CARDINAL);
 	} while (i++ < 2 && !win);
@@ -1529,6 +1547,8 @@ check_winwm(XdgScreen *scr)
 		DPRINTF(1, "WinWM/WMH changed from 0x%08lx to 0x%08lx\n", scr->winwm_check, win);
 	if (!win && scr->winwm_check)
 		DPRINTF(1, "WinWM/WMH removed from 0x%08lx\n", scr->winwm_check);
+	if (win)
+		OPRINTF(1, "    GNOME/WMH window 0x%08lx\n", win);
 
 	return (scr->winwm_check = win);
 }
@@ -1542,6 +1562,7 @@ check_maker(XdgScreen *scr)
 	Window win;
 	Display *dpy = scr->display;
 
+	OPRINTF(1, "--> checking WindowMaker compliance\n");
 	do {
 		win = check_recursive(scr, _XA_WINDOWMAKER_NOTICEBOARD, XA_WINDOW);
 	} while (i++ < 2 && !win);
@@ -1555,6 +1576,8 @@ check_maker(XdgScreen *scr)
 		DPRINTF(1, "WindowMaker changed from 0x%08lx to 0x%08lx\n", scr->maker_check, win);
 	if (!win && scr->maker_check)
 		DPRINTF(1, "WindowMaker removed from 0x%08lx\n", scr->maker_check);
+	if (win)
+		OPRINTF(1, "    WindowMaker window 0x%08lx\n", win);
 
 	return (scr->maker_check = win);
 }
@@ -1569,6 +1592,7 @@ check_motif(XdgScreen *scr)
 	Window win = None;
 	Display *dpy = scr->display;
 
+	OPRINTF(1, "--> checking OSF/Motif compliance\n");
 	do {
 		data = get_cardinals(dpy, scr->root, _XA_MOTIF_WM_INFO, AnyPropertyType, &n);
 	} while (i++ < 2 && !data);
@@ -1586,6 +1610,8 @@ check_motif(XdgScreen *scr)
 		DPRINTF(1, "OSF/MOTIF changed from 0x%08lx to 0x%08lx\n", scr->motif_check, win);
 	if (!win && scr->motif_check)
 		DPRINTF(1, "OSF/MOTIF removed from 0x%08lx\n", scr->motif_check);
+	if (win)
+		OPRINTF(1, "    OSF/Motif window 0x%08lx\n", win);
 
 	return (scr->motif_check = win);
 }
@@ -1598,6 +1624,7 @@ check_icccm(XdgScreen *scr)
 	Window win;
 	Display *dpy = scr->display;
 
+	OPRINTF(1, "--> checking ICCCM 2.0 compliance\n");
 	win = XGetSelectionOwner(dpy, scr->icccm_atom);
 
 	if (win && win != scr->root) {
@@ -1608,6 +1635,8 @@ check_icccm(XdgScreen *scr)
 		DPRINTF(1, "ICCCM 2.0 WM changed from 0x%08lx to 0x%08lx\n", scr->icccm_check, win);
 	if (!win && scr->icccm_check)
 		DPRINTF(1, "ICCCM 2.0 WM removed from 0x%08lx\n", scr->icccm_check);
+	if (win)
+		OPRINTF(1, "    ICCCM 2.0 window 0x%08lx\n", win);
 	return (scr->icccm_check = win);
 }
 
@@ -1623,7 +1652,7 @@ check_redir(XdgScreen *scr)
 	Window win = None;
 	Display *dpy = scr->display;
 
-	OPRINTF(1, "checking redirection for screen %d\n", scr->screen);
+	OPRINTF(1, "--> checking redirection for screen %d\n", scr->screen);
 	if (XGetWindowAttributes(dpy, scr->root, &wa))
 		if (wa.all_event_masks & SubstructureRedirectMask)
 			win = scr->root;
@@ -1631,6 +1660,8 @@ check_redir(XdgScreen *scr)
 		DPRINTF(1, "WM redirection changed from 0x%08lx to 0x%08lx\n", scr->redir_check, win);
 	if (!win && scr->redir_check)
 		DPRINTF(1, "WM redirection removed from 0x%08lx\n", scr->redir_check);
+	if (win)
+		OPRINTF(1, "    redirection on window 0x%08lx\n", win);
 	return (scr->redir_check = win);
 }
 
@@ -1641,52 +1672,29 @@ check_window_manager(XdgScreen *scr)
 {
 	Bool have_wm = False;
 
-	OPRINTF(1, "checking wm compliance for screen %d\n", scr->screen);
+	OPRINTF(1, "checking wm compliance for screen %d:\n", scr->screen);
 
-	OPRINTF(1, "checking redirection\n");
-	if (check_redir(scr)) {
+	if (check_redir(scr))
 		have_wm = True;
-		OPRINTF(1, "redirection on window 0x%08lx\n", scr->redir_check);
-	}
-	OPRINTF(1, "checking ICCCM 2.0 compliance\n");
-	if (check_icccm(scr)) {
+	if (check_icccm(scr))
 		have_wm = True;
-		OPRINTF(1, "ICCCM 2.0 window 0x%08lx\n", scr->icccm_check);
-	}
-	OPRINTF(1, "checking OSF/Motif compliance\n");
-	if (check_motif(scr)) {
+	if (check_motif(scr))
 		have_wm = True;
-		OPRINTF(1, "OSF/Motif window 0x%08lx\n", scr->motif_check);
-	}
-	OPRINTF(1, "checking WindowMaker compliance\n");
-	if (check_maker(scr)) {
+	if (check_maker(scr))
 		have_wm = True;
-		OPRINTF(1, "WindowMaker window 0x%08lx\n", scr->maker_check);
-	}
-	OPRINTF(1, "checking GNOME/WMH compliance\n");
-	if (check_winwm(scr)) {
+	if (check_winwm(scr))
 		have_wm = True;
-		OPRINTF(1, "GNOME/WMH window 0x%08lx\n", scr->winwm_check);
-	}
 	scr->net_wm_user_time = False;
 	scr->net_startup_id = False;
 	scr->net_startup_info = False;
-	OPRINTF(1, "checking NetWM/EWMH compliance\n");
 	if (check_netwm(scr)) {
 		have_wm = True;
-		OPRINTF(1, "NetWM/EWMH window 0x%08lx\n", scr->netwm_check);
-		if (check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_WM_USER_TIME)) {
-			OPRINTF(1, "_NET_WM_USER_TIME supported\n");
+		if (check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_WM_USER_TIME))
 			scr->net_wm_user_time = True;
-		}
-		if (check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
-			OPRINTF(1, "_NET_STARTUP_ID supported\n");
+		if (check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_ID))
 			scr->net_startup_id = True;
-		}
-		if (check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_INFO)) {
-			OPRINTF(1, "_NET_STARTUP_INFO supported\n");
+		if (check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_INFO))
 			scr->net_startup_info = True;
-		}
 	}
 	return have_wm;
 }
@@ -2152,15 +2160,11 @@ need_assistance(Display *dpy)
 	}
 	if (!check_netwm(scr)) {
 		DPRINTF(1, "Failed NetWM check!\n");
-		if (options.info || options.output > 1)
-			fputs("Assistance required: window manager failed NetWM check\n", stdout);
+		OPRINTF(1, "Assistance required: window manager failed NetWM check\n");
 		return True;
 	}
 	if (!check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
-		DPRINTF(1, "_NET_STARTUP_ID not supported\n");
-		if (options.info || options.output > 1)
-			fputs("Assistance required: window manager does not support _NET_STARTUP_ID\n",
-			     stdout);
+		OPRINTF(1, "Assistance required: window manager does not support _NET_STARTUP_ID\n");
 		return True;
 	}
 	return False;
@@ -2986,7 +2990,7 @@ apply_quotes(char **str, char *q)
 volatile Bool running = False;
 
 static void
-send_msg(Display *dpy, char *msg)
+send_msg(Display *dpy, Process *pr, char *msg)
 {
 	XdgScreen *scr = screens + DefaultScreen(dpy);
 	XEvent xev;
@@ -2995,13 +2999,9 @@ send_msg(Display *dpy, char *msg)
 	char *p;
 
 	DPRINTF(1, "Message to 0x%08lx is: '%s'\n", scr->root, msg);
-
-	if (options.info || options.output > 1) {
-		fputs("Would send the following startup notification message:\n\n", stdout);
-		fprintf(stdout, "%s\n\n", msg);
-		if (options.info)
-			return;
-	}
+	OPRINTF(1, "Would send the following startup notification message: %s\n", msg);
+	if (options.info)
+		return;
 
 	if (!(from = scr->selwin)) {
 		EPRINTF("no selection window, creating one!\n");
@@ -3009,6 +3009,7 @@ send_msg(Display *dpy, char *msg)
 				BlackPixel(dpy, scr->screen),
 				BlackPixel(dpy, scr->screen));
 	}
+	pr->seq->from = from;
 
 	xev.type = ClientMessage;
 	xev.xclient.message_type = _XA_NET_STARTUP_INFO_BEGIN;
@@ -3031,6 +3032,7 @@ send_msg(Display *dpy, char *msg)
 	}
 
 	XSync(dpy, False);
+
 	if (from != scr->selwin) {
 		EPRINTF("no selection window, destroying one!\n");
 		XDestroyWindow(dpy, from);
@@ -3098,7 +3100,7 @@ send_new(Display *dpy, Process *pr)
 	strcat(p, "new:");
 	add_field(pr->seq, &p, " ID=", FIELD_OFFSET_ID);
 	add_fields(pr->seq, p);
-	send_msg(dpy, msg);
+	send_msg(dpy, pr, msg);
 	free(msg);
 	pr->state = StartupNotifyNew;
 }
@@ -3120,7 +3122,7 @@ send_change(Display *dpy, Process *pr)
 	strcat(p, "change:");
 	add_field(pr->seq, &p, " ID=", FIELD_OFFSET_ID);
 	add_fields(pr->seq, p);
-	send_msg(dpy, msg);
+	send_msg(dpy, pr, msg);
 	free(msg);
 	pr->state = StartupNotifyChanged;
 }
@@ -3140,7 +3142,7 @@ send_remove(Display *dpy, Process *pr)
 	p = msg = calloc(4096, sizeof(*msg));
 	strcat(p, "remove:");
 	add_field(pr->seq, &p, " ID=", FIELD_OFFSET_ID);
-	send_msg(dpy, msg);
+	send_msg(dpy, pr, msg);
 	free(msg);
 	pr->state = StartupNotifyComplete;
 }
@@ -7311,20 +7313,16 @@ static void
 reset_pid(pid_t pid, Process *pr)
 {
 	PTRACE(5);
-	if (pid) {
+	if ((pid && pr->pid != pid) || (!pid && pr->pid != getpid())) {
 		/* this is the parent */
 		pr->pid = pid;
 		set_seq_pid(pr);
 		set_seq_id(pr);
+		OPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		if (options.output > 1)
 			show_sequence("Final notify fields", pr->seq);
 		if (options.info)
 			info_sequence("Final notify fields", pr->seq);
-	} else {
-		/* this is the child */
-		pr->pid = getpid();
-		set_seq_pid(pr);
-		set_seq_id(pr);
 	}
 }
 
@@ -7566,7 +7564,7 @@ assist(Display *dpy, Process *pr)
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	DPRINTF(1, "Launching with wm assistance\n");
 	if (options.info) {
-		fputs("Would launch with wm assistance\n\n", stdout);
+		OPRINTF(1, "Would launch with wm assistance\n");
 		return;
 	}
 	if ((pid = fork()) < 0) {
@@ -7614,9 +7612,8 @@ toolwait(Display *dpy, Process *pr)
 	XSync(dpy, False);
 	DPRINTF(1, "Launching with tool wait support\n");
 	if (options.info) {
-		fputs("Would launch with tool wait support\n\n", stdout);
+		OPRINTF(1, "Would launch with tool wait support\n");
 		reset_pid(pid, pr);
-		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		return;
 	}
 	if ((pid = fork()) < 0) {
@@ -7624,7 +7621,6 @@ toolwait(Display *dpy, Process *pr)
 		exit(EXIT_FAILURE);
 	}
 	reset_pid(pid, pr);
-	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	if (!pid) {
 		/* child returns and launches */
 		/* setsid(); */ /* XXX */
@@ -7652,11 +7648,8 @@ normal(Display *dpy, Process *pr)
 	pid_t pid = getpid();
 
 	PTRACE(5);
-	DPRINTF(1, "Launching without assistance or tool wait\n");
-	if (options.info)
-		fputs("Would launch without assistance or tool wait\n\n", stdout);
+	OPRINTF(1, "Launching without assistance or tool wait\n");
 	reset_pid(pid, pr);
-	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	/* main process returns and launches */
 	return;
 }
@@ -7710,24 +7703,12 @@ static Window
 check_wmngr(XdgScreen *scr)
 {
 	PTRACE(5);
-	OPRINTF(1, "checking NetWM/EWMH compliance\n");
-	if (check_netwm(scr))
-		OPRINTF(1, "NetWM/EWMH window 0x%08lx\n", scr->netwm_check);
-	OPRINTF(1, "checking GNOME/WMH compliance\n");
-	if (check_winwm(scr))
-		OPRINTF(1, "GNOME/WMH window 0x%08lx\n", scr->winwm_check);
-	OPRINTF(1, "checking WindowMaker compliance\n");
-	if (check_maker(scr))
-		OPRINTF(1, "WindowMaker window 0x%08lx\n", scr->maker_check);
-	OPRINTF(1, "checking OSF/Motif compliance\n");
-	if (check_motif(scr))
-		OPRINTF(1, "OSF/Motif window 0x%08lx\n", scr->motif_check);
-	OPRINTF(1, "checking ICCCM 2.0 compliance\n");
-	if (check_icccm(scr))
-		OPRINTF(1, "ICCCM 2.0 window 0x%08lx\n", scr->icccm_check);
-	OPRINTF(1, "checking redirection\n");
-	if (check_redir(scr))
-		OPRINTF(1, "redirection on window 0x%08lx\n", scr->redir_check);
+	check_netwm(scr);
+	check_winwm(scr);
+	check_maker(scr);
+	check_motif(scr);
+	check_icccm(scr);
+	check_redir(scr);
 	return check_anywm(scr);
 }
 
@@ -7746,33 +7727,24 @@ wait_for_window_manager(Display *dpy)
 
 	PTRACE(5);
 	if (check_wmngr(scr)) {
-		if (options.info || options.output > 1) {
-			fputs("Have a window manager:\n\n", stdout);
-			if (scr->netwm_check)
-				OPRINTF(0, "%-24s = 0x%08lx\n", "Window NetWM/EWMH",
-					scr->netwm_check);
-			if (scr->winwm_check)
-				OPRINTF(0, "%-24s = 0x%08lx\n", "Window WinWM/GNOME",
-					scr->winwm_check);
-			if (scr->maker_check)
-				OPRINTF(0, "%-24s = 0x%08lx\n", "Window WindowMaker",
-					scr->maker_check);
-			if (scr->motif_check)
-				OPRINTF(0, "%-24s = 0x%08lx\n", "Window OSF/MOTIF",
-					scr->motif_check);
-			if (scr->icccm_check)
-				OPRINTF(0, "%-24s = 0x%08lx\n", "Window ICCCM 2.0",
-					scr->icccm_check);
-			if (scr->redir_check)
-				OPRINTF(0, "%-24s = 0x%08lx\n", "Window redirection",
-					scr->redir_check);
-			fputs("\n", stdout);
-		}
+		OPRINTF(0, "Have a window manager:\n");
+		if (scr->netwm_check)
+			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window NetWM/EWMH", scr->netwm_check);
+		if (scr->winwm_check)
+			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window WinWM/GNOME", scr->winwm_check);
+		if (scr->maker_check)
+			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window WindowMaker", scr->maker_check);
+		if (scr->motif_check)
+			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window OSF/MOTIF", scr->motif_check);
+		if (scr->icccm_check)
+			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window ICCCM 2.0", scr->icccm_check);
+		if (scr->redir_check)
+			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window redirection", scr->redir_check);
 		return (True);
 	} else {
 		DPRINTF(1, "Will wait for window manager\n");
 		if (options.info) {
-			fputs("Would wait for window manager\n", stdout);
+			OPRINTF(1, "Would wait for window manager\n");
 			return (True);
 		}
 	}
@@ -7916,41 +7888,32 @@ need_assist(Display *dpy, Process *pr)
 	Bool need_assist = (!options.autoassist && options.assist) ? True : False;
 
 	PTRACE(5);
+	OPRINTF(1, "Checking assistance:\n");
 	if (need_assist) {
-		OPRINTF(1, "Assistance requested\n");
-		if (options.info)
-			fputs("Assistance requested\n", stdout);
+		OPRINTF(1, "--> Assistance requested\n");
 		return need_assist;
 	}
 	switch (pr->type) {
 	case LaunchType_XSession:
 	case LaunchType_Session:
-		OPRINTF(1, "XSession: always needs assistance\n");
+		OPRINTF(1, "--> XSession: always needs assistance\n");
 		need_assist = True;
-		if (options.info)
-			fputs("Launching XSession entry always requires assistance.\n", stdout);
 		break;
 	case LaunchType_Autostart:
-		OPRINTF(1, "AutoStart: always needs assistance\n");
+		OPRINTF(1, "--> AutoStart: always needs assistance\n");
 		need_assist = True;
-		if (options.info)
-			fputs("Launching AutoStart entry always requires assistance.\n", stdout);
 		break;
 	case LaunchType_Application:
 		if (!need_assistance(dpy))
 			break;
-		OPRINTF(1, "WindowManager: needs assistance\n");
+		OPRINTF(1, "--> WindowManager: needs assistance\n");
 		if (pr->seq->f.wmclass) {
-			OPRINTF(1, "WMCLASS: requires assistance\n");
+			OPRINTF(1, "--> WMCLASS: requires assistance\n");
 			need_assist = True;
-			if (options.info)
-				fputs("Launching StartupWMClass entry always requires assistance.\n", stdout);
 		}
 		if (pr->seq->f.silent && pr->seq->n.silent) {
-			OPRINTF(1, "SILENT: requires assistance\n");
+			OPRINTF(1, "--> SILENT: requires assistance\n");
 			need_assist = True;
-			if (options.info)
-				fputs("Launching SILENT entry always requires assistance.\n", stdout);
 		}
 	}
 	return need_assist;
@@ -8016,18 +7979,12 @@ launch(Process *pr)
 
 	if (options.toolwait) {
 		OPRINTF(1, "Tool wait requested\n");
-		if (options.info)
-			fputs("Tool wait requested\n\n", stdout);
 		toolwait(dpy, pr);
 	} else if (options.assist) {
 		OPRINTF(1, "Assistance is required\n");
-		if (options.info)
-			fputs("Assistance is required\n\n", stdout);
 		assist(dpy, pr);
 	} else {
 		OPRINTF(1, "Assistance is NOT needed, no tool wait\n");
-		if (options.info)
-			fputs("Assistance is NOT needed, no tool wait\n\n", stdout);
 		normal(dpy, pr);
 	}
 
@@ -10130,7 +10087,6 @@ spawn_child(Process *pr)
 	if (pr->pid) {
 		/* parent */
 		reset_pid(pr->pid, pr);
-		DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 		pr->started = True;
 		return wait_stopped_proc(pr);
 	}
@@ -10142,7 +10098,6 @@ spawn_child(Process *pr)
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	reset_pid(pr->pid, pr);
-	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
 	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", s->f.id);
 
@@ -10185,7 +10140,6 @@ setup_window_manager(Process *pr)
 		info_sequence("Associated sequence", s);
 
 	reset_pid(pid, pr);
-	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 
 	if (options.ppid && options.ppid != pid && options.ppid != getppid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
@@ -11736,6 +11690,9 @@ main(int argc, char *argv[])
 		myid = s->f.id;
 	}
 	switch (command) {
+	case CommandDefault:
+		command = CommandLaunch;
+		/* fall thru */
 	case CommandLaunch:
 		launch(pr);
 		break;
