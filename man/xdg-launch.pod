@@ -108,6 +108,63 @@ C<%u> substitutions in the C<Exec> field of the XDG desktop entry file
 or B<--exec> command line.  This may also be specified with the B<--url>
 option.
 
+=item B<-e> I<COMMAND ARGUMENTS>
+
+When specified, this option must be the last option on the command line.
+Options processing stops abruptly at this option and remaining arguments
+are considered to be the command and the command arguments to execute.
+B<xdg-launch> will L<execve(3)> the arguments under startup notification
+control in a similar fashion to C<sh -c>.
+
+=back
+
+=head2 ARGUMENT OPTIONS
+
+Arguments can be optionally provided using the following options:
+
+=over
+
+=item B<-a>, B<--appid> I<APPLICATION_ID>
+
+Override the application identifier.  This overrides the name of the XDG
+application file.  When unspecified, the default is to use the
+non-option I<APPID> argument to determine the application identifier.
+This value, when available, is placed in the C<APPLICATION_ID> key-value
+entry in the startup notification C<new> message.
+
+=item B<--mimetype> I<MIMETYPE>
+
+Specify a registered mime type, I<MIMETYPE>, of the form
+"I<type>B</>I<subtype>".  This corresponds to the mime type of a file or
+scheme handler that will identify the application to launch.
+
+=item B<--category> I<CATEGORY>
+
+Specify an XDG menu specification category, I<CATEGORY>, that identifies
+the application to launch.
+
+=item B<-f>, B<--file> I<FILE>
+
+Specifies a filename, I<FILE>, to be substituted into the XDG desktop
+entry C<Exec> command in accordance with XDG desktop entry
+specifications.  The default is to use the non-option I<FILE> argument,
+or no filename.  When B<--url> or URL is specified as a F<file://> URL,
+this option defaults to the URL with the F<file:> portion removed.
+
+=item B<-u>, B<--url> I<URL>
+
+Specifies a URL, I<URL>, to be substituted into the XDG desktop entry
+C<Exec> command in accordance with XDG desktop entry specifications.
+The default is to use the non-option I<URL> argument, or no URL.  When
+B<--file> or I<FILE> is specified, this option defaults to the I<FILE>
+with a F<file://> portion prefixed.
+
+=item B<-x>, B<--exec> I<COMMAND>
+
+Specifies the command to execute.  This overrides the C<Exec> field of
+the XDG desktop entry file.  When unspecified, the default is the
+C<Exec> field of the XDG desktop entry file.
+
 =back
 
 =head1 OPTIONS
@@ -118,18 +175,56 @@ of long options and long options with a single dash are also supported.
 
 =head2 COMMAND OPTIONS
 
-The default is to launch the application specified by C<APPID>.  When
-any of the following options are specified, the command mode changes:
+The default is to launch the application specified by C<APPSPEC>.  When
+any of the following options are specified, the command mode changes.
+
+Only one of B<--autostart>, B<--xsession>, B<--startup> or B<--session>
+can be specified.
 
 =over
 
-=item B<-e> I<command arguments>
+=item B<-U>, B<--autostart>
 
-When specified, this option must be the last option on the command line.
-Options processing stops abruptly at this option and remaining arguments
-are considered to be the command and the command arguments to execute.
-B<xdg-launch> will L<execve(3)> the arguments under startup notification
-control in a similar fashion to C<sh -c>.
+Interpret and search for the desktop entry file as an C<AutoStart>
+desktop entry instead of an C<Application> desktop entry.  This is the
+default when invoked as B<xdg-autostart>.  The C<LAUNCHER> will default
+to B<xdg-autostart> instead of B<xdg-launch>.  Aside from these
+differences, the launcher operates in the same fashion.  This option is
+intended for launching individual autostart entries.
+
+=item B<-X>, B<--xsession>
+
+Interpret and search for the desktop entry file as an C<XSession>
+desktop entry instead of an C<Application> desktop entry.  This is the
+default when invoked as B<xdg-xsession>.  The C<LAUNCHER> will default
+to B<xdg-session> instead of B<xdg-launch>.  Aside from these
+differences, the launcher operates in the same fashion.  This option is
+intended for launching window managers.
+
+=item B<-E>, B<--session>
+
+Interpret and search for the desktop entry file as an C<XSession>
+desktop entry instead of an C<Application> desktop entry.  This is the
+default when invoked as B<xdg-session>.  The C<LAUNCHER> will default to
+B<xdg-session> instead of B<xdg-launch>.  This option, therefore, acts
+like the B<--xsession> option, with the exception that the program also
+performs autostart for the window manager by executing the necessary
+autostart desktop entries according to the XDG autostart specification.
+This option is useful for launching a light-weight session for use with
+a light-weight window manager.
+
+=item B<-B>, B<--startup>
+
+Interpret and search for the desktop entry file, if specified, as an
+C<XSession> desktop entry instead of an C<Application> desktop entry.
+This is the default when invoked as B<xdg-startup>.  The C<LAUNCHER>
+will default to B<xdg-startup> instead of B<xdg-launch>.  This option,
+therefore, acts like the B<--session> option, with the exception that
+the program only performs autostart by executing the necessary autostart
+desktop entries according to the XDG autostart specification, and does
+not launch a window manager.
+This option is useful for launching autostart entries after a
+light-weight window manager has already started.
 
 =item B<-I>, B<--info>
 
@@ -310,46 +405,26 @@ but it is set to false.
 Specifies the process identifier for the launch sequence.  The default
 is the process identifier of the xdg-launch program.
 
-=item B<-x>, B<--exec> I<COMMAND>
+=item B<-A>, B<--action> I<ACTION>
 
-Specifies the command to execute.  This overrides the C<Exec> field of
-the XDG desktop entry file.  When unspecified, the default is the
-C<Exec> field of the XDG desktop entry file.
+Specifies a desktop action, I<ACTION>, to perform instead of the default
+action.  The default is to perform the default action in the desktop
+entry file.  This value, when available, is placed in the "ACTION"
+key-value entry in the startup notification "new" message.
 
-=item B<-a>, B<--appid> I<APPLICATION_ID>
+=back
 
-Override the application identifier.  This overrides the name of the XDG
-application file.  When unspecified, the default is to use the
-non-option I<APPID> argument to determine the application identifier.
-This value, when available, is placed in the C<APPLICATION_ID> key-value
-entry in the startup notification C<new> message.
+=head2 CONTEXT OPTIONS
 
-=item B<--mimetype> I<MIMETYPE>
+Context options provide a means by which to guide the appropriate
+selection of screen and monitor.  When the program is run from a key
+binding associated with a window manager, the most appropriate screen or
+monitor is that which contains the window that currently has the
+keyboard focus.  When the program is launched from a pointer button
+press, the most appropriate screen or monitor is that which contains the
+pointer.
 
-Specify a registered mime type, I<MIMETYPE>, of the form
-"I<type>B</>I<subtype>".  This corresponds to the mime type of a file or
-scheme handler that will identify the application to launch.
-
-=item B<--category> I<CATEGORY>
-
-Specify an XDG menu specification category, I<CATEGORY>, that identifies
-the application to launch.
-
-=item B<-f>, B<--file> I<FILE>
-
-Specifies a filename, I<FILE>, to be substituted into the XDG desktop
-entry C<Exec> command in accordance with XDG desktop entry
-specifications.  The default is to use the non-option I<FILE> argument,
-or no filename.  When B<--url> or URL is specified as a F<file://> URL,
-this option defaults to the URL with the F<file:> portion removed.
-
-=item B<-u>, B<--url> I<URL>
-
-Specifies a URL, I<URL>, to be substituted into the XDG desktop entry
-C<Exec> command in accordance with XDG desktop entry specifications.
-The default is to use the non-option I<URL> argument, or no URL.  When
-B<--file> or I<FILE> is specified, this option defaults to the I<FILE>
-with a F<file://> portion prefixed.
+=over
 
 =item B<-P>, B<--pointer>
 
@@ -375,65 +450,15 @@ when the B<--monitor> option is also specified.
 
 Only one of B<--pointer> or B<--keyboard> can be specified.
 
-=item B<-A>, B<--action> I<ACTION>
+=back
 
-Specifies a desktop action, I<ACTION>, to perform instead of the default
-action.  The default is to perform the default action in the desktop
-entry file.  This value, when available, is placed in the "ACTION"
-key-value entry in the startup notification "new" message.
+=head2 HISTORY OPTIONS
 
-=item B<-X>, B<--xsession>
+When simple applications are launched, files containing the history of
+recently launched applications are updated.  The following options
+affect this behaviour.
 
-Interpret and search for the desktop entry file as an C<XSession>
-desktop entry instead of an C<Application> desktop entry.  This is the
-default when invoked as B<xdg-xsession>.  The C<LAUNCHER> will default
-to B<xdg-session> instead of B<xdg-launch>.  Aside from these
-differences, the launcher operates in the same fashion.  This option is
-intended for launching window managers.
-
-Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
-
-=item B<-U>, B<--autostart>
-
-Interpret and search for the desktop entry file as an C<AutoStart>
-desktop entry instead of an C<Application> desktop entry.  This is the
-default when invoked as B<xdg-autostart>.  The C<LAUNCHER> will default
-to B<xdg-autostart> instead of B<xdg-launch>.  Aside from these
-differences, the launcher operates in the same fashion.  This option is
-intended for launching individual autostart entries.
-
-Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
-
-=item B<-E>, B<--session>
-
-Interpret and search for the desktop entry file as an C<XSession>
-desktop entry instead of an C<Application> desktop entry.  This is the
-default when invoked as B<xdg-session>.  The C<LAUNCHER> will default to
-B<xdg-session> instead of B<xdg-launch>.  This option, therefore, acts
-like the B<--xsession> option, with the exception that the program also
-performs autostart for the window manager by executing the necessary
-autostart desktop entries according to the XDG autostart specification.
-
-This option is useful for launching a light-weight session for use with
-a light-weight window manager.
-
-Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
-
-=item B<-B>, B<--startup>
-
-Interpret and search for the desktop entry file, if specified, as an
-C<XSession> desktop entry instead of an C<Application> desktop entry.
-This is the default when invoked as B<xdg-startup>.  The C<LAUNCHER>
-will default to B<xdg-startup> instead of B<xdg-launch>.  This option,
-therefore, acts like the B<--session> option, with the exception that
-the program only performs autostart by executing the necessary autostart
-desktop entries according to the XDG autostart specification, and does
-not launch a window manager.
-
-This option is useful for launching autostart entries after a
-light-weight window manager has already started.
-
-Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
+=over
 
 =item B<-k>, B<--keep> I<NUMBER>
 
@@ -453,7 +478,7 @@ F<$XDG_CONFIG_HOME/xde/recent-applications>.
 
 =back
 
-=head1 JOB CONTROL OPTIONS
+=head2 JOB CONTROL OPTIONS
 
 The following job control options provide an equivalent functionality to
 that of L<xtoolwait(1)>.
@@ -476,17 +501,19 @@ session.
 
 Normally B<xdg-launch> will determine whether the window manager and
 application toolkit requires assistance with startup notification.  The
-default when the window manager supports startup notification is to not
-provide any assistance.  This option requests that B<xdg-launch> provide
-startup notification assistance to the window manager.
+default when a window manager exists that supports startup notification
+is to not provide any assistance.  This option requests that
+B<xdg-launch> provide startup notification assistance to any window
+manager.
 
 =item B<--no-assist>
 
-Normally B<xdg-launch> will determine whether the window manager and
-application toolkit requires assistance with startup notification.  The
-default when the window manager does not support startup notification is
-to provide assistance.  This option requests that B<xdg-launch> not
-provide startup notification assistance to the window manager.
+Normally B<xdg-launch> will determine whether an existing window manager
+and application toolkit requires assistance with startup notification.
+The default when a window manager exists that does not support startup
+notification is to provide assistance.  This option requests that
+B<xdg-launch> not provide startup notification assistance to any window
+manager.
 
 =item B<-T>, B<--toolwait>
 
@@ -880,13 +907,16 @@ procedure before launching the window manager specified by the I<APPID>
 or B<--exec> command.  B<xdg-launch> creates a session by launching
 autostart desktop entries in child processes and then executes the
 I<APPID> or B<--exec> command for the window manager in the parent
-process.  It attempts to become an session leader and a process group
-leader before launching children.  This should ultimately leave any
-child processes as children of the window manager.
+process.  It attempts to become a process group leader before launching
+children.  This should ultimately leave any child processes as children
+of the window manager.  The window manager is executed in the parent
+process and, therefore, the parent process will not exit until the
+window manager exits.
 
-When no I<APPID> or B<--exec> command is specified, instead of starting
-a window manager, waits until all child processes have exited and then
-exits itself.
+When B<--startup> is specified, or no I<APPID> or B<--exec> command is
+specified, instead of starting a window manager, establishes children so
+that they will be re-parented to the process group leader when the
+parent process exits.
 
 =head2 TOOL WAIT
 
