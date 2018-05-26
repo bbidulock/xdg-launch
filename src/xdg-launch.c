@@ -1758,21 +1758,35 @@ check_compm(XdgScreen *scr)
 }
 
 static Window
-check_audio(XdgScreen *scr)
+check_audio(XdgScreen * scr)
 {
 	char *text;
 	Display *dpy = scr->display;
+	Window win = None;
 
-	if (!(text = get_text(dpy, scr->root, _XA_PULSE_COOKIE)))
-		return (scr->audio_owner = None);
+	OPRINTF(1, "--> checking for audio server on screen %d\n", scr->screen);
+	if (!(text = get_text(dpy, scr->root, _XA_PULSE_COOKIE))) {
+		DPRINTF(1, "no PULSE_COOKIE property\n");
+		goto done;
+	}
 	XFree(text);
-	if (!(text = get_text(dpy, scr->root, _XA_PULSE_SERVER)))
-		return (scr->audio_owner = None);
+	if (!(text = get_text(dpy, scr->root, _XA_PULSE_SERVER))) {
+		DPRINTF(1, "no PULSE_SERVER property\n");
+		goto done;
+	}
 	XFree(text);
-	if (!(text = get_text(dpy, scr->root, _XA_PULSE_ID)))
-		return (scr->audio_owner = None);
+	if (!(text = get_text(dpy, scr->root, _XA_PULSE_ID))) {
+		DPRINTF(1, "no PULSE_ID property\n");
+		goto done;
+	}
 	XFree(text);
-	return (scr->audio_owner = scr->root);
+	win = scr->root;
+      done:
+	if (win)
+		OPRINTF(1, "    audio server found\n");
+	else
+		OPRINTF(1, "    audio server NOT found\n");
+	return (scr->audio_owner = win);
 }
 
 static Window
@@ -1781,12 +1795,14 @@ check_shelp(XdgScreen *scr)
 	Window win;
 	Display *dpy = scr->display;
 
+	OPRINTF(1, "--> checking for startup helper\n");
 	if ((win = XGetSelectionOwner(dpy, scr->shelp_atom)))
 		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
 	if (win && win != scr->shelp_owner)
 		DPRINTF(1, "startup helper changed from 0x%08lx to 0x%08lx\n", scr->shelp_owner, win);
 	if (!win && scr->shelp_owner)
 		DPRINTF(1, "startup helper removed from 0x%08lx\n", scr->shelp_owner);
+	OPRINTF(1, "    startup helper 0x%08lx\n", win);
 	return (scr->shelp_owner = win);
 }
 
@@ -7436,11 +7452,18 @@ wait_for_condition(Display *dpy, Bool (*condition) (Display *, XPointer), XPoint
 	int xfd, sfd, tfd, status;
 	XEvent ev;
 
-	if (guard >= 0)
+	if (guard >= 0 && !options.info)
 		start_guard_timer(guard);
 
-	if (condition(dpy, data))
+	if (condition(dpy, data)) {
+		OPRINTF(1, "... not waiting\n");
 		return (True);
+	}
+
+	if (options.info) {
+		OPRINTF(1, "... would wait\n");
+		return (False);
+	}
 
 	PTRACE(5);
 	sfd = get_signal_fd();
@@ -7540,17 +7563,243 @@ wait_for_completion(Display *dpy, Process *pr, int guard)
 	return wait_for_condition(dpy, &check_for_completion, (XPointer) pr, guard);
 }
 
+static void
+close_files(void)
+{
+	struct rlimit rlim = { 0, };
+	int i;
+
+	getrlimit(RLIMIT_NOFILE, &rlim);
+
+	/* close all fds except stdin, stdout, stderr */
+
+	for (i = 3; i < rlim.rlim_cur; i++)
+		close(i);
+}
+
+static Bool
+wait_stopped_pid(pid_t pid)
+{
+	int status = 0;
+
+	DPRINTF(1, "Waiting for %d to stop...\n", pid);
+	if (waitpid(pid, &status, WUNTRACED) == -1) {
+		EPRINTF("waitid: %s\n", strerror(errno));
+		return (False);
+	}
+	if (WIFEXITED(status)) {
+		EPRINTF("child exited with status %d!\n", WEXITSTATUS(status));
+		return (False);
+	} else if (WIFSIGNALED(status)) {
+		if (WCOREDUMP(status)) {
+			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
+			return (False);
+		} else {
+			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
+			return (False);
+		}
+	} else if (WIFSTOPPED(status)) {
+		if (WSTOPSIG(status) != SIGSTOP) {
+			EPRINTF("child stopped on wrong signal %d!\n", WSTOPSIG(status));
+			return (True);
+		}
+		DPRINTF(1, "child stopped on signal %d!\n", WSTOPSIG(status));
+		return (True);
+	} else if (WIFCONTINUED(status)) {
+		EPRINTF("child continued on signal %d!\n", SIGCONT);
+		return (False);
+	}
+	return (False);
+}
+
+static Bool
+wait_stopped_proc(Process *pr)
+{
+	Bool result;
+
+	DPRINTF(1, "Waiting for child %s PID %d to stop...\n", pr->appid, pr->pid);
+	result = wait_stopped_pid(pr->pid);
+	pr->started = False;
+	if (result)
+		pr->stopped = True;
+	return (result);
+}
+
+static Bool
+wait_continued_pid(pid_t pid)
+{
+	int status = 0;
+
+	DPRINTF(1, "Waiting for %d to continue...\n", pid);
+	if (waitpid(pid, &status, WCONTINUED) == -1) {
+		EPRINTF("waitid: %s\n", strerror(errno));
+		return (False);
+	}
+	if (WIFEXITED(status)) {
+		EPRINTF("child exited with status %d!\n", WEXITSTATUS(status));
+		return (False);
+	} else if (WIFSIGNALED(status)) {
+		if (WCOREDUMP(status)) {
+			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
+			return (False);
+		} else {
+			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
+			return (False);
+		}
+	} else if (WIFSTOPPED(status)) {
+		EPRINTF("child stopped on signal %d!\n", WSTOPSIG(status));
+		return (False);
+	} else if (WIFCONTINUED(status)) {
+		DPRINTF(1, "child continued on signal %d!\n", SIGCONT);
+		return (True);
+	}
+	return (False);
+}
+
+Bool
+wait_continued_proc(Process *pr)
+{
+	Bool result;
+
+	DPRINTF(1, "Waiting for child %s PID %d to continue...\n", pr->appid, pr->pid);
+	result = wait_continued_pid(pr->pid);
+	pr->stopped = False;
+	if (result)
+		pr->running = True;
+	return (result);
+}
+
+Bool
+wait_exited_pid(pid_t pid)
+{
+	int status = 0;
+
+	DPRINTF(1, "Waiting for %d to exit...\n", pid);
+	if (waitpid(pid, &status, 0) == -1) {
+		EPRINTF("waitid: %s\n", strerror(errno));
+		return (False);
+	}
+	if (WIFEXITED(status)) {
+		DPRINTF(1, "child exited with status %d!\n", WEXITSTATUS(status));
+		return (True);
+	} else if (WIFSIGNALED(status)) {
+		if (WCOREDUMP(status)) {
+			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
+			return (False);
+		} else {
+			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
+			return (False);
+		}
+	} else if (WIFSTOPPED(status)) {
+		EPRINTF("child stopped on signal %d!\n", WSTOPSIG(status));
+		return (False);
+	} else if (WIFCONTINUED(status)) {
+		EPRINTF("child continued on signal %d!\n", SIGCONT);
+		return (True);
+	}
+	return (False);
+}
+
+/** @brief spawn a child to execute the application
+  *
+  * This function is used both for normal startup of an application as well as
+  * for autostarting the components of a full session.
+  */
+static Bool
+spawn_child(Process *pr)
+{
+	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
+
+	if ((pr->pid = fork()) < 0) {
+		EPRINTF("%s\n", strerror(errno));
+		return (False);
+	}
+	if (pr->pid) {
+		/* parent */
+		reset_pid(pr->pid, pr);
+		pr->started = True;
+		return wait_stopped_proc(pr);
+	}
+	/* child continues here */
+	pr->pid = getpid();
+
+	/* shouldn't be necessary, but what the hey?! */
+	close_files();
+
+	/* set the new parent after existing parent exits */
+	if (pr->ppid && pr->ppid != getppid())
+		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
+
+	/* set the DESKTOP_STARTUP_ID environment variable (with correct PID) */
+	reset_pid(pr->pid, pr);
+	setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
+	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", pr->seq->f.id);
+
+	/* Setting the DISPLAY this way is, in fact, a bad thing to do.  It will restrict 
+	   an application to a single screen in a multi-screen setup.  */
+	if (0) {
+		char *disp, *p;
+		size_t size;
+
+		/* set the DISPLAY environment variable */
+		p = getenv("DISPLAY");
+		size = strlen(p) + strlen(pr->seq->f.screen) + 2;
+		disp = calloc(size, sizeof(*disp));
+		strcpy(disp, p);
+		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
+			*p = '\0';
+		strcat(disp, ".");
+		strcat(disp, pr->seq->f.screen);
+		setenv("DISPLAY", disp, 1);
+		DPRINTF(1, "Set DISPLAY to %s\n", disp);
+	}
+
+	/* stop here till parent sends us SIGCONT */
+	DPRINTF(1, "PID %d is stopping itself\n", pr->pid);
+	kill(pr->pid, SIGSTOP);
+
+	DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
+	execl("/bin/sh", "sh", "-c", pr->seq->f.command, NULL);
+	exit(EXIT_FAILURE);
+}
+
 /** @brief assist the window manager.
   *
-  * Assist the window manager to do the right thing with respect to focus and
-  * with respect to positioning of the window on the correct monitor and the
-  * correct desktop.
+  * Assist revisited:
   *
-  * Launch without toolwait, with assistance: a child is forked that will
-  * perform the assistance.  The parent will execute the command.  The parent
-  * should initialize client lists before starting the child.  The parent sends
-  * startup notification before executing the command.  The child performs
-  * assistance and then exits.  The child owns the display connection.
+  * 1. A child is spawned that will execute the command and is stopped: prctl()
+  *    is used to reparent the child when the parent exits.  The display is not
+  *    opened by the parent until after the child is spawned.
+  *
+  * 2. The parent resets the id using the child's pid and sends startup
+  *    notification.
+  *
+  * 3. The parent grabs the display and scans for existing top-level windows in
+  *    the same way a window manager would at startup.
+  *
+  * 4. The parent then continues the child and waits for completion or exit of
+  *    the child.
+  *
+  * 5. When child continues, it resets the startup id using its own pid and uses
+  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
+  *    launches the application.
+  *
+  * 6. While waiting for the child to complete or exit, the parent assists the
+  *    window manager by setting any necessary properties on any window that it
+  *    detects that the client mapped.  Properties that are set include:
+  *    _NET_STARTUP_ID (set to the DESKTOP_STARTUP_ID), _NET_WM_USER_TIME (set
+  *    to the timestamp in the DESKTOP_STARTUP_ID), _NET_WM_DESKTOP (set to the
+  *    DESKTOP= parameter sent in the "new:" message) if the window manager
+  *    supports NetWM/EWMH, WIN_WORKSPACE (set to the DESKTOP= parameter send in
+  *    the "new:" message) if the window manager supports WinWM/WMH.  This
+  *    assists the window manager in doing the right thing with respect to
+  *    focus, and position of the window on the correct monitor and the correct
+  *    desktop.
+  *
+  * 7. When the parent detects completion or exit, it sends the "remove:"
+  *    message, if necessary, and exits.
+  *
+  * 8. The OS reparents the child to the intended sub-reaper.
   */
 static void
 assist(Display *dpy, Process *pr)
@@ -7585,22 +7834,36 @@ assist(Display *dpy, Process *pr)
 
 /** @brief launch with tool wait
   *
-  * Launch with toolwait, with or without assist: a child is forked that will
-  * execute the command.  The parent must determine existing clients before
-  * forking the child.  The child must send the startup notification before
-  * executing the command.  The parent will perform any assistance that is
-  * required and exit when the startup conditions have been satisfied.  The
-  * parent owns the display connection. 
+  * Toolwait launch revisited:
   *
-  * If we do not need assistance, all that is needed here is to wait for the
-  * startup notification "end:" message (or timeout) and then consider the
-  * startup complete.
+  * 1. A child is spawned that will execute the command and is stopped: prctl()
+  *    is used to reparent the child when the parent exits.  The display is not
+  *    opened by the parent until after the child is spawned.
   *
-  * If assistance is required, we must identify when the application maps its
-  * windows and send the "end:" message ourselves.  Upon transmission of the
-  * "end:" message (or timeout), consider the startup complete.  In addition,
-  * EWMH properties are set on initial windows that are not set by the
-  * application.
+  * 2. The parent resets the id using the child's pid and sends startup
+  *    notification.
+  *
+  * 3. The parent grabs the display and scans for existing top-level windows in
+  *    the same way a window manager would at startup.
+  *
+  * 4. The parent then continues the child and waits for completion or exit of
+  *    the child.
+  *
+  * 5. When child continues, it resets the startup id using its own pid and uses
+  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
+  *    launches the application.
+  *
+  * 6. When the parent detects completion or exit, it sends the "end:" message,
+  *    if necessary.  When assistance is not also required, all that is needed
+  *    is to wait for the startup notificaiton "end:" message (or timeout) and
+  *    then consider the startup complete.  The parent may also detect premature
+  *    or intentional exit of the child.  When assistance is also required, we
+  *    must identify when the application maps its windows and send the "end:"
+  *    message ourselves.  Upon transmission of the "end:" message (or timeout),
+  *    consider the startup complete.  In addition, EWMH properties are set on
+  *    initial windows that are not set by the application.
+  *
+  * 7. The OS reparents the child to the intended sub-reaper.
   */
 static void
 toolwait(Display *dpy, Process *pr)
@@ -7634,13 +7897,45 @@ toolwait(Display *dpy, Process *pr)
 
 /** @brief launch normally without assist or tool wait
   *
-  * Normal launch without assist without toolwait: No child is generated, the
-  * parent process sends the startup notification message and then executes the
-  * command.  The main process owns the display connection.
+  * Normal launch revisited:
   *
-  * No startup notification completion is tracked nor generated: it is assumed
-  * that the window manager or application will complete startup notification
-  * and set the appropriate EWMH properties on all windows.
+  * Normally we would not create a child at all.  One of the problems is
+  * zombies.  Another is having the child reparented under init() if the parent
+  * exits.
+  *
+  * The former can be handled by intentionally ignoring SIGCHLD before launching
+  * the child, in which case zombies are not created, unless the new program is
+  * willing to reap them.  See wait(2) for details.
+  *
+  * The later can be handled using a sub-reaper with prctl(2) (essentially
+  * assigning which process will be the new parent of the child when its
+  * existing parent exits.
+  *
+  * This later solution is probably the best approach as the child need not send
+  * its own startup notification and need not open the display at all.
+  * Therefore a normal launch is now the same as a toolwait or assist launch and
+  * is also the same for the autostart components of a full session.  The steps
+  * are as follows:
+  *
+  * 1. A child is spawned that will execute the command and is stopped: prctl()
+  *    is used to reparent the child when the parent exits.  The display is not
+  *    opened by the parent until after the child is spawned.
+  *
+  * 2. The parent resets the id using the child's pid and sends startup
+  *    notification.
+  *
+  * 3. The parent then continues the child and waits for it to continue or exit.
+  *
+  * 4. When child continues, it resets the startup id using its own pid and uses
+  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
+  *    launches the application.
+  *
+  * 5. When the child continues or exits, the parent exits.  No startup
+  *    notification completion is tracked nor generated: it is assumed that the
+  *    window manager or application will complete startup notification and set
+  *    the appropriate EWMH properties on all windows.
+  *
+  * 6. The OS reparents the child to the intended sub-reaper.
   */
 static void
 normal(Display *dpy, Process *pr)
@@ -7660,6 +7955,7 @@ check_for_resources(Display *dpy, XPointer data)
 	XdgScreen *scr = screens + DefaultScreen(dpy);
 	long mask = (long) data;
 
+	OPRINTF(1, "Checking for resources:\n");
 	if ((mask & WAITFOR_AUDIOSERVER) && !check_audio(scr))
 		return (False);
 	if ((mask & WAITFOR_WINDOWMANAGER) && !check_window_manager(scr))
@@ -7866,22 +8162,6 @@ want_phase(Process *pr)
 	return (phase);
 }
 
-/* NOTES:
- *
- * We really need a guard timer option setting.  We should typically only wait
- * for 2 seconds for a window manager.  Setting the guard timer to zero should
- * result in indefinite wait.
- *
- * When XSession, we should never wait for resources.
- */
-static Bool
-wait_for_resource(Display *dpy, Process *pr)
-{
-	int mask = pr->wait_for = want_resource(pr);
-
-	return wait_for_resources(dpy, mask, options.guard);
-}
-
 static Bool
 need_assist(Display *dpy, Process *pr)
 {
@@ -7925,29 +8205,23 @@ static void put_default(Process *pr);
 
 /** @brief launch the application
   *
-  * We are launching a single application here.  We should take the approach
-  * that we are taking for sessions and spawn a stopped child before doing
-  * anything further.  We can use prctl(2) to set the sub-reaper so that the
-  * child will be reparented when we exit.  Careful not to open the display
-  * until after the stopped child is spawned.  Then we can wait for resources
-  * before allowing the child to continue.  If toolwait or assistance is
-  * required, we can hang around after the child is continued and perform the
-  * toolwait and assistance before exiting, which will reparent the child to
-  * the session or process group leader.  That is cleaner than the old approach
-  * of spawning an assistance child, which would turn into a zombie (unless
-  * SIGCHLD was intentionally ignored by the parent before spawning the child
-  * (see wait(2)), and then resetting it before launching: maybe we should
-  * try that first).  Another unfortunate thing is spawning children with the X
-  * display open seems problematic.
+  * Launching revisited:
   *
-  * The other problem is setting all of the startup notification fields before
-  * spawning the child.  This is because the DESKTOP_STARTUP_ID must be set in
-  * the environment before or after spawning the child.  We use the launch
-  * sequence number as the monitor number, so need to determine which monitor we
-  * are on before generating the DESKTOP_STARTUP_ID.  If we didn't do that, it
-  * would not be necessary to start the X display before spawning the child.
-  * Maybe we should take the approach of opening and closing the X display just
-  * to get the monitor number, screen number and desktop number.
+  * We used to choose whether to fork a child based on toolwait or assist
+  * conditions.  The approaches were problematic, at best, so now we do the
+  * following.
+  *
+  * 1. The parent fills out the startup notification information.  The id and
+  *    PID= fields will contain the parent pid.  This can be adjusted later with
+  *    reset_pid().  If the parent has to open the display to set screen,
+  *    monitor, timestamp and desktop, it is done without selecting inputs and
+  *    the display is closed again.  The parent sets the pr->ppid to the process
+  *    to which the child should be reparented when the main process exits.
+  *
+  * 2. The parent spawns the child that will execute the command.  The child
+  *    uses prctl() to set its subreaper to the process to which it will be
+  *    reparented.  It resets its startup notification id using its own PID and
+  *    sets its DESKTOP_STARTUP_ID environment variable to the reset id.
   */
 static void
 launch(Process *pr)
@@ -7957,6 +8231,7 @@ launch(Process *pr)
 	Bool change_only = False;
 	Sequence *seq = pr->seq;
 	Display *dpy;
+	int mask;
 
 	PTRACE(5);
 	assert(seq != NULL);
@@ -7965,13 +8240,34 @@ launch(Process *pr)
 
 	/* fill out all fields */
 	set_seq_all(pr);
-	if (!options.info)
+	if (!options.info) {
 		put_history(pr);
-	if (options.setpref)
-		put_default(pr);
-
-	if (options.autowait)
-		wait_for_resource(dpy, pr);
+		if (options.setpref)
+			put_default(pr);
+	}
+	OPRINTF(1, "checking auto-wait resources:\n");
+	if (options.autowait) {
+		/* no startup helper because we check for assistance below */
+		mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER;
+		if (mask) {
+			if (options.info) {
+				OPRINTF(1, "Would wait for:\n");
+				if ((mask & WAITFOR_AUDIOSERVER))
+					OPRINTF(1, "--> Audio Server\n");
+				if ((mask & WAITFOR_WINDOWMANAGER))
+					OPRINTF(1, "--> Window Manager\n");
+				if ((mask & WAITFOR_COMPOSITEMANAGER))
+					OPRINTF(1, "--> Composite Manager\n");
+				if ((mask & WAITFOR_SYSTEMTRAY))
+					OPRINTF(1, "--> System Tray\n");
+				if ((mask & WAITFOR_DESKTOPPAGER))
+					OPRINTF(1, "--> Desktop Pager\n");
+				if ((mask & WAITFOR_STARTUPHELPER))
+					OPRINTF(1, "--> Startup Helper\n");
+			}
+			wait_for_resources(dpy, mask, options.guard);
+		}
+	}
 	if (options.autoassist)
 		options.assist = need_assist(dpy, pr);
 
@@ -9927,201 +10223,6 @@ check_exec(const char *tryexec, const char *exec)
 	return False;
 }
 
-static void
-close_files(void)
-{
-	struct rlimit rlim = { 0, };
-	int i;
-
-	getrlimit(RLIMIT_NOFILE, &rlim);
-
-	/* close all fds except stdin, stdout, stderr */
-
-	for (i = 3; i < rlim.rlim_cur; i++)
-		close(i);
-}
-
-static Bool
-wait_stopped_pid(pid_t pid)
-{
-	int status = 0;
-
-	DPRINTF(1, "Waiting for %d to stop...\n", pid);
-	if (waitpid(pid, &status, WUNTRACED) == -1) {
-		EPRINTF("waitid: %s\n", strerror(errno));
-		return (False);
-	}
-	if (WIFEXITED(status)) {
-		EPRINTF("child exited with status %d!\n", WEXITSTATUS(status));
-		return (False);
-	} else if (WIFSIGNALED(status)) {
-		if (WCOREDUMP(status)) {
-			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
-			return (False);
-		} else {
-			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
-			return (False);
-		}
-	} else if (WIFSTOPPED(status)) {
-		if (WSTOPSIG(status) != SIGSTOP) {
-			EPRINTF("child stopped on wrong signal %d!\n", WSTOPSIG(status));
-			return (True);
-		}
-		DPRINTF(1, "child stopped on signal %d!\n", WSTOPSIG(status));
-		return (True);
-	} else if (WIFCONTINUED(status)) {
-		EPRINTF("child continued on signal %d!\n", SIGCONT);
-		return (False);
-	}
-	return (False);
-}
-
-static Bool
-wait_stopped_proc(Process *pr)
-{
-	Bool result;
-
-	DPRINTF(1, "Waiting for child %s PID %d to stop...\n", pr->appid, pr->pid);
-	result = wait_stopped_pid(pr->pid);
-	pr->started = False;
-	if (result)
-		pr->stopped = True;
-	return (result);
-}
-
-static Bool
-wait_continued_pid(pid_t pid)
-{
-	int status = 0;
-
-	DPRINTF(1, "Waiting for %d to continue...\n", pid);
-	if (waitpid(pid, &status, WCONTINUED) == -1) {
-		EPRINTF("waitid: %s\n", strerror(errno));
-		return (False);
-	}
-	if (WIFEXITED(status)) {
-		EPRINTF("child exited with status %d!\n", WEXITSTATUS(status));
-		return (False);
-	} else if (WIFSIGNALED(status)) {
-		if (WCOREDUMP(status)) {
-			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
-			return (False);
-		} else {
-			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
-			return (False);
-		}
-	} else if (WIFSTOPPED(status)) {
-		EPRINTF("child stopped on signal %d!\n", WSTOPSIG(status));
-		return (False);
-	} else if (WIFCONTINUED(status)) {
-		DPRINTF(1, "child continued on signal %d!\n", SIGCONT);
-		return (True);
-	}
-	return (False);
-}
-
-Bool
-wait_continued_proc(Process *pr)
-{
-	Bool result;
-
-	DPRINTF(1, "Waiting for child %s PID %d to continue...\n", pr->appid, pr->pid);
-	result = wait_continued_pid(pr->pid);
-	pr->stopped = False;
-	if (result)
-		pr->running = True;
-	return (result);
-}
-
-Bool
-wait_exited_pid(pid_t pid)
-{
-	int status = 0;
-
-	DPRINTF(1, "Waiting for %d to exit...\n", pid);
-	if (waitpid(pid, &status, 0) == -1) {
-		EPRINTF("waitid: %s\n", strerror(errno));
-		return (False);
-	}
-	if (WIFEXITED(status)) {
-		DPRINTF(1, "child exited with status %d!\n", WEXITSTATUS(status));
-		return (True);
-	} else if (WIFSIGNALED(status)) {
-		if (WCOREDUMP(status)) {
-			EPRINTF("child exited on signal %d (dumped core)!\n", WTERMSIG(status));
-			return (False);
-		} else {
-			EPRINTF("child exited on signal %d!\n", WTERMSIG(status));
-			return (False);
-		}
-	} else if (WIFSTOPPED(status)) {
-		EPRINTF("child stopped on signal %d!\n", WSTOPSIG(status));
-		return (False);
-	} else if (WIFCONTINUED(status)) {
-		EPRINTF("child continued on signal %d!\n", SIGCONT);
-		return (True);
-	}
-	return (False);
-}
-
-static Bool
-spawn_child(Process *pr)
-{
-	Sequence *s;
-	size_t size;
-	char *disp, *p;
-
-	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
-	if (!(s = pr->seq = calloc(1, sizeof(*s))))
-		return (False);
-	set_seq_all(pr);
-	if (options.output > 1)
-		show_sequence("Associated sequence", s);
-	if (options.info)
-		info_sequence("Associated sequence", s);
-
-	if ((pr->pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		return (False);
-	}
-	if (pr->pid) {
-		/* parent */
-		reset_pid(pr->pid, pr);
-		pr->started = True;
-		return wait_stopped_proc(pr);
-	}
-	/* child continues here */
-	pr->pid = getpid();
-	close_files();
-	if (options.ppid && options.ppid != getppid())
-		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
-
-	/* set the DESKTOP_STARTUP_ID environment variable */
-	reset_pid(pr->pid, pr);
-	setenv("DESKTOP_STARTUP_ID", s->f.id, 1);
-	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", s->f.id);
-
-	/* set the DISPLAY environment variable */
-	p = getenv("DISPLAY");
-	size = strlen(p) + strlen(s->f.screen) + 2;
-	disp = calloc(size, sizeof(*disp));
-	strcpy(disp, p);
-	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
-		*p = '\0';
-	strcat(disp, ".");
-	strcat(disp, s->f.screen);
-	setenv("DISPLAY", disp, 1);
-	DPRINTF(1, "Set DISPLAY to %s\n", disp);
-
-	/* stop here till parent sends us SIGCONT */
-	DPRINTF(1, "PID %d is stopping itself\n", pr->pid);
-	kill(pr->pid, SIGSTOP);
-
-	DPRINTF(1, "Command will be: sh -c \"%s\"\n", s->f.command);
-	execl("/bin/sh", "sh", "-c", s->f.command, NULL);
-	exit(EXIT_FAILURE);
-}
-
 static char *
 setup_window_manager(Process *pr)
 {
@@ -10541,6 +10642,14 @@ session(Process *wm)
 			show_entry("Parsed entries", pr->ent);
 		if (options.info)
 			info_entry("Parsed entries", pr->ent);
+
+		pr->seq = calloc(1, sizeof(*pr->seq));
+		set_seq_all(pr);
+		if (options.output > 1)
+			show_sequence("Associated sequence", pr->seq);
+		if (options.info)
+			info_sequence("Associated sequence", pr->seq);
+
 		pp_prev = &pr->next;
 	}
 
@@ -10557,10 +10666,11 @@ session(Process *wm)
 	(phases[phase])[counts[phase]] = NULL;
 
 	while ((pr = remove_pr(&autostart))) {
-		phase = pr->phase = want_phase(pr);
+		pr->phase = phase = want_phase(pr);
 		pr->wait_for = want_resource(pr);
 		if (phase > 0)
 			wait_fors[phase - 1] |= (pr->wait_for & mask_fors[phase - 1]);
+		pr->ppid = options.ppid;
 		DPRINTF(1, "Appending autostart application %s to phase %s wanting 0x%08x\n", pr->appid, phase_str(phase), pr->wait_for);
 		phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
 		(phases[phase])[counts[phase]++] = pr;
