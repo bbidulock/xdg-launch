@@ -9,6 +9,7 @@ xdg-launch - an XDG compliant startup notification launcher
 B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|B<-e> I<COMMAND>]
  B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
  B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
  B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
  B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|B<-e> I<COMMAND>]
  B<xdg-launch> {B<-V>|B<--version>}
@@ -390,7 +391,7 @@ to B<xdg-session> instead of B<xdg-launch>.  Aside from these
 differences, the launcher operates in the same fashion.  This option is
 intended for launching window managers.
 
-Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
+Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
 
 =item B<-U>, B<--autostart>
 
@@ -399,9 +400,9 @@ desktop entry instead of an C<Application> desktop entry.  This is the
 default when invoked as B<xdg-autostart>.  The C<LAUNCHER> will default
 to B<xdg-autostart> instead of B<xdg-launch>.  Aside from these
 differences, the launcher operates in the same fashion.  This option is
-intended for launching autostart entries.
+intended for launching individual autostart entries.
 
-Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
+Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
 
 =item B<-E>, B<--session>
 
@@ -412,10 +413,27 @@ B<xdg-session> instead of B<xdg-launch>.  This option, therefore, acts
 like the B<--xsession> option, with the exception that the program also
 performs autostart for the window manager by executing the necessary
 autostart desktop entries according to the XDG autostart specification.
-When no X session is specified, waits after the autostart procedure
-until all children exit.
 
-Only one of B<--xsession>, B<--autostart> or B<--session> can be specified.
+This option is useful for launching a light-weight session for use with
+a light-weight window manager.
+
+Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
+
+=item B<-B>, B<--startup>
+
+Interpret and search for the desktop entry file, if specified, as an
+C<XSession> desktop entry instead of an C<Application> desktop entry.
+This is the default when invoked as B<xdg-startup>.  The C<LAUNCHER>
+will default to B<xdg-startup> instead of B<xdg-launch>.  This option,
+therefore, acts like the B<--session> option, with the exception that
+the program only performs autostart by executing the necessary autostart
+desktop entries according to the XDG autostart specification, and does
+not launch a window manager.
+
+This option is useful for launching autostart entries after a
+light-weight window manager has already started.
+
+Only one of B<--xsession>, B<--autostart>, B<--startup> or B<--session> can be specified.
 
 =item B<-k>, B<--keep> I<NUMBER>
 

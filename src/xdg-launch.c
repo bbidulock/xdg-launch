@@ -165,8 +165,9 @@ int eargc = 0;
 
 typedef enum {
 	CommandDefault = 0,
-	CommandLaunch,
-	CommandSession,
+	CommandLaunch,			/* just launch single application */
+	CommandStartup,			/* perform autostart, no wm */
+	CommandSession,			/* full session: autostart and wm */
 	CommandHelp,
 	CommandVersion,
 	CommandCopying,
@@ -176,6 +177,7 @@ typedef enum {
 	LaunchType_Application,		/* just an application */
 	LaunchType_Autostart,		/* an autostart entry */
 	LaunchType_XSession,		/* an xsession (window manager) */
+	LaunchType_Startup,		/* full autostart, no window manager */
 	LaunchType_Session,		/* a full session (wm and autostart) */
 } LaunchType;
 
@@ -189,6 +191,8 @@ show_type(LaunchType type)
 		return ("Autostart");
 	case LaunchType_XSession:		/* an xsession (window manager) */
 		return ("XSession");
+	case LaunchType_Startup:		/* autostart session (no wn) */
+		return ("Startup");
 	case LaunchType_Session:		/* a full session (wm and autostart) */
 		return ("Session");
 	}
@@ -2475,6 +2479,7 @@ lookup_file_by_name(Process *pr, const char *name)
 		case LaunchType_Application:
 		case LaunchType_XSession:
 		case LaunchType_Session:
+		case LaunchType_Startup:
 			/* need to look in applications subdirectory of XDG_DATA_HOME and 
 			   then each of the subdirectories in XDG_DATA_DIRS */
 			if ((env = getenv("XDG_DATA_DIRS")) && *env)
@@ -2514,6 +2519,7 @@ lookup_file_by_name(Process *pr, const char *name)
 				break;
 			case LaunchType_XSession:
 			case LaunchType_Session:
+			case LaunchType_Startup:
 				strcat(path, "/xsessions/");
 				break;
 			case LaunchType_Application:
@@ -2539,6 +2545,7 @@ lookup_file_by_name(Process *pr, const char *name)
 			return (NULL);
 		case LaunchType_XSession:
 		case LaunchType_Session:
+		case LaunchType_Startup:
 			/* only look in xsessions for xsession entries */
 			free(home);
 			free(appid);
@@ -4928,7 +4935,6 @@ begin_process(Display *dpy, Process *pr)
 		case StartupNotifyChanged:
 			send_change(dpy, pr);
 			break;
-		default:
 		case StartupNotifyComplete:
 			break;
 		}
@@ -5062,7 +5068,8 @@ process_startup_msg(Message *m)
 	convert_sequence_fields(&cmd);
 	if (!(pr = find_pr_by_id(cmd.f.id))) {
 		switch (state) {
-		default:
+		case StartupNotifyIdle:
+		case StartupNotifyChanged:
 			free_sequence_fields(&cmd);
 			DPRINTF(1, "message out of sequence\n");
 			return;
@@ -7550,11 +7557,11 @@ check_for_completion(Display *dpy, XPointer data)
 	case StartupNotifyIdle:
 	case StartupNotifyComplete:
 		return (True);
-	default:
 	case StartupNotifyNew:
 	case StartupNotifyChanged:
 		return (False);
 	}
+	return (True);
 }
 
 static Bool
@@ -7698,6 +7705,30 @@ wait_exited_pid(pid_t pid)
 		return (True);
 	}
 	return (False);
+}
+
+static void set_seq_all(Process *pr);
+
+static void
+setup_sequence(Process *pr)
+{
+	assert(pr->seq == NULL);
+
+	/* Initialized sequence fields */
+	pr->pid = getpid();
+	pr->ppid = options.ppid;
+
+	if (!pr->ppid || pr->ppid == pr->pid || pr->ppid == getppid())
+		pr->ppid = 0;
+	if (!pr->seq) {
+		pr->seq = calloc(1, sizeof(*pr->seq));
+		set_seq_all(pr);
+		if (options.output > 1)
+			show_sequence("Associated sequence", pr->seq);
+		if (options.info)
+			info_sequence("Associated sequence", pr->seq);
+	} else
+		reset_pid(pr->pid, pr);
 }
 
 /** @brief spawn a child to execute the application
@@ -8180,6 +8211,7 @@ need_assist(Display *dpy, Process *pr)
 		need_assist = True;
 		break;
 	case LaunchType_Autostart:
+	case LaunchType_Startup:
 		OPRINTF(1, "--> AutoStart: always needs assistance\n");
 		need_assist = True;
 		break;
@@ -8199,7 +8231,6 @@ need_assist(Display *dpy, Process *pr)
 	return need_assist;
 }
 
-static void set_seq_all(Process *pr);
 static void put_history(Process *pr);
 static void put_default(Process *pr);
 
@@ -8313,7 +8344,7 @@ launch(Process *pr)
 	if (options.ppid && options.ppid != getppid() && options.ppid != getpid())
 		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
 
-	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
+	if (pr->type == LaunchType_XSession) {
 		char *setup, *start;
 
 		if ((setup = lookup_init_script(pr->appid, "setup"))) {
@@ -8357,6 +8388,11 @@ launch(Process *pr)
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
+}
+
+void
+launch2(Process *pr)
+{
 }
 
 /** @brief set the screen to be used in startup notification
@@ -9098,6 +9134,10 @@ set_seq_launcher(Process *pr)
 	assert(s != NULL);
 	free(s->f.launcher);
 	switch (pr->type) {
+	case LaunchType_Startup:
+		launcher = "xdg-startup";
+		len = strlen(launcher);
+		break;
 	case LaunchType_Session:
 		launcher = "xdg-session";
 		len = strlen(launcher);
@@ -9212,6 +9252,7 @@ set_ent_all(Process *pr)
 		break;
 	case LaunchType_XSession:
 	case LaunchType_Session:
+	case LaunchType_Startup:
 		free(e->Type);
 		e->Type = strdup("XSession");
 		break;
@@ -10226,32 +10267,25 @@ check_exec(const char *tryexec, const char *exec)
 static char *
 setup_window_manager(Process *pr)
 {
-	char *setup, *start;
-	Sequence *s;
-	pid_t pid;
+	char *setup = NULL;
 
 	DPRINTF(1, "Setting up window manager...\n");
-	pid = getpid();
-	if (!(s = pr->seq = calloc(1, sizeof(*s))))
-		return (False);
-	set_seq_all(pr);
-	if (options.output > 1)
-		show_sequence("Associated sequence", s);
-	if (options.info)
-		info_sequence("Associated sequence", s);
+	setup_sequence(pr);
 
-	reset_pid(pid, pr);
+	if (pr->ppid)
+		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
 
-	if (options.ppid && options.ppid != pid && options.ppid != getppid())
-		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+	if (!eargv) {
+		char *start;
 
-	if ((setup = lookup_init_script(pr->appid, "setup"))) {
-		DPRINTF(1, "Will set up window manager with %s\n", setup);
-	}
-	if ((start = lookup_init_script(pr->appid, "start"))) {
-		DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
-		free(s->f.command);
-		s->f.command = start;
+		if ((setup = lookup_init_script(pr->appid, "setup"))) {
+			DPRINTF(1, "Will set up window manager with %s\n", setup);
+		}
+		if ((start = lookup_init_script(pr->appid, "start"))) {
+			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
+			free(pr->seq->f.command);
+			pr->seq->f.command = start;
+		}
 	}
 	return (setup);
 }
@@ -10290,9 +10324,8 @@ phase_str(AutostartPhase phase)
 		return("Desktop");
 	case AutostartPhase_Application:
 		return("Application");
-	default:
-		return("(unknown)");
 	}
+	return("(unknown)");
 }
 
 static Bool
@@ -10393,6 +10426,11 @@ dispatcher(void)
 	run_phase(dpy, AutostartPhase_Application, options.guard);
 	/* check whether assistance is required and wait around if so */
 	exit(EXIT_SUCCESS);
+}
+
+static void
+startup(Process *wm)
+{
 }
 
 /** @brief create a simple session
@@ -10643,12 +10681,7 @@ session(Process *wm)
 		if (options.info)
 			info_entry("Parsed entries", pr->ent);
 
-		pr->seq = calloc(1, sizeof(*pr->seq));
-		set_seq_all(pr);
-		if (options.output > 1)
-			show_sequence("Associated sequence", pr->seq);
-		if (options.info)
-			info_sequence("Associated sequence", pr->seq);
+		setup_sequence(pr);
 
 		pp_prev = &pr->next;
 	}
@@ -10793,6 +10826,7 @@ Usage:\n\
     %1$s [options] [APPSPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-X|--xsession}  [options] [APPID | {-e|--exec} COMMAND]\n\
+    %1$s {-B|--startup}   [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-h|--help} [options] [APPPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
     %1$s {-V|--version}\n\
@@ -10819,6 +10853,7 @@ Usage:\n\
     %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
     %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
+    %1$s {-B|--startup}   [options] [APPID | {-e|--exec} COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
     %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
     %1$s {-V|--version}\n\
@@ -10893,60 +10928,62 @@ Options:\n\
         interpret entry as autostart instead of application, [default: '%20$s']\n\
     -E, --session\n\
         interpret entry as xsession with autostart, [default: '%21$s']\n\
+    -B, --startup\n\
+        interpret entry as autostart startup only, [default: '%22$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%22$d']\n\
+        specify NUMBER of recent applications to keep, [default: '%23$d']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%23$s']\n\
+        specify FILENAME of recent apps file, [default: '%24$s']\n\
     -I, --info\n\
-        print information about entry instead of launching, [default: '%24$s']\n\
+        print information about entry instead of launching, [default: '%25$s']\n\
 Job Control Options:\n\
     --ppid\n\
-        specify parent PID of subreaper, [default: '%25$d']\n\
+        specify parent PID of subreaper, [default: '%26$d']\n\
     --assist, --no-assist\n\
-        assist window manager with startup notify complete, [default: '%26$s']\n\
+        assist window manager with startup notify complete, [default: '%27$s']\n\
     -T, --toolwait\n\
-        wait for startup to complete and then exit, [default: '%27$s']\n\
+        wait for startup to complete and then exit, [default: '%28$s']\n\
     --timeout SECONDS\n\
-        consider startup complete after SECONDS seconds, [default: '%28$d']\n\
+        consider startup complete after SECONDS seconds, [default: '%29$d']\n\
     --mappings MAPPINGS\n\
-        consider startup complete after MAPPINGS mappings, [default: '%29$d']\n\
+        consider startup complete after MAPPINGS mappings, [default: '%30$d']\n\
     --withdrawn\n\
-        consider withdrawn state mappings, [default: '%30$s']\n\
+        consider withdrawn state mappings, [default: '%31$s']\n\
     --pid\n\
-        print the pid of the process to standard out, [default: '%31$s']\n\
+        print the pid of the process to standard out, [default: '%32$s']\n\
     --wid\n\
-        print the window id to standard out, [default: '%32$s']\n\
+        print the window id to standard out, [default: '%33$s']\n\
     --noprop\n\
-        use top-level creations instead of mappings, [default: '%33$s']\n\
+        use top-level creations instead of mappings, [default: '%34$s']\n\
 Session Options:\n\
     --autowait, --no-autowait\n\
-        automatically determine wait for resources, [default: '%34$s']\n\
+        automatically determine wait for resources, [default: '%35$s']\n\
     -M, --manager\n\
-        wait for window manager before launching, [default: '%35$s']\n\
+        wait for window manager before launching, [default: '%36$s']\n\
     -Y, --tray\n\
-        wait for system tray before launching, [default: '%36$s']\n\
+        wait for system tray before launching, [default: '%37$s']\n\
     -G, --pager\n\
-        wait for desktop pager before launching, [default: '%37$s']\n\
+        wait for desktop pager before launching, [default: '%38$s']\n\
     -O, --composite\n\
-        wait for composite manager before launching, [default: '%38$s']\n\
+        wait for composite manager before launching, [default: '%39$s']\n\
     -R, --audio\n\
-        wait for audio server before launching, [default: '%39$s']\n\
+        wait for audio server before launching, [default: '%40$s']\n\
     -g, --guard [SECONDS]\n\
-        only wait for resources for SECONDS, [default: '%40$d']\n\
+        only wait for resources for SECONDS, [default: '%41$d']\n\
 Content Type Options:\n\
     --set-default\n\
-        set application to preferred by type/category, [default: '%41$s']\n\
+        set application to preferred by type/category, [default: '%42$s']\n\
     --default, --no-default\n\
-        use default applications by type/category, [default: '%42$s']\n\
+        use default applications by type/category, [default: '%43$s']\n\
     --recommend, --no-recommend\n\
-        use recommended applications by type/category, [default: '%43$s']\n\
+        use recommended applications by type/category, [default: '%44$s']\n\
     --fallback, --no-fallback\n\
-        use fallback applications by type/category, [default: '%44$s']\n\
+        use fallback applications by type/category, [default: '%45$s']\n\
 General Options:\n\
     -D, --debug [LEVEL]\n\
-        increment or set debug LEVEL [default: '%45$d']\n\
+        increment or set debug LEVEL [default: '%46$d']\n\
     -v, --verbose [LEVEL]\n\
-        increment or set output verbosity LEVEL [default: '%46$d']\n\
+        increment or set output verbosity LEVEL [default: '%47$d']\n\
         this option may be repeated.\n\
     -h, --help, -?, --?\n\
         print this usage information and exit\n\
@@ -10975,6 +11012,7 @@ General Options:\n\
 	, show_bool(defaults.type == LaunchType_XSession)
 	, show_bool(defaults.type == LaunchType_Autostart)
 	, show_bool(defaults.type == LaunchType_Session)
+	, show_bool(defaults.type == LaunchType_Startup)
 	, defaults.keep
 	, defaults.recapps
 	, show_bool(defaults.info)
@@ -11107,6 +11145,10 @@ set_defaults(int argc, char *argv[])
 		defaults.type = options.type = LaunchType_Session;
 		free(options.launcher);
 		defaults.launcher = options.launcher = strdup(buf);
+	} else if (!strcmp(buf, "xdg-startup")) {
+		defaults.type = options.type = LaunchType_Startup;
+		free(options.launcher);
+		defaults.launcher = options.launcher = strdup(buf);
 	}
 
 	free(options.hostname);
@@ -11139,7 +11181,6 @@ main(int argc, char *argv[])
 	Command command = CommandDefault;
 	int exec_mode = 0;		/* application mode is default */
 	Process *pr;
-	Sequence *s;
 	char *p;
 
 	/* don't care about job control */
@@ -11193,6 +11234,7 @@ main(int argc, char *argv[])
 			{"xsession",	no_argument,		NULL, 'X'},
 			{"autostart",	no_argument,		NULL, 'U'},
 			{"session",	no_argument,		NULL, 'E'},
+			{"startup",	no_argument,		NULL, 'B'},
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
@@ -11235,10 +11277,10 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg::D::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEBk:r:ITMYGORg::D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEk:r:ITMYGORg:DvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEBk:r:ITMYGORg:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (options.debug)
@@ -11404,6 +11446,18 @@ main(int argc, char *argv[])
 			defaults.type = options.type = LaunchType_Session;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-session");
+			break;
+		case 'B':	/* -B, --startup */
+			if (options.type != LaunchType_Application)
+				goto bad_option;
+			if (options.command != CommandDefault)
+				goto bad_command;
+			if (command == CommandDefault)
+				command = CommandStartup;
+			options.command = CommandStartup;
+			defaults.type = options.type = LaunchType_Startup;
+			free(options.launcher);
+			defaults.launcher = options.launcher = strdup("xdg-startup");
 			break;
 		case 'k':	/* -k, --keep NUMBER */
 			val = strtoul(optarg, &endptr, 0);
@@ -11634,7 +11688,10 @@ main(int argc, char *argv[])
 			fprintf(stderr, "%s: printing copying message\n", argv[0]);
 		copying(argc, argv);
 		exit(EXIT_SUCCESS);
-	default:
+	case CommandDefault:
+	case CommandLaunch:
+	case CommandSession:
+	case CommandStartup:
 		break;
 	}
 
@@ -11788,32 +11845,29 @@ main(int argc, char *argv[])
 		show_entry("Entries", pr->ent);
 	if (options.info)
 		info_entry("Entries", pr->ent);
-	if (!(s = pr->seq = calloc(1, sizeof(*s)))) {
-		EPRINTF("could not allocate sequence: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	/* populate some fields */
-	if (options.id) {
-		OPRINTF(0, "Setting desktop startup id to: %s\n", options.id);
-		free(s->f.id);
-		s->f.id = strdup(options.id);
-		myid = s->f.id;
-	}
+
+	setup_sequence(pr);
+
 	switch (command) {
 	case CommandDefault:
 		command = CommandLaunch;
 		/* fall thru */
 	case CommandLaunch:
 		launch(pr);
-		break;
+		exit(EXIT_SUCCESS);
 	case CommandSession:
 		session(pr);
+		exit(EXIT_SUCCESS);
+	case CommandStartup:
+		startup(pr);
+		exit(EXIT_SUCCESS);
+	case CommandHelp:
+	case CommandVersion:
+	case CommandCopying:
 		break;
-	default:
-		EPRINTF("invalid command\n");
-		exit(EXIT_FAILURE);
 	}
-	exit(EXIT_SUCCESS);
+	EPRINTF("invalid command\n");
+	exit(EXIT_FAILURE);
 }
 
 // vim: set sw=8 tw=80 com=srO\:/**,mb\:*,ex\:*/,srO\:/*,mb\:*,ex\:*/,b\:TRANS foldmarker=@{,@} foldmethod=marker:
