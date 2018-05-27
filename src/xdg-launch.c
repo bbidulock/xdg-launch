@@ -7841,6 +7841,16 @@ fork_parent(const char *how)
 	return (pid);
 }
 
+static int
+try_setenv(const char *what, const char *value, int override)
+{
+	if (options.info) {
+		OPRINTF(1, "Would set environment %s=%s\n", what, value);
+		return (0);
+	}
+	return setenv(what, value, override);
+}
+
 /** @brief spawn a child to execute the application
   *
   * This function is used both for normal startup of an application as well as
@@ -7869,7 +7879,7 @@ spawn_child(Process *pr)
 	close_files();
 
 	/* set the DESKTOP_STARTUP_ID environment variable (with correct PID) */
-	setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
+	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
 	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", pr->seq->f.id);
 
 	/* Setting the DISPLAY this way is, in fact, a bad thing to do.  It will restrict 
@@ -7887,7 +7897,7 @@ spawn_child(Process *pr)
 			*p = '\0';
 		strcat(disp, ".");
 		strcat(disp, pr->seq->f.screen);
-		setenv("DISPLAY", disp, 1);
+		try_setenv("DISPLAY", disp, 1);
 		DPRINTF(1, "Set DISPLAY to %s\n", disp);
 	}
 
@@ -8384,7 +8394,7 @@ launch(Process *pr)
 		send_new(dpy, pr);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
-	setenv("DESKTOP_STARTUP_ID", seq->f.id, 1);
+	try_setenv("DESKTOP_STARTUP_ID", seq->f.id, 1);
 
 	if (0) { /* bad idea */
 		/* set the DISPLAY environment variable */
@@ -8396,7 +8406,7 @@ launch(Process *pr)
 			*p = '\0';
 		strcat(disp, ".");
 		strcat(disp, seq->f.screen);
-		setenv("DISPLAY", disp, 1);
+		try_setenv("DISPLAY", disp, 1);
 	}
 
 	put_display(dpy);
@@ -10489,21 +10499,21 @@ startup(Process *wm)
 
 		options.ppid = getpgrp();
 		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
-		setenv("XDG_SESSION_PID", buf, 1);
+		try_setenv("XDG_SESSION_PID", buf, 1);
 	}
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
 		if (options.desktop)
-			setenv("XDG_CURRENT_DESKTOP", options.desktop, 1);
+			try_setenv("XDG_CURRENT_DESKTOP", options.desktop, 1);
 		else if (wm) {
 			if (wm->ent->DesktopNames)
-				setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
+				try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
 			else if (wm->ent->path) {
 				char *desktop, *p;
 
 				desktop = extract_appid(wm->ent->path);
 				for (p = desktop; p && *p; p++)
 					*p = toupper(*p);
-				setenv("XDG_CURRENT_DESKTOP", desktop, 1);
+				try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
 				free(desktop);
 			} else {
 				EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
@@ -10739,10 +10749,10 @@ session(Process *wm)
 
 		options.ppid = getpgrp();
 		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
-		setenv("XDG_SESSION_PID", buf, 1);
+		try_setenv("XDG_SESSION_PID", buf, 1);
 	}
 	if (wm->ent->DesktopNames)
-		setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
+		try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
 		if (wm->ent->path) {
 			char *desktop, *p;
@@ -10750,7 +10760,7 @@ session(Process *wm)
 			desktop = extract_appid(wm->ent->path);
 			for (p = desktop; p && *p; p++)
 				*p = toupper(*p);
-			setenv("XDG_CURRENT_DESKTOP", desktop, 1);
+			try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
 			free(desktop);
 		} else
 			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
@@ -10946,7 +10956,7 @@ session(Process *wm)
 	}
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
-	setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
+	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
 
 	DPRINTF(1,"Launching window manager\n");
 	DPRINTF(1, "Command will be: sh -c \"%s\"\n", wm->seq->f.command);
