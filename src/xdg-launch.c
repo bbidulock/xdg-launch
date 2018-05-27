@@ -996,6 +996,7 @@ intern_atoms(Display *dpy)
 	Atom *atom_values;
 	struct atoms *atom;
 
+	OPRINTF(1, "--> interning atoms\n");
 	for (i = 0, n = 0; atoms[i].name; i++)
 		if (atoms[i].atom)
 			n++;
@@ -1090,6 +1091,7 @@ get_display(void)
 	char sel[64] = { 0, };
 
 	PTRACE(5);
+	OPRINTF(1, "Getting X Display...\n");
 	if (!(dpy = XOpenDisplay(0))) {
 		EPRINTF("cannot open display\n");
 		exit(EXIT_FAILURE);
@@ -1115,6 +1117,7 @@ get_display(void)
 		exit(EXIT_FAILURE);
 	}
 	for (s = 0, scr = screens; s < ScreenCount(dpy); s++, scr++) {
+		OPRINTF(1, "--> setting up screen %d\n", s);
 		scr->screen = s;
 		scr->display = dpy;
 		scr->root = RootWindow(dpy, s);
@@ -1140,18 +1143,21 @@ get_display(void)
 	}
 	s = DefaultScreen(dpy);
 	scr = screens + s;
+	OPRINTF(1, "...got X display\n");
 	return (dpy);
 }
 
 static void
 end_display(Display *dpy)
 {
+	OPRINTF(1, "Closing X display fd only\n");
 	close(ConnectionNumber(dpy));
 }
 
 static Display *
 new_display(Display *dpy)
 {
+	OPRINTF(1, "Getting a new X display\n");
 	end_display(dpy);
 	dpy = get_display();
 	return (dpy);
@@ -1161,6 +1167,7 @@ new_display(Display *dpy)
 put_display(Display *dpy)
 {
 	PTRACE(5);
+	OPRINTF(1, "Closing X display\n");
 	XSetErrorHandler(xerrorxlib);
 	XSetIOErrorHandler(xioerrorxlib);
 	XCloseDisplay(dpy);
@@ -1827,6 +1834,7 @@ handle_wmchange(XdgScreen *scr)
 static void
 init_screen(XdgScreen *scr)
 {
+	OPRINTF(1, "--> initializing screen %d\n", scr->screen);
 	handle_wmchange(scr);
 	check_stray(scr);
 	check_pager(scr);
