@@ -207,13 +207,14 @@ typedef struct {
 	char *appid;
 	char *mimetype;
 	char *category;
+	char *desktop;
 	char *launcher;
 	char *launchee;
 	char *sequence;
 	char *hostname;
 	int monitor;
 	int screen;
-	int desktop;
+	int workspace;
 	Time timestamp;
 	char *name;
 	char *icon;
@@ -270,13 +271,14 @@ Options options = {
 	.appid = NULL,
 	.mimetype = NULL,
 	.category = NULL,
+	.desktop = NULL,
 	.launcher = NULL,
 	.launchee = NULL,
 	.sequence = NULL,
 	.hostname = NULL,
 	.monitor = -1,
 	.screen = -1,
-	.desktop = -1,
+	.workspace = -1,
 	.timestamp = 0,
 	.name = NULL,
 	.icon = NULL,
@@ -329,17 +331,18 @@ Options defaults = {
 	.debug = 0,
 	.output = 1,
 	.command = CommandDefault,
-	.appspec = "[APPID|MIMETYPE|CATEGORY]",
+	.appspec = "[APPID|MIMETYPE|CATEGORY|DESKTOP]",
 	.appid = "[APPID]",
 	.mimetype = "[MIMETYPE]",
 	.category = "[CATEGORY]",
+	.desktop = "[DESKTOP]",
 	.launcher = NAME,
 	.launchee = "[APPID]",
 	.sequence = "0",
 	.hostname = "gethostname()",
 	.monitor = -1,
 	.screen = -1,
-	.desktop = -1,
+	.workspace = -1,
 	.timestamp = 0,
 	.name = "[Name=]",
 	.icon = "[Icon=]",
@@ -347,8 +350,9 @@ Options defaults = {
 	.description = "[Comment=]",
 	.wmclass = "[StartupWMClass=]",
 	.silent = "0",
-	.file = "",
-	.url = "",
+	.exec = "[EXEC ARGUMENT...]",
+	.file = "[FILE]",
+	.url = "[URL]",
 	.pid = 0,
 	.ppid = 0,
 	.id = "$DESKTOP_STARTUP_ID",
@@ -720,7 +724,7 @@ struct _Client {
 	Time list_time;			/* last time window was listed */
 	Time last_time;			/* last time something happened to this window */
 	pid_t pid;			/* process id */
-	int desktop;			/* desktop (+1) of window */
+	int workspace;			/* workspace (+1) of window */
 	char *startup_id;		/* startup id (property) */
 	char **command;			/* words in WM_COMMAND */
 	int count;			/* count of words in WM_COMMAND */
@@ -2211,6 +2215,17 @@ extract_appid(const char *path)
 	return (strip_desktop(basename(path)));
 }
 
+static char *
+desktop_to_appid(const char *path)
+{
+	char *p, *q;
+
+	q = strdup((q = strrchr(path, ';')) ? q + 1 : path);
+	for (p = q; p && *p; p++)
+		*p = tolower(*p);
+	return (q);
+}
+
 static Entry *
 parse_file(Process *pr, char *path)
 {
@@ -2646,6 +2661,24 @@ lookup_proc_by_name(Process *pr, const char *name)
 
 	if (!(path = lookup_file_by_name(pr, name)))
 		return False;
+	free(pr->path);
+	pr->path = path;
+	free(pr->appid);
+	pr->appid = extract_appid(path);
+	return True;
+}
+
+static Bool
+lookup_proc_by_desk(Process *pr, const char *desk)
+{
+	char *path, *name;
+
+	name = desktop_to_appid(desk);
+	if (!(path = lookup_file_by_name(pr, name))) {
+		free(name);
+		return False;
+	}
+	free(name);
 	free(pr->path);
 	pr->path = path;
 	free(pr->appid);
@@ -3903,12 +3936,12 @@ setup_client(Display *dpy, Client *c)
 		}
 	}
 	/* change DESKTOP= */
-	if (!seq->f.desktop && c->desktop) {
+	if (!seq->f.desktop && c->workspace) {
 		char buf[65] = { 0, };
 
-		snprintf(buf, sizeof(buf), "%d", c->desktop - 1);
+		snprintf(buf, sizeof(buf), "%d", c->workspace - 1);
 		seq->f.desktop = strdup(buf);
-		seq->n.desktop = c->desktop - 1;
+		seq->n.desktop = c->workspace - 1;
 		CPRINTF(1, c, "[sc] %s DESKTOP=%s\n", seq->f.launcher, seq->f.desktop);
 		need_change = True;
 	}
@@ -4512,7 +4545,7 @@ update_client(Display *dpy, Client *c)
 	/* _NET_WM_ICON_NAME */
 	/* _NET_WM_DESKTOP or _WIN_WORKSPACE */
 	if (get_cardinal(dpy, c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &card))
-		c->desktop = card + 1;
+		c->workspace = card + 1;
 	if (c->need_update) {
 		c->need_update = False;
 		need_updates--;
@@ -6006,35 +6039,35 @@ pc_handle_NET_WM_VISIBLE_ICON_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
   *
   * Under startup notification, the client and window manager should respect the
   * DESKTOP= field in the startup notification (that is, open the window on the
-  * desktop that was requested when launched).  Few clients it seems support
+  * workspace that was requested when launched).  Few clients it seems support
   * this properly so the window manager must enforce it or we must enforce it
   * here when the window manager won't.  This can be done by resetting this
   * property when it changes before the window is managed, and forceably moving
-  * the window if it is on the wrong desktop when it becomes managed.
+  * the window if it is on the wrong workspace when it becomes managed.
   */
 static void
 pc_handle_NET_WM_DESKTOP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
 	Display *dpy = scr->display; 
-	long desktop = 0, old;
+	long workspace = 0, old;
 
 	PTRACE(5);
 	if (!c || (e && e->type != PropertyNotify))
 		return;
-	if ((old = c->desktop))
-		c->desktop = 0;
+	if ((old = c->workspace))
+		c->workspace = 0;
 	if (e && e->state == PropertyDelete) {
 		if (old)
 			CPRINTF(1, c, "[pc] _NET_WM_DESKTOP was %ld\n", old - 1);
 		CPRINTF(1, c, "[pc] _NET_WM_DESKTOP = (deleted)\n");
 		return;
 	}
-	if (get_cardinal(dpy, c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &desktop))
-		c->desktop = desktop + 1;
-	if (c->desktop && (!old || old != c->desktop)) {
+	if (get_cardinal(dpy, c->win, _XA_NET_WM_DESKTOP, AnyPropertyType, &workspace))
+		c->workspace = workspace + 1;
+	if (c->workspace && (!old || old != c->workspace)) {
 		if (old)
 			CPRINTF(1, c, "[pc] _NET_WM_DESKTOP was %ld\n", old - 1);
-		CPRINTF(1, c, "[pc] _NET_WM_DESKTOP = %d\n", c->desktop - 1);
+		CPRINTF(1, c, "[pc] _NET_WM_DESKTOP = %d\n", c->workspace - 1);
 		/* TODO: check if this actually matches sequence if any */
 	}
 }
@@ -6127,17 +6160,17 @@ cm_handle_WIN_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
   * @param e - X event to handle (may be NULL)
   * @param c - client for which to handle event (should not be NULL)
   *
-  * This is a GNOME1/WMH property that sets the workspace (desktop) on which the
+  * This is a GNOME1/WMH property that sets the workspace on which the
   * client wants the window to appear when mapped and the workspace that it is
   * actually on when the window is managed.
   *
   * Under startup notification, the client and window manager should respect the
   * DESKTOP= field in the startup notification (that is, open the window on the
-  * desktop that was requested when launched).  Few clients it seems support
+  * workspace that was requested when launched).  Few clients it seems support
   * this properly so the window manager must enforce it or we must enforce it
   * here when the window manager won't.  This can be done by resetting this
   * property when it changes before the window is managed, and forceably moving
-  * the window if it is on the wrong desktop when it becomes managed.
+  * the window if it is on the wrong workspace when it becomes managed.
   *
   * Some window managers still support GNOME1/WMH at the same time as EWMH, so
   * we should not act on all WinWMH properties, but this one we should.
@@ -6146,25 +6179,25 @@ static void
 pc_handle_WIN_WORKSPACE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
 	Display *dpy = scr->display;
-	long desktop = 0, old;
+	long workspace = 0, old;
 
 	PTRACE(5);
 	if (!c || (e && e->type != PropertyNotify))
 		return;
-	if ((old = c->desktop))
-		c->desktop = 0;
+	if ((old = c->workspace))
+		c->workspace = 0;
 	if (e && e->state == PropertyDelete) {
 		if (old)
 			CPRINTF(1, c, "[pc] _WIN_WORKSPACE was %ld\n", old - 1);
 		CPRINTF(1, c, "[pc] _WIN_WORKSPACE = (deleted)\n");
 		return;
 	}
-	if (get_cardinal(dpy, c->win, _XA_WIN_WORKSPACE, AnyPropertyType, &desktop))
-		c->desktop = desktop + 1;
-	if (c->desktop && (!old || old != c->desktop)) {
+	if (get_cardinal(dpy, c->win, _XA_WIN_WORKSPACE, AnyPropertyType, &workspace))
+		c->workspace = workspace + 1;
+	if (c->workspace && (!old || old != c->workspace)) {
 		if (old)
 			CPRINTF(1, c, "[pc] _WIN_WORKSPACE was %ld\n", old - 1);
-		CPRINTF(1, c, "[pc] _WIN_WORKSPACE = %d\n", c->desktop - 1);
+		CPRINTF(1, c, "[pc] _WIN_WORKSPACE = %d\n", c->workspace - 1);
 		/* TODO: force update the workspace from sequence */
 	}
 }
@@ -7833,7 +7866,7 @@ spawn_child(Process *pr)
   *    the "new:" message) if the window manager supports WinWM/WMH.  This
   *    assists the window manager in doing the right thing with respect to
   *    focus, and position of the window on the correct monitor and the correct
-  *    desktop.
+  *    workspace.
   *
   * 7. When the parent detects completion or exit, it sends the "remove:"
   *    message, if necessary, and exits.
@@ -8253,7 +8286,7 @@ static void put_default(Process *pr);
   * 1. The parent fills out the startup notification information.  The id and
   *    PID= fields will contain the parent pid.  This can be adjusted later with
   *    reset_pid().  If the parent has to open the display to set screen,
-  *    monitor, timestamp and desktop, it is done without selecting inputs and
+  *    monitor, timestamp and workspace, it is done without selecting inputs and
   *    the display is closed again.  The parent sets the pr->ppid to the process
   *    to which the child should be reparented when the main process exits.
   *
@@ -8668,7 +8701,7 @@ set_seq_desktop(Process *pr)
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 	char buf[24] = { 0, };
-	int desktop = 0;
+	int workspace = 0;
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
@@ -8676,7 +8709,7 @@ set_seq_desktop(Process *pr)
 	s->f.desktop = NULL;
 	if (pr->type != LaunchType_Application)
 		return;
-	if ((desktop = options.desktop) == -1) {
+	if ((workspace = options.workspace) == -1) {
 		if (screens) {
 			Display *dpy = screens[0].display;
 			XdgScreen *scr = screens + DefaultScreen(dpy);
@@ -8688,7 +8721,7 @@ set_seq_desktop(Process *pr)
 					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
 					     &format, &nitems, &after, (unsigned char **) &data) == Success
 					    && format != 0 && nitems > 0) {
-						desktop = nitems > monitor ? data[monitor] : data[0];
+						workspace = nitems > monitor ? data[monitor] : data[0];
 						XFree(data);
 						break;
 					} else if (data) {
@@ -8700,7 +8733,7 @@ set_seq_desktop(Process *pr)
 					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
 					     &format, &nitems, &after, (unsigned char **) &data) == Success
 					    && format != 0 && nitems > 0) {
-						desktop = nitems > monitor ? data[monitor] : data[0];
+						workspace = nitems > monitor ? data[monitor] : data[0];
 						XFree(data);
 						break;
 					} else if (data) {
@@ -8714,7 +8747,7 @@ set_seq_desktop(Process *pr)
 					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
 					     &format, &nitems, &after, (unsigned char **) &data) == Success
 					    && format != 0 && nitems > 0) {
-						desktop = nitems > monitor ? data[monitor] : data[0];
+						workspace = nitems > monitor ? data[monitor] : data[0];
 						XFree(data);
 						break;
 					} else if (data) {
@@ -8726,11 +8759,11 @@ set_seq_desktop(Process *pr)
 			} while (0);
 		} else
 			return;
-		options.desktop = desktop;
+		options.workspace = workspace;
 	}
-	snprintf(buf, sizeof(buf) - 1, "%d", desktop);
+	snprintf(buf, sizeof(buf) - 1, "%d", workspace);
 	s->f.desktop = strdup(buf);
-	s->n.desktop = desktop;
+	s->n.desktop = workspace;
 	return;
 }
 
@@ -10407,22 +10440,44 @@ dispatcher(void)
 }
 
 static void
-startup(void)
+startup(Process *wm)
 {
 	pid_t did;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
 
+	if (wm)
+		wm->type = LaunchType_XSession;
+
 	if (!getenv("XDG_SESSION_PID")) {
 		char buf[24] = { 0, };
 
-		options.ppid = getpgid(0);
+		options.ppid = getpgrp();
 		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
 		setenv("XDG_SESSION_PID", buf, 1);
 	}
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
-		EPRINTF("XDG_CURRENT_DESKTOP must be set\n");
-		exit(EXIT_FAILURE);
+		if (options.desktop)
+			setenv("XDG_CURRENT_DESKTOP", options.desktop, 1);
+		else if (wm) {
+			if (wm->ent->DesktopNames)
+				setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
+			else if (wm->ent->path) {
+				char *desktop, *p;
+
+				desktop = extract_appid(wm->ent->path);
+				for (p = desktop; p && *p; p++)
+					*p = toupper(*p);
+				setenv("XDG_CURRENT_DESKTOP", desktop, 1);
+				free(desktop);
+			} else {
+				EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
+				exit(EXIT_FAILURE);
+			}
+		} else {
+			EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	char *xdg, *dirs, *env;
@@ -10637,10 +10692,9 @@ startup(void)
 static void
 session(Process *wm)
 {
-	pid_t sid, did;
+	pid_t did;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
-	Entry *e = wm->ent;
 	char *setup;
 
 	wm->type = LaunchType_XSession;
@@ -10648,17 +10702,17 @@ session(Process *wm)
 	if (!getenv("XDG_SESSION_PID")) {
 		char buf[24] = { 0, };
 
-		options.ppid = getpid();
+		options.ppid = getpgrp();
 		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
 		setenv("XDG_SESSION_PID", buf, 1);
 	}
-	if (e->DesktopNames)
-		setenv("XDG_CURRENT_DESKTOP", e->DesktopNames, 1);
+	if (wm->ent->DesktopNames)
+		setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
 	if (!getenv("XDG_CURRENT_DESKTOP")) {
-		if (e->path) {
+		if (wm->ent->path) {
 			char *desktop, *p;
 
-			desktop = extract_appid(e->path);
+			desktop = extract_appid(wm->ent->path);
 			for (p = desktop; p && *p; p++)
 				*p = toupper(*p);
 			setenv("XDG_CURRENT_DESKTOP", desktop, 1);
@@ -10666,53 +10720,6 @@ session(Process *wm)
 		} else
 			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
 	}
-	/* Note: the normal case where we are launched by xinit is to make the
-	   X server and client process group leaders before execting the X
-	   server and .xinitrc.  So we are normally a process group leader in
-	   the terminal session that launched xinit in the foreground.
-
-	   There may be something to be said about launcing autostart processes
-	   as children of the window manager with the window manager in its own
-	   process group: then the window manager process group cannot be
-	   orphaned while we are alive, but if the window manager exits, it will
-	   take down all of the autostart processes and its other children.
-
-	   On the other hand, it migh be bad because we cannot exit the window
-	   manager without tearing down all of the autostart procsses too.
-	 */
-
-#if 0 // let the window manager replace us
-	if (getpid() == getpgid(0)) {
-		pid_t pid;
-		int status = 0;
-
-		switch ((pid = fork())) {
-			case 0:
-				dpy = new_display(dpy);
-			case -1:
-				/* child continues (or parent if fork failed) */
-				break;
-			default:
-				/* parent waits for child to exit and then exits too */
-				if (waitpid(pid, &status, 0) == -1) {
-					EPRINTF("waitpid: %s\n", strerror(errno));
-					exit(EXIT_FAILURE);
-				}
-				if (WIFEXITED(status))
-					exit(WEXITSTATUS(status));
-				exit(EXIT_SUCCESS);
-		}
-	}
-#endif
-#if 0
-	if ((sid = setsid()) == (pid_t) -1)
-		EPRINTF("cannot become session leader: %s\n", strerror(errno));
-	else
-		DPRINTF(3, "new session id %d\n", (int) sid);
-#else
-	(void) sid;
-	setpgrp(); /* become a process group leader */
-#endif
 
 	char *xdg, *dirs, *env;
 	char *p, *q;
@@ -10918,13 +10925,16 @@ session(Process *wm)
 }
 
 static Process *
-setup_entry(void)
+setup_entry(Command command)
 {
 	Process *pr = NULL;
+	Bool startup = (command == CommandStartup) ? True : False;
 	char *p;
 
-	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec)
+	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category
+	    && !options.exec && startup && !options.desktop) {
 		return (pr);
+	}
 	if (!(pr = calloc(1, sizeof(*pr)))) {
 		EPRINTF("could not alloc process: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
@@ -10978,6 +10988,12 @@ setup_entry(void)
 			EPRINTF("could not find file for kind '%s'\n", options.category);
 			exit(EXIT_FAILURE);
 		}
+	} else if (startup && options.desktop) {
+		OPRINTF(0, "looking up file by DESKTOP %s\n", options.desktop);
+		if (!lookup_proc_by_desk(pr, options.desktop)) {
+			EPRINTF("could not find file for desk '%s'\n", options.desktop);
+			exit(EXIT_FAILURE);
+		}
 	} else if (options.appspec) {
 		OPRINTF(0, "looking up file by APPSPEC %s\n", options.appspec);
 		if (lookup_proc_by_name(pr, options.appspec)) {
@@ -10992,6 +11008,10 @@ setup_entry(void)
 			OPRINTF(0, "found file by CATEGORY %s\n", options.appspec);
 			free(options.category);
 			options.category = strdup(options.appspec);
+		} else if (startup && lookup_proc_by_desk(pr, options.desktop)) {
+			OPRINTF(0, "found file by DESKTOP %s\n", options.appspec);
+			free(options.desktop);
+			options.desktop = strdup(options.appspec);
 		} else {
 			EPRINTF("could not find file for spec '%s'\n", options.appspec);
 			exit(EXIT_FAILURE);
@@ -11034,7 +11054,7 @@ setup_entry(void)
 		}
 	}
 	pr->action = options.action ? strdup(options.action) : NULL;
-	set_ent_all(pr); /* fill in entry from options */
+	set_ent_all(pr);	/* fill in entry from options */
 	if (options.file && options.file[0] && !options.url) {
 		if (options.file[0] == '/') {
 			int size = strlen("file://") + strlen(options.file) + 1;
@@ -11187,32 +11207,34 @@ Usage:\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 Arguments:\n\
-    APPSPEC = {APPID | MIMETYPE | CATEGORY}\n\
-        specification of the XDG application or session to launch\n\
+    APPSPEC = {APPID | MIMETYPE | CATEGORY | DESKTOP}\n\
+        specification of the XDG application or session to launch [default: '%2$s']\n\
     [-a,--appid] APPID\n\
-        the application identifier of XDG application to launch\n\
+        the application identifier of XDG application to launch [default: '%3$s']\n\
     [--mimetype] MIMETYPE\n\
-        the mime-type of the XDG application to launch\n\
+        the mime-type of the XDG application to launch [default: '%4$s']\n\
     [--category] CATEGORY\n\
-	the XDG menu category of hte application to launch\n\
+	the XDG menu category of the application to launch [default: '%5$s']\n\
+    [--desktop] DESKTOP\n\
+	the XDG desktop name of the X session to launch [default: '%6$s']\n\
     [-f,--file] FILE\n\
-        the file name with which to launch the application\n\
+        the file name with which to launch the application [default: '%7$s']\n\
     [-u,--url] URL\n\
-        the URL with which to launch the application\n\
+        the URL with which to launch the application [default: '%8$s']\n\
     COMMAND = {-x,--exec \"EXEC ARGUMENT...\" | -e EXEC ARGUMENT...}\n\
-        the COMMAND to launch the application\n\
+        the COMMAND to launch the application [default: '%9$s']\n\
 Options:\n\
   Command Options:\n\
     -X, --xsession\n\
-        interpret entry as xsession instead of application, [default: '%19$s']\n\
+        interpret entry as xsession instead of application, [default: '%10$s']\n\
     -U, --autostart\n\
-        interpret entry as autostart instead of application, [default: '%20$s']\n\
+        interpret entry as autostart instead of application, [default: '%11$s']\n\
     -E, --session\n\
-        interpret entry as xsession with autostart, [default: '%21$s']\n\
+        interpret entry as xsession with autostart, [default: '%12$s']\n\
     -B, --startup\n\
-        interpret entry as autostart startup only, [default: '%22$s']\n\
+        interpret entry as autostart startup only, [default: '%13$s']\n\
     -I, --info\n\
-        print information about entry instead of launching, [default: '%26$s']\n\
+        print information about entry instead of launching, [default: '%14$s']\n\
     -h, --help, -?, --?\n\
         print this usage information and exit\n\
     -V, --version\n\
@@ -11221,106 +11243,119 @@ Options:\n\
         print copying permission and exit\n\
   Launch Options:\n\
     -L, --launcher LAUNCHER\n\
-        name of launcher for startup id, [default: '%2$s']\n\
+        name of launcher for startup id, [default: '%15$s']\n\
     -l, --launchee LAUNCHEE\n\
         name of launchee for startup id, [default: APPID]\n\
     -S, --sequence SEQUENCE\n\
-        sequence number for startup notification id [default: '%3$s']\n\
+        sequence number for startup notification id [default: '%16$s']\n\
     -n, --hostname HOSTNAME\n\
-        hostname to use in startup id, [default: '%4$s']\n\
+        hostname to use in startup id, [default: '%17$s']\n\
     -m, --monitor MONITOR\n\
-        Xinerama monitor to specify in SCREEN tag, [default: %5$d]\n\
+        Xinerama monitor to specify in SCREEN tag, [default: %18$d]\n\
     -s, --screen SCREEN\n\
-        screen to specify in SCREEN tag, [default: %6$d]\n\
+        screen to specify in SCREEN tag, [default: %19$d]\n\
     -w, --workspace DESKTOP\n\
-        workspace to specify in DESKTOP tag, [default: %7$d]\n\
+        workspace to specify in DESKTOP tag, [default: %20$d]\n\
     -t, --timestamp TIMESTAMP\n\
-        X server timestamp for startup id, [default: %8$lu]\n\
+        X server timestamp for startup id, [default: %21$lu]\n\
     -N, --name NAME\n\
-        name of XDG application, [default: '%9$s']\n\
+        name of XDG application, [default: '%22$s']\n\
     -i, --icon ICON\n\
-        icon name of the XDG application, [default: '%10$s']\n\
+        icon name of the XDG application, [default: '%23$s']\n\
     -b, --binary BINARY\n\
-        binary name of the XDG application, [default: '%11$s']\n\
+        binary name of the XDG application, [default: '%24$s']\n\
     -D, --description DESCRIPTION\n\
-        description of the XDG application, [default: '%12$s']\n\
+        description of the XDG application, [default: '%25$s']\n\
     -W, --wmclass WMCLASS\n\
-        resource name or class of the XDG application, [default: '%13$s']\n\
+        resource name or class of the XDG application, [default: '%26$s']\n\
     -q, --silent SILENT\n\
-        whether startup notification is silent (0/1), [default: '%14$s']\n\
+        whether startup notification is silent (0/1), [default: '%27$s']\n\
     -p, --pid PID\n\
-        process id of the XDG application, [default: '%15$d']\n\
+        process id of the XDG application, [default: '%28$d']\n\
     --ppid\n\
-        specify parent PID of subreaper, [default: '%27$d']\n\
+        specify parent PID of subreaper, [default: '%29$d']\n\
     -A, --action ACTION\n\
-        specify a desktop action other than the default, [default: '%18$s']\n\
+        specify a desktop action other than the default, [default: '%30$s']\n\
   Context Options:\n\
     -P, --pointer\n\
-        determine screen (monitor) from pointer location, [default: '%16$s']\n\
+        determine screen (monitor) from pointer location, [default: '%31$s']\n\
     -K, --keyboard\n\
-        determine screen (monitor) from keyboard focus, [default: '%17$s']\n\
+        determine screen (monitor) from keyboard focus, [default: '%32$s']\n\
   Assist Options:\n\
     --assist, --no-assist\n\
-        assist window manager with startup notify complete, [default: '%28$s']\n\
+        assist window manager with startup notify complete, [default: '%33$s']\n\
   Tool Wait Options:\n\
     -T, --toolwait\n\
-        wait for startup to complete and then exit, [default: '%29$s']\n\
+        wait for startup to complete and then exit, [default: '%34$s']\n\
     --timeout SECONDS\n\
-        consider startup complete after SECONDS seconds, [default: '%30$d']\n\
+        consider startup complete after SECONDS seconds, [default: '%35$d']\n\
     --mappings MAPPINGS\n\
-        consider startup complete after MAPPINGS mappings, [default: '%31$d']\n\
+        consider startup complete after MAPPINGS mappings, [default: '%36$d']\n\
     --withdrawn\n\
-        consider withdrawn state mappings, [default: '%32$s']\n\
+        consider withdrawn state mappings, [default: '%37$s']\n\
     --pid\n\
-        print the pid of the process to standard out, [default: '%33$s']\n\
+        print the pid of the process to standard out, [default: '%38$s']\n\
     --wid\n\
-        print the window id to standard out, [default: '%34$s']\n\
+        print the window id to standard out, [default: '%39$s']\n\
     --noprop\n\
-        use top-level creations instead of mappings, [default: '%35$s']\n\
+        use top-level creations instead of mappings, [default: '%40$s']\n\
   Session Options:\n\
     --wait, --no-wait\n\
-        automatically determine wait for resources, [default: '%36$s']\n\
+        automatically determine wait for resources, [default: '%41$s']\n\
     -M, --manager\n\
-        wait for window manager before launching, [default: '%37$s']\n\
+        wait for window manager before launching, [default: '%42$s']\n\
     -Y, --tray\n\
-        wait for system tray before launching, [default: '%38$s']\n\
+        wait for system tray before launching, [default: '%43$s']\n\
     -G, --pager\n\
-        wait for desktop pager before launching, [default: '%39$s']\n\
+        wait for desktop pager before launching, [default: '%44$s']\n\
     -O, --composite\n\
-        wait for composite manager before launching, [default: '%40$s']\n\
+        wait for composite manager before launching, [default: '%45$s']\n\
     -R, --audio\n\
-        wait for audio server before launching, [default: '%41$s']\n\
+        wait for audio server before launching, [default: '%46$s']\n\
     -g, --guard [SECONDS]\n\
-        only wait for resources for SECONDS, [default: '%42$d']\n\
+        only wait for resources for SECONDS, [default: '%47$d']\n\
   History Options:\n\
     --history, --no-history\n\
-        save the file/usl and appid in recently used files, [default: '%23$s']\n\
+        save the file/usl and appid in recently used files, [default: '%48$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%24$d']\n\
+        specify NUMBER of recent applications to keep, [default: '%49$d']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%25$s']\n\
+        specify FILENAME of recent apps file, [default: '%50$s']\n\
   Content Options:\n\
     --set-default\n\
-        set application to preferred by type/category, [default: '%43$s']\n\
+        set application to preferred by type/category, [default: '%51$s']\n\
     --default, --no-default\n\
-        use default applications by type/category, [default: '%44$s']\n\
+        use default applications by type/category, [default: '%52$s']\n\
     --recommend, --no-recommend\n\
-        use recommended applications by type/category, [default: '%45$s']\n\
+        use recommended applications by type/category, [default: '%53$s']\n\
     --fallback, --no-fallback\n\
-        use fallback applications by type/category, [default: '%46$s']\n\
+        use fallback applications by type/category, [default: '%54$s']\n\
   General Options:\n\
     -D, --debug [LEVEL]\n\
-        increment or set debug LEVEL [default: '%47$d']\n\
+        increment or set debug LEVEL [default: '%55$d']\n\
     -v, --verbose [LEVEL]\n\
-        increment or set output verbosity LEVEL [default: '%48$d']\n\
+        increment or set output verbosity LEVEL [default: '%56$d']\n\
         this option may be repeated.\n\
 ", argv[0]
+	, defaults.appspec ? : ""
+	, defaults.appid ? : ""
+	, defaults.mimetype ? : ""
+	, defaults.category ? : ""
+	, defaults.desktop ? : ""
+	, defaults.file ? : ""
+	, defaults.url ? : ""
+	, defaults.exec ? : ""
+	, show_bool(defaults.type == LaunchType_XSession)
+	, show_bool(defaults.type == LaunchType_Autostart)
+	, show_bool(defaults.type == LaunchType_Session)
+	, show_bool(defaults.type == LaunchType_Startup)
+	, show_bool(defaults.info)
 	, defaults.launcher
 	, defaults.sequence
 	, defaults.hostname
 	, defaults.monitor
 	, defaults.screen
-	, defaults.desktop
+	, defaults.workspace
 	, defaults.timestamp
 	, defaults.name
 	, defaults.icon
@@ -11329,18 +11364,10 @@ Options:\n\
 	, defaults.wmclass
 	, defaults.silent
 	, defaults.pid
+	, defaults.ppid
+	, defaults.action
 	, show_bool(defaults.pointer)
 	, show_bool(defaults.keyboard)
-	, defaults.action
-	, show_bool(defaults.type == LaunchType_XSession)
-	, show_bool(defaults.type == LaunchType_Autostart)
-	, show_bool(defaults.type == LaunchType_Session)
-	, show_bool(defaults.type == LaunchType_Startup)
-	, show_bool(defaults.puthist)
-	, defaults.keep
-	, defaults.recapps
-	, show_bool(defaults.info)
-	, defaults.ppid
 	, show_bool(defaults.assist)
 	, show_bool(defaults.toolwait)
 	, defaults.timeout
@@ -11356,6 +11383,9 @@ Options:\n\
 	, show_bool(defaults.composite)
 	, show_bool(defaults.audio)
 	, defaults.guard
+	, show_bool(defaults.puthist)
+	, defaults.keep
+	, defaults.recapps
 	, show_bool(defaults.setpref)
 	, show_bool(defaults.preferred)
 	, show_bool(defaults.recommend)
@@ -11496,11 +11526,16 @@ set_defaults(int argc, char *argv[])
 static void
 get_defaults(int argc, char *argv[])
 {
+	const char *env;
+
 	if (!options.recent) {
 		char *recent = eargv ? defaults.runhist : defaults.recapps;
 
 		free(options.recent);
 		defaults.recent = options.recent = strdup(recent);
+	}
+	if (!options.desktop && (env = getenv("XDG_CURRENT_DESKTOP"))) {
+		defaults.desktop = options.desktop = strdup(env);
 	}
 	switch (options.type) {
 	case LaunchType_Application:
@@ -11580,6 +11615,7 @@ main(int argc, char *argv[])
 			{"autostart",	no_argument,		NULL, 'U'},
 			{"session",	no_argument,		NULL, 'E'},
 			{"startup",	no_argument,		NULL, 'B'},
+			{"desktop",	required_argument,	NULL,  22},
 			{"history",	no_argument,		NULL,  20},
 			{"no-history",	no_argument,		NULL,  21},
 			{"keep",	required_argument,	NULL, 'k'},
@@ -11679,7 +11715,7 @@ main(int argc, char *argv[])
 			val = strtoul(optarg, &endptr, 0);
 			if (*endptr)
 				goto bad_option;
-			defaults.desktop = options.desktop = val;
+			defaults.workspace = options.workspace = val;
 			break;
 		case 't':	/* -t, --timestamp TIMESTAMP */
 			val = strtoul(optarg, &endptr, 0);
@@ -11805,6 +11841,10 @@ main(int argc, char *argv[])
 			defaults.type = options.type = LaunchType_Startup;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-startup");
+			break;
+		case 22:	/* --desktop DESKTOP */
+			free(options.desktop);
+			defaults.desktop = options.desktop = strdup(optarg);
 			break;
 		case 20:	/* --history */
 			defaults.puthist = options.puthist = True;
@@ -12051,14 +12091,14 @@ main(int argc, char *argv[])
 		options.type = LaunchType_Application;
 		/* fall thru */
 	case CommandLaunch:
-		if ((pr = setup_entry())) {
+		if ((pr = setup_entry(command))) {
 			launch(pr);
 			exit(EXIT_SUCCESS);
 		}
 		EPRINTF("APPSPEC or EXEC must be specified\n");
 		goto bad_usage;
 	case CommandSession:
-		if ((pr = setup_entry())) {
+		if ((pr = setup_entry(command))) {
 			session(pr);
 			exit(EXIT_SUCCESS);
 		}
@@ -12066,12 +12106,9 @@ main(int argc, char *argv[])
 		options.type = LaunchType_Startup;
 		/* fall through */
 	case CommandStartup:
-		if (!(pr = setup_entry())) {
-			startup();
-			exit(EXIT_SUCCESS);
-		}
-		EPRINTF("APPSPEC or EXEC must not be specified\n");
-		goto bad_usage;
+		pr = setup_entry(command);
+		startup(pr);
+		exit(EXIT_SUCCESS);
 	}
 	EPRINTF("invalid command\n");
 	exit(EXIT_FAILURE);
