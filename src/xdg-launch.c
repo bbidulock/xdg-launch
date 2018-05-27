@@ -255,6 +255,7 @@ typedef struct {
 	Bool assist;
 	Bool autoassist;
 	int guard;
+	Bool puthist;
 	Bool setpref;
 	Bool fallback;
 	Bool recommend;
@@ -317,6 +318,7 @@ Options options = {
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
+	.puthist = -1,
 	.setpref = False,
 	.fallback = True,
 	.recommend = True,
@@ -355,9 +357,9 @@ Options defaults = {
 	.action = "none",
 	.type = LaunchType_Application,
 	.uri = NULL,
-	.runhist = "~/.config/xde/run-history",
-	.recapps = "~/.config/xde/recent-applications",
-	.recently = "~/.local/share/recently-used",
+	.runhist = "$XDG_CONFIG_HOME/xde/run-history",
+	.recapps = "$XDG_CONFIG_HOME/xde/recent-applications",
+	.recently = "$XDG_DATA_HOME/recently-used",
 	.recent = NULL,
 	.keep = 20,
 	.info = False,
@@ -377,6 +379,7 @@ Options defaults = {
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
+	.puthist = -1,
 	.setpref = False,
 	.fallback = True,
 	.recommend = True,
@@ -7710,16 +7713,11 @@ wait_exited_pid(pid_t pid)
 static void set_seq_all(Process *pr);
 
 static void
-setup_sequence(Process *pr)
+setup_sequence(Process *pr, pid_t pid)
 {
-	assert(pr->seq == NULL);
-
 	/* Initialized sequence fields */
-	pr->pid = getpid();
-	pr->ppid = options.ppid;
+	pr->pid = pid;
 
-	if (!pr->ppid || pr->ppid == pr->pid || pr->ppid == getppid())
-		pr->ppid = 0;
 	if (!pr->seq) {
 		pr->seq = calloc(1, sizeof(*pr->seq));
 		set_seq_all(pr);
@@ -7731,6 +7729,16 @@ setup_sequence(Process *pr)
 		reset_pid(pr->pid, pr);
 }
 
+static void
+setup_subreaper(Process *pr, pid_t ppid)
+{
+	pr->ppid = ppid;
+
+	/* set the new parent after existing parent exits */
+	if (pr->ppid && pr->ppid != pr->pid && pr->ppid != getppid())
+		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
+}
+
 /** @brief spawn a child to execute the application
   *
   * This function is used both for normal startup of an application as well as
@@ -7739,30 +7747,30 @@ setup_sequence(Process *pr)
 static Bool
 spawn_child(Process *pr)
 {
+	pid_t pid;
+
 	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
 
-	if ((pr->pid = fork()) < 0) {
+	setup_sequence(pr, 0);
+
+	if ((pid = fork()) < 0) {
 		EPRINTF("%s\n", strerror(errno));
 		return (False);
 	}
-	if (pr->pid) {
+	if (pid) {
 		/* parent */
-		reset_pid(pr->pid, pr);
+		setup_sequence(pr, pid);
 		pr->started = True;
 		return wait_stopped_proc(pr);
 	}
 	/* child continues here */
-	pr->pid = getpid();
+	setup_sequence(pr, getpid());
+	setup_subreaper(pr, options.ppid);
 
 	/* shouldn't be necessary, but what the hey?! */
 	close_files();
 
-	/* set the new parent after existing parent exits */
-	if (pr->ppid && pr->ppid != getppid())
-		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
-
 	/* set the DESKTOP_STARTUP_ID environment variable (with correct PID) */
-	reset_pid(pr->pid, pr);
 	setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
 	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", pr->seq->f.id);
 
@@ -8259,7 +8267,6 @@ launch(Process *pr)
 {
 	size_t size;
 	char *disp, *p;
-	Bool change_only = False;
 	Sequence *seq = pr->seq;
 	Display *dpy;
 	int mask;
@@ -8270,9 +8277,10 @@ launch(Process *pr)
 	dpy = get_display();
 
 	/* fill out all fields */
-	set_seq_all(pr);
+	setup_sequence(pr, 0);
 	if (!options.info) {
-		put_history(pr);
+		if (options.puthist)
+			put_history(pr);
 		if (options.setpref)
 			put_default(pr);
 	}
@@ -8315,11 +8323,9 @@ launch(Process *pr)
 		normal(dpy, pr);
 	}
 
-	if (options.id)
-		change_only = True;
-
 	add_process(pr);
-	if (change_only)
+
+	if (options.id)
 		send_change(dpy, pr);
 	else
 		send_new(dpy, pr);
@@ -8341,8 +8347,7 @@ launch(Process *pr)
 
 	end_display(dpy);
 
-	if (options.ppid && options.ppid != getppid() && options.ppid != getpid())
-		prctl(PR_SET_CHILD_SUBREAPER, options.ppid, 0, 0, 0);
+	setup_subreaper(pr, options.ppid);
 
 	if (pr->type == LaunchType_XSession) {
 		char *setup, *start;
@@ -8874,7 +8879,7 @@ set_seq_pid(Process *pr)
 		 && strtoul(p, &endptr, 0) && endptr == q)
 		s->f.pid = strncpy(s->f.pid, p, q - p);
 	else
-		snprintf(s->f.pid, 64, "%d", (int) getpid());
+		snprintf(s->f.pid, 64, "%d", (pr->pid = getpid()));
 }
 
 static void
@@ -9404,13 +9409,8 @@ put_recently_used_info(Process *pr)
 	char *desktop_id = NULL;
 	GDesktopAppInfo *info = NULL;
 
-	/* only for applications, not autostart or xsesssion */
 	if (!options.uri) {
 		DPRINTF(1, "do not recommend without a uri\n");
-		return;
-	}
-	if (pr->type != LaunchType_Application) {
-		DPRINTF(1, "do not recommend autostart or xsession invocations\n");
 		return;
 	}
 	if (!options.mimetype) {
@@ -9459,10 +9459,6 @@ put_recent_applications_xbel(char *filename, Process *pr)
 
 	if (!options.uri) {
 		EPRINTF("cannot record %s without a uri\n", filename);
-		return;
-	}
-	if (pr->type != LaunchType_Application) {
-		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
 	if (!(file = g_build_filename(g_get_user_data_dir(), filename, NULL))) {
@@ -9523,10 +9519,6 @@ put_recently_used_xbel(char *filename, Process *pr)
 
 	if (!options.url) {
 		EPRINTF("cannot record %s without a url\n", filename);
-		return;
-	}
-	if (pr->type != LaunchType_Application) {
-		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		return;
 	}
 	if (!(file = g_build_filename(g_get_user_data_dir(), filename, NULL))) {
@@ -9768,11 +9760,6 @@ put_recent_applications(char *filename, Process *pr)
 		g_free(file);
 		return;
 	}
-	if (pr->type != LaunchType_Application) {
-		DPRINTF(1, "do not record autostart or xsession invocations\n");
-		g_free(file);
-		return;
-	}
 
 	/* 1) read in the recently-used file (uri only) */
 	if (!(f = fopen(file, "a+"))) {
@@ -9886,11 +9873,6 @@ put_recently_used(char *filename, Process *pr)
 	}
 	if (!options.url) {
 		EPRINTF("cannot record %s without a url\n", filename);
-		g_free(file);
-		return;
-	}
-	if (pr->type != LaunchType_Application) {
-		DPRINTF(1, "do not record autostart or xsession invocations\n");
 		g_free(file);
 		return;
 	}
@@ -10009,7 +9991,6 @@ put_line_history(Process *pr, char *file, char *line)
 		keep = INT_MAX;
 		DPRINTF(1, "maximum history entries unlimited\n");
 	}
-
 	if (!file) {
 		EPRINTF("cannot record history without a file\n");
 		return;
@@ -10018,10 +9999,7 @@ put_line_history(Process *pr, char *file, char *line)
 		EPRINTF("cannot record history without a line\n");
 		return;
 	}
-	if (pr->type != LaunchType_Application) {
-		DPRINTF(1, "do not record autostart or xsession invocations\n");
-		return;
-	}
+
 	/* 1) read in the history file */
 	if (!(f = fopen(file, "a+"))) {
 		EPRINTF("cannot open history file: '%s'\n", file);
@@ -10089,6 +10067,7 @@ static void
 put_history(Process *pr)
 {
 	assert(pr->seq != NULL);
+
 	put_line_history(pr, options.runhist, pr->seq->f.command);
 	put_line_history(pr, options.recapps, pr->appid);
 #ifdef GIO_GLIB2_SUPPORT
@@ -10270,10 +10249,9 @@ setup_window_manager(Process *pr)
 	char *setup = NULL;
 
 	DPRINTF(1, "Setting up window manager...\n");
-	setup_sequence(pr);
 
-	if (pr->ppid)
-		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
+	setup_sequence(pr, getpid());
+	setup_subreaper(pr, options.ppid);
 
 	if (!eargv) {
 		char *start;
@@ -10681,8 +10659,6 @@ session(Process *wm)
 		if (options.info)
 			info_entry("Parsed entries", pr->ent);
 
-		setup_sequence(pr);
-
 		pp_prev = &pr->next;
 	}
 
@@ -10930,60 +10906,62 @@ Options:\n\
         interpret entry as xsession with autostart, [default: '%21$s']\n\
     -B, --startup\n\
         interpret entry as autostart startup only, [default: '%22$s']\n\
+    --history, --no-history\n\
+        save the file/usl and appid in recently used files, [default: '%23$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%23$d']\n\
+        specify NUMBER of recent applications to keep, [default: '%24$d']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%24$s']\n\
+        specify FILENAME of recent apps file, [default: '%25$s']\n\
     -I, --info\n\
-        print information about entry instead of launching, [default: '%25$s']\n\
+        print information about entry instead of launching, [default: '%26$s']\n\
 Job Control Options:\n\
     --ppid\n\
-        specify parent PID of subreaper, [default: '%26$d']\n\
+        specify parent PID of subreaper, [default: '%27$d']\n\
     --assist, --no-assist\n\
-        assist window manager with startup notify complete, [default: '%27$s']\n\
+        assist window manager with startup notify complete, [default: '%28$s']\n\
     -T, --toolwait\n\
-        wait for startup to complete and then exit, [default: '%28$s']\n\
+        wait for startup to complete and then exit, [default: '%29$s']\n\
     --timeout SECONDS\n\
-        consider startup complete after SECONDS seconds, [default: '%29$d']\n\
+        consider startup complete after SECONDS seconds, [default: '%30$d']\n\
     --mappings MAPPINGS\n\
-        consider startup complete after MAPPINGS mappings, [default: '%30$d']\n\
+        consider startup complete after MAPPINGS mappings, [default: '%31$d']\n\
     --withdrawn\n\
-        consider withdrawn state mappings, [default: '%31$s']\n\
+        consider withdrawn state mappings, [default: '%32$s']\n\
     --pid\n\
-        print the pid of the process to standard out, [default: '%32$s']\n\
+        print the pid of the process to standard out, [default: '%33$s']\n\
     --wid\n\
-        print the window id to standard out, [default: '%33$s']\n\
+        print the window id to standard out, [default: '%34$s']\n\
     --noprop\n\
-        use top-level creations instead of mappings, [default: '%34$s']\n\
+        use top-level creations instead of mappings, [default: '%35$s']\n\
 Session Options:\n\
     --autowait, --no-autowait\n\
-        automatically determine wait for resources, [default: '%35$s']\n\
+        automatically determine wait for resources, [default: '%36$s']\n\
     -M, --manager\n\
-        wait for window manager before launching, [default: '%36$s']\n\
+        wait for window manager before launching, [default: '%37$s']\n\
     -Y, --tray\n\
-        wait for system tray before launching, [default: '%37$s']\n\
+        wait for system tray before launching, [default: '%38$s']\n\
     -G, --pager\n\
-        wait for desktop pager before launching, [default: '%38$s']\n\
+        wait for desktop pager before launching, [default: '%39$s']\n\
     -O, --composite\n\
-        wait for composite manager before launching, [default: '%39$s']\n\
+        wait for composite manager before launching, [default: '%40$s']\n\
     -R, --audio\n\
-        wait for audio server before launching, [default: '%40$s']\n\
+        wait for audio server before launching, [default: '%41$s']\n\
     -g, --guard [SECONDS]\n\
-        only wait for resources for SECONDS, [default: '%41$d']\n\
+        only wait for resources for SECONDS, [default: '%42$d']\n\
 Content Type Options:\n\
     --set-default\n\
-        set application to preferred by type/category, [default: '%42$s']\n\
+        set application to preferred by type/category, [default: '%43$s']\n\
     --default, --no-default\n\
-        use default applications by type/category, [default: '%43$s']\n\
+        use default applications by type/category, [default: '%44$s']\n\
     --recommend, --no-recommend\n\
-        use recommended applications by type/category, [default: '%44$s']\n\
+        use recommended applications by type/category, [default: '%45$s']\n\
     --fallback, --no-fallback\n\
-        use fallback applications by type/category, [default: '%45$s']\n\
+        use fallback applications by type/category, [default: '%46$s']\n\
 General Options:\n\
     -D, --debug [LEVEL]\n\
-        increment or set debug LEVEL [default: '%46$d']\n\
+        increment or set debug LEVEL [default: '%47$d']\n\
     -v, --verbose [LEVEL]\n\
-        increment or set output verbosity LEVEL [default: '%47$d']\n\
+        increment or set output verbosity LEVEL [default: '%48$d']\n\
         this option may be repeated.\n\
     -h, --help, -?, --?\n\
         print this usage information and exit\n\
@@ -11013,6 +10991,7 @@ General Options:\n\
 	, show_bool(defaults.type == LaunchType_Autostart)
 	, show_bool(defaults.type == LaunchType_Session)
 	, show_bool(defaults.type == LaunchType_Startup)
+	, show_bool(defaults.puthist)
 	, defaults.keep
 	, defaults.recapps
 	, show_bool(defaults.info)
@@ -11065,14 +11044,8 @@ set_default_files(void)
 		strcpy(options.recapps, env);
 		strcat(options.recapps, asuffix);
 
-		len = strlen(env) + strlen(xsuffix) + 1;
-		free(options.recently);
-		defaults.recently = options.recently = calloc(len, sizeof(*options.recently));
-		strcpy(options.recently, env);
-		strcat(options.recently, xsuffix);
 	} else {
 		static const char *cfgdir = "/.config";
-		static const char *datdir = "/.local/share";
 
 		env = getenv("HOME") ? : ".";
 
@@ -11089,6 +11062,17 @@ set_default_files(void)
 		strcpy(options.recapps, env);
 		strcat(options.recapps, cfgdir);
 		strcat(options.recapps, asuffix);
+	}
+	if ((env = getenv("XDG_DATA_HOME"))) {
+		len = strlen(env) + strlen(xsuffix) + 1;
+		free(options.recently);
+		defaults.recently = options.recently = calloc(len, sizeof(*options.recently));
+		strcpy(options.recently, env);
+		strcat(options.recently, xsuffix);
+	} else {
+		static const char *datdir = "/.local/share";
+
+		env = getenv("HOME") ? : ".";
 
 		len = strlen(env) + strlen(datdir) + strlen(xsuffix) + 1;
 		free(options.recently);
@@ -11173,6 +11157,19 @@ get_defaults(int argc, char *argv[])
 		free(options.recent);
 		defaults.recent = options.recent = strdup(recent);
 	}
+	if (options.puthist == -1) {
+		switch (options.type) {
+		case LaunchType_Application:
+			options.puthist = True;
+			break;
+		case LaunchType_Autostart:
+		case LaunchType_XSession:
+		case LaunchType_Session:
+		case LaunchType_Startup:
+			options.puthist = False;
+			break;
+		}
+	}
 }
 
 int
@@ -11235,6 +11232,8 @@ main(int argc, char *argv[])
 			{"autostart",	no_argument,		NULL, 'U'},
 			{"session",	no_argument,		NULL, 'E'},
 			{"startup",	no_argument,		NULL, 'B'},
+			{"history",	no_argument,		NULL,  20},
+			{"no-history",	no_argument,		NULL,  21},
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
@@ -11458,6 +11457,12 @@ main(int argc, char *argv[])
 			defaults.type = options.type = LaunchType_Startup;
 			free(options.launcher);
 			defaults.launcher = options.launcher = strdup("xdg-startup");
+			break;
+		case 20:	/* --history */
+			defaults.puthist = options.puthist = True;
+			break;
+		case 21:	/* --no-history */
+			defaults.puthist = options.puthist = False;
 			break;
 		case 'k':	/* -k, --keep NUMBER */
 			val = strtoul(optarg, &endptr, 0);
@@ -11845,8 +11850,6 @@ main(int argc, char *argv[])
 		show_entry("Entries", pr->ent);
 	if (options.info)
 		info_entry("Entries", pr->ent);
-
-	setup_sequence(pr);
 
 	switch (command) {
 	case CommandDefault:

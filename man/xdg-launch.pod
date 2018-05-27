@@ -460,12 +460,22 @@ affect this behaviour.
 
 =over
 
+=item B<--history>, B<--no-history>
+
+By default, when simple applications launched, files containing the
+history of recent applications and recently used files and URLs are
+updated.  For other applications (auto-start, X session), histories are
+not kept by default.  These options specify whether histories are to be
+kept or not.
+
 =item B<-k>, B<--keep> I<NUMBER>
 
 Specify the maximum number, I<NUMBER>, of commands or application
 invocations that are kept in the recent history file.  The minimum value
 is one, and the maximum value is 100.  The default value when
 unspecified is 10.
+
+This option is ignored when history is not in effect.
 
 =item B<-r>, B<--recent> I<FILENAME>
 
@@ -475,6 +485,8 @@ exec mode, the default is F<$XDG_CONFIG_HOME/xde/run-history>.  When in
 application mode, store recent history of the application in the file,
 I<FILENAME>.  In application mode, the default is
 F<$XDG_CONFIG_HOME/xde/recent-applications>.
+
+This option is ignored when history is not in effect.
 
 =back
 
@@ -518,7 +530,7 @@ manager.
 =item B<-T>, B<--toolwait>
 
 Normally, B<xdg-launch> will not exit, but will replace the foreground
-process with the application using L<execve(1)>.  When this option is
+process with the application using L<execve(3)>.  When this option is
 specified, the behaviour changes: B<xdg-launch> will execute the
 application in a background process and exit once the application has
 started.  The criteria for when the application is considered as started
@@ -1054,6 +1066,48 @@ B<WM_COMMAND> with C<sh>, C<COMMAND> if necessary.
 
 =back
 
+=head2 RECENTLY USED FILES, URLS, APPLICATIONS
+
+By default, when simple applications are launched by B<xdg-launch>,
+files that retain the history of recently used files, URLs and
+applications are automatically updated.  When other applications
+(auto-start, X session) are launch, histories are not kept by default.
+Although the use of the B<--history> and B<--no-history> options
+override the default behaviour, the default is sufficient for the
+purpose of properly updating recent use files.
+
+Histories are written to three pairs of files (see L</FILES>).  The
+first pair keeps recently executed commands and recently launched
+applications in a simple text format, one per line, with the most recent
+at the top.  These two files were historically used by L<xde-run(1)> and
+L<xde-app(1)>.
+The default files are
+F<$XDG_CONFIG_HOME/xde/run-history> and
+F<$XDG_CONFIG_HOME/xde/recent-applications>.
+
+The second pair keeps recently used files and URLs in a non-XBEL, XML
+file format used historically by GNOME.  Applications are recorded in
+each as a reference to the desktop entry, F<.desktop> file of the
+application.  The second in the pair only contains the F<.desktop>
+entries, while the first contains all file and URL references.
+Some older GTK application file selection dialogues use these files.
+The default files are
+F<$HOME/.recently-used> and
+F<$HOME/.recent-applications>.
+
+The last pair keeps recently used files and URLs in an XBEL, XML file
+format that is currently part of the XDG specifications.  Files and URLs
+are contained in the first of the pair, and application F<.desktop>
+entries are only contained in the second.
+The default files are
+F<$XDG_DATA_HOME/recently-used.xbel> and
+F<$XDG_DATA_HOME/recent-applications.xbel>.
+
+Current file dialogues and applications use only the last pair of
+XBEL-formatted files.  Application that provides menu and dialogue
+access to both lists are L<xde-run(1)>, L<xde-app(1)> and
+L<xde-recent(1)>.
+
 =head1 ENVIRONMENT
 
 The following environment variables are examined by B<xdg-launch>:
@@ -1131,14 +1185,45 @@ B<xdg-launch> uses the following files:
 =item F<$XDG_CONFIG_HOME/xde/run-history>
 
 The default location of the F<run-history> file.  This is a simple text
-file with the commands that were last run using the dialog, one per
-line, with the oldest entries lower in the file.
+file with the commands that were last run using the L<xde-run(1)> dialog,
+one per line, with the oldest entries lower in the file.  For later use
+by L<xde-run(1)>, B<xdg-launch> adds an entry to this file containing
+the command line that was executed.
 
 =item F<$XDG_CONFIG_HOME/xde/recent-applications>
 
 The default location of the F<recent-applications> file.  This is a
 simple text file with the application ids that were last run using the
-dialog, one per line, with the oldest entries lower in the file.
+L<xde-app(1)> dialog, one per line, with the oldest entries lower in the file.
+For later use by L<xde-app(1)>, B<xdg-launch> adds an entry to this file
+containing the application id that was launched.
+
+=item F<$XDG_DATA_HOME/recently-used>, F<$HOME/.recently-used>
+
+The default locations of the non-XBEL-formatted, co-mingled,  recently
+used files and URLs.  When the first location is not present, the second
+is used.  The co-mingled file predates the separated
+F<$HOME/.recent-applications> file and record recent applications by
+listing the F<.desktop> file as a recently used file.
+
+=item F<$HOME/.recent-applications>
+
+The default location of the  non-XBEL-formatted, separate, recent
+applications file.  The file records recent applications by listing the
+F<.desktop> file as a recently used file.  The difference between this
+file and the F<$HOME/.recently-used> file is that this file only
+records recently used F<.desktop> files.
+
+=item F<$XDG_DATA_HOME/recently-used.xbel>
+
+The default location of the XBEL-formatted recently used files and URLs
+file.  The file only records files and URLs used by launched
+applications.  F<.desktop> files are not recorded here.
+
+=item F<$XDG_DATA_HOME/recent-applications.xbel>
+
+The default location of the XBEL-formatted rececent applications file.
+The file only records launched applications (by F<.desktop> file).
 
 =item F<$HOME/.gtkrc-2.0.xde>
 
@@ -1151,8 +1236,8 @@ launched.
 
 =head1 BUGS
 
-B<xdg-launch> has no known bugs.
-Please report bugs to the source code repository at
+B<xdg-launch> has way too many options.
+Please report other bugs to the source code repository at
 L<https://github.com/bbidulock/xdg-launch/issues>.
 
 =head1 SEE ALSO
@@ -1160,6 +1245,19 @@ L<https://github.com/bbidulock/xdg-launch/issues>.
 L<xdg-show(1)>,
 L<xdg-assist(1)>,
 L<xdg-monitor(1)>,
+L<xdg-toolwait(1)>,
+L<xdg-autostart(1)>,
+L<xdg-xsession(1)>,
+L<xdg-session(1)>,
+L<xde-run(1)>,
+L<xde-app(1)>,
+L<xde-recent(1)>,
+L<execve(3)>,
+L<getopt_long_only(3)>,
+L<xtoolwait(1)>,
+L<wmctrl(1)>,
+L<xdotool(1)>,
+L<xterm(1)>,
 Startup Notification
 L<http://standards.freedesktop.org/startup-notification-spec/startup-notification-0.1.txt>.
 
