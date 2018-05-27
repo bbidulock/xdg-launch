@@ -8349,7 +8349,6 @@ launch(Process *pr)
 {
 	size_t size;
 	char *disp, *p;
-	Sequence *seq = pr->seq;
 	Display *dpy;
 	int mask;
 
@@ -8392,18 +8391,18 @@ launch(Process *pr)
 		send_new(dpy, pr);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
-	try_setenv("DESKTOP_STARTUP_ID", seq->f.id, 1);
+	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
 
 	if (0) { /* bad idea */
 		/* set the DISPLAY environment variable */
 		p = getenv("DISPLAY");
-		size = strlen(p) + strlen(seq->f.screen) + 2;
+		size = strlen(p) + strlen(pr->seq->f.screen) + 2;
 		disp = calloc(size, sizeof(*disp));
 		strcpy(disp, p);
 		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
 			*p = '\0';
 		strcat(disp, ".");
-		strcat(disp, seq->f.screen);
+		strcat(disp, pr->seq->f.screen);
 		try_setenv("DISPLAY", disp, 1);
 	}
 
@@ -8455,11 +8454,11 @@ launch(Process *pr)
 		execvp(eargv[0], eargv);
 	} else {
 		if (options.info) {
-			OPRINTF(0, "Command would be: sh -c \"%s\"\n", seq->f.command);
+			OPRINTF(0, "Command would be: sh -c \"%s\"\n", pr->seq->f.command);
 			return;
 		}
-		DPRINTF(1, "Command will be: sh -c \"%s\"\n", seq->f.command);
-		execl("/bin/sh", "sh", "-c", seq->f.command, NULL);
+		DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
+		execl("/bin/sh", "sh", "-c", pr->seq->f.command, NULL);
 	}
 	EPRINTF("Should never get here!\n");
 	exit(127);
