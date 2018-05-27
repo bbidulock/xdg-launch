@@ -609,12 +609,12 @@ Process **phases[AutostartPhase_Application + 1] = { NULL, };
 int wait_fors[AutostartPhase_Application + 1] = { 0, };
 int mask_fors[AutostartPhase_Application + 1] = {
 	/* *INDENT-OFF* */
-	[AutostartPhase_PreDisplayServer] = 0,
+	[AutostartPhase_PreDisplayServer] = (0),
 	[AutostartPhase_Initializing]	  = (WAITFOR_AUDIOSERVER),
 	[AutostartPhase_WindowManager]	  = (WAITFOR_WINDOWMANAGER | WAITFOR_COMPOSITEMANAGER),
 	[AutostartPhase_Panel]		  = (WAITFOR_SYSTEMTRAY | WAITFOR_DESKTOPPAGER),
-	[AutostartPhase_Desktop]	  = (WAITFOR_DESKTOPPAGER),
-	[AutostartPhase_Application]	  = (WAITFOR_STARTUPHELPER),
+	[AutostartPhase_Desktop]	  = (WAITFOR_DESKTOPPAGER | WAITFOR_STARTUPHELPER),
+	[AutostartPhase_Application]	  = (0),
 	/* *INDENT-ON* */
 };
 
@@ -8369,7 +8369,7 @@ static void put_default(Process *pr);
   *    sets its DESKTOP_STARTUP_ID environment variable to the reset id.
   */
 static void
-launch(Process *pr)
+launch_simple(Process *pr)
 {
 	size_t size;
 	char *disp, *p;
@@ -8520,6 +8520,118 @@ launch2(Process *pr)
 	} else if (options.assist) {
 	} else {
 	}
+
+	/* run the launch command in child */
+	continue_proc(pr);
+}
+
+/** @brief launch an Application entry
+  */
+static void
+launch_application(Process *pr)
+{
+	OPRINTF(1, "Launching Application:\n");
+	return launch_simple(pr); // for now
+}
+
+/** @brief launch an Autostart entry
+  */
+static void
+launch_autostart(Process *pr)
+{
+	OPRINTF(1, "Launching Autostart:\n");
+	return launch_simple(pr); // for now
+}
+
+static char *
+setup_window_manager(Process *pr)
+{
+	char *setup = NULL;
+
+	DPRINTF(1, "Setting up window manager...\n");
+
+	setup_sequence(pr, getpid());
+	setup_subreaper(pr, options.ppid);
+
+	if (!eargv) {
+		char *start;
+
+		if ((setup = lookup_init_script(pr->appid, "setup"))) {
+			DPRINTF(1, "Will set up window manager with %s\n", setup);
+		}
+		if ((start = lookup_init_script(pr->appid, "start"))) {
+			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
+			free(pr->seq->f.command);
+			pr->seq->f.command = start;
+		}
+	}
+	return (setup);
+}
+
+/** @brief launch an XSession entry
+  *
+  * Launching an XSession entry is a little different that launching an
+  * Application or Autostart entry.  We must execute the window manager in the
+  * main process and not fork any children.
+  */
+static void
+launch_xsession(Process *wm)
+{
+	Display *dpy;
+	char *setup;
+
+	OPRINTF(1, "Launching XSession:\n");
+
+	if (!getenv("XDG_SESSION_PID")) {
+		char buf[24] = { 0, };
+
+		options.ppid = getpgrp();
+		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
+		try_setenv("XDG_SESSION_PID", buf, 1);
+	}
+
+	if (wm->ent->DesktopNames)
+		try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
+	if (!getenv("XDG_CURRENT_DESKTOP")) {
+		if (wm->ent->path) {
+			char *desktop, *p;
+
+			desktop = extract_appid(wm->ent->path);
+			for (p = desktop; p && *p; p++)
+				*p = toupper(*p);
+			try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
+			free(desktop);
+		} else
+			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
+	}
+
+	dpy = get_display();
+	setup = setup_window_manager(wm);
+	wm->phase = want_phase(wm);
+
+	if ((wm->wait_for = want_resource(wm) & mask_fors[wm->phase - 1]))
+		wait_for_resources(dpy, wm->wait_for, options.guard);
+
+	if (options.id)
+		send_change(dpy, wm);
+	else
+		send_new(dpy, wm);
+
+	put_display(dpy);
+
+	if (setup) {
+		DPRINTF(1, "Setting up window manager with %s\n", setup);
+		if (system(setup)) ;
+		free(setup);
+	}
+
+	/* set the DESKTOP_STARTUP_ID environment variable */
+	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
+
+	DPRINTF(1,"Launching window manager %s\n", wm->appid);
+	DPRINTF(1, "Command will be: sh -c \"%s\"\n", wm->seq->f.command);
+	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
+	exit(EXIT_FAILURE);
 }
 
 /** @brief set the screen to be used in startup notification
@@ -10373,31 +10485,6 @@ check_exec(const char *tryexec, const char *exec)
 	return False;
 }
 
-static char *
-setup_window_manager(Process *pr)
-{
-	char *setup = NULL;
-
-	DPRINTF(1, "Setting up window manager...\n");
-
-	setup_sequence(pr, getpid());
-	setup_subreaper(pr, options.ppid);
-
-	if (!eargv) {
-		char *start;
-
-		if ((setup = lookup_init_script(pr->appid, "setup"))) {
-			DPRINTF(1, "Will set up window manager with %s\n", setup);
-		}
-		if ((start = lookup_init_script(pr->appid, "start"))) {
-			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
-			free(pr->seq->f.command);
-			pr->seq->f.command = start;
-		}
-	}
-	return (setup);
-}
-
 static Bool
 check_for_completions(Display *dpy, XPointer data)
 {
@@ -10535,12 +10622,13 @@ dispatcher(void)
 }
 
 static void
-startup(Process *wm)
+launch_startup(Process *wm)
 {
 	pid_t did;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
 
+	OPRINTF(1, "Launching full autostart seqeuence\n");
 	if (wm)
 		wm->type = LaunchType_XSession;
 
@@ -10785,13 +10873,14 @@ startup(Process *wm)
   * session leaders and still belong to the login session.
   */
 static void
-session(Process *wm)
+launch_session(Process *wm)
 {
 	pid_t did;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
 	char *setup;
 
+	OPRINTF(1, "Launching full Session\n");
 	wm->type = LaunchType_XSession;
 
 	if (!getenv("XDG_SESSION_PID")) {
@@ -11008,7 +11097,7 @@ session(Process *wm)
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
 
-	DPRINTF(1,"Launching window manager\n");
+	DPRINTF(1,"Launching window manager %s\n", wm->appid);
 	DPRINTF(1, "Command will be: sh -c \"%s\"\n", wm->seq->f.command);
 
 	/* tell dispatcher that wm phase is starting */
@@ -11017,6 +11106,25 @@ session(Process *wm)
 
 	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
 	exit(EXIT_FAILURE);
+}
+
+static void
+launch(Process *pr)
+{
+	switch (pr->type) {
+	case LaunchType_Application:
+		return launch_application(pr);
+	case LaunchType_Autostart:
+		return launch_autostart(pr);
+	case LaunchType_XSession:
+		return launch_xsession(pr);
+	case LaunchType_Session:
+		return launch_session(pr);
+	case LaunchType_Startup:
+		return launch_startup(pr);
+	}
+	EPRINTF("Invalid launch type %d\n", pr->type);
+	exit (EXIT_FAILURE);
 }
 
 static Process *
@@ -12194,7 +12302,7 @@ main(int argc, char *argv[])
 		goto bad_usage;
 	case CommandSession:
 		if ((pr = setup_entry(command))) {
-			session(pr);
+			launch(pr);
 			exit(EXIT_SUCCESS);
 		}
 		options.command = command = CommandStartup;
@@ -12202,7 +12310,7 @@ main(int argc, char *argv[])
 		/* fall through */
 	case CommandStartup:
 		pr = setup_entry(command);
-		startup(pr);
+		launch(pr);
 		exit(EXIT_SUCCESS);
 	}
 	EPRINTF("invalid command\n");
