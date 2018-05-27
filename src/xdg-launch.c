@@ -8345,6 +8345,46 @@ need_assist(Display *dpy, Process *pr)
 	return need_assist;
 }
 
+static char *
+init_window_manager(Process *pr)
+{
+	char *setup = NULL;
+
+	DPRINTF(1, "Setting up window manager...\n");
+
+	setup_sequence(pr, getpid());
+	setup_subreaper(pr, options.ppid);
+
+	if (!eargv) {
+		char *start;
+
+		if ((setup = lookup_init_script(pr->appid, "setup"))) {
+			DPRINTF(1, "Will set up window manager with %s\n", setup);
+		}
+		if ((start = lookup_init_script(pr->appid, "start"))) {
+			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
+			free(pr->seq->f.command);
+			pr->seq->f.command = start;
+		}
+	}
+	return (setup);
+}
+
+static int
+setup_window_manager(const char *setup)
+{
+	if (setup) {
+		if (options.info) {
+			OPRINTF(1, "Would set up window manager with %s\n", setup);
+			return (0);
+		} else {
+			DPRINTF(1, "Setting up window manager with %s\n", setup);
+			return system(setup);
+		}
+	}
+	return (0);
+}
+
 static void put_history(Process *pr);
 static void put_default(Process *pr);
 
@@ -8438,12 +8478,7 @@ launch_simple(Process *pr)
 		char *setup, *start;
 
 		if ((setup = lookup_init_script(pr->appid, "setup"))) {
-			if (options.info) {
-				OPRINTF(1, "Would set up window manager with %s\n", setup);
-			} else {
-				DPRINTF(1, "Setting up window manager with %s\n", setup);
-				if (system(setup)) ;
-			}
+			setup_window_manager(setup);
 			free(setup);
 		}
 		if ((start = lookup_init_script(pr->appid, "start"))) {
@@ -8543,31 +8578,6 @@ launch_autostart(Process *pr)
 	return launch_simple(pr); // for now
 }
 
-static char *
-setup_window_manager(Process *pr)
-{
-	char *setup = NULL;
-
-	DPRINTF(1, "Setting up window manager...\n");
-
-	setup_sequence(pr, getpid());
-	setup_subreaper(pr, options.ppid);
-
-	if (!eargv) {
-		char *start;
-
-		if ((setup = lookup_init_script(pr->appid, "setup"))) {
-			DPRINTF(1, "Will set up window manager with %s\n", setup);
-		}
-		if ((start = lookup_init_script(pr->appid, "start"))) {
-			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
-			free(pr->seq->f.command);
-			pr->seq->f.command = start;
-		}
-	}
-	return (setup);
-}
-
 /** @brief launch an XSession entry
   *
   * Launching an XSession entry is a little different that launching an
@@ -8606,12 +8616,13 @@ launch_xsession(Process *wm)
 	}
 
 	dpy = get_display();
-	setup = setup_window_manager(wm);
-	wm->phase = want_phase(wm);
+	setup = init_window_manager(wm);
 
-	if ((wm->wait_for = want_resource(wm) & mask_fors[wm->phase - 1]))
-		wait_for_resources(dpy, wm->wait_for, options.guard);
-
+	if (options.wait) {
+		wm->phase = want_phase(wm);
+		if ((wm->wait_for = want_resource(wm) & mask_fors[wm->phase - 1]))
+			wait_for_resources(dpy, wm->wait_for, options.guard);
+	}
 	if (options.id)
 		send_change(dpy, wm);
 	else
@@ -8619,11 +8630,10 @@ launch_xsession(Process *wm)
 
 	put_display(dpy);
 
-	if (setup) {
-		DPRINTF(1, "Setting up window manager with %s\n", setup);
-		if (system(setup)) ;
-		free(setup);
-	}
+	if (options.puthist)
+		put_history(wm);
+
+	setup_window_manager(setup);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
@@ -11044,7 +11054,7 @@ launch_session(Process *wm)
 		pp_prev = &pr->next;
 	}
 
-	setup = setup_window_manager(wm);
+	setup = init_window_manager(wm);
 
 	phase = wm->phase = want_phase(wm);
 	wm->wait_for = want_resource(wm);
@@ -11088,11 +11098,7 @@ launch_session(Process *wm)
 	wait_stopped_pid(did);
 	/* initialization phase complete */
 
-	if (setup) {
-		DPRINTF(1, "Setting up window manager with %s\n", setup);
-		if (system(setup)) ;
-		free(setup);
-	}
+	setup_window_manager(setup);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
