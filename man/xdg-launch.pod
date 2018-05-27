@@ -6,12 +6,12 @@ xdg-launch - an XDG compliant startup notification launcher
 
 =head1 SYNOPSIS
 
-B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|B<-e> I<COMMAND>]
- B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
- B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
- B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
- B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|B<-e> I<COMMAND>]
- B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|B<-e> I<COMMAND>]
+B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|I<COMMAND>]
+ B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|I<COMMAND>]
+ B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|I<COMMAND>]
+ B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|I<COMMAND>]
  B<xdg-launch> {B<-V>|B<--version>}
  B<xdg-launch> {B<-C>|B<--copying>}
 
@@ -35,7 +35,7 @@ specifier, I<APPSPEC>, can be one of the following:
 
 =over
 
-=item I<APPID>
+=item [{B<-a>,B<--appid>}] I<APPID>
 
 Specifies the application identifier of an XDG desktop application to
 launch.  The application identifier, I<APPID>, can be one of the
@@ -66,7 +66,7 @@ contain at least one C</> and start with either a C</> or a C<.>.
 The application identifier, I<APPID>, can alternately be specified as an
 option argument using the B<--appid> option.
 
-=item I<MIMETYPE>
+=item [B<--mimetype>] I<MIMETYPE>
 
 A registered mime type of the form "I<type>B</>I<subtype>".  This
 corresponds to the mime type of a file or scheme handler that will
@@ -77,7 +77,7 @@ argument using the B<--mimetype> option.  Where the mime type would
 conflict with an existing I<APPID>, it must be specified with the
 B<--mimetype> option.
 
-=item I<CATEGORY>
+=item [B<--category>] I<CATEGORY>
 
 An XDG menu specification category that identifies the application to
 launch.
@@ -94,27 +94,29 @@ unless the B<--exec>, B<--appid>, B<--mimetype> or B<--category> options
 are specified, in which case it should not be specified as a non-option
 argument.
 
-=item I<FILE>
+=item [{B<-f>,B<--file>}] I<FILE>
 
 Specifies the file name with which to launch the application.  This is
 used in C<%f> substitutions in the C<Exec> field of the XDG desktop
 entry file or B<--exec> command line.  This may also be Specified with
 the B<--file> option.
 
-=item I<URL>
+=item [{B<-u>,B<--url>}] I<URL>
 
 Specifies the URL with which to launch the application.  This is used in
 C<%u> substitutions in the C<Exec> field of the XDG desktop entry file
 or B<--exec> command line.  This may also be specified with the B<--url>
 option.
 
-=item B<-e> I<COMMAND ARGUMENTS>
+=item I<COMMAND> = {{B<-x>,B<--exec>} "I<EXEC ARGUMENT>..."|B<-e> I<EXEC ARGUMENT>...}
 
-When specified, this option must be the last option on the command line.
-Options processing stops abruptly at this option and remaining arguments
-are considered to be the command and the command arguments to execute.
-B<xdg-launch> will L<execve(3)> the arguments under startup notification
-control in a similar fashion to C<sh -c>.
+When specified with B<-e>, this option must be the last option on the
+command line.  Options processing stops abruptly at this option and
+remaining arguments are considered to be the command and the command
+arguments to execute.  B<xdg-launch> will L<execve(3)> the arguments
+under startup notification control in a similar fashion to C<sh -c>.
+This may also be specified as a single string argument to C<sh -c> using
+the B<--exec> option.
 
 =back
 
@@ -244,26 +246,6 @@ Prints detailed version information and exits.
 =item B<-C>, B<--copying>
 
 Prints detailed copying permissions and exits.
-
-=back
-
-=head2 GENERAL OPTIONS
-
-The following are general options:
-
-=over
-
-=item B<-v>, B<--verbose> [I<LEVEL>]
-
-Print diagnostic information to standard error during operation.  This
-option can be repeated to increase the verbosity of output.  The default
-level is 1.
-
-=item B<-D>, B<--debug> [I<LEVEL>]
-
-Prints debugging information to standard error during operation.  This
-option can be repeated to increase the debugging level.  The default
-level is 0.
 
 =back
 
@@ -405,6 +387,18 @@ but it is set to false.
 Specifies the process identifier for the launch sequence.  The default
 is the process identifier of the xdg-launch program.
 
+=item B<--ppid>
+
+Specify the process identity of a sub-reaper process under which the
+launched application should be re-parented when its parent terminates.
+This option defaults to the environment variable B<${XDG_SESSION_PID}>
+and, if that does not exist, the process group leader of the process
+invoking B<xdg-launch>.  To keep it from being set automatically, set it
+to zero.  This is useful for applications launched by a window manager
+to ensure that if the window manager crashes, it may be restarted by the
+session and the application child processes will be re-parented to the
+session.
+
 =item B<-A>, B<--action> I<ACTION>
 
 Specifies a desktop action, I<ACTION>, to perform instead of the default
@@ -452,62 +446,14 @@ Only one of B<--pointer> or B<--keyboard> can be specified.
 
 =back
 
-=head2 HISTORY OPTIONS
+=head2 ASSIST OPTIONS
 
-When simple applications are launched, files containing the history of
-recently launched applications are updated.  The following options
-affect this behaviour.
-
-=over
-
-=item B<--history>, B<--no-history>
-
-By default, when simple applications launched, files containing the
-history of recent applications and recently used files and URLs are
-updated.  For other applications (auto-start, X session), histories are
-not kept by default.  These options specify whether histories are to be
-kept or not.
-
-=item B<-k>, B<--keep> I<NUMBER>
-
-Specify the maximum number, I<NUMBER>, of commands or application
-invocations that are kept in the recent history file.  The minimum value
-is one, and the maximum value is 100.  The default value when
-unspecified is 10.
-
-This option is ignored when history is not in effect.
-
-=item B<-r>, B<--recent> I<FILENAME>
-
-Specify the I<FILENAME> of the recent history file.  When in exec mode,
-store recent history of the executable in the file, I<FILENAME>.  In
-exec mode, the default is F<$XDG_CONFIG_HOME/xde/run-history>.  When in
-application mode, store recent history of the application in the file,
-I<FILENAME>.  In application mode, the default is
-F<$XDG_CONFIG_HOME/xde/recent-applications>.
-
-This option is ignored when history is not in effect.
-
-=back
-
-=head2 JOB CONTROL OPTIONS
-
-The following job control options provide an equivalent functionality to
-that of L<xtoolwait(1)>.
+B<xdg-launch> is capable of assisting a non-startup-notification aware
+window manager with startup notification completion, as well as
+establishing initial settings of some NetWM/EWMH properties on any
+application windows.  These options affect that behaviour.
 
 =over
-
-=item B<--ppid>
-
-Specify the process identity of a sub-reaper process under which the
-launched application should be re-parented when its parent terminates.
-This option defaults to the environment variable B<${XDG_SESSION_PID}>
-and, if that does not exist, the process group leader of the process
-invoking B<xdg-launch>.  To keep it from being set automatically, set it
-to zero.  This is useful for applications launched by a window manager
-to ensure that if the window manager crashes, it may be restarted by the
-session and the application child processes will be re-parented to the
-session.
 
 =item B<--assist>
 
@@ -526,6 +472,15 @@ The default when a window manager exists that does not support startup
 notification is to provide assistance.  This option requests that
 B<xdg-launch> not provide startup notification assistance to any window
 manager.
+
+=back
+
+=head2 TOOL WAIT OPTIONS
+
+The following tool wait options provide an equivalent functionality to
+that of L<xtoolwait(1)>.
+
+=over
 
 =item B<-T>, B<--toolwait>
 
@@ -588,6 +543,30 @@ completion, simply use the creation of a top-level window as the
 criteria instead of expecting a C<WM_STATE> property change.
 
 =back
+
+=head2 SESSION OPTIONS
+
+The options that follow are for desktop session control.  They determine
+what conditions will be awaited before launching the application or
+command.  When no session option is specified, B<xdg-launch> may
+determine automatically which conditions must be awaited depending on
+the setting of the B<--autowait> and B<--no-autowait> options.
+
+=over
+
+=item B<--autowait>
+
+Normally, when  B<xdg-launch> is executing an autostart entry, it will
+determine whether the application needs to wait for resources or a
+startup phase before launching the application.  This option requests
+that B<xdg-launch> perform the wait when required.
+
+=item B<--no-autowait>
+
+Normally, when  B<xdg-launch> is executing an autostart entry, it will
+determine whether the application needs to wait for resources or a
+startup phase before launching the application.  This option requests
+that B<xdg-launch> not wait for any resources or startup phase.
 
 Note that some key fields in the F<.desktop> file of an application can
 specify the autostart phase (.e.g. C<AutostartPhase>,
@@ -670,30 +649,6 @@ desktop pager (as most panels provide these).
 
 =back
 
-=head2 SESSION OPTIONS
-
-The options that follow are for desktop session control.  They determine
-what conditions will be awaited before launching the application or
-command.  When no session option is specified, B<xdg-launch> may
-determine automatically which conditions must be awaited depending on
-the setting of the B<--autowait> and B<--no-autowait> options.
-
-=over
-
-=item B<--autowait>
-
-Normally, when  B<xdg-launch> is executing an autostart entry, it will
-determine whether the application needs to wait for resources or a
-startup phase before launching the application.  This option requests
-that B<xdg-launch> perform the wait when required.
-
-=item B<--no-autowait>
-
-Normally, when  B<xdg-launch> is executing an autostart entry, it will
-determine whether the application needs to wait for resources or a
-startup phase before launching the application.  This option requests
-that B<xdg-launch> not wait for any resources or startup phase.
-
 =back
 
 The options that follow are for specifying the conditions that must be
@@ -741,7 +696,45 @@ wait indefinitely for the resource.  The default value is 2 seconds.
 
 =back
 
-=head2 CONTENT TYPE OPTIONS
+=head2 HISTORY OPTIONS
+
+When simple applications are launched, files containing the history of
+recently launched applications are updated.  The following options
+affect this behaviour.
+
+=over
+
+=item B<--history>, B<--no-history>
+
+By default, when simple applications launched, files containing the
+history of recent applications and recently used files and URLs are
+updated.  For other applications (auto-start, X session), histories are
+not kept by default.  These options specify whether histories are to be
+kept or not.
+
+=item B<-k>, B<--keep> I<NUMBER>
+
+Specify the maximum number, I<NUMBER>, of commands or application
+invocations that are kept in the recent history file.  The minimum value
+is one, and the maximum value is 100.  The default value when
+unspecified is 10.
+
+This option is ignored when history is not in effect.
+
+=item B<-r>, B<--recent> I<FILENAME>
+
+Specify the I<FILENAME> of the recent history file.  When in exec mode,
+store recent history of the executable in the file, I<FILENAME>.  In
+exec mode, the default is F<$XDG_CONFIG_HOME/xde/run-history>.  When in
+application mode, store recent history of the application in the file,
+I<FILENAME>.  In application mode, the default is
+F<$XDG_CONFIG_HOME/xde/recent-applications>.
+
+This option is ignored when history is not in effect.
+
+=back
+
+=head2 CONTENT OPTIONS
 
 The following options affect the current or future selection of
 application by mime type or XDG category:
@@ -806,6 +799,26 @@ mime-type or category.  (The fallback applications setting is defined by
 the XDG mime-type specifications and is the familiar recommended list
 used by most desktop file managers.)  The default is to consider the
 fallback applications.
+
+=back
+
+=head2 GENERAL OPTIONS
+
+The following are general options:
+
+=over
+
+=item B<-v>, B<--verbose> [I<LEVEL>]
+
+Print diagnostic information to standard error during operation.  This
+option can be repeated to increase the verbosity of output.  The default
+level is 1.
+
+=item B<-D>, B<--debug> [I<LEVEL>]
+
+Prints debugging information to standard error during operation.  This
+option can be repeated to increase the debugging level.  The default
+level is 0.
 
 =back
 
