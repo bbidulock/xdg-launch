@@ -3058,10 +3058,10 @@ send_msg(Display *dpy, Process *pr, char *msg)
 	char *p;
 
 	DPRINTF(1, "Message to 0x%08lx is: '%s'\n", scr->root, msg);
-	OPRINTF(1, "Would send the following startup notification message: %s\n", msg);
-	if (options.info)
+	if (options.info) {
+		OPRINTF(1, "Would send the following startup notification message: %s\n", msg);
 		return;
-
+	}
 	if (!(from = scr->selwin)) {
 		EPRINTF("no selection window, creating one!\n");
 		from = XCreateSimpleWindow(dpy, scr->root, 0, 0, 1, 1, 0,
@@ -4922,6 +4922,12 @@ add_process(Process *pr)
 	Sequence *seq = pr->seq;
 
 	assert(seq != NULL);
+
+	if (options.info) {
+		OPRINTF(1, "Would add %s to sequence list\n", pr->appid);
+		return;
+	}
+
 	pr->refs = 1;
 	seq->client = None;
 
@@ -7603,6 +7609,8 @@ check_for_completion(Display *dpy, XPointer data)
 static Bool
 wait_for_completion(Display *dpy, Process *pr, int guard)
 {
+	if (options.info)
+		OPRINTF(1, "Might wait for %s completion for %d seconds\n", pr->appid, guard);
 	return wait_for_condition(dpy, &check_for_completion, (XPointer) pr, guard);
 }
 
@@ -7625,6 +7633,10 @@ wait_stopped_pid(pid_t pid)
 {
 	int status = 0;
 
+	if (options.info) {
+		OPRINTF(1, "Would wait for child to stop\n");
+		return (True);
+	}
 	DPRINTF(1, "Waiting for %d to stop...\n", pid);
 	if (waitpid(pid, &status, WUNTRACED) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
@@ -7660,6 +7672,10 @@ wait_stopped_proc(Process *pr)
 {
 	Bool result;
 
+	if (options.info) {
+		OPRINTF(1, "Would wait for %s to stop\n", pr->appid);
+		return (True);
+	}
 	DPRINTF(1, "Waiting for child %s PID %d to stop...\n", pr->appid, pr->pid);
 	result = wait_stopped_pid(pr->pid);
 	pr->started = False;
@@ -7673,6 +7689,10 @@ wait_continued_pid(pid_t pid)
 {
 	int status = 0;
 
+	if (options.info) {
+		OPRINTF(1, "Would wait for child to continue\n");
+		return (True);
+	}
 	DPRINTF(1, "Waiting for %d to continue...\n", pid);
 	if (waitpid(pid, &status, WCONTINUED) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
@@ -7704,6 +7724,10 @@ wait_continued_proc(Process *pr)
 {
 	Bool result;
 
+	if (options.info) {
+		OPRINTF(1, "Would wait for %s to continue\n", pr->appid);
+		return (True);
+	}
 	DPRINTF(1, "Waiting for child %s PID %d to continue...\n", pr->appid, pr->pid);
 	result = wait_continued_pid(pr->pid);
 	pr->stopped = False;
@@ -7717,6 +7741,10 @@ wait_exited_pid(pid_t pid)
 {
 	int status = 0;
 
+	if (options.info) {
+		OPRINTF(1, "Would wait for child to exit\n");
+		return (True);
+	}
 	DPRINTF(1, "Waiting for %d to exit...\n", pid);
 	if (waitpid(pid, &status, 0) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
@@ -7768,8 +7796,49 @@ setup_subreaper(Process *pr, pid_t ppid)
 	pr->ppid = ppid;
 
 	/* set the new parent after existing parent exits */
-	if (pr->ppid && pr->ppid != pr->pid && pr->ppid != getppid())
+	if (pr->ppid && pr->ppid != pr->pid && pr->ppid != getppid()) {
+		if (options.info) {
+			OPRINTF(1, "Would set subreaper to %d\n", pr->ppid);
+			return;
+		}
 		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
+	}
+}
+
+pid_t
+fork_child(const char *how)
+{
+	pid_t pid;
+
+	if (options.info) {
+		pid = 0;
+		OPRINTF(1, "Would fork and continue with child\n");
+		OPRINTF(1, "Parent would %s\n", how);
+		return (pid);
+	}
+	if ((pid = fork()) == -1) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	return (pid);
+}
+
+pid_t
+fork_parent(const char *how)
+{
+	pid_t pid;
+
+	if (options.info) {
+		pid = getpid();
+		OPRINTF(1, "Would fork and continue with parent\n");
+		OPRINTF(1, "Child would %s\n", how);
+		return (pid);
+	}
+	if ((pid = fork()) == -1) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	return (pid);
 }
 
 /** @brief spawn a child to execute the application
@@ -7786,11 +7855,7 @@ spawn_child(Process *pr)
 
 	setup_sequence(pr, 0);
 
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		return (False);
-	}
-	if (pid) {
+	if ((pid = fork_parent("stop and then execute process"))) {
 		/* parent */
 		setup_sequence(pr, pid);
 		pr->started = True;
@@ -7884,16 +7949,7 @@ assist(Display *dpy, Process *pr)
 	reset_pid(pid, pr);
 	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
 	DPRINTF(1, "Launching with wm assistance\n");
-	if (options.info) {
-		OPRINTF(1, "Would launch with wm assistance\n");
-		return;
-	}
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	if (pid) {
-		OPRINTF(1, "parent says child pid is %d\n", pid);
+	if ((pid = fork_parent("continue monitoring"))) {
 		/* parent returns and launches */
 		/* setsid(); */ /* XXX */
 		return;
@@ -7946,23 +8002,15 @@ toolwait(Display *dpy, Process *pr)
 	setup_to_assist(pr);
 	XSync(dpy, False);
 	DPRINTF(1, "Launching with tool wait support\n");
-	if (options.info) {
-		OPRINTF(1, "Would launch with tool wait support\n");
-		reset_pid(pid, pr);
-		return;
-	}
-	if ((pid = fork()) < 0) {
-		EPRINTF("%s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	reset_pid(pid, pr);
-	if (!pid) {
+	if (!(pid = fork_child("continue on monitoring"))) {
 		/* child returns and launches */
 		/* setsid(); */ /* XXX */
+		reset_pid(pid, pr);
 		dpy = new_display(dpy);
 		return;
 	}
 	/* continue on monitoring */
+	reset_pid(pid, pr);
 	wait_for_completion(dpy, pr, options.guard);
 	exit(EXIT_SUCCESS);
 }
@@ -8046,6 +8094,21 @@ check_for_resources(Display *dpy, XPointer data)
 static Bool
 wait_for_resources(Display *dpy, long wait_for, int guard)
 {
+	if (options.info) {
+		OPRINTF(1, "Might wait for resources for %d seconds:\n", guard);
+		if (wait_for & WAITFOR_STARTUPHELPER)
+			OPRINTF(1, "--> startup helper\n");
+		if (wait_for & WAITFOR_DESKTOPPAGER)
+			OPRINTF(1, "--> desktop pager\n");
+		if (wait_for & WAITFOR_SYSTEMTRAY)
+			OPRINTF(1, "--> system tray\n");
+		if (wait_for & WAITFOR_COMPOSITEMANAGER)
+			OPRINTF(1, "--> composite manager\n");
+		if (wait_for & WAITFOR_WINDOWMANAGER)
+			OPRINTF(1, "--> window manager\n");
+		if (wait_for & WAITFOR_AUDIOSERVER)
+			OPRINTF(1, "--> audio server\n");
+	}
 	return wait_for_condition(dpy, &check_for_resources, (XPointer) wait_for, guard);
 }
 
@@ -8091,32 +8154,8 @@ check_window(Display *dpy, XPointer data)
 static Bool
 wait_for_window_manager(Display *dpy)
 {
-	XdgScreen *scr = screens + DefaultScreen(dpy);
-
-	PTRACE(5);
-	if (check_wmngr(scr)) {
-		OPRINTF(0, "Have a window manager:\n");
-		if (scr->netwm_check)
-			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window NetWM/EWMH", scr->netwm_check);
-		if (scr->winwm_check)
-			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window WinWM/GNOME", scr->winwm_check);
-		if (scr->maker_check)
-			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window WindowMaker", scr->maker_check);
-		if (scr->motif_check)
-			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window OSF/MOTIF", scr->motif_check);
-		if (scr->icccm_check)
-			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window ICCCM 2.0", scr->icccm_check);
-		if (scr->redir_check)
-			OPRINTF(0, "--> %-24s = 0x%08lx\n", "Window redirection", scr->redir_check);
-		return (True);
-	} else {
-		DPRINTF(1, "Will wait for window manager\n");
-		if (options.info) {
-			OPRINTF(1, "Would wait for window manager\n");
-			return (True);
-		}
-	}
-	DPRINTF(1, "Waiting for check_anywm\n");
+	if (options.info)
+		OPRINTF(1, "Might wait for window manager for %d seconds\n", options.guard);
 	return wait_for_condition(dpy, &check_window, (XPointer) &check_wmngr, options.guard);
 }
 
@@ -8311,34 +8350,15 @@ launch(Process *pr)
 
 	/* fill out all fields */
 	setup_sequence(pr, 0);
-	if (!options.info) {
-		if (options.puthist)
-			put_history(pr);
-		if (options.setpref)
-			put_default(pr);
-	}
+	if (options.puthist)
+		put_history(pr);
+	if (options.setpref)
+		put_default(pr);
 	OPRINTF(1, "checking auto-wait resources:\n");
 	if (options.wait) {
 		/* no startup helper because we check for assistance below */
-		mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER;
-		if (mask) {
-			if (options.info) {
-				OPRINTF(1, "Would wait for:\n");
-				if ((mask & WAITFOR_AUDIOSERVER))
-					OPRINTF(1, "--> Audio Server\n");
-				if ((mask & WAITFOR_WINDOWMANAGER))
-					OPRINTF(1, "--> Window Manager\n");
-				if ((mask & WAITFOR_COMPOSITEMANAGER))
-					OPRINTF(1, "--> Composite Manager\n");
-				if ((mask & WAITFOR_SYSTEMTRAY))
-					OPRINTF(1, "--> System Tray\n");
-				if ((mask & WAITFOR_DESKTOPPAGER))
-					OPRINTF(1, "--> Desktop Pager\n");
-				if ((mask & WAITFOR_STARTUPHELPER))
-					OPRINTF(1, "--> Startup Helper\n");
-			}
+		if ((mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER))
 			wait_for_resources(dpy, mask, options.guard);
-		}
 	}
 	if (options.autoassist)
 		options.assist = need_assist(dpy, pr);
@@ -8362,23 +8382,24 @@ launch(Process *pr)
 		send_change(dpy, pr);
 	else
 		send_new(dpy, pr);
-	end_display(dpy);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	setenv("DESKTOP_STARTUP_ID", seq->f.id, 1);
 
-	/* set the DISPLAY environment variable */
-	p = getenv("DISPLAY");
-	size = strlen(p) + strlen(seq->f.screen) + 2;
-	disp = calloc(size, sizeof(*disp));
-	strcpy(disp, p);
-	if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
-		*p = '\0';
-	strcat(disp, ".");
-	strcat(disp, seq->f.screen);
-	setenv("DISPLAY", disp, 1);
+	if (0) { /* bad idea */
+		/* set the DISPLAY environment variable */
+		p = getenv("DISPLAY");
+		size = strlen(p) + strlen(seq->f.screen) + 2;
+		disp = calloc(size, sizeof(*disp));
+		strcpy(disp, p);
+		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
+			*p = '\0';
+		strcat(disp, ".");
+		strcat(disp, seq->f.screen);
+		setenv("DISPLAY", disp, 1);
+	}
 
-	end_display(dpy);
+	put_display(dpy);
 
 	setup_subreaper(pr, options.ppid);
 
@@ -8386,11 +8407,19 @@ launch(Process *pr)
 		char *setup, *start;
 
 		if ((setup = lookup_init_script(pr->appid, "setup"))) {
-			DPRINTF(1, "Setting up window manager with %s\n", setup);
-			if (system(setup)) ;
+			if (options.info) {
+				OPRINTF(1, "Would set up window manager with %s\n", setup);
+			} else {
+				DPRINTF(1, "Setting up window manager with %s\n", setup);
+				if (system(setup)) ;
+			}
 			free(setup);
 		}
 		if ((start = lookup_init_script(pr->appid, "start"))) {
+			if (options.info) {
+				OPRINTF(1, "Would execute window manager: sh -c \"%s\"\n", start);
+				return;
+			}
 			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
 			execl("/bin/sh", "sh", "-c", start, NULL);
 			EPRINTF("Should never get here!\n");
@@ -10101,6 +10130,10 @@ put_history(Process *pr)
 {
 	assert(pr->seq != NULL);
 
+	if (options.info) {
+		OPRINTF(1, "Would put history for %s\n", pr->appid);
+		return;
+	}
 	put_line_history(pr, options.runhist, pr->seq->f.command);
 	put_line_history(pr, options.recapps, pr->appid);
 #ifdef GIO_GLIB2_SUPPORT
@@ -10122,6 +10155,10 @@ put_history(Process *pr)
 static void
 put_default(Process *pr)
 {
+	if (options.info) {
+		OPRINTF(1, "Would set default to %s\n", pr->appid);
+		return;
+	}
 	EPRINTF("--set-default option not yet supported!\n");
 }
 
@@ -10316,6 +10353,8 @@ check_for_completions(Display *dpy, XPointer data)
 static Bool
 wait_for_completions(Display *dpy, Process **list, int guard)
 {
+	if (options.info)
+		OPRINTF(1, "Might wait for phase sequence completion for %d seconds\n", guard);
 	return wait_for_condition(dpy, &check_for_completions, (XPointer) list, guard);
 }
 
@@ -10404,11 +10443,7 @@ dispatcher(void)
 	pid_t pid;
 	Display *dpy;
 
-	if ((pid = fork()) < 0) {
-		EPRINTF("fork(): %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	if (pid) {
+	if ((pid = fork_parent("become dispatcher"))) {
 		/* parent returns */
 		return (pid);
 	}
