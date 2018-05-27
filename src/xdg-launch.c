@@ -1080,7 +1080,7 @@ xioerror(Display *dpy)
 int (*xerrorxlib) (Display *, XErrorEvent *) = NULL;
 int (*xioerrorxlib) (Display *) = NULL;
 
-static void init_screen(XdgScreen *);
+void init_screen(XdgScreen *);
 
 static Display *
 get_display(void)
@@ -1139,7 +1139,7 @@ get_display(void)
 		scr->shelp_atom = XInternAtom(dpy, sel, False);
 		snprintf(sel, sizeof(sel), SELECTION_ATOM, s);
 		scr->slctn_atom = XInternAtom(dpy, sel, False);
-		init_screen(scr);
+		// init_screen(scr); // do not do this yet!
 	}
 	s = DefaultScreen(dpy);
 	scr = screens + s;
@@ -1831,7 +1831,7 @@ handle_wmchange(XdgScreen *scr)
 		check_window_manager(scr);
 }
 
-static void
+void
 init_screen(XdgScreen *scr)
 {
 	OPRINTF(1, "--> initializing screen %d\n", scr->screen);
