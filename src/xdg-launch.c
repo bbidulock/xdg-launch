@@ -8665,7 +8665,7 @@ set_seq_screen(Process *pr)
 {
 	Sequence *s = pr->seq;
 	char buf[24] = { 0, };
-	Display *dpy;
+	Display *dpy = NULL;
 
 	assert(s != NULL);
 	free(s->f.screen);
@@ -8674,12 +8674,12 @@ set_seq_screen(Process *pr)
 		return;
 	if (options.screen != -1)
 		goto saveit;
-	if (!screens) {
-		EPRINTF("cannot set screen without X display\n");
-		return;
+	if (screens)
+		dpy = screens[0].display;
+	else {
+		EPRINTF("setting screen without X display\n");
+		dpy = XOpenDisplay(0);
 	}
-	dpy = screens[0].display;
-
 	if (options.keyboard || !options.pointer)
 		if (find_focus_screen(dpy, &options.screen))
 			goto saveit;
@@ -8687,11 +8687,14 @@ set_seq_screen(Process *pr)
 		if (find_pointer_screen(dpy, &options.screen))
 			goto saveit;
 	EPRINTF("cannot determine screen\n");
-	return;
+	goto leave;
       saveit:
 	snprintf(buf, sizeof(buf) - 1, "%d", options.screen);
 	s->f.screen = strdup(buf);
 	s->n.screen = options.screen;
+      leave:
+	if (dpy && !screens)
+		XCloseDisplay(dpy);
 	return;
 }
 
@@ -8878,7 +8881,7 @@ set_seq_monitor(Process *pr)
 	Sequence *s = pr->seq;
 	Entry *e = pr->ent;
 	char buf[24] = { 0, };
-	Display *dpy;
+	Display *dpy = NULL;
 
 	assert(s != NULL && e != NULL);
 	free(s->f.monitor);
@@ -8887,12 +8890,12 @@ set_seq_monitor(Process *pr)
 		return;
 	if (options.monitor != -1)
 		goto saveit;
-	if (!screens) {
-		EPRINTF("cannot set monitor without X display\n");
-		return;
+	if (screens)
+		dpy = screens[0].display;
+	else {
+		EPRINTF("setting monitor without X display\n");
+		dpy = XOpenDisplay(0);
 	}
-	dpy = screens[0].display;
-
 	if (options.keyboard || !options.pointer)
 		if (find_focus_monitor(dpy, &options.monitor))
 			goto saveit;
@@ -8900,11 +8903,14 @@ set_seq_monitor(Process *pr)
 		if (find_pointer_monitor(dpy, &options.monitor))
 			goto saveit;
 	EPRINTF("cannot determine monitor\n");
-	return;
+	goto leave;
       saveit:
 	snprintf(buf, sizeof(buf) - 1, "%d", options.monitor);
 	s->f.monitor = strdup(buf);
 	s->n.monitor = options.monitor;
+      leave:
+	if (dpy && !screens)
+		XCloseDisplay(dpy);
 	return;
 }
 
@@ -9186,18 +9192,30 @@ set_seq_timestamp(Process *pr)
 		EPRINTF("options.timestamp was not set by get_defaults()!\n");
 		if (s->f.id && (p = strstr(s->f.id, "_TIME")) && (ts = strtoul(p + 5, &endptr, 0)) && !*endptr) {
 			EPRINTF("using timestamp DESKTOP_STARTUP_ID time %lu\n", ts);
-		} else if (screens) {
-			Display *dpy = screens[0].display;
+		} else {
 			unsigned char data = 'a';
+			Display *dpy;
 			XEvent ev;
 
-			XChangeProperty(dpy, DefaultRootWindow(dpy), _XA_TIMESTAMP_PROP, _XA_TIMESTAMP_PROP, 8, PropModeReplace, &data, 1);
-			XMaskEvent(dpy, PropertyChangeMask, &ev);
-			ts = ev.xproperty.time;
-			EPRINTF("using timestamp property change event time %lu\n", ts);
-		} else {
-			ts = 0UL;
-			EPRINTF("using timestamp zero!\n");
+			if (screens)
+				dpy = screens[0].display;
+			else {
+				EPRINTF("setting timestamp without X display\n");
+				if ((dpy = XOpenDisplay(0)))
+					XSelectInput(dpy, DefaultRootWindow(dpy), PropertyChangeMask);
+			}
+			if (dpy) {
+				XChangeProperty(dpy, DefaultRootWindow(dpy), _XA_TIMESTAMP_PROP,
+						_XA_TIMESTAMP_PROP, 8, PropModeReplace, &data, 1);
+				XMaskEvent(dpy, PropertyChangeMask, &ev);
+				ts = ev.xproperty.time;
+				DPRINTF(1, "using timestamp property change event time %lu\n", ts);
+				if (!screens)
+					XCloseDisplay(dpy);
+			} else {
+				ts = 0UL;
+				EPRINTF("using timestamp zero!\n");
+			}
 		}
 		snprintf(s->f.timestamp, 64, "%lu", ts);
 		options.timestamp = ts;
