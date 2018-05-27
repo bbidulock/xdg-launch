@@ -10407,8 +10407,199 @@ dispatcher(void)
 }
 
 static void
-startup(Process *wm)
+startup(void)
 {
+	pid_t did;
+	char home[PATH_MAX + 1];
+	size_t i, count = 0;
+
+	if (!getenv("XDG_SESSION_PID")) {
+		char buf[24] = { 0, };
+
+		options.ppid = getpgid(0);
+		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
+		setenv("XDG_SESSION_PID", buf, 1);
+	}
+	if (!getenv("XDG_CURRENT_DESKTOP")) {
+		EPRINTF("XDG_CURRENT_DESKTOP must be set\n");
+		exit(EXIT_FAILURE);
+	}
+
+	char *xdg, *dirs, *env;
+	char *p, *q;
+	AutostartPhase phase = AutostartPhase_Application;
+	Process *pr, **pp, **pp_prev;
+
+	options.autoassist = False;
+	options.assist = False;
+	options.wait = False;
+
+	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
+
+	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || !*dirs)
+		dirs = "/etc/xdg";
+	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
+		strcpy(home, env);
+	else {
+		if ((env = getenv("HOME")))
+			strcpy(home, env);
+		else
+			strcpy(home, ".");
+		strcat(home, "/.config");
+	}
+	strncpy(xdg, home, PATH_MAX);
+	strncat(xdg, ":", PATH_MAX);
+	strncat(xdg, dirs, PATH_MAX);
+
+	/* process directories in reverse order */
+	do {
+		char path[PATH_MAX + 1];
+		DIR *dir;
+
+		if ((p = strrchr(xdg, ':')))
+			*p++ = '\0';
+		else
+			p = xdg;
+		strncpy(path, p, PATH_MAX);
+		strncat(path, "/autostart/", PATH_MAX);
+
+		if ((dir = opendir(path))) {
+			struct dirent *d;
+
+			while ((d = readdir(dir))) {
+				char appid[256];
+				size_t len;
+
+				/* name must end in .desktop */
+				if (!(q = strstr(d->d_name, ".desktop")) || q[8])
+					continue;
+				len = q - d->d_name;
+				strncpy(appid, d->d_name, len);
+				appid[len] = '\0';
+				for (pr = autostart; pr && strcmp(pr->appid, appid); pr = pr->next) ;
+				if (pr) {
+					pr->path = realloc(pr->path, PATH_MAX + 1);
+					strncpy(pr->path, path, PATH_MAX);
+					strncat(pr->path, d->d_name, PATH_MAX);
+				} else if ((pr = calloc(1, sizeof(*pr)))) {
+					size_t len = strlen(path) + strlen(appid) + 8 + 1;
+
+					pr->type = LaunchType_Autostart;
+					pr->appid = strdup(appid);
+					pr->path = calloc(len + 1, sizeof(*pr->path));
+					strncpy(pr->path, path, len);
+					strncat(pr->path, appid, len);
+					strncat(pr->path, ".desktop", len);
+					pr->next = autostart;
+					autostart = pr;
+					count++;
+				}
+			}
+			closedir(dir);
+		}
+	} while (p != xdg);
+
+	if (count) {
+		Process **array;
+
+		array = calloc(count, sizeof(*array));
+		for (pp = array, pr = autostart; pr; pr = pr->next) {
+			DPRINTF(6, "adding %s from %s to autostart\n", pr->appid, pr->path);
+			*pp++ = pr;
+		}
+		qsort(array, count, sizeof(*pp), sort_by_appid);
+		/* rebuild list sorted */
+		for (autostart = NULL, pp_prev = &autostart, i = 0; i < count; i++) {
+			pr = array[i];
+			pr->next = NULL;
+			*pp_prev = pr;
+			pp_prev = &pr->next;
+			DPRINTF(4, "%s: %s\n", pr->appid, pr->path);
+		}
+		free(array);
+	}
+
+	for (pp_prev = &autostart; (pr = *pp_prev);) {
+		if (!parse_proc(pr)) {
+			EPRINTF("%s: %s: is invalid: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!pr->ent->Exec) {
+			DPRINTF(3, "%s: %s: no exec: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (pr->ent->Hidden && !strcmp(pr->ent->Hidden, "true")) {
+			DPRINTF(3, "%s: %s: is hidden: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!check_showin(pr->ent->OnlyShowIn)) {
+			DPRINTF(3, "%s: %s: desktop is not in OnlyShowIn: discarding\n", pr->appid,
+				pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!check_noshow(pr->ent->NotShowIn)) {
+			DPRINTF(3, "%s: %s: desktop is in NotShowIn: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (!check_exec(pr->ent->TryExec, pr->ent->Exec)) {
+			DPRINTF(3, "%s: %s: not executable: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (pr->ent->AutostartPhase && !strcmp(pr->ent->AutostartPhase, "PreDisplayServer")) {
+			DPRINTF(3, "%s: %s: is autostart phase PreDisplayServer: discarding\n", pr->appid, pr->path);
+			delete_pr(pp_prev);
+			continue;
+		}
+		if (options.output > 1)
+			show_entry("Parsed entries", pr->ent);
+		if (options.info)
+			info_entry("Parsed entries", pr->ent);
+
+		pp_prev = &pr->next;
+	}
+
+	while ((pr = remove_pr(&autostart))) {
+		pr->phase = phase = want_phase(pr);
+		pr->wait_for = want_resource(pr);
+		if (phase > 0)
+			wait_fors[phase - 1] |= (pr->wait_for & mask_fors[phase - 1]);
+		pr->ppid = options.ppid;
+		DPRINTF(1, "Appending autostart application %s to phase %s wanting 0x%08x\n", pr->appid, phase_str(phase), pr->wait_for);
+		phases[phase] = realloc(phases[phase], (counts[phase] + 2) * sizeof(Process *));
+		(phases[phase])[counts[phase]++] = pr;
+		(phases[phase])[counts[phase]] = NULL;
+	}
+
+	DPRINTF(1, "Spawning children...\n");
+	/* don't care about wait_for, just care about phase for autostart */
+	for (phase = AutostartPhase_Initializing; phase <= AutostartPhase_Application; phase++)
+		if (phases[phase])
+			for (pp = phases[phase]; (pr = *pp); pp++)
+				spawn_child(pr);
+
+	/* fork off dispatcher */
+	DPRINTF(1, "Creating dispatcher...\n");
+	did = dispatcher();
+	DPRINTF(1, "...dispatcher PID is %d\n", did);
+	wait_stopped_pid(did);
+	/* dispatcher startup complete*/
+	DPRINTF(1, "Sending SIGCONT to %d\n", did);
+	kill(did, SIGCONT);
+	wait_continued_pid(did);
+	wait_stopped_pid(did);
+	/* initialization phase complete */
+
+	/* tell dispatcher that wm phase is starting */
+	DPRINTF(1, "Sending SIGCONT to %d\n", did);
+	kill(did, SIGCONT);
+
+	exit(EXIT_SUCCESS);
 }
 
 /** @brief create a simple session
@@ -11876,7 +12067,7 @@ main(int argc, char *argv[])
 		/* fall through */
 	case CommandStartup:
 		if (!(pr = setup_entry())) {
-			startup(pr);
+			startup();
 			exit(EXIT_SUCCESS);
 		}
 		EPRINTF("APPSPEC or EXEC must not be specified\n");
