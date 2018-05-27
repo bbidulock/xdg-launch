@@ -10813,9 +10813,15 @@ Usage:\n\
 static const char *
 show_bool(Bool truth)
 {
-	if (truth)
+	switch (truth) {
+	default:
+	case True:
 		return "true";
-	return "false";
+	case False:
+		return "false";
+	case -1L:
+		return "auto";
+	}
 }
 
 static void
