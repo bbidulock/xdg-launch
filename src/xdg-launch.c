@@ -8638,6 +8638,10 @@ launch_xsession(Process *wm)
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
 
+	if (options.info) {
+		OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", wm->seq->f.command);
+		return;
+	}
 	DPRINTF(1,"Launching window manager %s\n", wm->appid);
 	DPRINTF(1, "Command will be: sh -c \"%s\"\n", wm->seq->f.command);
 	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
@@ -11110,6 +11114,10 @@ launch_session(Process *wm)
 	DPRINTF(1, "Sending SIGCONT to %d\n", did);
 	continue_pid(did);
 
+	if (options.info) {
+		OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", wm->seq->f.command);
+		return;
+	}
 	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
 	exit(EXIT_FAILURE);
 }
