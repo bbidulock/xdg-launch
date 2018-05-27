@@ -7779,6 +7779,22 @@ wait_exited_pid(pid_t pid)
 	return (False);
 }
 
+static int
+continue_pid(pid_t pid)
+{
+	if (options.info) {
+		OPRINTF(1, "Would send SIGCONT to %d\n", pid);
+		return (0);
+	}
+	return kill(pid, SIGCONT);
+}
+
+static int
+continue_proc(Process *pr)
+{
+	return continue_pid(pr->pid);
+}
+
 static void set_seq_all(Process *pr);
 
 static void
@@ -8475,6 +8491,35 @@ launch(Process *pr)
 void
 launch2(Process *pr)
 {
+	Display *dpy;
+
+	if (!spawn_child(pr)) {
+		EPRINTF("Could not spawn stopped child\n");
+		exit(EXIT_FAILURE);
+	}
+	dpy = get_display();
+	if (options.wait) {
+		int mask;
+
+		/* no startup helper because we check for assistance below */
+		if ((mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER))
+			wait_for_resources(dpy, mask, options.guard);
+	}
+	/* FIXME: tri-state options.assist */
+	if (options.autoassist)
+		options.assist = need_assist(dpy, pr);
+
+	add_process(pr);
+
+	if (options.id)
+		send_change(dpy, pr);
+	else
+		send_new(dpy, pr);
+
+	if (options.toolwait) {
+	} else if (options.assist) {
+	} else {
+	}
 }
 
 /** @brief set the screen to be used in startup notification
@@ -10412,7 +10457,7 @@ run_phase(Display *dpy, AutostartPhase phase, int guard)
 			/* careful: parent window manager is here too */
 			if (pr->pid != ppid) {
 				DPRINTF(1, "Sending SIGCONT to %s child %d\n", pr->appid, pr->pid);
-				if (kill(pr->pid, SIGCONT) == -1) {
+				if (continue_proc(pr) == -1) {
 					if (pr->state == StartupNotifyNew || pr->state == StartupNotifyChanged)
 						send_remove(dpy, pr);
 					pr->running = False;
@@ -10695,14 +10740,14 @@ startup(Process *wm)
 	wait_stopped_pid(did);
 	/* dispatcher startup complete*/
 	DPRINTF(1, "Sending SIGCONT to %d\n", did);
-	kill(did, SIGCONT);
+	continue_pid(did);
 	wait_continued_pid(did);
 	wait_stopped_pid(did);
 	/* initialization phase complete */
 
 	/* tell dispatcher that wm phase is starting */
 	DPRINTF(1, "Sending SIGCONT to %d\n", did);
-	kill(did, SIGCONT);
+	continue_pid(did);
 
 	exit(EXIT_SUCCESS);
 }
@@ -10949,7 +10994,7 @@ session(Process *wm)
 	wait_stopped_pid(did);
 	/* dispatcher startup complete*/
 	DPRINTF(1, "Sending SIGCONT to %d\n", did);
-	kill(did, SIGCONT);
+	continue_pid(did);
 	wait_continued_pid(did);
 	wait_stopped_pid(did);
 	/* initialization phase complete */
@@ -10968,7 +11013,7 @@ session(Process *wm)
 
 	/* tell dispatcher that wm phase is starting */
 	DPRINTF(1, "Sending SIGCONT to %d\n", did);
-	kill(did, SIGCONT);
+	continue_pid(did);
 
 	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
 	exit(EXIT_FAILURE);
