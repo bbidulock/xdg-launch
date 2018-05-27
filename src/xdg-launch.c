@@ -2264,8 +2264,8 @@ parse_file(Process *pr, char *path)
 		strcat(llang, q);
 	}
 
-	OPRINTF(1, "long  language string is '%s'\n", llang);
-	OPRINTF(1, "short language string is '%s'\n", slang);
+	DPRINTF(1, "long  language string is '%s'\n", llang);
+	DPRINTF(1, "short language string is '%s'\n", slang);
 
 	if (!(file = fopen(path, "r"))) {
 		EPRINTF("cannot open file '%s' for reading\n", path);
