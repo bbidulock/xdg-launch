@@ -251,7 +251,7 @@ typedef struct {
 	Bool pager;
 	Bool composite;
 	Bool audio;
-	Bool autowait;
+	Bool wait;
 	Bool assist;
 	Bool autoassist;
 	int guard;
@@ -314,7 +314,7 @@ Options options = {
 	.pager = False,
 	.composite = False,
 	.audio = False,
-	.autowait = True,
+	.wait = -1,
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
@@ -375,7 +375,7 @@ Options defaults = {
 	.pager = False,
 	.composite = False,
 	.audio = False,
-	.autowait = True,
+	.wait = -1,
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
@@ -8285,7 +8285,7 @@ launch(Process *pr)
 			put_default(pr);
 	}
 	OPRINTF(1, "checking auto-wait resources:\n");
-	if (options.autowait) {
+	if (options.wait) {
 		/* no startup helper because we check for assistance below */
 		mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER;
 		if (mask) {
@@ -10530,7 +10530,7 @@ session(Process *wm)
 
 	options.autoassist = False;
 	options.assist = False;
-	options.autowait = False;
+	options.wait = False;
 
 	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
 
@@ -10726,6 +10726,161 @@ session(Process *wm)
 	exit(EXIT_FAILURE);
 }
 
+static Process *
+setup_entry(void)
+{
+	Process *pr = NULL;
+	char *p;
+
+	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec)
+		return (pr);
+	if (!(pr = calloc(1, sizeof(*pr)))) {
+		EPRINTF("could not alloc process: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	pr->type = options.type;
+	OPRINTF(0, "launch type is %s\n", show_type(pr->type));
+
+	if (options.audio) {
+		OPRINTF(0, "will wait for audio server\n");
+		pr->wait_for |= WAITFOR_AUDIOSERVER;
+	}
+	if (options.manager) {
+		OPRINTF(0, "will wait for window manager\n");
+		pr->wait_for |= WAITFOR_WINDOWMANAGER;
+	}
+	if (options.composite) {
+		OPRINTF(0, "will wait for composite manager\n");
+		pr->wait_for |= WAITFOR_COMPOSITEMANAGER;
+	}
+	if (options.tray) {
+		OPRINTF(0, "will wait for system tray\n");
+		pr->wait_for |= WAITFOR_SYSTEMTRAY;
+	}
+	if (options.pager) {
+		OPRINTF(0, "will wait for desktop pager\n");
+		pr->wait_for |= WAITFOR_DESKTOPPAGER;
+	}
+	if (eargv) {
+		/* it is not an error if this fails: worth a shot */
+		OPRINTF(0, "looking up file by EXEC %s\n", basename(eargv[0]));
+		if (!lookup_proc_by_name(pr, basename(eargv[0]))) {
+			OPRINTF(0, "could not find file for exec '%s'\n", basename(eargv[0]));
+		} else {
+			OPRINTF(0, "found entry at %s\n", pr->path);
+		}
+	} else if (options.appid) {
+		OPRINTF(0, "looking up file by APPID %s\n", options.appid);
+		if (!lookup_proc_by_name(pr, options.appid)) {
+			EPRINTF("could not find file for name '%s'\n", options.appid);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.mimetype) {
+		OPRINTF(0, "looking up file by MIMETYPE %s\n", options.mimetype);
+		if (!lookup_proc_by_type(pr, options.mimetype)) {
+			EPRINTF("could not find file for type '%s'\n", options.mimetype);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.category) {
+		OPRINTF(0, "looking up file by CATEGORY %s\n", options.category);
+		if (!lookup_proc_by_kind(pr, options.category)) {
+			EPRINTF("could not find file for kind '%s'\n", options.category);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.appspec) {
+		OPRINTF(0, "looking up file by APPSPEC %s\n", options.appspec);
+		if (lookup_proc_by_name(pr, options.appspec)) {
+			OPRINTF(0, "found file by APPID %s\n", options.appspec);
+			free(options.appid);
+			options.appid = strdup(options.appspec);
+		} else if (lookup_proc_by_type(pr, options.appspec)) {
+			OPRINTF(0, "found file by MIMETYPE %s\n", options.appspec);
+			free(options.mimetype);
+			options.mimetype = strdup(options.appspec);
+		} else if (lookup_proc_by_kind(pr, options.appspec)) {
+			OPRINTF(0, "found file by CATEGORY %s\n", options.appspec);
+			free(options.category);
+			options.category = strdup(options.appspec);
+		} else {
+			EPRINTF("could not find file for spec '%s'\n", options.appspec);
+			exit(EXIT_FAILURE);
+		}
+	} else if (options.exec) {
+		char *bin = first_word(options.exec);
+
+		OPRINTF(0, "looking up file by EXEC %s\n", basename(bin));
+		if (!lookup_proc_by_name(pr, basename(bin))) {
+			OPRINTF(0, "could not find file for exec '%s'\n", basename(bin));
+		} else {
+			OPRINTF(0, "found entry at %s\n", pr->path);
+		}
+		free(bin);
+	} else {
+		EPRINTF("did not look up file!\n");
+	}
+	if (pr->path) {
+		if (!parse_proc(pr)) {
+			EPRINTF("could not parse file '%s'\n", pr->path);
+			exit(EXIT_FAILURE);
+		}
+		if (!pr->ent->Exec) {
+			/* FIXME: some dbus activation apps have no Exec */
+			EPRINTF("no exec command in '%s'\n", pr->path);
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		if (!(pr->ent = calloc(1, sizeof(*pr->ent)))) {
+			EPRINTF("could not allocate entry: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		if (options.exec)
+			pr->ent->Exec = strdup(options.exec);
+		else if (eargv)
+			pr->ent->TryExec = strdup(eargv[0]);
+		else if (pr->type != LaunchType_Session) {
+			EPRINTF("could not find .desktop file for APPSPEC\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	pr->action = options.action ? strdup(options.action) : NULL;
+	set_ent_all(pr); /* fill in entry from options */
+	if (options.file && options.file[0] && !options.url) {
+		if (options.file[0] == '/') {
+			int size = strlen("file://") + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, options.file);
+		} else if (options.file[0] == '.' && options.file[1] == '/') {
+			char *cwd = get_current_dir_name();
+			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, cwd);
+			strcat(options.url, "/");
+			strcat(options.url, options.file + 2);
+		} else {
+			char *cwd = get_current_dir_name();
+			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
+
+			options.url = calloc(size, sizeof(*options.url));
+			strcpy(options.url, "file://");
+			strcat(options.url, cwd);
+			strcat(options.url, "/");
+			strcat(options.url, options.file);
+		}
+	} else if (options.url && !options.file && (p = strstr(options.url, "file://")) == options.url) {
+		options.file = strdup(options.url + 7);
+	}
+	if (options.output > 1)
+		show_entry("Entries", pr->ent);
+	if (options.info)
+		info_entry("Entries", pr->ent);
+
+	return (pr);
+}
+
 static void
 copying(int argc, char *argv[])
 {
@@ -10799,12 +10954,12 @@ usage(int argc, char *argv[])
 		return;
 	(void) fprintf(stderr, "\
 Usage:\n\
-    %1$s [options] [APPSPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
-    %1$s {-U|--autostart} [options] [APPID | {-e|--exec} COMMAND]\n\
-    %1$s {-X|--xsession}  [options] [APPID | {-e|--exec} COMMAND]\n\
-    %1$s {-B|--startup}   [options] [APPID | {-e|--exec} COMMAND]\n\
-    %1$s {-E|--session}   [options] [APPID | {-e|--exec} COMMAND]\n\
-    %1$s {-h|--help} [options] [APPPEC [FILE|URL] | {-e|--exec} COMMAND]\n\
+    %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
+    %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
+    %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
+    %1$s {-B|--startup}   [options] [APPID | COMMAND]\n\
+    %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
+    %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 ", argv[0]);
@@ -10835,27 +10990,45 @@ Usage:\n\
     %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
     %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
-    %1$s {-B|--startup}   [options] [APPID | {-e|--exec} COMMAND]\n\
+    %1$s {-B|--startup}   [options] [APPID | COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
     %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 Arguments:\n\
-    APPSPEC = {APPID|MIMETYPE|CATEGORY}\n\
+    APPSPEC = {APPID | MIMETYPE | CATEGORY}\n\
         specification of the XDG application or session to launch\n\
-    APPID\n\
+    [-a,--appid] APPID\n\
         the application identifier of XDG application to launch\n\
-    MIMETYPE\n\
+    [--mimetype] MIMETYPE\n\
         the mime-type of the XDG application to launch\n\
-    CATEGORY\n\
+    [--category] CATEGORY\n\
 	the XDG menu category of hte application to launch\n\
-    FILE\n\
+    [-f,--file] FILE\n\
         the file name with which to launch the application\n\
-    URL\n\
+    [-u,--url] URL\n\
         the URL with which to launch the application\n\
-    COMMAND\n\
-        the COMMAND to launch the application (with --exec)\n\
+    COMMAND = {-x,--exec \"EXEC ARGUMENT...\" | -e EXEC ARGUMENT...}\n\
+        the COMMAND to launch the application\n\
 Options:\n\
+  Command Options:\n\
+    -X, --xsession\n\
+        interpret entry as xsession instead of application, [default: '%19$s']\n\
+    -U, --autostart\n\
+        interpret entry as autostart instead of application, [default: '%20$s']\n\
+    -E, --session\n\
+        interpret entry as xsession with autostart, [default: '%21$s']\n\
+    -B, --startup\n\
+        interpret entry as autostart startup only, [default: '%22$s']\n\
+    -I, --info\n\
+        print information about entry instead of launching, [default: '%26$s']\n\
+    -h, --help, -?, --?\n\
+        print this usage information and exit\n\
+    -V, --version\n\
+        print version and exit\n\
+    -C, --copying\n\
+        print copying permission and exit\n\
+  Launch Options:\n\
     -L, --launcher LAUNCHER\n\
         name of launcher for startup id, [default: '%2$s']\n\
     -l, --launchee LAUNCHEE\n\
@@ -10886,45 +11059,19 @@ Options:\n\
         whether startup notification is silent (0/1), [default: '%14$s']\n\
     -p, --pid PID\n\
         process id of the XDG application, [default: '%15$d']\n\
-    -x, --exec EXEC\n\
-        override command to execute\n\
-    -a, --appid APPID\n\
-        override application identifier\n\
-    --mimetype MIMETYPE\n\
-        launch default application for MIMETYPE\n\
-    --category CATEGORY\n\
-        launch default application for CATEOGRY\n\
-    -f, --file FILE\n\
-        filename to use with application\n\
-    -u, --url URL\n\
-        URL to use with application\n\
+    --ppid\n\
+        specify parent PID of subreaper, [default: '%27$d']\n\
+    -A, --action ACTION\n\
+        specify a desktop action other than the default, [default: '%18$s']\n\
+  Context Options:\n\
     -P, --pointer\n\
         determine screen (monitor) from pointer location, [default: '%16$s']\n\
     -K, --keyboard\n\
         determine screen (monitor) from keyboard focus, [default: '%17$s']\n\
-    -A, --action ACTION\n\
-        specify a desktop action other than the default, [default: '%18$s']\n\
-    -X, --xsession\n\
-        interpret entry as xsession instead of application, [default: '%19$s']\n\
-    -U, --autostart\n\
-        interpret entry as autostart instead of application, [default: '%20$s']\n\
-    -E, --session\n\
-        interpret entry as xsession with autostart, [default: '%21$s']\n\
-    -B, --startup\n\
-        interpret entry as autostart startup only, [default: '%22$s']\n\
-    --history, --no-history\n\
-        save the file/usl and appid in recently used files, [default: '%23$s']\n\
-    -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%24$d']\n\
-    -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%25$s']\n\
-    -I, --info\n\
-        print information about entry instead of launching, [default: '%26$s']\n\
-Job Control Options:\n\
-    --ppid\n\
-        specify parent PID of subreaper, [default: '%27$d']\n\
+  Assist Options:\n\
     --assist, --no-assist\n\
         assist window manager with startup notify complete, [default: '%28$s']\n\
+  Tool Wait Options:\n\
     -T, --toolwait\n\
         wait for startup to complete and then exit, [default: '%29$s']\n\
     --timeout SECONDS\n\
@@ -10939,8 +11086,8 @@ Job Control Options:\n\
         print the window id to standard out, [default: '%34$s']\n\
     --noprop\n\
         use top-level creations instead of mappings, [default: '%35$s']\n\
-Session Options:\n\
-    --autowait, --no-autowait\n\
+  Session Options:\n\
+    --wait, --no-wait\n\
         automatically determine wait for resources, [default: '%36$s']\n\
     -M, --manager\n\
         wait for window manager before launching, [default: '%37$s']\n\
@@ -10954,7 +11101,14 @@ Session Options:\n\
         wait for audio server before launching, [default: '%41$s']\n\
     -g, --guard [SECONDS]\n\
         only wait for resources for SECONDS, [default: '%42$d']\n\
-Content Type Options:\n\
+  History Options:\n\
+    --history, --no-history\n\
+        save the file/usl and appid in recently used files, [default: '%23$s']\n\
+    -k, --keep NUMBER\n\
+        specify NUMBER of recent applications to keep, [default: '%24$d']\n\
+    -r, --recent FILENAME\n\
+        specify FILENAME of recent apps file, [default: '%25$s']\n\
+  Content Options:\n\
     --set-default\n\
         set application to preferred by type/category, [default: '%43$s']\n\
     --default, --no-default\n\
@@ -10963,18 +11117,12 @@ Content Type Options:\n\
         use recommended applications by type/category, [default: '%45$s']\n\
     --fallback, --no-fallback\n\
         use fallback applications by type/category, [default: '%46$s']\n\
-General Options:\n\
+  General Options:\n\
     -D, --debug [LEVEL]\n\
         increment or set debug LEVEL [default: '%47$d']\n\
     -v, --verbose [LEVEL]\n\
         increment or set output verbosity LEVEL [default: '%48$d']\n\
         this option may be repeated.\n\
-    -h, --help, -?, --?\n\
-        print this usage information and exit\n\
-    -V, --version\n\
-        print version and exit\n\
-    -C, --copying\n\
-        print copying permission and exit\n\
 ", argv[0]
 	, defaults.launcher
 	, defaults.sequence
@@ -11010,7 +11158,7 @@ General Options:\n\
 	, show_bool(defaults.printpid)
 	, show_bool(defaults.printwid)
 	, show_bool(defaults.noprop)
-	, show_bool(defaults.autowait)
+	, show_bool(defaults.wait)
 	, show_bool(defaults.manager)
 	, show_bool(defaults.tray)
 	, show_bool(defaults.pager)
@@ -11163,18 +11311,22 @@ get_defaults(int argc, char *argv[])
 		free(options.recent);
 		defaults.recent = options.recent = strdup(recent);
 	}
-	if (options.puthist == -1) {
-		switch (options.type) {
-		case LaunchType_Application:
-			options.puthist = True;
-			break;
-		case LaunchType_Autostart:
-		case LaunchType_XSession:
-		case LaunchType_Session:
-		case LaunchType_Startup:
-			options.puthist = False;
-			break;
-		}
+	switch (options.type) {
+	case LaunchType_Application:
+		if (options.puthist == -1)
+			defaults.puthist = options.puthist = True;
+		if (options.wait == -1)
+			defaults.wait = options.wait = False;
+		break;
+	case LaunchType_Autostart:
+	case LaunchType_XSession:
+	case LaunchType_Session:
+	case LaunchType_Startup:
+		if (options.puthist == -1)
+			defaults.puthist = options.puthist = False;
+		if (options.wait == -1)
+			defaults.wait = options.wait = True;
+		break;
 	}
 }
 
@@ -11184,7 +11336,6 @@ main(int argc, char *argv[])
 	Command command = CommandDefault;
 	int exec_mode = 0;		/* application mode is default */
 	Process *pr;
-	char *p;
 
 	/* don't care about job control */
 	signal(SIGTTIN, SIG_IGN);
@@ -11254,8 +11405,8 @@ main(int argc, char *argv[])
 			{"wid",		no_argument,		NULL,  4 },
 			{"noprop",	no_argument,		NULL,  5 },
 
-			{"autowait",	no_argument,		NULL,  12},
-			{"no-autowait",	no_argument,		NULL,  11},
+			{"wait",	no_argument,		NULL,  12},
+			{"no-wait",	no_argument,		NULL,  11},
 			{"manager",	no_argument,		NULL, 'M'},
 			{"tray",	no_argument,		NULL, 'Y'},
 			{"pager",	no_argument,		NULL, 'G'},
@@ -11489,11 +11640,11 @@ main(int argc, char *argv[])
 				goto bad_option;
 			defaults.ppid = options.ppid = val;
 			break;
-		case 12:	/* --autowait */
-			defaults.autowait = options.autowait = True;
+		case 12:	/* --wait */
+			defaults.wait = options.wait = True;
 			break;
-		case 11:	/* --no-autowait */
-			defaults.autowait = options.autowait = False;
+		case 11:	/* --no-wait */
+			defaults.wait = options.wait = False;
 			break;
 		case 'T':	/* -T, --toolwait */
 			defaults.toolwait = options.toolwait = True;
@@ -11533,18 +11684,23 @@ main(int argc, char *argv[])
 			break;
 		case 'M':	/* -M, --manager */
 			defaults.manager = options.manager = True;
+			defaults.wait = options.wait = True;
 			break;
 		case 'Y':	/* -Y, --tray */
 			defaults.tray = options.tray = True;
+			defaults.wait = options.wait = True;
 			break;
 		case 'G':	/* -G, --pager */
 			defaults.pager = options.pager = True;
+			defaults.wait = options.wait = True;
 			break;
 		case 'O':	/* -O, --composite */
 			defaults.composite = options.composite = True;
+			defaults.wait = options.wait = True;
 			break;
 		case 'R':	/* -R, --audio */
 			defaults.audio = options.audio = True;
+			defaults.wait = options.wait = True;
 			break;
 		case 'g':	/* -g, --guard [SECONDS] */
 			if (optarg == NULL) {
@@ -11700,180 +11856,31 @@ main(int argc, char *argv[])
 		copying(argc, argv);
 		exit(EXIT_SUCCESS);
 	case CommandDefault:
-	case CommandLaunch:
-	case CommandSession:
-	case CommandStartup:
-		break;
-	}
-
-	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category && !options.exec) {
-		EPRINTF("APPSPEC or EXEC must be specified\n");
-		goto bad_usage;
-	}
-	if (!(pr = calloc(1, sizeof(*pr)))) {
-		EPRINTF("could not alloc process: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	pr->type = options.type;
-	pr->action = options.action ? strdup(options.action) : NULL;
-
-	OPRINTF(0, "launch type is %s\n", show_type(pr->type));
-
-	if (options.audio) {
-		OPRINTF(0, "will wait for audio server\n");
-		pr->wait_for |= WAITFOR_AUDIOSERVER;
-	}
-	if (options.manager) {
-		OPRINTF(0, "will wait for window manager\n");
-		pr->wait_for |= WAITFOR_WINDOWMANAGER;
-	}
-	if (options.composite) {
-		OPRINTF(0, "will wait for composite manager\n");
-		pr->wait_for |= WAITFOR_COMPOSITEMANAGER;
-	}
-	if (options.tray) {
-		OPRINTF(0, "will wait for system tray\n");
-		pr->wait_for |= WAITFOR_SYSTEMTRAY;
-	}
-	if (options.pager) {
-		OPRINTF(0, "will wait for desktop pager\n");
-		pr->wait_for |= WAITFOR_DESKTOPPAGER;
-	}
-
-	if (eargv) {
-		/* it is not an error if this fails: worth a shot */
-		OPRINTF(0, "looking up file by EXEC %s\n", basename(eargv[0]));
-		if (!lookup_proc_by_name(pr, basename(eargv[0]))) {
-			OPRINTF(0, "could not find file for exec '%s'\n", basename(eargv[0]));
-		} else {
-			OPRINTF(0, "found entry at %s\n", pr->path);
-		}
-	} else if (options.appid) {
-		OPRINTF(0, "looking up file by APPID %s\n", options.appid);
-		if (!lookup_proc_by_name(pr, options.appid)) {
-			EPRINTF("could not find file for name '%s'\n", options.appid);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.mimetype) {
-		OPRINTF(0, "looking up file by MIMETYPE %s\n", options.mimetype);
-		if (!lookup_proc_by_type(pr, options.mimetype)) {
-			EPRINTF("could not find file for type '%s'\n", options.mimetype);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.category) {
-		OPRINTF(0, "looking up file by CATEGORY %s\n", options.category);
-		if (!lookup_proc_by_kind(pr, options.category)) {
-			EPRINTF("could not find file for kind '%s'\n", options.category);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.appspec) {
-		OPRINTF(0, "looking up file by APPSPEC %s\n", options.appspec);
-		if (lookup_proc_by_name(pr, options.appspec)) {
-			OPRINTF(0, "found file by APPID %s\n", options.appspec);
-			free(options.appid);
-			options.appid = strdup(options.appspec);
-		} else if (lookup_proc_by_type(pr, options.appspec)) {
-			OPRINTF(0, "found file by MIMETYPE %s\n", options.appspec);
-			free(options.mimetype);
-			options.mimetype = strdup(options.appspec);
-		} else if (lookup_proc_by_kind(pr, options.appspec)) {
-			OPRINTF(0, "found file by CATEGORY %s\n", options.appspec);
-			free(options.category);
-			options.category = strdup(options.appspec);
-		} else {
-			EPRINTF("could not find file for spec '%s'\n", options.appspec);
-			exit(EXIT_FAILURE);
-		}
-	} else if (options.exec) {
-		char *bin = first_word(options.exec);
-
-		OPRINTF(0, "looking up file by EXEC %s\n", basename(bin));
-		if (!lookup_proc_by_name(pr, basename(bin))) {
-			OPRINTF(0, "could not find file for exec '%s'\n", basename(bin));
-		} else {
-			OPRINTF(0, "found entry at %s\n", pr->path);
-		}
-		free(bin);
-	} else {
-		EPRINTF("did not look up file!\n");
-	}
-	if (pr->path) {
-		if (!parse_proc(pr)) {
-			EPRINTF("could not parse file '%s'\n", pr->path);
-			exit(EXIT_FAILURE);
-		}
-		if (!pr->ent->Exec) {
-			/* FIXME: some dbus activation apps have no Exec */
-			EPRINTF("no exec command in '%s'\n", pr->path);
-			exit(EXIT_FAILURE);
-		}
-	} else {
-		if (!(pr->ent = calloc(1, sizeof(*pr->ent)))) {
-			EPRINTF("could not allocate entry: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		if (options.exec)
-			pr->ent->Exec = strdup(options.exec);
-		else if (eargv)
-			pr->ent->TryExec = strdup(eargv[0]);
-		else if (pr->type != LaunchType_Session) {
-			EPRINTF("could not find .desktop file for APPSPEC\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-	set_ent_all(pr); /* fill in entry from options */
-	if (options.file && options.file[0] && !options.url) {
-		if (options.file[0] == '/') {
-			int size = strlen("file://") + strlen(options.file) + 1;
-
-			options.url = calloc(size, sizeof(*options.url));
-			strcpy(options.url, "file://");
-			strcat(options.url, options.file);
-		} else if (options.file[0] == '.' && options.file[1] == '/') {
-			char *cwd = get_current_dir_name();
-			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
-
-			options.url = calloc(size, sizeof(*options.url));
-			strcpy(options.url, "file://");
-			strcat(options.url, cwd);
-			strcat(options.url, "/");
-			strcat(options.url, options.file + 2);
-		} else {
-			char *cwd = get_current_dir_name();
-			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
-
-			options.url = calloc(size, sizeof(*options.url));
-			strcpy(options.url, "file://");
-			strcat(options.url, cwd);
-			strcat(options.url, "/");
-			strcat(options.url, options.file);
-		}
-	} else if (options.url && !options.file && (p = strstr(options.url, "file://")) == options.url) {
-		options.file = strdup(options.url + 7);
-	}
-	if (options.output > 1)
-		show_entry("Entries", pr->ent);
-	if (options.info)
-		info_entry("Entries", pr->ent);
-
-	switch (command) {
-	case CommandDefault:
-		command = CommandLaunch;
+		options.command = command = CommandLaunch;
+		options.type = LaunchType_Application;
 		/* fall thru */
 	case CommandLaunch:
-		launch(pr);
-		exit(EXIT_SUCCESS);
+		if ((pr = setup_entry())) {
+			launch(pr);
+			exit(EXIT_SUCCESS);
+		}
+		EPRINTF("APPSPEC or EXEC must be specified\n");
+		goto bad_usage;
 	case CommandSession:
-		session(pr);
-		exit(EXIT_SUCCESS);
+		if ((pr = setup_entry())) {
+			session(pr);
+			exit(EXIT_SUCCESS);
+		}
+		options.command = command = CommandStartup;
+		options.type = LaunchType_Startup;
+		/* fall through */
 	case CommandStartup:
-		startup(pr);
-		exit(EXIT_SUCCESS);
-	case CommandHelp:
-	case CommandVersion:
-	case CommandCopying:
-		break;
+		if (!(pr = setup_entry())) {
+			startup(pr);
+			exit(EXIT_SUCCESS);
+		}
+		EPRINTF("APPSPEC or EXEC must not be specified\n");
+		goto bad_usage;
 	}
 	EPRINTF("invalid command\n");
 	exit(EXIT_FAILURE);
