@@ -9201,8 +9201,10 @@ set_seq_timestamp(Process *pr)
 				dpy = screens[0].display;
 			else {
 				EPRINTF("setting timestamp without X display\n");
-				if ((dpy = XOpenDisplay(0)))
+				if ((dpy = XOpenDisplay(0))) {
 					XSelectInput(dpy, DefaultRootWindow(dpy), PropertyChangeMask);
+					_XA_TIMESTAMP_PROP = XInternAtom(dpy, "_TIMESTAMP_PROP", False);
+				}
 			}
 			if (dpy) {
 				XChangeProperty(dpy, DefaultRootWindow(dpy), _XA_TIMESTAMP_PROP,
