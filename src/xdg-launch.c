@@ -9483,7 +9483,7 @@ set_seq_id(Process *pr)
 	s->f.id = calloc(512, sizeof(*s->f.id));
 	myid = s->f.id;
 	snprintf(s->f.id, 512, "%s/%s/%s-%s-%s_TIME%s",
-		 launcher, launchee, s->f.pid, s->f.monitor, s->f.hostname, s->f.timestamp);
+		 launcher, launchee, s->f.pid, s->f.sequence, s->f.hostname, s->f.timestamp);
 	free(launcher);
 	free(launchee);
 }
