@@ -12309,6 +12309,7 @@ main(int argc, char *argv[])
 		/* fall thru */
 	case CommandLaunch:
 		if ((pr = setup_entry(command))) {
+			pr->type = options.type;
 			launch(pr);
 			exit(EXIT_SUCCESS);
 		}
@@ -12316,6 +12317,7 @@ main(int argc, char *argv[])
 		goto bad_usage;
 	case CommandSession:
 		if ((pr = setup_entry(command))) {
+			pr->type = options.type;
 			launch(pr);
 			exit(EXIT_SUCCESS);
 		}
@@ -12324,6 +12326,7 @@ main(int argc, char *argv[])
 		/* fall through */
 	case CommandStartup:
 		pr = setup_entry(command);
+		pr->type = options.type;
 		launch(pr);
 		exit(EXIT_SUCCESS);
 	}
