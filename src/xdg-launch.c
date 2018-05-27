@@ -8354,8 +8354,6 @@ launch(Process *pr)
 	int mask;
 
 	PTRACE(5);
-	assert(seq != NULL);
-
 	dpy = get_display();
 
 	/* fill out all fields */
