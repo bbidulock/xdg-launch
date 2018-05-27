@@ -10872,6 +10872,10 @@ launch_startup(Process *wm)
 	/* tell dispatcher that wm phase is starting */
 	DPRINTF(1, "Sending SIGCONT to %d\n", did);
 	continue_pid(did);
+	wait_continued_pid(did);
+
+	/* wait for dispatcher to exit */
+	wait_exited_pid(did);
 
 	exit(EXIT_SUCCESS);
 }
