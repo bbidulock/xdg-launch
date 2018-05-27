@@ -4650,14 +4650,16 @@ static Bool msg_from_ap(Window w, Window c);
 static const char *
 show_source(Window w, Window c)
 {
-	if (msg_from_wm(w))
-		return ("window manager");
-	if (msg_from_la(w))
-		return ("launch assistant");
-	if (msg_from_me(w))
-		return (SELECTION_ATOM);
-	if (msg_from_ap(w, c))
-		return ("application");
+	if (screens) {
+		if (msg_from_wm(w))
+			return ("window manager");
+		if (msg_from_la(w))
+			return ("launch assistant");
+		if (msg_from_me(w))
+			return (SELECTION_ATOM);
+		if (msg_from_ap(w, c))
+			return ("application");
+	}
 	return ("unknown source");
 }
 
