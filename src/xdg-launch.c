@@ -8309,16 +8309,16 @@ want_resource(Process *pr)
 				/* WindowManager: do not wait for anything, except
 				   perhaps audio. */
 				mask &= WAITFOR_AUDIOSERVER;
-			} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
-				/* Panel: wait only for window and composite manager (if
-				   requested?). */
-				mask |= WAITFOR_WINDOWMANAGER;
-				mask &= WAITFOR_COMPOSITEMANAGER;
 			} else if (strcmp(e->AutostartPhase, "Desktop") == 0) {
 				/* Desktop: wait only for window and composite manager
 				   (if requested?). */
 				mask |= WAITFOR_WINDOWMANAGER;
 				mask &= WAITFOR_COMPOSITEMANAGER;
+			} else if (strcmp(e->AutostartPhase, "Panel") == 0) {
+				/* Panel: wait only for window and composite manager (if
+				   requested?). */
+				mask |= WAITFOR_WINDOWMANAGER;
+				mask &= WAITFOR_DESKTOPPAGER;
 			} else if (strcmp(e->AutostartPhase, "Application") == 0) {
 				/* Application(s): wait for window manager, others if
 				   requested. */
@@ -8385,16 +8385,17 @@ want_phase(Process *pr)
 	} else {
 		int mask = want_resource(pr);
 
-		if (mask & WAITFOR_STARTUPHELPER) {
+		if (0) {
+		} else if (mask & WAITFOR_SYSTEMTRAY) {
 			phase = AutostartPhase_Application;
 		} else if (mask & WAITFOR_DESKTOPPAGER) {
-			phase = AutostartPhase_Application;
-		} else if (mask & WAITFOR_SYSTEMTRAY) {
-			phase = AutostartPhase_Desktop;
+			phase = AutostartPhase_Panel;
+		} else if (mask & WAITFOR_STARTUPHELPER) {
+			phase = AutostartPhase_Panel;
 		} else if (mask & WAITFOR_COMPOSITEMANAGER) {
-			phase = AutostartPhase_Panel;
+			phase = AutostartPhase_Desktop;
 		} else if (mask & WAITFOR_WINDOWMANAGER) {
-			phase = AutostartPhase_Panel;
+			phase = AutostartPhase_Desktop;
 		} else if (mask & WAITFOR_AUDIOSERVER) {
 			phase = AutostartPhase_WindowManager;
 		} else {
