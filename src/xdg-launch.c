@@ -1150,8 +1150,10 @@ get_display(void)
 static void
 end_display(Display *dpy)
 {
-	OPRINTF(1, "Closing X display fd only\n");
-	close(ConnectionNumber(dpy));
+	if (dpy) {
+		OPRINTF(1, "Closing X display fd only\n");
+		close(ConnectionNumber(dpy));
+	}
 }
 
 static Display *
@@ -1167,10 +1169,12 @@ new_display(Display *dpy)
 put_display(Display *dpy)
 {
 	PTRACE(5);
-	OPRINTF(1, "Closing X display\n");
-	XSetErrorHandler(xerrorxlib);
-	XSetIOErrorHandler(xioerrorxlib);
-	XCloseDisplay(dpy);
+	if (dpy) {
+		OPRINTF(1, "Closing X display\n");
+		XSetErrorHandler(xerrorxlib);
+		XSetIOErrorHandler(xioerrorxlib);
+		XCloseDisplay(dpy);
+	}
 }
 
 static char *
@@ -7412,6 +7416,8 @@ setup_to_assist(Process *pr)
 {
 	if (pr->seq->f.timestamp && pr->seq->n.timestamp)
 		pushtime(&launch_time, (Time) pr->seq->n.timestamp);
+
+	/* FIXME: needs to do more: scan for existing clients... */
 }
 
 static int signal_fd = -1;
@@ -7489,11 +7495,15 @@ read_timer_fd(int fd)
 static void
 start_guard_timer(int guard)
 {
-	struct itimerspec it = { {0, 0}, {0, 0} };
-	int fd = get_timer_fd();
+	if (options.info)
+		OPRINTF(1, "Would set guard timer to %d seconds\n", guard);
+	else {
+		struct itimerspec it = { {0, 0}, {0, 0} };
+		int fd = get_timer_fd();
 
-	it.it_value.tv_sec = guard;
-	timerfd_settime(fd, 0, &it, NULL);
+		it.it_value.tv_sec = guard;
+		timerfd_settime(fd, 0, &it, NULL);
+	}
 }
 
 void
@@ -7511,7 +7521,7 @@ wait_for_condition(Display *dpy, Bool (*condition) (Display *, XPointer), XPoint
 	int xfd, sfd, tfd, status;
 	XEvent ev;
 
-	if (guard >= 0 && !options.info)
+	if (guard >= 0)
 		start_guard_timer(guard);
 
 	if (condition(dpy, data)) {
@@ -7643,10 +7653,8 @@ wait_stopped_pid(pid_t pid)
 {
 	int status = 0;
 
-	if (options.info) {
-		OPRINTF(1, "Would wait for child to stop\n");
-		return (True);
-	}
+	if (options.info)
+		OPRINTF(1, "Waiting for %d to stop...\n", pid);
 	DPRINTF(1, "Waiting for %d to stop...\n", pid);
 	if (waitpid(pid, &status, WUNTRACED) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
@@ -7677,15 +7685,25 @@ wait_stopped_pid(pid_t pid)
 	return (False);
 }
 
+#if 0
+static Bool
+try_wait_stopped_pid(pid_t pid)
+{
+	if (options.info) {
+		OPRINTF(1, "Would wait for child to stop\n");
+		return (True);
+	}
+	return wait_stopped_pid(pid);
+}
+#endif
+
 static Bool
 wait_stopped_proc(Process *pr)
 {
 	Bool result;
 
-	if (options.info) {
-		OPRINTF(1, "Would wait for %s to stop\n", pr->appid);
-		return (True);
-	}
+	if (options.info)
+		OPRINTF(1, "Waiting for child %s PID %d to stop...\n", pr->appid, pr->pid);
 	DPRINTF(1, "Waiting for child %s PID %d to stop...\n", pr->appid, pr->pid);
 	result = wait_stopped_pid(pr->pid);
 	pr->started = False;
@@ -7695,14 +7713,22 @@ wait_stopped_proc(Process *pr)
 }
 
 static Bool
+try_wait_stopped_proc(Process *pr)
+{
+	if (options.info) {
+		OPRINTF(1, "Would wait for %s to stop\n", pr->appid);
+		return (True);
+	}
+	return wait_stopped_proc(pr);
+}
+
+static Bool
 wait_continued_pid(pid_t pid)
 {
 	int status = 0;
 
-	if (options.info) {
-		OPRINTF(1, "Would wait for child to continue\n");
-		return (True);
-	}
+	if (options.info)
+		OPRINTF(1, "Waiting for %d to continue...\n", pid);
 	DPRINTF(1, "Waiting for %d to continue...\n", pid);
 	if (waitpid(pid, &status, WCONTINUED) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
@@ -7729,15 +7755,25 @@ wait_continued_pid(pid_t pid)
 	return (False);
 }
 
+#if 0
+static Bool
+try_wait_continued_pid(pid_t pid)
+{
+	if (options.info) {
+		OPRINTF(1, "Would wait for child to continue\n");
+		return (True);
+	}
+	return wait_continued_pid(pid);
+}
+#endif
+
 Bool
 wait_continued_proc(Process *pr)
 {
 	Bool result;
 
-	if (options.info) {
-		OPRINTF(1, "Would wait for %s to continue\n", pr->appid);
-		return (True);
-	}
+	if (options.info)
+		OPRINTF(1, "Waiting for child %s PID %d to continue...\n", pr->appid, pr->pid);
 	DPRINTF(1, "Waiting for child %s PID %d to continue...\n", pr->appid, pr->pid);
 	result = wait_continued_pid(pr->pid);
 	pr->stopped = False;
@@ -7747,14 +7783,22 @@ wait_continued_proc(Process *pr)
 }
 
 Bool
+try_wait_continued_proc(Process *pr)
+{
+	if (options.info) {
+		OPRINTF(1, "Would wait for %s to continue\n", pr->appid);
+		return (True);
+	}
+	return wait_continued_proc(pr);
+}
+
+static Bool
 wait_exited_pid(pid_t pid)
 {
 	int status = 0;
 
-	if (options.info) {
-		OPRINTF(1, "Would wait for child to exit\n");
-		return (True);
-	}
+	if (options.info)
+		OPRINTF(1, "Waiting for %d to exit...\n", pid);
 	DPRINTF(1, "Waiting for %d to exit...\n", pid);
 	if (waitpid(pid, &status, 0) == -1) {
 		EPRINTF("waitid: %s\n", strerror(errno));
@@ -7781,20 +7825,50 @@ wait_exited_pid(pid_t pid)
 	return (False);
 }
 
+#if 0
+static Bool
+try_wait_exited_pid(pid_t pid)
+{
+	if (options.info) {
+		OPRINTF(1, "Would wait for child to exit\n");
+		return (True);
+	}
+	return wait_exited_pid(pid);
+}
+#endif
+
 static int
 continue_pid(pid_t pid)
+{
+	return kill(pid, SIGCONT);
+}
+
+#if 0
+static int
+try_continue_pid(pid_t pid)
 {
 	if (options.info) {
 		OPRINTF(1, "Would send SIGCONT to %d\n", pid);
 		return (0);
 	}
-	return kill(pid, SIGCONT);
+	return continue_pid(pid);
 }
+#endif
 
 static int
 continue_proc(Process *pr)
 {
 	return continue_pid(pr->pid);
+}
+
+static int
+try_continue_proc(Process *pr)
+{
+	if (options.info) {
+		OPRINTF(1, "Would send SIGCONT to %s PID %d\n", pr->appid, pr->pid);
+		return (0);
+	}
+	return continue_proc(pr);
 }
 
 static void set_seq_all(Process *pr);
@@ -7867,6 +7941,20 @@ fork_parent(const char *how)
 	return (pid);
 }
 
+pid_t
+fork_both(const char *how)
+{
+	pid_t pid;
+
+	if ((pid = fork()) == -1) {
+		EPRINTF("%s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if (options.info && !pid)
+		OPRINTF(1, "Child will %s\n", how);
+	return (pid);
+}
+
 static int
 try_setenv(const char *what, const char *value, int override)
 {
@@ -7883,7 +7971,7 @@ try_setenv(const char *what, const char *value, int override)
   * for autostarting the components of a full session.
   */
 static Bool
-spawn_child(Process *pr)
+spawn_child(Display *dpy, Process *pr)
 {
 	pid_t pid;
 
@@ -7895,9 +7983,10 @@ spawn_child(Process *pr)
 		/* parent */
 		setup_sequence(pr, pid);
 		pr->started = True;
-		return wait_stopped_proc(pr);
+		return try_wait_stopped_proc(pr);
 	}
 	/* child continues here */
+	put_display(dpy);
 	setup_sequence(pr, getpid());
 	setup_subreaper(pr, options.ppid);
 
@@ -8528,12 +8617,13 @@ launch_simple(Process *pr)
 void
 launch2(Process *pr)
 {
-	Display *dpy;
+	Display *dpy = NULL;
 
-	if (!spawn_child(pr)) {
+	if (!spawn_child(dpy, pr)) {
 		EPRINTF("Could not spawn stopped child\n");
 		exit(EXIT_FAILURE);
 	}
+
 	dpy = get_display();
 	if (options.wait) {
 		int mask;
@@ -8553,13 +8643,15 @@ launch2(Process *pr)
 	else
 		send_new(dpy, pr);
 
-	if (options.toolwait) {
-	} else if (options.assist) {
-	} else {
-	}
+	if (options.toolwait || options.assist)
+		setup_to_assist(pr);
 
 	/* run the launch command in child */
-	continue_proc(pr);
+	try_continue_proc(pr);
+	try_wait_continued_proc(pr);
+
+	if (options.toolwait)
+		wait_for_completion(dpy, pr, options.guard);
 }
 
 /** @brief launch an Application entry
@@ -10567,11 +10659,15 @@ run_phase(Display *dpy, AutostartPhase phase, int guard)
 	Process **pp;
 	Bool result;
 
+	if (options.info)
+		OPRINTF(1, "Testing phase %s\n", phase_str(phase));
 	DPRINTF(1, "Testing phase %s\n", phase_str(phase));
 	if ((pp = phases[phase])) {
 		Process *pr;
 		pid_t ppid = getppid();
 
+		if (options.info)
+			OPRINTF(1, "Running phase %s\n", phase_str(phase));
 		DPRINTF(1, "Running phase %s\n", phase_str(phase));
 		for (; (pr = begin_process(dpy, *pp)); *pp++ = pr) {
 			if (!pr->stopped)
@@ -10580,7 +10676,7 @@ run_phase(Display *dpy, AutostartPhase phase, int guard)
 			/* careful: parent window manager is here too */
 			if (pr->pid != ppid) {
 				DPRINTF(1, "Sending SIGCONT to %s child %d\n", pr->appid, pr->pid);
-				if (continue_proc(pr) == -1) {
+				if (try_continue_proc(pr) == -1) {
 					if (pr->state == StartupNotifyNew || pr->state == StartupNotifyChanged)
 						send_remove(dpy, pr);
 					pr->running = False;
@@ -10639,13 +10735,17 @@ dispatcher(void)
 	dpy = get_display();
 
 	/* wait for group leader to tell us to go */
-	DPRINTF(1, "PID %d is stopping itself\n", pid);
+	if (options.info)
+		OPRINTF(1, "Dispatcher PID %d is stopping itself\n", pid);
+	DPRINTF(1, "Dispatcher PID %d is stopping itself\n", pid);
 	kill(pid, SIGSTOP);
 	/* perform the initialization phase */
 	run_phase(dpy, AutostartPhase_Initializing, options.guard);
 
 	/* stop again to signal leader that initialization phase is over */
-	DPRINTF(1, "PID %d is stopping itself\n", pid);
+	if (options.info)
+		OPRINTF(1, "Dispatcher PID %d is stopping itself\n", pid);
+	DPRINTF(1, "Dispatcher PID %d is stopping itself\n", pid);
 	kill(pid, SIGSTOP);
 	/* perform the other phases */
 	wait_for_window_manager(dpy);
@@ -10855,7 +10955,7 @@ launch_startup(Process *wm)
 	for (phase = AutostartPhase_Initializing; phase <= AutostartPhase_Application; phase++)
 		if (phases[phase])
 			for (pp = phases[phase]; (pr = *pp); pp++)
-				spawn_child(pr);
+				spawn_child(NULL, pr);
 
 	/* fork off dispatcher */
 	DPRINTF(1, "Creating dispatcher...\n");
@@ -11114,7 +11214,7 @@ launch_session(Process *wm)
 		if (phases[phase])
 			for (pp = phases[phase]; (pr = *pp); pp++)
 				if (pr != wm)
-					spawn_child(pr);
+					spawn_child(NULL, pr);
 
 	/* fork off dispatcher */
 	DPRINTF(1, "Creating dispatcher...\n");
@@ -11142,6 +11242,8 @@ launch_session(Process *wm)
 
 	if (options.info) {
 		OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", wm->seq->f.command);
+		/* wait for dispatcher to exit */
+		wait_exited_pid(did);
 		return;
 	}
 	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
