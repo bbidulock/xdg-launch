@@ -552,10 +552,10 @@ typedef enum {
 
 typedef enum {
 	AutostartPhase_PreDisplayServer,
-	AutostartPhase_Initializing,
+	AutostartPhase_Initialization,
 	AutostartPhase_WindowManager,
-	AutostartPhase_Panel,
 	AutostartPhase_Desktop,
+	AutostartPhase_Panel,
 	AutostartPhase_Application,
 } AutostartPhase;
 
@@ -568,10 +568,10 @@ typedef enum {
 #define WAITFOR_WINDOWMANAGER		(1<<WaitFor_WindowManager)
 	WaitFor_CompositeManager,
 #define WAITFOR_COMPOSITEMANAGER	(1<<WaitFor_CompositeManager)
-	WaitFor_SystemTray,
-#define WAITFOR_SYSTEMTRAY		(1<<WaitFor_SystemTray)
 	WaitFor_DesktopPager,
 #define WAITFOR_DESKTOPPAGER		(1<<WaitFor_DesktopPager)
+	WaitFor_SystemTray,
+#define WAITFOR_SYSTEMTRAY		(1<<WaitFor_SystemTray)
 	WaitFor_StartupHelper,
 #define WAITFOR_STARTUPHELPER		(1<<WaitFor_StartupHelper)
 } WaitFor;
@@ -579,8 +579,8 @@ typedef enum {
 #define WAITFOR_ALL	(WAITFOR_AUDIOSERVER| \
 			 WAITFOR_WINDOWMANAGER| \
 			 WAITFOR_COMPOSITEMANAGER| \
-			 WAITFOR_SYSTEMTRAY| \
 			 WAITFOR_DESKTOPPAGER| \
+			 WAITFOR_SYSTEMTRAY| \
 			 WAITFOR_STARTUPHELPER)
 
 typedef struct _Process {
@@ -610,10 +610,10 @@ int wait_fors[AutostartPhase_Application + 1] = { 0, };
 int mask_fors[AutostartPhase_Application + 1] = {
 	/* *INDENT-OFF* */
 	[AutostartPhase_PreDisplayServer] = (0),
-	[AutostartPhase_Initializing]	  = (WAITFOR_AUDIOSERVER),
+	[AutostartPhase_Initialization]	  = (WAITFOR_AUDIOSERVER),
 	[AutostartPhase_WindowManager]	  = (WAITFOR_WINDOWMANAGER | WAITFOR_COMPOSITEMANAGER),
-	[AutostartPhase_Panel]		  = (WAITFOR_SYSTEMTRAY | WAITFOR_DESKTOPPAGER),
 	[AutostartPhase_Desktop]	  = (WAITFOR_DESKTOPPAGER | WAITFOR_STARTUPHELPER),
+	[AutostartPhase_Panel]		  = (WAITFOR_SYSTEMTRAY),
 	[AutostartPhase_Application]	  = (0),
 	/* *INDENT-ON* */
 };
@@ -2402,6 +2402,9 @@ parse_file(Process *pr, char *path)
 			if (!e->AsRoot)
 				e->AsRoot = strdup(val);
 			ok = 1;
+		} else if (strcmp(key, "AutostartPhase") == 0) {
+			free(e->AutostartPhase);
+			e->AutostartPhase = strdup(val);
 		} else if (strcmp(key, "X-GNOME-Autostart-Phase") == 0) {
 			if (!e->AutostartPhase) {
 				if (strcmp(val, "Applications") == 0) {
@@ -2417,7 +2420,7 @@ parse_file(Process *pr, char *path)
 					e->AutostartPhase = strdup("PreDisplayServer");
 					break;
 				case 1:
-					e->AutostartPhase = strdup("Initializing");
+					e->AutostartPhase = strdup("Initialization");
 					break;
 				case 2:
 					e->AutostartPhase = strdup("Application");
@@ -8207,11 +8210,11 @@ check_for_resources(Display *dpy, XPointer data)
 		return (False);
 	if ((mask & WAITFOR_COMPOSITEMANAGER) && !check_compm(scr))
 		return (False);
-	if ((mask & WAITFOR_SYSTEMTRAY) && !check_stray(scr))
-		return (False);
 	if ((mask & WAITFOR_DESKTOPPAGER) && !check_pager(scr))
 		return (False);
 	if ((mask & WAITFOR_STARTUPHELPER) && !check_shelp(scr))
+		return (False);
+	if ((mask & WAITFOR_SYSTEMTRAY) && !check_stray(scr))
 		return (False);
 	return (True);
 }
@@ -8221,12 +8224,12 @@ wait_for_resources(Display *dpy, long wait_for, int guard)
 {
 	if (options.info) {
 		OPRINTF(1, "Might wait for resources for %d seconds:\n", guard);
+		if (wait_for & WAITFOR_SYSTEMTRAY)
+			OPRINTF(1, "--> system tray\n");
 		if (wait_for & WAITFOR_STARTUPHELPER)
 			OPRINTF(1, "--> startup helper\n");
 		if (wait_for & WAITFOR_DESKTOPPAGER)
 			OPRINTF(1, "--> desktop pager\n");
-		if (wait_for & WAITFOR_SYSTEMTRAY)
-			OPRINTF(1, "--> system tray\n");
 		if (wait_for & WAITFOR_COMPOSITEMANAGER)
 			OPRINTF(1, "--> composite manager\n");
 		if (wait_for & WAITFOR_WINDOWMANAGER)
@@ -8299,8 +8302,8 @@ want_resource(Process *pr)
 			if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0) {
 				/* PreDisplayServer: do not wait for anything. */
 				mask = 0;
-			} else if (strcmp(e->AutostartPhase, "Initializing") == 0) {
-				/* Initializing: do not wait for anything. */
+			} else if (strcmp(e->AutostartPhase, "Initialization") == 0) {
+				/* Initialization: do not wait for anything. */
 				mask = 0;
 			} else if (strcmp(e->AutostartPhase, "WindowManager") == 0) {
 				/* WindowManager: do not wait for anything, except
@@ -8343,8 +8346,10 @@ want_resource(Process *pr)
 				mask &= ~WAITFOR_DESKTOPPAGER;
 			if (strstr(e->Categories, "TrayIcon"))
 				mask |= WAITFOR_SYSTEMTRAY;
-			if (strstr(e->Categories, "Panel"))
-				mask &= ~(WAITFOR_DESKTOPPAGER | WAITFOR_SYSTEMTRAY);
+			if (strstr(e->Categories, "Panel")) {
+				mask |= WAITFOR_DESKTOPPAGER;
+				mask &= ~WAITFOR_SYSTEMTRAY;
+			}
 		}
 	}
 	if (!e->StartupNotify || strcasecmp(e->StartupNotify, "true")) {
@@ -8365,14 +8370,14 @@ want_phase(Process *pr)
 	} else if (e->AutostartPhase) {
 		if (strcmp(e->AutostartPhase, "PreDisplayServer") == 0)
 			phase = AutostartPhase_PreDisplayServer;
-		else if (strcmp(e->AutostartPhase, "Initializing") == 0)
-			phase = AutostartPhase_Initializing;
+		else if (strcmp(e->AutostartPhase, "Initialization") == 0)
+			phase = AutostartPhase_Initialization;
 		else if (strcmp(e->AutostartPhase, "WindowManager") == 0)
 			phase = AutostartPhase_WindowManager;
-		else if (strcmp(e->AutostartPhase, "Panel") == 0)
-			phase = AutostartPhase_Panel;
 		else if (strcmp(e->AutostartPhase, "Desktop") == 0)
 			phase = AutostartPhase_Desktop;
+		else if (strcmp(e->AutostartPhase, "Panel") == 0)
+			phase = AutostartPhase_Panel;
 		else if (strcmp(e->AutostartPhase, "Application") == 0)
 			phase = AutostartPhase_Application;
 		else
@@ -8393,7 +8398,7 @@ want_phase(Process *pr)
 		} else if (mask & WAITFOR_AUDIOSERVER) {
 			phase = AutostartPhase_WindowManager;
 		} else {
-			phase = AutostartPhase_Initializing;
+			phase = AutostartPhase_Initialization;
 		}
 	}
 	return (phase);
@@ -10640,14 +10645,14 @@ phase_str(AutostartPhase phase)
 	switch (phase) {
 	case AutostartPhase_PreDisplayServer:
 		return("PreDisplayServer");
-	case AutostartPhase_Initializing:
-		return("Initializing");
+	case AutostartPhase_Initialization:
+		return("Initialization");
 	case AutostartPhase_WindowManager:
 		return("WindowManager");
-	case AutostartPhase_Panel:
-		return("Panel");
 	case AutostartPhase_Desktop:
 		return("Desktop");
+	case AutostartPhase_Panel:
+		return("Panel");
 	case AutostartPhase_Application:
 		return("Application");
 	}
@@ -10741,7 +10746,7 @@ dispatcher(void)
 	DPRINTF(1, "Dispatcher PID %d is stopping itself\n", pid);
 	kill(pid, SIGSTOP);
 	/* perform the initialization phase */
-	run_phase(dpy, AutostartPhase_Initializing, options.guard);
+	run_phase(dpy, AutostartPhase_Initialization, options.guard);
 
 	/* stop again to signal leader that initialization phase is over */
 	if (options.info)
@@ -10751,8 +10756,8 @@ dispatcher(void)
 	/* perform the other phases */
 	wait_for_window_manager(dpy);
 	run_phase(dpy, AutostartPhase_WindowManager, options.guard);
-	run_phase(dpy, AutostartPhase_Panel, options.guard);
 	run_phase(dpy, AutostartPhase_Desktop, options.guard);
+	run_phase(dpy, AutostartPhase_Panel, options.guard);
 	run_phase(dpy, AutostartPhase_Application, options.guard);
 	/* check whether assistance is required and wait around if so */
 	exit(EXIT_SUCCESS);
@@ -10931,6 +10936,7 @@ launch_startup(Process *wm)
 			delete_pr(pp_prev);
 			continue;
 		}
+		pr->type = LaunchType_Autostart; /* parse sets wrong sometimes */
 		if (options.output > 1)
 			show_entry("Parsed entries", pr->ent);
 		if (options.info)
@@ -10953,7 +10959,7 @@ launch_startup(Process *wm)
 
 	DPRINTF(1, "Spawning children...\n");
 	/* don't care about wait_for, just care about phase for autostart */
-	for (phase = AutostartPhase_Initializing; phase <= AutostartPhase_Application; phase++)
+	for (phase = AutostartPhase_Initialization; phase <= AutostartPhase_Application; phase++)
 		if (phases[phase])
 			for (pp = phases[phase]; (pr = *pp); pp++)
 				spawn_child(NULL, pr);
@@ -11177,6 +11183,7 @@ launch_session(Process *wm)
 			delete_pr(pp_prev);
 			continue;
 		}
+		pr->type = LaunchType_Autostart; /* parse sets wrong sometimes */
 		if (options.output > 1)
 			show_entry("Parsed entries", pr->ent);
 		if (options.info)
@@ -11211,7 +11218,7 @@ launch_session(Process *wm)
 
 	DPRINTF(1, "Spawning children...\n");
 	/* don't care about wait_for, just care about phase for autostart */
-	for (phase = AutostartPhase_Initializing; phase <= AutostartPhase_Application; phase++)
+	for (phase = AutostartPhase_Initialization; phase <= AutostartPhase_Application; phase++)
 		if (phases[phase])
 			for (pp = phases[phase]; (pr = *pp); pp++)
 				if (pr != wm)
