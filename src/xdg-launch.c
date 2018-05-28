@@ -8398,7 +8398,7 @@ want_phase(Process *pr)
 		} else if (mask & WAITFOR_AUDIOSERVER) {
 			phase = AutostartPhase_WindowManager;
 		} else {
-			phase = AutostartPhase_Initialization;
+			phase = AutostartPhase_Application;
 		}
 	}
 	return (phase);
