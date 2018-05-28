@@ -646,6 +646,14 @@ typedef struct {
 	Bool net_wm_user_time;		/* _NET_WM_USER_TIME is supported */
 	Bool net_startup_id;		/* _NET_STARTUP_ID is supported */
 	Bool net_startup_info;		/* _NET_STARTUP_INFO is supported */
+	struct {
+		Bool wmngr;		/* window manager present */
+		Bool stray;		/* system tray present */
+		Bool pager;		/* desktop pager present */
+		Bool compm;		/* composite manager present */
+		Bool audio;		/* audio server present */
+		Bool shelp;		/* startup helper present */
+	} has;
 } XdgScreen;
 
 XdgScreen *screens;
@@ -1724,108 +1732,127 @@ check_window_manager(XdgScreen *scr)
 /** @brief Check for a system tray.
   */
 static Window
-check_stray(XdgScreen *scr)
+check_stray(XdgScreen * scr)
 {
-	Window win;
-	Display *dpy = scr->display;
+	if (!scr->has.stray) {
+		Window win;
+		Display *dpy = scr->display;
 
-	if ((win = XGetSelectionOwner(dpy, scr->stray_atom))) {
-		if (win != scr->stray_owner) {
-			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-			DPRINTF(1, "system tray changed from 0x%08lx to 0x%08lx\n", scr->stray_owner, win);
-			scr->stray_owner = win;
+		if ((win = XGetSelectionOwner(dpy, scr->stray_atom))) {
+			if (win != scr->stray_owner) {
+				XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+				DPRINTF(1, "system tray changed from 0x%08lx to 0x%08lx\n", scr->stray_owner, win);
+				scr->stray_owner = win;
+			}
+		} else if (scr->stray_owner) {
+			DPRINTF(1, "system tray removed from 0x%08lx\n", scr->stray_owner);
+			scr->stray_owner = None;
 		}
-	} else if (scr->stray_owner) {
-		DPRINTF(1, "system tray removed from 0x%08lx\n", scr->stray_owner);
-		scr->stray_owner = None;
+		scr->has.stray = scr->stray_owner ? True : False;
 	}
-	return scr->stray_owner;
+	return (scr->stray_owner);
 }
 
 static Window
-check_pager(XdgScreen *scr)
+check_pager(XdgScreen * scr)
 {
-	Window win;
-	long *cards, n = 0;
-	Display *dpy = scr->display;
+	if (!scr->has.pager) {
+		Window win;
+		long *cards, n = 0;
+		Display *dpy = scr->display;
 
-	if ((win = XGetSelectionOwner(dpy, scr->pager_atom)))
-		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	/* selection only held while setting _NET_DESKTOP_LAYOUT */
-	if (!win && (cards = get_cardinals(dpy, scr->root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
-	    && n >= 4) {
-		XFree(cards);
-		win = scr->root;
+		if ((win = XGetSelectionOwner(dpy, scr->pager_atom)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+		/* selection only held while setting _NET_DESKTOP_LAYOUT */
+		if (!win && (cards = get_cardinals(dpy, scr->root, _XA_NET_DESKTOP_LAYOUT, XA_CARDINAL, &n))
+		    && n >= 4) {
+			XFree(cards);
+			win = scr->root;
+		}
+		if (win && win != scr->pager_owner)
+			DPRINTF(1, "desktop pager changed from 0x%08lx to 0x%08lx\n", scr->pager_owner, win);
+		if (!win && scr->pager_owner)
+			DPRINTF(1, "desktop pager removed from 0x%08lx\n", scr->pager_owner);
+		scr->pager_owner = win;
+		scr->has.pager = scr->pager_owner ? True : False;
 	}
-	if (win && win != scr->pager_owner)
-		DPRINTF(1, "desktop pager changed from 0x%08lx to 0x%08lx\n", scr->pager_owner, win);
-	if (!win && scr->pager_owner)
-		DPRINTF(1, "desktop pager removed from 0x%08lx\n", scr->pager_owner);
-	return (scr->pager_owner = win);
+	return (scr->pager_owner);
 }
 
 static Window
-check_compm(XdgScreen *scr)
+check_compm(XdgScreen * scr)
 {
-	Window win;
-	Display *dpy = scr->display;
+	if (!scr->has.compm) {
+		Window win;
+		Display *dpy = scr->display;
 
-	if ((win = XGetSelectionOwner(dpy, scr->compm_atom)))
-		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	if (win && win != scr->compm_owner)
-		DPRINTF(1, "composite manager changed from 0x%08lx to 0x%08lx\n", scr->compm_owner, win);
-	if (!win && scr->compm_owner)
-		DPRINTF(1, "composite manager removed from 0x%08lx\n", scr->compm_owner);
-	return (scr->compm_owner = win);
+		if ((win = XGetSelectionOwner(dpy, scr->compm_atom)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+		if (win && win != scr->compm_owner)
+			DPRINTF(1, "composite manager changed from 0x%08lx to 0x%08lx\n", scr->compm_owner, win);
+		if (!win && scr->compm_owner)
+			DPRINTF(1, "composite manager removed from 0x%08lx\n", scr->compm_owner);
+		scr->compm_owner = win;
+		scr->has.compm = scr->compm_owner ? True : False;
+	}
+	return (scr->compm_owner);
 }
 
 static Window
 check_audio(XdgScreen * scr)
 {
-	char *text;
-	Display *dpy = scr->display;
-	Window win = None;
+	if (!scr->has.audio) {
+		char *text;
+		Display *dpy = scr->display;
+		Window win = None;
 
-	OPRINTF(1, "--> checking for audio server on screen %d\n", scr->screen);
-	if (!(text = get_text(dpy, scr->root, _XA_PULSE_COOKIE))) {
-		DPRINTF(1, "no PULSE_COOKIE property\n");
-		goto done;
+		OPRINTF(1, "--> checking for audio server on screen %d\n", scr->screen);
+		if (!(text = get_text(dpy, scr->root, _XA_PULSE_COOKIE))) {
+			DPRINTF(1, "no PULSE_COOKIE property\n");
+			goto done;
+		}
+		XFree(text);
+		if (!(text = get_text(dpy, scr->root, _XA_PULSE_SERVER))) {
+			DPRINTF(1, "no PULSE_SERVER property\n");
+			goto done;
+		}
+		XFree(text);
+		if (!(text = get_text(dpy, scr->root, _XA_PULSE_ID))) {
+			DPRINTF(1, "no PULSE_ID property\n");
+			goto done;
+		}
+		XFree(text);
+		win = scr->root;
+	      done:
+		if (win)
+			OPRINTF(1, "    audio server found\n");
+		else
+			OPRINTF(1, "    audio server NOT found\n");
+		scr->audio_owner = win;
+		scr->has.audio = scr->audio_owner ? True : False;
 	}
-	XFree(text);
-	if (!(text = get_text(dpy, scr->root, _XA_PULSE_SERVER))) {
-		DPRINTF(1, "no PULSE_SERVER property\n");
-		goto done;
-	}
-	XFree(text);
-	if (!(text = get_text(dpy, scr->root, _XA_PULSE_ID))) {
-		DPRINTF(1, "no PULSE_ID property\n");
-		goto done;
-	}
-	XFree(text);
-	win = scr->root;
-      done:
-	if (win)
-		OPRINTF(1, "    audio server found\n");
-	else
-		OPRINTF(1, "    audio server NOT found\n");
-	return (scr->audio_owner = win);
+	return (scr->audio_owner);
 }
 
 static Window
-check_shelp(XdgScreen *scr)
+check_shelp(XdgScreen * scr)
 {
-	Window win;
-	Display *dpy = scr->display;
+	if (!scr->has.shelp) {
+		Window win;
+		Display *dpy = scr->display;
 
-	OPRINTF(1, "--> checking for startup helper\n");
-	if ((win = XGetSelectionOwner(dpy, scr->shelp_atom)))
-		XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
-	if (win && win != scr->shelp_owner)
-		DPRINTF(1, "startup helper changed from 0x%08lx to 0x%08lx\n", scr->shelp_owner, win);
-	if (!win && scr->shelp_owner)
-		DPRINTF(1, "startup helper removed from 0x%08lx\n", scr->shelp_owner);
-	OPRINTF(1, "    startup helper 0x%08lx\n", win);
-	return (scr->shelp_owner = win);
+		OPRINTF(1, "--> checking for startup helper\n");
+		if ((win = XGetSelectionOwner(dpy, scr->shelp_atom)))
+			XSelectInput(dpy, win, StructureNotifyMask | PropertyChangeMask);
+		if (win && win != scr->shelp_owner)
+			DPRINTF(1, "startup helper changed from 0x%08lx to 0x%08lx\n", scr->shelp_owner, win);
+		if (!win && scr->shelp_owner)
+			DPRINTF(1, "startup helper removed from 0x%08lx\n", scr->shelp_owner);
+		OPRINTF(1, "    startup helper 0x%08lx\n", win);
+		scr->shelp_owner = win;
+		scr->has.shelp = scr->shelp_owner ? True : False;
+	}
+	return (scr->shelp_owner);
 }
 
 static void
@@ -7984,25 +8011,6 @@ spawn_child(Display *dpy, Process *pr)
 	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
 	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", pr->seq->f.id);
 
-	/* Setting the DISPLAY this way is, in fact, a bad thing to do.  It will restrict 
-	   an application to a single screen in a multi-screen setup.  */
-	if (0) {
-		char *disp, *p;
-		size_t size;
-
-		/* set the DISPLAY environment variable */
-		p = getenv("DISPLAY");
-		size = strlen(p) + strlen(pr->seq->f.screen) + 2;
-		disp = calloc(size, sizeof(*disp));
-		strcpy(disp, p);
-		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
-			*p = '\0';
-		strcat(disp, ".");
-		strcat(disp, pr->seq->f.screen);
-		try_setenv("DISPLAY", disp, 1);
-		DPRINTF(1, "Set DISPLAY to %s\n", disp);
-	}
-
 	/* stop here till parent sends us SIGCONT */
 	DPRINTF(1, "PID %d is stopping itself\n", pr->pid);
 	kill(pr->pid, SIGSTOP);
@@ -8454,19 +8462,21 @@ init_window_manager(Process *pr)
 	return (setup);
 }
 
-static int
-setup_window_manager(const char *setup)
+static void
+setup_window_manager(Process *pr)
 {
-	if (setup) {
+	char *setup;
+
+	if ((setup = init_window_manager(pr))) {
 		if (options.info) {
 			OPRINTF(1, "Would set up window manager with %s\n", setup);
-			return (0);
 		} else {
+
 			DPRINTF(1, "Setting up window manager with %s\n", setup);
-			return system(setup);
+			if (system(setup)) ;
 		}
+		free(setup);
 	}
-	return (0);
 }
 
 static void put_history(Process *pr);
@@ -8495,8 +8505,6 @@ static void put_default(Process *pr);
 static void
 launch_simple(Process *pr)
 {
-	size_t size;
-	char *disp, *p;
 	Display *dpy;
 	int mask;
 
@@ -8538,41 +8546,23 @@ launch_simple(Process *pr)
 	else
 		send_new(dpy, pr);
 
+	put_display(dpy);
+
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
 
-	if (0) { /* bad idea */
-		/* set the DISPLAY environment variable */
-		p = getenv("DISPLAY");
-		size = strlen(p) + strlen(pr->seq->f.screen) + 2;
-		disp = calloc(size, sizeof(*disp));
-		strcpy(disp, p);
-		if ((p = strrchr(disp, '.')) && strspn(p + 1, "0123456789") == strlen(p + 1))
-			*p = '\0';
-		strcat(disp, ".");
-		strcat(disp, pr->seq->f.screen);
-		try_setenv("DISPLAY", disp, 1);
-	}
-
-	put_display(dpy);
-
 	if (pr->type == LaunchType_XSession) {
-		char *setup, *start;
+		setup_window_manager(pr);
 
-		if ((setup = lookup_init_script(pr->appid, "setup"))) {
-			setup_window_manager(setup);
-			free(setup);
+		if (options.info) {
+			OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", pr->seq->f.command);
+			return;
 		}
-		if ((start = lookup_init_script(pr->appid, "start"))) {
-			if (options.info) {
-				OPRINTF(1, "Would execute window manager: sh -c \"%s\"\n", start);
-				return;
-			}
-			DPRINTF(1, "Command will be: sh -c \"%s\"\n", start);
-			execl("/bin/sh", "sh", "-c", start, NULL);
-			EPRINTF("Should never get here!\n");
-			exit(127);
-		}
+		DPRINTF(1,"Launching window manager %s\n", pr->appid);
+		DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
+		execl("/bin/sh", "sh", "-c", pr->seq->f.command, NULL);
+		EPRINTF("Should never get here!\n");
+		exit(127);
 	}
 	if (eargv) {
 		if (options.info) {
@@ -8673,7 +8663,6 @@ static void
 launch_xsession(Process *wm)
 {
 	Display *dpy;
-	char *setup;
 
 	OPRINTF(1, "Launching XSession:\n");
 
@@ -8701,13 +8690,17 @@ launch_xsession(Process *wm)
 	}
 
 	dpy = get_display();
-	setup = init_window_manager(wm);
+
+	setup_window_manager(wm);
 
 	if (options.wait) {
 		wm->phase = want_phase(wm);
 		if ((wm->wait_for = want_resource(wm) & mask_fors[wm->phase - 1]))
 			wait_for_resources(dpy, wm->wait_for, options.guard);
 	}
+
+	add_process(wm);
+
 	if (options.id)
 		send_change(dpy, wm);
 	else
@@ -8717,8 +8710,6 @@ launch_xsession(Process *wm)
 
 	if (options.puthist)
 		put_history(wm);
-
-	setup_window_manager(setup);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
@@ -8730,7 +8721,8 @@ launch_xsession(Process *wm)
 	DPRINTF(1,"Launching window manager %s\n", wm->appid);
 	DPRINTF(1, "Command will be: sh -c \"%s\"\n", wm->seq->f.command);
 	execl("/bin/sh", "sh", "-c", wm->seq->f.command, NULL);
-	exit(EXIT_FAILURE);
+	EPRINTF("Should never get here!\n");
+	exit(127);
 }
 
 /** @brief set the screen to be used in startup notification
@@ -9641,7 +9633,27 @@ set_ent_all(Process *pr)
 		e->Exec = strdup(options.exec);
 	} else if (!e->Exec) {
 		if (eargv) {
-			// FIXME: quote command args to Exec
+			char *buf = calloc(BUFSIZ + 1, sizeof(*buf));
+			char *p, *q;
+			int i;
+
+			for (q = buf, i = 0; i < eargc; i++) {
+				if (i > 0)
+					*q++ = '\'';
+				if ((p = eargv[i])) {
+					while (*p) {
+						if (*p == '\'')
+							*q++ = '\\';
+						*q++ = *p++;
+					}
+				}
+				if (i > 0)
+					*q++ = '\'';
+				if (i < eargc - 1)
+					*q++ = ' ';
+			}
+			e->Exec = strdup(buf);
+			free(buf);
 		}
 	}
 	if (!e->TryExec) {
@@ -11010,7 +11022,6 @@ launch_session(Process *wm)
 	pid_t did;
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
-	char *setup;
 
 	OPRINTF(1, "Launching full Session\n");
 	prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
@@ -11178,7 +11189,7 @@ launch_session(Process *wm)
 		pp_prev = &pr->next;
 	}
 
-	setup = init_window_manager(wm);
+	setup_window_manager(wm);
 
 	phase = wm->phase = want_phase(wm);
 	wm->wait_for = want_resource(wm);
@@ -11221,8 +11232,6 @@ launch_session(Process *wm)
 	wait_continued_pid(did);
 	wait_stopped_pid(did);
 	/* initialization phase complete */
-
-	setup_window_manager(setup);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
