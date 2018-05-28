@@ -8329,8 +8329,9 @@ want_resource(Process *pr)
 	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
 		mask &= WAITFOR_AUDIOSERVER;
 	}
-	if (pr->type != LaunchType_Autostart) {
-		mask |= WAITFOR_WINDOWMANAGER;
+	if (pr->type == LaunchType_Autostart || pr->type == LaunchType_Application) {
+		if (pr->type != LaunchType_Autostart)
+			mask |= WAITFOR_WINDOWMANAGER;
 		if (e->Categories) {
 			if (strstr(e->Categories, "Audio"))
 				mask |= WAITFOR_AUDIOSERVER;
