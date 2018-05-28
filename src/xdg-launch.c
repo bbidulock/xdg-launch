@@ -7941,7 +7941,7 @@ fork_parent(const char *how)
 	return (pid);
 }
 
-pid_t
+static pid_t
 fork_both(const char *how)
 {
 	pid_t pid;
@@ -10722,7 +10722,7 @@ dispatcher(void)
 	pid_t pid;
 	Display *dpy;
 
-	if ((pid = fork_parent("become dispatcher"))) {
+	if ((pid = fork_both("become dispatcher"))) {
 		/* parent returns */
 		return (pid);
 	}
