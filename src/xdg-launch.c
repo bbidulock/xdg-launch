@@ -7893,21 +7893,6 @@ setup_sequence(Process *pr, pid_t pid)
 		reset_pid(pr->pid, pr);
 }
 
-static void
-setup_subreaper(Process *pr, pid_t ppid)
-{
-	pr->ppid = ppid;
-
-	/* set the new parent after existing parent exits */
-	if (pr->ppid && pr->ppid != pr->pid && pr->ppid != getppid()) {
-		if (options.info) {
-			OPRINTF(1, "Would set subreaper to %d\n", pr->ppid);
-			return;
-		}
-		prctl(PR_SET_CHILD_SUBREAPER, pr->ppid, 0, 0, 0);
-	}
-}
-
 pid_t
 fork_child(const char *how)
 {
@@ -7991,7 +7976,6 @@ spawn_child(Display *dpy, Process *pr)
 	/* child continues here */
 	put_display(dpy);
 	setup_sequence(pr, getpid());
-	setup_subreaper(pr, options.ppid);
 
 	/* shouldn't be necessary, but what the hey?! */
 	close_files();
@@ -8450,8 +8434,10 @@ init_window_manager(Process *pr)
 
 	DPRINTF(1, "Setting up window manager...\n");
 
+	/* not for this launch, for subsequent subordinate launches */
+	prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
+
 	setup_sequence(pr, getpid());
-	setup_subreaper(pr, options.ppid);
 
 	if (!eargv) {
 		char *start;
@@ -8569,8 +8555,6 @@ launch_simple(Process *pr)
 	}
 
 	put_display(dpy);
-
-	setup_subreaper(pr, options.ppid);
 
 	if (pr->type == LaunchType_XSession) {
 		char *setup, *start;
@@ -11029,6 +11013,7 @@ launch_session(Process *wm)
 	char *setup;
 
 	OPRINTF(1, "Launching full Session\n");
+	prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
 	wm->type = LaunchType_XSession;
 
 	if (!getenv("XDG_SESSION_PID")) {
