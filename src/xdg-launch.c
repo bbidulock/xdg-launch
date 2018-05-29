@@ -8751,6 +8751,11 @@ launch_xsession(Process *wm)
   * multi-head setups instead of screens.  So, in the exceptional cases it might
   * be ok to open the display just for the purpose of discovering the screen
   * number.
+  *
+  * We must always set the SCREEN= field of the startup notification as it is a
+  * mandatory field in the new: or change: message.  (libstartup-notification
+  * will complain and end the sequence otherwise.)  However, for XSessions and
+  * Autostart entries, simply set it to zero (0) and avoid opening the display.
   */
 static void
 set_seq_screen(Process *pr)
@@ -8758,13 +8763,14 @@ set_seq_screen(Process *pr)
 	Sequence *s = pr->seq;
 	char buf[24] = { 0, };
 	Display *dpy = NULL;
+	int screen;
 
 	assert(s != NULL);
 	free(s->f.screen);
 	s->f.screen = NULL;
-	if (pr->type != LaunchType_Application)
-		return;
-	if (options.screen != -1)
+	if ((screen = options.screen) == -1 && pr->type != LaunchType_Application)
+		screen = 0;
+	if (screen != -1)
 		goto saveit;
 	if (screens)
 		dpy = screens[0].display;
@@ -8773,17 +8779,21 @@ set_seq_screen(Process *pr)
 		dpy = XOpenDisplay(0);
 	}
 	if (options.keyboard || !options.pointer)
-		if (find_focus_screen(dpy, &options.screen))
+		if (find_focus_screen(dpy, &options.screen)) {
+			screen = options.screen;
 			goto saveit;
+		}
 	if (options.pointer || !options.keyboard)
-		if (find_pointer_screen(dpy, &options.screen))
+		if (find_pointer_screen(dpy, &options.screen)) {
+			screen = options.screen;
 			goto saveit;
+		}
 	EPRINTF("cannot determine screen\n");
 	goto leave;
       saveit:
-	snprintf(buf, sizeof(buf) - 1, "%d", options.screen);
+	snprintf(buf, sizeof(buf) - 1, "%d", screen);
 	s->f.screen = strdup(buf);
-	s->n.screen = options.screen;
+	s->n.screen = screen;
       leave:
 	if (dpy && !screens)
 		XCloseDisplay(dpy);
