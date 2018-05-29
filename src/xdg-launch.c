@@ -8768,9 +8768,7 @@ set_seq_screen(Process *pr)
 	assert(s != NULL);
 	free(s->f.screen);
 	s->f.screen = NULL;
-	if ((screen = options.screen) == -1 && pr->type != LaunchType_Application)
-		screen = 0;
-	if (screen != -1)
+	if ((screen = options.screen) != -1)
 		goto saveit;
 	if (screens)
 		dpy = screens[0].display;
@@ -8778,18 +8776,22 @@ set_seq_screen(Process *pr)
 		EPRINTF("setting screen without X display\n");
 		dpy = XOpenDisplay(0);
 	}
-	if (options.keyboard || !options.pointer)
-		if (find_focus_screen(dpy, &options.screen)) {
-			screen = options.screen;
-			goto saveit;
-		}
-	if (options.pointer || !options.keyboard)
-		if (find_pointer_screen(dpy, &options.screen)) {
-			screen = options.screen;
-			goto saveit;
-		}
-	EPRINTF("cannot determine screen\n");
-	goto leave;
+	if (pr->type != LaunchType_Application) {
+		screen = DefaultScreen(dpy);
+	} else {
+		if (options.keyboard || !options.pointer)
+			if (find_focus_screen(dpy, &options.screen)) {
+				screen = options.screen;
+				goto saveit;
+			}
+		if (options.pointer || !options.keyboard)
+			if (find_pointer_screen(dpy, &options.screen)) {
+				screen = options.screen;
+				goto saveit;
+			}
+		EPRINTF("cannot determine screen\n");
+		goto leave;
+	}
       saveit:
 	snprintf(buf, sizeof(buf) - 1, "%d", screen);
 	s->f.screen = strdup(buf);
