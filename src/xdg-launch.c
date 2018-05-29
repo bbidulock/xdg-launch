@@ -7678,6 +7678,23 @@ close_files(void)
 		close(i);
 }
 
+static void
+reset_signals(void)
+{
+	sigset_t ss;
+
+	sigfillset(&ss);
+	sigprocmask(SIG_UNBLOCK, &ss, NULL);
+
+	/* don't care about job control */
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGCHLD, SIG_DFL);
+	signal(SIGSTOP, SIG_DFL);
+	signal(SIGCONT, SIG_DFL);
+}
+
 static Bool
 wait_stopped_pid(pid_t pid)
 {
@@ -7996,16 +8013,16 @@ spawn_child(Display *dpy, Process *pr)
 
 	if ((pid = fork_parent("stop and then execute process"))) {
 		/* parent */
-		setup_sequence(pr, pid);
+		reset_pid(pid, pr);
 		pr->started = True;
 		return try_wait_stopped_proc(pr);
 	}
-	/* child continues here */
-	put_display(dpy);
-	setup_sequence(pr, getpid());
-
 	/* shouldn't be necessary, but what the hey?! */
 	close_files();
+	reset_signals();
+
+	/* child continues here */
+	reset_pid(getpid(), pr);
 
 	/* set the DESKTOP_STARTUP_ID environment variable (with correct PID) */
 	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
@@ -10733,6 +10750,7 @@ dispatcher(void)
 	/* child continues */
 	sigemptyset(&ss);
 	sigaddset(&ss, SIGSTOP);
+	sigaddset(&ss, SIGCONT);
 	sigprocmask(SIG_UNBLOCK, &ss, NULL);
 
 	dpy = get_display();
@@ -11232,6 +11250,10 @@ launch_session(Process *wm)
 	wait_continued_pid(did);
 	wait_stopped_pid(did);
 	/* initialization phase complete */
+
+	/* shouldn't be necessary, but what the hey?! */
+	close_files();
+	reset_signals();
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
