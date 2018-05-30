@@ -8345,19 +8345,31 @@ want_resource(Process *pr)
 		if (pr->type != LaunchType_Autostart)
 			mask |= WAITFOR_WINDOWMANAGER;
 		if (e->Categories) {
-			if (strstr(e->Categories, "Audio"))
-				mask |= WAITFOR_AUDIOSERVER;
-			if (strstr(e->Categories, "DockApp"))
-				mask |= WAITFOR_WINDOWMANAGER;
-			if (strstr(e->Categories, "SystemTray"))
-				mask &= ~WAITFOR_SYSTEMTRAY;
-			if (strstr(e->Categories, "Pager"))
-				mask &= ~WAITFOR_DESKTOPPAGER;
-			if (strstr(e->Categories, "TrayIcon"))
-				mask |= WAITFOR_SYSTEMTRAY;
 			if (strstr(e->Categories, "Panel")) {
+				DPRINTF(2, "App %s in category Panel will wait for a desktop pager\n", pr->appid);
 				mask |= WAITFOR_DESKTOPPAGER;
+				DPRINTF(2, "App %s in category Panel will NOT wait for a system tray\n", pr->appid);
 				mask &= ~WAITFOR_SYSTEMTRAY;
+			}
+			if (strstr(e->Categories, "SystemTray")) {
+				DPRINTF(2, "App %s in category SystemTray will NOT wait for a system tray\n", pr->appid);
+				mask &= ~WAITFOR_SYSTEMTRAY;
+			}
+			if (strstr(e->Categories, "Pager")) {
+				DPRINTF(2, "App %s in category Pager will NOT wait for a desktop pager\n", pr->appid);
+				mask &= ~WAITFOR_DESKTOPPAGER;
+			}
+			if (strstr(e->Categories, "DockApp")) {
+				DPRINTF(2, "App %s in category DockApp will wait for a window manager\n", pr->appid);
+				mask |= WAITFOR_WINDOWMANAGER;
+			}
+			if (strstr(e->Categories, "TrayIcon")) {
+				DPRINTF(2, "App %s in category TrayIcon will wait for a system tray\n", pr->appid);
+				mask |= WAITFOR_SYSTEMTRAY;
+			}
+			if (strstr(e->Categories, "Audio")) {
+				DPRINTF(2, "App %s in category Audio will wait for an audio server\n", pr->appid);
+				mask |= WAITFOR_AUDIOSERVER;
 			}
 		}
 	}
@@ -8365,6 +8377,26 @@ want_resource(Process *pr)
 		mask |= WAITFOR_STARTUPHELPER;
 	}
 	return (mask);
+}
+
+const char *
+phase_str(AutostartPhase phase)
+{
+	switch (phase) {
+	case AutostartPhase_PreDisplayServer:
+		return("PreDisplayServer");
+	case AutostartPhase_Initialization:
+		return("Initialization");
+	case AutostartPhase_WindowManager:
+		return("WindowManager");
+	case AutostartPhase_Desktop:
+		return("Desktop");
+	case AutostartPhase_Panel:
+		return("Panel");
+	case AutostartPhase_Application:
+		return("Application");
+	}
+	return("(unknown)");
 }
 
 static AutostartPhase
@@ -8391,24 +8423,32 @@ want_phase(Process *pr)
 			phase = AutostartPhase_Application;
 		else
 			phase = AutostartPhase_Application;
+		DPRINTF(2, "App %s has autostart phase set to %s by .desktop entry\n", pr->appid, phase_str(phase));
 	} else {
 		int mask = want_resource(pr);
 
 		if (0) {
 		} else if (mask & WAITFOR_SYSTEMTRAY) {
 			phase = AutostartPhase_Application;
+			DPRINTF(2, "App %s needs system tray so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_DESKTOPPAGER) {
 			phase = AutostartPhase_Panel;
+			DPRINTF(2, "App %s needs desktop pager so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_STARTUPHELPER) {
 			phase = AutostartPhase_Panel;
+			DPRINTF(2, "App %s needs startup helper so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_COMPOSITEMANAGER) {
 			phase = AutostartPhase_Desktop;
+			DPRINTF(2, "App %s needs composite manager so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_WINDOWMANAGER) {
 			phase = AutostartPhase_Desktop;
+			DPRINTF(2, "App %s needs window manager so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_AUDIOSERVER) {
 			phase = AutostartPhase_WindowManager;
+			DPRINTF(2, "App %s needs audio server so phase is %s\n", pr->appid, phase_str(phase));
 		} else {
 			phase = AutostartPhase_Application;
+			DPRINTF(2, "App %s needs so phase is %s\n", pr->appid, phase_str(phase));
 		}
 	}
 	return (phase);
@@ -10663,26 +10703,6 @@ wait_for_completions(Display *dpy, Process **list, int guard)
 	if (options.info)
 		OPRINTF(1, "Might wait for phase sequence completion for %d seconds\n", guard);
 	return wait_for_condition(dpy, &check_for_completions, (XPointer) list, guard);
-}
-
-const char *
-phase_str(AutostartPhase phase)
-{
-	switch (phase) {
-	case AutostartPhase_PreDisplayServer:
-		return("PreDisplayServer");
-	case AutostartPhase_Initialization:
-		return("Initialization");
-	case AutostartPhase_WindowManager:
-		return("WindowManager");
-	case AutostartPhase_Desktop:
-		return("Desktop");
-	case AutostartPhase_Panel:
-		return("Panel");
-	case AutostartPhase_Application:
-		return("Application");
-	}
-	return("(unknown)");
 }
 
 static Bool
