@@ -408,8 +408,10 @@ static const char *DesktopEntryFields[] = {
 	"OnlyShowIn",
 	"NotShowIn",
 	"DesktopNames",
+	"WMName",
 	"AutoRestart",
 	"AutostartPhase",
+	"AutostartNotify",
 	"AutostartDelay",
 	"UniqeApplet",
 	NULL
@@ -434,8 +436,10 @@ typedef struct _Entry {
 	char *OnlyShowIn;
 	char *NotShowIn;
 	char *DesktopNames;
+	char *WMName;
 	char *AutoRestart;
 	char *AutostartPhase;
+	char *AutostartNotify;
 	char *AutostartDelay;
 	char *UniqueApplet;
 } Entry;
@@ -616,6 +620,7 @@ int wait_fors[AutostartPhase_Application + 1] = { 0, };
 int mask_fors[AutostartPhase_Application + 1] = {
 	/* *INDENT-OFF* */
 	[AutostartPhase_PreDisplayServer] = (0),
+	/* also a DisplayServer phase, but .desktop files not run in this phase */
 	[AutostartPhase_Initialization]	  = (WAITFOR_AUDIOSERVER),
 	[AutostartPhase_WindowManager]	  = (WAITFOR_WINDOWMANAGER | WAITFOR_COMPOSITEMANAGER),
 	[AutostartPhase_Desktop]	  = (WAITFOR_DESKTOPPAGER | WAITFOR_STARTUPHELPER),
@@ -2869,6 +2874,8 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "AutostartPhase") == 0) {
 			free(e->AutostartPhase);
 			e->AutostartPhase = strdup(val);
+		} else if (strcmp(key, "X-GNOME-WMName") == 0) {
+		} else if (strcmp(key, "X-GNOME-WMSettingsModule") == 0) {
 		} else if (strcmp(key, "X-GNOME-Autostart-enabled") == 0) {
 			if (pr->type == LaunchType_Autostart) {
 				if (strcmp(val, "true") == 0) {
@@ -2879,18 +2886,23 @@ parse_file(Process *pr, char *path)
 					e->Hidden = strdup("true");
 				}
 			}
+		} else if (strcmp(key, "X-GNOME-Autostart-startup-id") == 0) {
+		} else if (strcmp(key, "X-GNOME-Autostart-discard-exec") == 0) {
 		} else if (strcmp(key, "X-GNOME-Autostart-Phase") == 0) {
 			if (!e->AutostartPhase) {
 				if (strcmp(val, "Applications") == 0) {
 					e->AutostartPhase = strdup(phase_str(AutostartPhase_Application));
-					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key, path);
+					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key,
+						path);
 				} else
 					e->AutostartPhase = strdup(val);
 			}
 		} else if (strcmp(key, "X-GNOME-Autostart-Notify") == 0) {
+			/* See: https://lists.freedesktop.org/archives/xdg/2007-January/007436.html for a
+			 * discussion on the use of AutostartNotify. */
 			if (pr->type == LaunchType_Autostart) {
-				free(e->StartupNotify);
-				e->StartupNotify = strdup(val);
+				free(e->AutostartNotify);
+				e->AutostartNotify = strdup(val);
 			}
 		} else if (strcmp(key, "X-GNOME-Autostart-Delay") == 0) {
 			if (pr->type == LaunchType_Autostart) {
