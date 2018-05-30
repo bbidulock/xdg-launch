@@ -5450,6 +5450,7 @@ begin_process(Display *dpy, Process *pr)
 			}
 		} else {
 			add_process(pr);
+			pr->refs++; /* hold onto it beyond remove: msg */
 		}
 		switch (pr->state) {
 		case StartupNotifyIdle:
