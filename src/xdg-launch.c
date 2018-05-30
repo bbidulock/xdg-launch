@@ -8101,10 +8101,14 @@ check_for_completion(Display *dpy, XPointer data)
 		return (True);
 	switch (pr->state) {
 	case StartupNotifyIdle:
+		DPRINTF(3, "App %s never started\n", pr->appid);
+		return (True);
 	case StartupNotifyComplete:
+		DPRINTF(3, "App %s is complete\n", pr->appid);
 		return (True);
 	case StartupNotifyNew:
 	case StartupNotifyChanged:
+		DPRINTF(3, "App %s still awaiting completion\n", pr->appid);
 		return (False);
 	}
 	return (True);
@@ -11123,12 +11127,42 @@ static Bool
 check_for_completions(Display *dpy, XPointer data)
 {
 	Process *pr, **pp, **list = (typeof(list)) data;
+	int outstanding = 0;
 
 	if ((list = (typeof(list)) data))
 		for (pp = list; (pr = *pp); pp++)
 			if (!check_for_completion(dpy, (XPointer) pr))
-				return (False);
-	return (True);
+				outstanding++;
+	return (outstanding ? False : True);
+}
+
+static void
+force_completion(Display *dpy, Process *pr)
+{
+	Sequence *seq = pr->seq;
+	Entry *ent = pr->ent;
+
+	DPRINTF(2, "Application %s force completing\n", pr->appid);
+	/* XXX: do some analytics: why didn't it complete? */
+	if (options.debug >= 2) {
+		if (seq)
+			show_sequence("Incomplete sequence was:", seq);
+		if (ent)
+			show_entry("Incomplete entry was:", ent);
+	}
+	send_remove(dpy, pr);
+}
+
+static void
+force_completions(Display *dpy, Process **list)
+{
+	if (list) {
+		Process *pr, **pp;
+
+		for (pp = list; (pr = *pp); pp++)
+			if (!check_for_completion(dpy, (XPointer) pr))
+				force_completion(dpy, pr);
+	}
 }
 
 static Bool
@@ -11175,6 +11209,8 @@ run_phase(Display *dpy, AutostartPhase phase, int guard)
 	start_guard_timer(guard);
 	if ((result = wait_for_completions(dpy, phases[phase], -1)))
 		result = wait_for_resources(dpy, wait_fors[phase], -1);
+	else
+		force_completions(dpy, phases[phase]);
 	return (result);
 }
 
