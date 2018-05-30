@@ -8345,7 +8345,11 @@ try_wait_exited_pid(pid_t pid)
 static int
 continue_pid(pid_t pid)
 {
-	return kill(pid, SIGCONT);
+	int err;
+
+	if ((err = kill(pid, SIGCONT)) == -1)
+		EPRINTF("kill(); could not continue PID %d: %s\n", pid, strerror(errno));
+	return (err);
 }
 
 #if 0
@@ -8363,7 +8367,11 @@ try_continue_pid(pid_t pid)
 static int
 continue_proc(Process *pr)
 {
-	return continue_pid(pr->pid);
+	int err;
+
+	if ((err = continue_pid(pr->pid)) == -1)
+		EPRINTF("counld not continue app %s\n", pr->appid);
+	return (err);
 }
 
 static int
@@ -11197,6 +11205,7 @@ run_phase(Display *dpy, AutostartPhase phase, int guard)
 			if (pr->pid != ppid) {
 				DPRINTF(1, "Sending SIGCONT to %s child %d\n", pr->appid, pr->pid);
 				if (try_continue_proc(pr) == -1) {
+					EPRINTF("could not continue %s: removing process\n", pr->appid);
 					if (pr->state == StartupNotifyNew || pr->state == StartupNotifyChanged)
 						send_remove(dpy, pr);
 					pr->running = False;
