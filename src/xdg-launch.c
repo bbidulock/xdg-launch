@@ -2236,6 +2236,26 @@ need_assistance(Display *dpy)
 	return False;
 }
 
+const char *
+phase_str(AutostartPhase phase)
+{
+	switch (phase) {
+	case AutostartPhase_PreDisplayServer:
+		return("PreDisplayServer");
+	case AutostartPhase_Initialization:
+		return("Initialization");
+	case AutostartPhase_WindowManager:
+		return("WindowManager");
+	case AutostartPhase_Desktop:
+		return("Desktop");
+	case AutostartPhase_Panel:
+		return("Panel");
+	case AutostartPhase_Application:
+		return("Application");
+	}
+	return("(unknown)");
+}
+
 static void free_entry(Entry *e);
 
 static char *
@@ -2435,7 +2455,7 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "X-GNOME-Autostart-Phase") == 0) {
 			if (!e->AutostartPhase) {
 				if (strcmp(val, "Applications") == 0) {
-					e->AutostartPhase = strdup("Application");
+					e->AutostartPhase = strdup(phase_str(AutostartPhase_Application));
 					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key, path);
 				} else
 					e->AutostartPhase = strdup(val);
@@ -2444,15 +2464,22 @@ parse_file(Process *pr, char *path)
 			if (!e->AutostartPhase) {
 				switch (atoi(val)) {
 				case 0:
-					e->AutostartPhase = strdup("PreDisplayServer");
+					e->AutostartPhase = strdup(phase_str(AutostartPhase_PreDisplayServer));
 					break;
 				case 1:
-					e->AutostartPhase = strdup("Initialization");
+					e->AutostartPhase = strdup(phase_str(AutostartPhase_Initialization));
 					break;
 				case 2:
-					e->AutostartPhase = strdup("Application");
+					e->AutostartPhase = strdup(phase_str(AutostartPhase_Application));
 					break;
 				}
+			}
+		} else if (strcmp(key, "X-KDE-autostart-after") == 0) {
+			if (!e->AutostartPhase) {
+				if (strcmp(val, "panel"))
+					e->AutostartPhase = strdup(phase_str(AutostartPhase_Panel + 1));
+				else if (strcmp(val, "kdesktop"))
+					e->AutostartPhase = strdup(phase_str(AutostartPhase_Desktop + 1));
 			}
 		} else if (strcmp(key, "Hidden") == 0) {
 			if (!e->Hidden)
@@ -8379,26 +8406,6 @@ want_resource(Process *pr)
 	return (mask);
 }
 
-const char *
-phase_str(AutostartPhase phase)
-{
-	switch (phase) {
-	case AutostartPhase_PreDisplayServer:
-		return("PreDisplayServer");
-	case AutostartPhase_Initialization:
-		return("Initialization");
-	case AutostartPhase_WindowManager:
-		return("WindowManager");
-	case AutostartPhase_Desktop:
-		return("Desktop");
-	case AutostartPhase_Panel:
-		return("Panel");
-	case AutostartPhase_Application:
-		return("Application");
-	}
-	return("(unknown)");
-}
-
 static AutostartPhase
 want_phase(Process *pr)
 {
@@ -8429,22 +8436,22 @@ want_phase(Process *pr)
 
 		if (0) {
 		} else if (mask & WAITFOR_SYSTEMTRAY) {
-			phase = AutostartPhase_Application;
+			phase = AutostartPhase_Panel + 1;
 			DPRINTF(2, "App %s needs system tray so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_DESKTOPPAGER) {
-			phase = AutostartPhase_Panel;
+			phase = AutostartPhase_Desktop + 1;
 			DPRINTF(2, "App %s needs desktop pager so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_STARTUPHELPER) {
-			phase = AutostartPhase_Panel;
+			phase = AutostartPhase_WindowManager + 1;
 			DPRINTF(2, "App %s needs startup helper so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_COMPOSITEMANAGER) {
-			phase = AutostartPhase_Desktop;
+			phase = AutostartPhase_WindowManager + 1;
 			DPRINTF(2, "App %s needs composite manager so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_WINDOWMANAGER) {
-			phase = AutostartPhase_Desktop;
+			phase = AutostartPhase_WindowManager + 1;
 			DPRINTF(2, "App %s needs window manager so phase is %s\n", pr->appid, phase_str(phase));
 		} else if (mask & WAITFOR_AUDIOSERVER) {
-			phase = AutostartPhase_WindowManager;
+			phase = AutostartPhase_Initialization + 1;
 			DPRINTF(2, "App %s needs audio server so phase is %s\n", pr->appid, phase_str(phase));
 		} else {
 			phase = AutostartPhase_Application;
