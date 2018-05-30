@@ -404,11 +404,14 @@ static const char *DesktopEntryFields[] = {
 	"Categories",
 	"MimeType",
 	"AsRoot",
-	"AutostartPhase",
 	"Hidden",
 	"OnlyShowIn",
 	"NotShowIn",
 	"DesktopNames",
+	"AutoRestart",
+	"AutostartPhase",
+	"AutostartDelay",
+	"UniqeApplet",
 	NULL
 };
 
@@ -427,11 +430,14 @@ typedef struct _Entry {
 	char *Categories;
 	char *MimeType;
 	char *AsRoot;
-	char *AutostartPhase;
 	char *Hidden;
 	char *OnlyShowIn;
 	char *NotShowIn;
 	char *DesktopNames;
+	char *AutoRestart;
+	char *AutostartPhase;
+	char *AutostartDelay;
+	char *UniqueApplet;
 } Entry;
 
 static const char *StartupNotifyFields[] = {
@@ -2863,6 +2869,16 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "AutostartPhase") == 0) {
 			free(e->AutostartPhase);
 			e->AutostartPhase = strdup(val);
+		} else if (strcmp(key, "X-GNOME-Autostart-enabled") == 0) {
+			if (pr->type == LaunchType_Autostart) {
+				if (strcmp(val, "true") == 0) {
+					free(e->Hidden);
+					e->Hidden = strdup("false");
+				} else if (strcmp(val, "false") == 0) {
+					free(e->Hidden);
+					e->Hidden = strdup("true");
+				}
+			}
 		} else if (strcmp(key, "X-GNOME-Autostart-Phase") == 0) {
 			if (!e->AutostartPhase) {
 				if (strcmp(val, "Applications") == 0) {
@@ -2870,6 +2886,21 @@ parse_file(Process *pr, char *path)
 					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key, path);
 				} else
 					e->AutostartPhase = strdup(val);
+			}
+		} else if (strcmp(key, "X-GNOME-Autostart-Notify") == 0) {
+			if (pr->type == LaunchType_Autostart) {
+				free(e->StartupNotify);
+				e->StartupNotify = strdup(val);
+			}
+		} else if (strcmp(key, "X-GNOME-Autostart-Delay") == 0) {
+			if (pr->type == LaunchType_Autostart) {
+				if (!e->AutostartDelay)
+					e->AutostartDelay = strdup(val);
+			}
+		} else if (strcmp(key, "X-GNOME-AutoRestart") == 0) {
+			if (pr->type == LaunchType_Autostart) {
+				if (!e->AutoRestart)
+					e->AutoRestart = strdup(val);
 			}
 		} else if (strcmp(key, "X-KDE-autostart-phase") == 0) {
 			if (!e->AutostartPhase) {
@@ -2892,6 +2923,12 @@ parse_file(Process *pr, char *path)
 				else if (strcmp(val, "kdesktop"))
 					e->AutostartPhase = strdup(phase_str(AutostartPhase_Desktop + 1));
 			}
+		} else if (strcmp(key, "X-KDE-StartupNotify") == 0) {
+			if (!e->StartupNotify)
+				e->StartupNotify = strdup(val);
+		} else if (strcmp(key, "X-KDE-UniqueApplet") == 0) {
+			if (!e->UniqueApplet)
+				e->UniqueApplet = strdup(val);
 		} else if (strcmp(key, "Hidden") == 0) {
 			if (!e->Hidden)
 				e->Hidden = strdup(val);
