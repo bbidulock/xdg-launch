@@ -752,6 +752,60 @@ Time current_time = CurrentTime;
 Time last_user_time = CurrentTime;
 Time launch_time = CurrentTime;
 
+static Atom _XA_DT_WORKSPACE_CURRENT;
+static Atom _XA_DT_WORKSPACE_LIST;
+static Atom _XA_DT_WORKSPACE_PRESENCE;
+static Atom _XA_ECHINUS_LAYOUT;
+static Atom _XA_ECHINUS_SELTAGS;
+static Atom _XA_GTK_THEME_VARIANT;
+static Atom _XA_KDE_NET_WM_FRAME_STRUT;
+static Atom _XA_MOTIF_WM_HINTS;
+static Atom _XA_NET_APP_APPLICATION_ID;
+static Atom _XA_NET_APP_BINARY_NAME;
+static Atom _XA_NET_APP_DESCRIPTION;
+static Atom _XA_NET_APP_HOSTNAME;
+static Atom _XA_NET_APP_ICON_NAME;
+static Atom _XA_NET_APP_LAUNCHEE;
+static Atom _XA_NET_APP_LAUNCHER;
+static Atom _XA_NET_APP_NAME;
+static Atom _XA_NET_APP_PID;
+static Atom _XA_NET_APP_SCREEN;
+static Atom _XA_NET_APP_SEQUENCE;
+static Atom _XA_NET_APP_TIMESTAMP;
+static Atom _XA_NET_APP_WMCLASS;
+static Atom _XA_NET_CURRENT_DESKTOP;
+static Atom _XA_NET_DESKTOP_GEOMETRY;
+static Atom _XA_NET_DESKTOP_MODES;
+static Atom _XA_NET_DESKTOP_NAMES;
+static Atom _XA_NET_DESKTOP_VIEWPORT;
+static Atom _XA_NET_NUMBER_OF_DESKTOPS;
+static Atom _XA_NET_SHOWING_DESKTOP;
+static Atom _XA_NET_WM_DESKTOP_MASK;
+static Atom _XA_NET_WM_SYNC_REQUEST_COUNTER;
+static Atom _XA_NET_WORKAREA;
+static Atom _XA_OB_APP_CLASS;
+static Atom _XA_OB_APP_GROUP_CLASS;
+static Atom _XA_OB_APP_GROUP_NAME;
+static Atom _XA_OB_APP_NAME;
+static Atom _XA_OB_APP_TITLE;
+static Atom _XA_OB_APP_TYPE;
+static Atom _XA_PULSE_COOKIE;
+static Atom _XA_PULSE_ID;
+static Atom _XA_PULSE_SERVER;
+static Atom _XA_WIN_AREA;
+static Atom _XA_WIN_AREA_COUNT;
+static Atom _XA_WIN_DESKTOP_BUTTON_PROXY;
+static Atom _XA_WIN_WORKAREA;
+static Atom _XA_WIN_WORKSPACE_COUNT;
+static Atom _XA_WIN_WORKSPACE_NAMES;
+static Atom _XA_WIN_WORKSPACES;
+static Atom _XA_WM_DESKTOP;
+static Atom _XA_WM_LOCALE_NAME;
+static Atom _XA_XROOTPMAP_ID;
+
+static Atom _XA_GTK_READ_RCFILES;
+static Atom _XA_KDE_SPLASH_PROGRESS;
+
 static Atom _XA_KDE_WM_CHANGE_STATE;
 static Atom _XA_MANAGER;
 static Atom _XA_MOTIF_WM_INFO;
@@ -820,6 +874,57 @@ static Atom _XA_XDG_ASSIST_CMD_REPLACE;
 static Atom _XA_XEMBED;
 static Atom _XA_XEMBED_INFO;
 
+static void pc_handle_DT_WORKSPACE_CURRENT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_DT_WORKSPACE_LIST(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_DT_WORKSPACE_PRESENCE(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_ECHINUS_LAYOUT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_ECHINUS_SELTAGS(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_GTK_THEME_VARIANT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_KDE_NET_WM_FRAME_STRUT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_MOTIF_WM_HINTS(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_APPLICATION_ID(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_BINARY_NAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_DESCRIPTION(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_HOSTNAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_ICON_NAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_LAUNCHEE(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_LAUNCHER(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_NAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_PID(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_SCREEN(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_SEQUENCE(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_TIMESTAMP(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_APP_WMCLASS(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_CURRENT_DESKTOP(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_DESKTOP_GEOMETRY(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_DESKTOP_MODES(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_DESKTOP_NAMES(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_DESKTOP_VIEWPORT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_NUMBER_OF_DESKTOPS(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_SHOWING_DESKTOP(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_DESKTOP_MASK(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_WM_SYNC_REQUEST_COUNTER(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_NET_WORKAREA(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_OB_APP_CLASS(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_OB_APP_GROUP_CLASS(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_OB_APP_GROUP_NAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_OB_APP_NAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_OB_APP_TITLE(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_OB_APP_TYPE(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_PULSE_COOKIE(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_PULSE_ID(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_PULSE_SERVER(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_AREA(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_AREA_COUNT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_DESKTOP_BUTTON_PROXY(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_WORKAREA(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_WORKSPACE_COUNT(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_WORKSPACE_NAMES(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WIN_WORKSPACES(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WM_DESKTOP(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_WM_LOCALE_NAME(XdgScreen *, XPropertyEvent *, Client *);
+static void pc_handle_XROOTPMAP_ID(XdgScreen *, XPropertyEvent *, Client *);
+
 static void pc_handle_MOTIF_WM_INFO(XdgScreen *, XPropertyEvent *, Client *);
 static void pc_handle_NET_ACTIVE_WINDOW(XdgScreen *, XPropertyEvent *, Client *);
 static void pc_handle_NET_CLIENT_LIST_STACKING(XdgScreen *, XPropertyEvent *, Client *);
@@ -873,6 +978,9 @@ static void pc_handle_WM_WINDOW_ROLE(XdgScreen *, XPropertyEvent *, Client *);
 static void pc_handle_WM_ZOOM_HINTS(XdgScreen *, XPropertyEvent *, Client *);
 static void pc_handle_XEMBED_INFO(XdgScreen *, XPropertyEvent *, Client *);
 
+static void cm_handle_GTK_READ_RCFILES(XdgScreen *, XClientMessageEvent *, Client *);
+static void cm_handle_KDE_SPLASH_PROGRESS(XdgScreen *, XClientMessageEvent *, Client *);
+
 static void cm_handle_KDE_WM_CHANGE_STATE(XdgScreen *, XClientMessageEvent *, Client *);
 static void cm_handle_MANAGER(XdgScreen *, XClientMessageEvent *, Client *);
 static void cm_handle_NET_ACTIVE_WINDOW(XdgScreen *, XClientMessageEvent *, Client *);
@@ -908,6 +1016,60 @@ struct atoms {
 	/* *INDENT-OFF* */
 	/* name					global				pc_handler				cm_handler				atom value		*/
 	/* ----					------				----------				----------				---------		*/
+	{ "_DT_WORKSPACE_CURRENT",		&_XA_DT_WORKSPACE_CURRENT,	&pc_handle_DT_WORKSPACE_CURRENT,	NULL,					None			},
+	{ "_DT_WORKSPACE_LIST",			&_XA_DT_WORKSPACE_LIST,		&pc_handle_DT_WORKSPACE_LIST,		NULL,					None			},
+	{ "_DT_WORKSPACE_PRESENCE",		&_XA_DT_WORKSPACE_PRESENCE,	&pc_handle_DT_WORKSPACE_PRESENCE,	NULL,					None			},
+	{ "_ECHINUS_LAYOUT",			&_XA_ECHINUS_LAYOUT,		&pc_handle_ECHINUS_LAYOUT,		NULL,					None			},
+	{ "_ECHINUS_SELTAGS",			&_XA_ECHINUS_SELTAGS,		&pc_handle_ECHINUS_SELTAGS,		NULL,					None			},
+	{ "_GTK_THEME_VARIANT",			&_XA_GTK_THEME_VARIANT,		&pc_handle_GTK_THEME_VARIANT,		NULL,					None			},
+	{ "_KDE_NET_WM_FRAME_STRUT",		&_XA_KDE_NET_WM_FRAME_STRUT,	&pc_handle_KDE_NET_WM_FRAME_STRUT,	NULL,					None			},
+	{ "_MOTIF_WM_HINTS",			&_XA_MOTIF_WM_HINTS,		&pc_handle_MOTIF_WM_HINTS,		NULL,					None			},
+	{ "_NET_APP_APPLICAION_ID",		&_XA_NET_APP_APPLICATION_ID,	&pc_handle_NET_APP_APPLICATION_ID,	NULL,					None			},
+	{ "_NET_APP_BINARY_NAME",		&_XA_NET_APP_BINARY_NAME,	&pc_handle_NET_APP_BINARY_NAME,		NULL,					None			},
+	{ "_NET_APP_DESCRIPTION",		&_XA_NET_APP_DESCRIPTION,	&pc_handle_NET_APP_DESCRIPTION,		NULL,					None			},
+	{ "_NET_APP_HOSTNAME",			&_XA_NET_APP_HOSTNAME,		&pc_handle_NET_APP_HOSTNAME,		NULL,					None			},
+	{ "_NET_APP_ICON_NAME",			&_XA_NET_APP_ICON_NAME,		&pc_handle_NET_APP_ICON_NAME,		NULL,					None			},
+	{ "_NET_APP_LAUNCHEE",			&_XA_NET_APP_LAUNCHEE,		&pc_handle_NET_APP_LAUNCHEE,		NULL,					None			},
+	{ "_NET_APP_LAUNCHER",			&_XA_NET_APP_LAUNCHER,		&pc_handle_NET_APP_LAUNCHER,		NULL,					None			},
+	{ "_NET_APP_NAME",			&_XA_NET_APP_NAME,		&pc_handle_NET_APP_NAME,		NULL,					None			},
+	{ "_NET_APP_PID",			&_XA_NET_APP_PID,		&pc_handle_NET_APP_PID,			NULL,					None			},
+	{ "_NET_APP_SCREEN",			&_XA_NET_APP_SCREEN,		&pc_handle_NET_APP_SCREEN,		NULL,					None			},
+	{ "_NET_APP_SEQUENCE",			&_XA_NET_APP_SEQUENCE,		&pc_handle_NET_APP_SEQUENCE,		NULL,					None			},
+	{ "_NET_APP_TIMESTAMP",			&_XA_NET_APP_TIMESTAMP,		&pc_handle_NET_APP_TIMESTAMP,		NULL,					None			},
+	{ "_NET_APP_WMCLASS",			&_XA_NET_APP_WMCLASS,		&pc_handle_NET_APP_WMCLASS,		NULL,					None			},
+	{ "_NET_CURRENT_DESKTOP",		&_XA_NET_CURRENT_DESKTOP,	&pc_handle_NET_CURRENT_DESKTOP,		NULL,					None			},
+	{ "_NET_DESKTOP_GEOMETRY",		&_XA_NET_DESKTOP_GEOMETRY,	&pc_handle_NET_DESKTOP_GEOMETRY,	NULL,					None			},
+	{ "_NET_DESKTOP_MODES",			&_XA_NET_DESKTOP_MODES,		&pc_handle_NET_DESKTOP_MODES,		NULL,					None			},
+	{ "_NET_DESKTOP_NAMES",			&_XA_NET_DESKTOP_NAMES,		&pc_handle_NET_DESKTOP_NAMES,		NULL,					None			},
+	{ "_NET_DESKTOP_VIEWPORT",		&_XA_NET_DESKTOP_VIEWPORT,	&pc_handle_NET_DESKTOP_VIEWPORT,	NULL,					None			},
+	{ "_NET_NUMBER_OF_DESKTOPS",		&_XA_NET_NUMBER_OF_DESKTOPS,	&pc_handle_NET_NUMBER_OF_DESKTOPS,	NULL,					None			},
+	{ "_NET_SHOWING_DESKTOP",		&_XA_NET_SHOWING_DESKTOP,	&pc_handle_NET_SHOWING_DESKTOP,		NULL,					None			},
+	{ "_NET_WM_DESKTOP_MASK",		&_XA_NET_WM_DESKTOP_MASK,	&pc_handle_NET_WM_DESKTOP_MASK,		NULL,					None			},
+	{ "_NET_WM_SYNC_REQUEST_COUNTER",	&_XA_NET_WM_SYNC_REQUEST_COUNTER,&pc_handle_NET_WM_SYNC_REQUEST_COUNTER,NULL,					None			},
+	{ "_NET_WORKAREA",			&_XA_NET_WORKAREA,		&pc_handle_NET_WORKAREA,		NULL,					None			},
+	{ "_OB_APP_CLASS",			&_XA_OB_APP_CLASS,		&pc_handle_OB_APP_CLASS,		NULL,					None			},
+	{ "_OB_APP_GROUP_CLASS",		&_XA_OB_APP_GROUP_CLASS,	&pc_handle_OB_APP_GROUP_CLASS,		NULL,					None			},
+	{ "_OB_APP_GROUP_NAME",			&_XA_OB_APP_GROUP_NAME,		&pc_handle_OB_APP_GROUP_NAME,		NULL,					None			},
+	{ "_OB_APP_NAME",			&_XA_OB_APP_NAME,		&pc_handle_OB_APP_NAME,			NULL,					None			},
+	{ "_OB_APP_TITLE",			&_XA_OB_APP_TITLE,		&pc_handle_OB_APP_TITLE,		NULL,					None			},
+	{ "_OB_APP_TYPE",			&_XA_OB_APP_TYPE,		&pc_handle_OB_APP_TYPE,			NULL,					None			},
+	{ "PULSE_COOKIE",			&_XA_PULSE_COOKIE,		&pc_handle_PULSE_COOKIE,		NULL,					None			},
+	{ "PULSE_ID",				&_XA_PULSE_ID,			&pc_handle_PULSE_ID,			NULL,					None			},
+	{ "PULSE_SERVER",			&_XA_PULSE_SERVER,		&pc_handle_PULSE_SERVER,		NULL,					None			},
+	{ "_WIN_AREA",				&_XA_WIN_AREA,			&pc_handle_WIN_AREA,			NULL,					None			},
+	{ "_WIN_AREA_COUNT",			&_XA_WIN_AREA_COUNT,		&pc_handle_WIN_AREA_COUNT,		NULL,					None			},
+	{ "_WIN_DESKTOP_BUTTON_PROXY",		&_XA_WIN_DESKTOP_BUTTON_PROXY,	&pc_handle_WIN_DESKTOP_BUTTON_PROXY,	NULL,					None			},
+	{ "_WIN_WORKAREA",			&_XA_WIN_WORKAREA,		&pc_handle_WIN_WORKAREA,		NULL,					None			},
+	{ "_WIN_WORKSPACE_COUNT",		&_XA_WIN_WORKSPACE_COUNT,	&pc_handle_WIN_WORKSPACE_COUNT,		NULL,					None			},
+	{ "_WIN_WORKSPACE_NAMES",		&_XA_WIN_WORKSPACE_NAMES,	&pc_handle_WIN_WORKSPACE_NAMES,		NULL,					None			},
+	{ "_WIN_WORKSPACES",			&_XA_WIN_WORKSPACES,		&pc_handle_WIN_WORKSPACES,		NULL,					None			},
+	{ "WM_DESKTOP",				&_XA_WM_DESKTOP,		&pc_handle_WM_DESKTOP,			NULL,					None			},
+	{ "WM_LOCALE_NAME",			&_XA_WM_LOCALE_NAME,		&pc_handle_WM_LOCALE_NAME,		NULL,					None			},
+	{ "_XROOTPMAP_ID",			&_XA_XROOTPMAP_ID,		&pc_handle_XROOTPMAP_ID,		NULL,					None			},
+
+	{ "_GTK_READ_RCFILES",			&_XA_GTK_READ_RCFILES,		NULL,					&cm_handle_GTK_READ_RCFILES,		None			},
+	{ "_KDE_SPLASH_PROGRESS",		&_XA_KDE_SPLASH_PROGRESS,	NULL,					&cm_handle_KDE_SPLASH_PROGRESS,		None			},
+
 	{ "_KDE_WM_CHANGE_STATE",		&_XA_KDE_WM_CHANGE_STATE,	NULL,					&cm_handle_KDE_WM_CHANGE_STATE,		None			},
 	{ "MANAGER",				&_XA_MANAGER,			NULL,					&cm_handle_MANAGER,			None			},
 	{ "_MOTIF_WM_INFO",			&_XA_MOTIF_WM_INFO,		&pc_handle_MOTIF_WM_INFO,		NULL,					None			},
@@ -1874,6 +2036,255 @@ init_screen(XdgScreen *scr)
 	check_shelp(scr);
 }
 
+static void
+pc_handle_DT_WORKSPACE_CURRENT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_DT_WORKSPACE_LIST(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_DT_WORKSPACE_PRESENCE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_ECHINUS_LAYOUT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_ECHINUS_SELTAGS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_GTK_THEME_VARIANT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_KDE_NET_WM_FRAME_STRUT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_MOTIF_WM_HINTS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_APPLICATION_ID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_BINARY_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_DESCRIPTION(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_HOSTNAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_ICON_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_LAUNCHEE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_LAUNCHER(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_PID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_SCREEN(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_SEQUENCE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_TIMESTAMP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_APP_WMCLASS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_CURRENT_DESKTOP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_DESKTOP_GEOMETRY(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_DESKTOP_MODES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_DESKTOP_NAMES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_DESKTOP_VIEWPORT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_NUMBER_OF_DESKTOPS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_SHOWING_DESKTOP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_WM_DESKTOP_MASK(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_WM_SYNC_REQUEST_COUNTER(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_NET_WORKAREA(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_OB_APP_CLASS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_OB_APP_GROUP_CLASS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_OB_APP_GROUP_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_OB_APP_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_OB_APP_TITLE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_OB_APP_TYPE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_PULSE_COOKIE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_PULSE_ID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_PULSE_SERVER(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_AREA(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_AREA_COUNT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_DESKTOP_BUTTON_PROXY(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_WORKAREA(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_WORKSPACE_COUNT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_WORKSPACE_NAMES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WIN_WORKSPACES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WM_DESKTOP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_WM_LOCALE_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
+
+static void
+pc_handle_XROOTPMAP_ID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+{
+}
 static void
 pc_handle_WINDOWMAKER_NOTICEBOARD(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
@@ -6627,6 +7038,16 @@ pc_handle_WM_SIZE_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 }
 
 static void
+cm_handle_GTK_READ_RCFILES(XdgScreen * scr, XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
+cm_handle_KDE_SPLASH_PROGRESS(XdgScreen * scr, XClientMessageEvent *e, Client *c)
+{
+}
+
+static void
 cm_handle_KDE_WM_CHANGE_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
 	PTRACE(5);
@@ -6987,6 +7408,12 @@ cm_handle_MANAGER(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 			scr->shelp_owner = owner;
 			check_shelp(scr);
 		}
+	} else {
+		char *name = NULL;
+
+		DPRINTF(1, "no MANAGER selection for %s\n", (name = XGetAtomName(dpy, selection)));
+		if (name)
+			XFree(name);
 	}
 }
 
