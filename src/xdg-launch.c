@@ -8455,7 +8455,7 @@ want_phase(Process *pr)
 			DPRINTF(2, "App %s needs audio server so phase is %s\n", pr->appid, phase_str(phase));
 		} else {
 			phase = AutostartPhase_Application;
-			DPRINTF(2, "App %s needs so phase is %s\n", pr->appid, phase_str(phase));
+			DPRINTF(2, "App %s needs nothing so phase is %s\n", pr->appid, phase_str(phase));
 		}
 	}
 	return (phase);
