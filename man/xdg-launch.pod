@@ -694,6 +694,12 @@ Await resources for no longer than I<SECONDS> seconds before continuing.
 Not specifying a value or specifying a value of zero (0) indicates to
 wait indefinitely for the resource.  The default value is 2 seconds.
 
+=item B<--delay> I<SECONDS>
+
+Delay for I<SECONDS> seconds before launching an auto-start entry.  The
+default value is zero (0) seconds.  When, non-zero, this option
+overrides the C<X-GNOME-AUtostart-Delay> desktop entry field.
+
 =back
 
 =head2 HISTORY OPTIONS

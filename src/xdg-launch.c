@@ -269,6 +269,7 @@ typedef struct {
 	Bool assist;
 	Bool autoassist;
 	int guard;
+	int delay;
 	Bool puthist;
 	Bool setpref;
 	Bool fallback;
@@ -333,6 +334,7 @@ Options options = {
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
+	.delay = 0,
 	.puthist = -1,
 	.setpref = False,
 	.fallback = True,
@@ -396,6 +398,7 @@ Options defaults = {
 	.assist = False,
 	.autoassist = True,
 	.guard = 2,
+	.delay = 0,
 	.puthist = -1,
 	.setpref = False,
 	.fallback = True,
@@ -641,6 +644,7 @@ typedef struct _Process {
 	char *path;			/* path to .desktop file */
 	char *appid;			/* application id portion of path */
 	char *action;			/* application action or NULL */
+	unsigned delay;			/* seconds to wait before launching */
 	Entry *ent;			/* parsed entry for this process */
 	Sequence *seq;			/* startup notification sequence */
 } Process;
@@ -9267,6 +9271,12 @@ launch_simple(Process *pr)
 		put_history(pr);
 	if (options.setpref)
 		put_default(pr);
+	if (pr->type == LaunchType_Autostart && pr->delay) {
+		if (options.info)
+			OPRINTF(1, "Would sleep for %u seconds\n", pr->delay);
+		else
+			sleep(pr->delay);
+	}
 	OPRINTF(1, "checking auto-wait resources:\n");
 	if (options.wait) {
 		/* no startup helper because we check for assistance below */
@@ -9308,7 +9318,7 @@ launch_simple(Process *pr)
 			OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", pr->seq->f.command);
 			return;
 		}
-		DPRINTF(1,"Launching window manager %s\n", pr->appid);
+		DPRINTF(1, "Launching window manager %s\n", pr->appid);
 		DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
 		execl("/bin/sh", "sh", "-c", pr->seq->f.command, NULL);
 		EPRINTF("Should never get here!\n");
@@ -10398,101 +10408,6 @@ set_seq_all(Process *pr)
 		set_seq_xsession(pr);
 	if (!s->f.id)
 		set_seq_id(pr);
-}
-
-/** @} */
-
-/** @section Setting and Overriding Desktop Entry Fields from Options
-  * @{ */
-
-static void
-set_ent_all(Process *pr)
-{
-	Entry *e = pr->ent;
-	char *str;
-
-	switch (pr->type) {
-	case LaunchType_Application:
-		free(e->Type);
-		e->Type = strdup("Application");
-		break;
-	case LaunchType_Autostart:
-		free(e->Type);
-		e->Type = strdup("Autostart");
-		break;
-	case LaunchType_XSession:
-	case LaunchType_Session:
-	case LaunchType_Startup:
-		free(e->Type);
-		e->Type = strdup("XSession");
-		break;
-	}
-	if (options.name) {
-		free(e->Name);
-		e->Name = strdup(options.name);
-	} else if (!e->Name) {
-		if ((str = options.exec)) {
-			str = first_word(options.exec);
-			e->Name = strdup(basename(str));
-			free(str);
-		} else if ((str = options.binary))
-			e->Name = strdup(basename(str));
-		else if (eargv && (str = eargv[0]))
-			e->Name = strdup(basename(str));
-	}
-	if (options.description) {
-		free(e->Comment);
-		e->Comment = strdup(options.description);
-	}
-	if (options.icon) {
-		free(e->Icon);
-		e->Icon = strdup(options.icon);
-	}
-	if (options.exec) {
-		free(e->Exec);
-		e->Exec = strdup(options.exec);
-	} else if (!e->Exec) {
-		if (eargv) {
-			char *buf = calloc(BUFSIZ + 1, sizeof(*buf));
-			char *p, *q;
-			int i;
-
-			for (q = buf, i = 0; i < eargc; i++) {
-				if (i > 0)
-					*q++ = '\'';
-				if ((p = eargv[i])) {
-					while (*p) {
-						if (*p == '\'')
-							*q++ = '\\';
-						*q++ = *p++;
-					}
-				}
-				if (i > 0)
-					*q++ = '\'';
-				if (i < eargc - 1)
-					*q++ = ' ';
-			}
-			e->Exec = strdup(buf);
-			free(buf);
-		}
-	}
-	if (!e->TryExec) {
-		if ((str = options.exec))
-			e->TryExec = first_word(str);
-		else if ((str = options.binary))
-			e->TryExec = strdup(str);
-		else if (eargv && (str = eargv[0]))
-			e->TryExec = strdup(str);
-	}
-	if (options.wmclass) {
-		free(e->StartupWMClass);
-		e->StartupWMClass = strdup(options.wmclass);
-	} else if (!e->StartupWMClass) {
-		if ((str = options.binary))
-			e->StartupWMClass = strdup(basename(str));
-		else if (eargv && (str = eargv[0]))
-			e->StartupWMClass = strdup(basename(str));
-	}
 }
 
 /** @} */
@@ -12088,6 +12003,105 @@ launch_session(Process *wm)
 /** @section Determine Desktop Entry from Options
   * @{ */
 
+static void
+set_ent_all(Process *pr)
+{
+	Entry *e = pr->ent;
+	char *str;
+
+	switch (pr->type) {
+	case LaunchType_Application:
+		free(e->Type);
+		e->Type = strdup("Application");
+		break;
+	case LaunchType_Autostart:
+		free(e->Type);
+		e->Type = strdup("Autostart");
+		break;
+	case LaunchType_XSession:
+	case LaunchType_Session:
+	case LaunchType_Startup:
+		free(e->Type);
+		e->Type = strdup("XSession");
+		break;
+	}
+	if (options.name) {
+		free(e->Name);
+		e->Name = strdup(options.name);
+	} else if (!e->Name) {
+		if ((str = options.exec)) {
+			str = first_word(options.exec);
+			e->Name = strdup(basename(str));
+			free(str);
+		} else if ((str = options.binary))
+			e->Name = strdup(basename(str));
+		else if (eargv && (str = eargv[0]))
+			e->Name = strdup(basename(str));
+	}
+	if (options.description) {
+		free(e->Comment);
+		e->Comment = strdup(options.description);
+	}
+	if (options.icon) {
+		free(e->Icon);
+		e->Icon = strdup(options.icon);
+	}
+	if (options.exec) {
+		free(e->Exec);
+		e->Exec = strdup(options.exec);
+	} else if (!e->Exec) {
+		if (eargv) {
+			char *buf = calloc(BUFSIZ + 1, sizeof(*buf));
+			char *p, *q;
+			int i;
+
+			for (q = buf, i = 0; i < eargc; i++) {
+				if (i > 0)
+					*q++ = '\'';
+				if ((p = eargv[i])) {
+					while (*p) {
+						if (*p == '\'')
+							*q++ = '\\';
+						*q++ = *p++;
+					}
+				}
+				if (i > 0)
+					*q++ = '\'';
+				if (i < eargc - 1)
+					*q++ = ' ';
+			}
+			e->Exec = strdup(buf);
+			free(buf);
+		}
+	}
+	if (!e->TryExec) {
+		if ((str = options.exec))
+			e->TryExec = first_word(str);
+		else if ((str = options.binary))
+			e->TryExec = strdup(str);
+		else if (eargv && (str = eargv[0]))
+			e->TryExec = strdup(str);
+	}
+	if (options.wmclass) {
+		free(e->StartupWMClass);
+		e->StartupWMClass = strdup(options.wmclass);
+	} else if (!e->StartupWMClass) {
+		if ((str = options.binary))
+			e->StartupWMClass = strdup(basename(str));
+		else if (eargv && (str = eargv[0]))
+			e->StartupWMClass = strdup(basename(str));
+	}
+	if (options.delay) {
+		char buf[24] = { 0, };
+
+		free(e->AutostartDelay);
+		snprintf(buf, sizeof(buf) - 1, "%d", options.delay);
+		e->AutostartDelay = strdup(buf);
+	}
+	if (e->AutostartDelay)
+		pr->delay = atoi(e->AutostartDelay);
+}
+
 static Process *
 setup_entry(Command command)
 {
@@ -12217,6 +12231,8 @@ setup_entry(Command command)
 			exit(EXIT_FAILURE);
 		}
 	}
+	/* parse_proc() can change the type to that found in the file */
+	pr->type = options.type;
 	pr->action = options.action ? strdup(options.action) : NULL;
 	set_ent_all(pr);	/* fill in entry from options */
 	if (options.file && options.file[0] && !options.url) {
@@ -12502,27 +12518,29 @@ Options:\n\
         wait for audio server before launching, [default: '%46$s']\n\
     -g, --guard [SECONDS]\n\
         only wait for resources for SECONDS, [default: '%47$d']\n\
+    --delay SECONDS\n\
+        delay SECONDS before launching autostart entry, [default: '%48$d']\n\
   History Options:\n\
     --history, --no-history\n\
-        save the file/usl and appid in recently used files, [default: '%48$s']\n\
+        save the file/usl and appid in recently used files, [default: '%49$s']\n\
     -k, --keep NUMBER\n\
-        specify NUMBER of recent applications to keep, [default: '%49$d']\n\
+        specify NUMBER of recent applications to keep, [default: '%50$d']\n\
     -r, --recent FILENAME\n\
-        specify FILENAME of recent apps file, [default: '%50$s']\n\
+        specify FILENAME of recent apps file, [default: '%51$s']\n\
   Content Options:\n\
     --set-default\n\
-        set application to preferred by type/category, [default: '%51$s']\n\
+        set application to preferred by type/category, [default: '%52$s']\n\
     --default, --no-default\n\
-        use default applications by type/category, [default: '%52$s']\n\
+        use default applications by type/category, [default: '%53$s']\n\
     --recommend, --no-recommend\n\
-        use recommended applications by type/category, [default: '%53$s']\n\
+        use recommended applications by type/category, [default: '%54$s']\n\
     --fallback, --no-fallback\n\
-        use fallback applications by type/category, [default: '%54$s']\n\
+        use fallback applications by type/category, [default: '%55$s']\n\
   General Options:\n\
     -D, --debug [LEVEL]\n\
-        increment or set debug LEVEL [default: '%55$d']\n\
+        increment or set debug LEVEL [default: '%56$d']\n\
     -v, --verbose [LEVEL]\n\
-        increment or set output verbosity LEVEL [default: '%56$d']\n\
+        increment or set output verbosity LEVEL [default: '%57$d']\n\
         this option may be repeated.\n\
 ", argv[0]
 	, defaults.appspec ? : ""
@@ -12571,6 +12589,7 @@ Options:\n\
 	, show_bool(defaults.composite)
 	, show_bool(defaults.audio)
 	, defaults.guard
+	, defaults.delay
 	, show_bool(defaults.puthist)
 	, defaults.keep
 	, defaults.recapps
@@ -12828,6 +12847,7 @@ main(int argc, char *argv[])
 			{"composite",	no_argument,		NULL, 'O'},
 			{"audio",	no_argument,		NULL, 'R'},
 			{"guard",	optional_argument,	NULL, 'g'},
+			{"delay",	required_argument,	NULL,  23},
 
 			{"set-default",	no_argument,		NULL,  13},
 			{"default",	no_argument,		NULL,  14},
@@ -13131,6 +13151,12 @@ main(int argc, char *argv[])
 				goto bad_option;
 			defaults.guard = options.guard = val;
 			break;
+		case 23:	/* --delay SECONDS */
+			val = strtoul(optarg, &endptr, 0);
+			if (*endptr)
+				goto bad_option;
+			defaults.delay = options.delay = val;
+			break;
 		case 13:	/* --set-default */
 			defaults.setpref = options.setpref = True;
 			EPRINTF("--set-default option not yet supported!\n");
@@ -13280,7 +13306,6 @@ main(int argc, char *argv[])
 		/* fall thru */
 	case CommandLaunch:
 		if ((pr = setup_entry(command))) {
-			pr->type = options.type;
 			launch(pr);
 			exit(EXIT_SUCCESS);
 		}
@@ -13288,7 +13313,6 @@ main(int argc, char *argv[])
 		goto bad_usage;
 	case CommandSession:
 		if ((pr = setup_entry(command))) {
-			pr->type = options.type;
 			launch(pr);
 			exit(EXIT_SUCCESS);
 		}
@@ -13297,7 +13321,6 @@ main(int argc, char *argv[])
 		/* fall through */
 	case CommandStartup:
 		pr = setup_entry(command);
-		pr->type = options.type;
 		launch(pr);
 		exit(EXIT_SUCCESS);
 	}
