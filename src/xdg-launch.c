@@ -50,6 +50,9 @@
 #define _XOPEN_SOURCE 600
 #endif
 
+/** @section Includes
+  * @{ */
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -105,6 +108,11 @@
 #include <gio/gdesktopappinfo.h>
 #endif
 
+/** @} */
+
+/** @section Debugging Preamble
+  * @{ */
+
 const char *
 _timestamp(void)
 {
@@ -155,6 +163,11 @@ dumpstack(const char *file, const int line, const char *func)
 		fflush(stderr);
 	}
 }
+
+/** @} */
+
+/** @section Definitions of Globals, Enumerations, Structures
+  * @{ */
 
 const char *program = NAME;
 
@@ -569,6 +582,26 @@ typedef enum {
 	AutostartPhase_Application,
 } AutostartPhase;
 
+const char *
+phase_str(AutostartPhase phase)
+{
+	switch (phase) {
+	case AutostartPhase_PreDisplayServer:
+		return("PreDisplayServer");
+	case AutostartPhase_Initialization:
+		return("Initialization");
+	case AutostartPhase_WindowManager:
+		return("WindowManager");
+	case AutostartPhase_Desktop:
+		return("Desktop");
+	case AutostartPhase_Panel:
+		return("Panel");
+	case AutostartPhase_Application:
+		return("Application");
+	}
+	return("(unknown)");
+}
+
 typedef struct _Client Client;
 
 typedef enum {
@@ -762,6 +795,11 @@ Client *clients = NULL;
 Time current_time = CurrentTime;
 Time last_user_time = CurrentTime;
 Time launch_time = CurrentTime;
+
+/** @} */
+
+/** @section Atoms, Handlers and Contexts
+  * @{ */
 
 static Atom _XA_DT_WORKSPACE_CURRENT;
 static Atom _XA_DT_WORKSPACE_LIST;
@@ -1169,6 +1207,11 @@ XContext ScreenContext;			/* window to screen context */
 XContext ClientContext;			/* window to client context */
 XContext MessageContext;		/* window to message context */
 
+/** @} */
+
+/** @section XDisplay Initialization and Error handlers
+  * @{ */
+
 static void
 intern_atoms(Display *dpy)
 {
@@ -1358,6 +1401,11 @@ put_display(Display *dpy)
 	}
 }
 
+/** @} */
+
+/** @section Fetching X Window Properties
+  * @{ */
+
 static char *
 get_text(Display *dpy, Window win, Atom prop)
 {
@@ -1490,6 +1538,11 @@ XGetEmbedInfo(Display *dpy, Window win)
 	return NULL;
 }
 
+/** @} */
+
+/** @section Time Handling
+  * @{ */
+
 static Bool
 latertime(Time last, Time time)
 {
@@ -1513,6 +1566,11 @@ pulltime(Time *last, Time time)
 	if (!latertime(*last, time))
 		*last = time;
 }
+
+/** @} */
+
+/** @section Window Manager and Resource Checks
+  * @{ */
 
 /** @brief Check for recursive window properties
   * @param atom - property name
@@ -2047,6 +2105,43 @@ init_screen(XdgScreen *scr)
 	check_shelp(scr);
 }
 
+/*
+ * Check whether the window manager needs assitance: return True when it needs assistance
+ * and False otherwise.
+ *
+ * When the WM supports _NET_STARTUP_ID and _NET_WM_USER_TIME, it should be able
+ * to get its own timestamps out of _NET_STARTUP_ID.  When the WM supports
+ * _NET_STARTUP_INFO(_BEGIN), it should be able to intercept its own startup
+ * notification messages to at least determine the desktop/workspace upon which
+ * the window should start in addition to the above; also, it should be able to
+ * determine from WMCLASS= which messages belong to which newly mapped window.
+ */
+static Bool
+need_assistance(Display *dpy)
+{
+	XdgScreen *scr = screens + DefaultScreen(dpy);
+
+	if (check_shelp(scr)) {
+		DPRINTF(1, "No assistance needed: Startup notification helper running\n");
+		return False;
+	}
+	if (!check_netwm(scr)) {
+		DPRINTF(1, "Failed NetWM check!\n");
+		OPRINTF(1, "Assistance required: window manager failed NetWM check\n");
+		return True;
+	}
+	if (!check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
+		OPRINTF(1, "Assistance required: window manager does not support _NET_STARTUP_ID\n");
+		return True;
+	}
+	return False;
+}
+
+/** @} */
+
+/** @section PropertyNotify and ClientMessage Handlers
+  * @{ */
+
 static void
 pc_handle_DT_WORKSPACE_CURRENT(XdgScreen * scr, XPropertyEvent *e, Client *c)
 {
@@ -2338,6 +2433,11 @@ pc_handle_WIN_SUPPORTING_WM_CHECK(XdgScreen *scr, XPropertyEvent *e, Client *c)
 	handle_wmchange(scr);
 }
 
+/** @} */
+
+/** @section Client Tracking Routines
+  * @{ */
+
 static XdgScreen *
 set_screen_of_root(Display *dpy, Window sroot)
 {
@@ -2626,59 +2726,10 @@ add_group(XdgScreen *scr, Client *c, Window leader, Groups group)
 	return;
 }
 
-/*
- * Check whether the window manager needs assitance: return True when it needs assistance
- * and False otherwise.
- *
- * When the WM supports _NET_STARTUP_ID and _NET_WM_USER_TIME, it should be able
- * to get its own timestamps out of _NET_STARTUP_ID.  When the WM supports
- * _NET_STARTUP_INFO(_BEGIN), it should be able to intercept its own startup
- * notification messages to at least determine the desktop/workspace upon which
- * the window should start in addition to the above; also, it should be able to
- * determine from WMCLASS= which messages belong to which newly mapped window.
- */
-static Bool
-need_assistance(Display *dpy)
-{
-	XdgScreen *scr = screens + DefaultScreen(dpy);
+/** @} */
 
-	if (check_shelp(scr)) {
-		DPRINTF(1, "No assistance needed: Startup notification helper running\n");
-		return False;
-	}
-	if (!check_netwm(scr)) {
-		DPRINTF(1, "Failed NetWM check!\n");
-		OPRINTF(1, "Assistance required: window manager failed NetWM check\n");
-		return True;
-	}
-	if (!check_supported(scr, _XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
-		OPRINTF(1, "Assistance required: window manager does not support _NET_STARTUP_ID\n");
-		return True;
-	}
-	return False;
-}
-
-const char *
-phase_str(AutostartPhase phase)
-{
-	switch (phase) {
-	case AutostartPhase_PreDisplayServer:
-		return("PreDisplayServer");
-	case AutostartPhase_Initialization:
-		return("Initialization");
-	case AutostartPhase_WindowManager:
-		return("WindowManager");
-	case AutostartPhase_Desktop:
-		return("Desktop");
-	case AutostartPhase_Panel:
-		return("Panel");
-	case AutostartPhase_Application:
-		return("Application");
-	}
-	return("(unknown)");
-}
-
-static void free_entry(Entry *e);
+/** @section Application Id Manipulation
+  * @{ */
 
 static char *
 strip_desktop(const char *p)
@@ -2706,6 +2757,13 @@ desktop_to_appid(const char *path)
 		*p = tolower(*p);
 	return (q);
 }
+
+/** @} */
+
+/** @section Desktop Entry File Parsing
+  * @{ */
+
+static void free_entry(Entry *e);
 
 static Entry *
 parse_file(Process *pr, char *path)
@@ -2983,6 +3041,11 @@ parse_proc(Process *pr)
 	pr->appid = extract_appid(pr->path);
 	return (True);
 }
+
+/** @} */
+
+/** @section Desktop Entry File Lookup
+  * @{ */
 
 /** @brief look up the file from APPID.
   *
@@ -3560,6 +3623,11 @@ lookup_proc_by_kind(Process *pr, const char *kind)
 	return True;
 }
 
+/** @} */
+
+/** @section Startup Notificaiton Message Sending
+  * @{ */
+
 static void
 apply_quotes(char **str, char *q)
 {
@@ -3734,6 +3802,11 @@ send_remove(Display *dpy, Process *pr)
 	free(msg);
 	pr->state = StartupNotifyComplete;
 }
+
+/** @} */
+
+/** @section Client Search Routines
+  * @{ */
 
 /** @brief - get a proc file and read it into a buffer
   * @param pid - process id for which to get the proc file
@@ -4187,6 +4260,11 @@ test_client(Client *c, Process *pr)
 	return False;
 }
 
+/** @} */
+
+/** @section Client Assistance
+  * @{ */
+
 static Process *ref_process(Process *pr);
 
 /** @brief perform a quick assist on the client and window manager
@@ -4264,6 +4342,70 @@ assist_client(Display *dpy, Client *c, Process *pr)
 		}
 	}
 }
+
+/** @} */
+
+/** @section Displaying Values Helpers
+  * @{ */
+
+static const char *
+show_state(int state)
+{
+	switch (state) {
+	case WithdrawnState:
+		return ("WithdrawnState");
+	case NormalState:
+		return ("NormalState");
+	case IconicState:
+		return ("IconicState");
+	case ZoomState:
+		return ("ZoomState");
+	case InactiveState:
+		return ("InactiveState");
+	}
+	return ("UnknownState");
+}
+
+static const char *
+show_atoms(Display *dpy, Atom *atoms, int n)
+{
+	static char buf[BUFSIZ + 1] = { 0, };
+	char *name;
+	int i;
+
+	buf[0] = '\0';
+	for (i = 0; i < n; i++) {
+		if (i)
+			strncat(buf, ",", BUFSIZ);
+		strncat(buf, " ", BUFSIZ);
+		if ((name = XGetAtomName(dpy, atoms[i]))) {
+			strncat(buf, name, BUFSIZ);
+			XFree(name);
+		} else
+			strncat(buf, "???", BUFSIZ);
+	}
+	return (buf);
+}
+
+static const char *
+show_command(char *argv[], int argc)
+{
+	static char buf[BUFSIZ + 1] = { 0, };
+	int i;
+
+	buf[0] = '\0';
+	for (i = 0; i < argc; i++) {
+		strncat(buf, " '", BUFSIZ);
+		strncat(buf, argv[i], BUFSIZ);
+		strncat(buf, "'", BUFSIZ);
+	}
+	return (buf);
+}
+
+/** @} */
+
+/** @section Startup Notificaiton Receiving
+  * @{ */
 
 static Bool
 same_client(Window a, Window b)
@@ -4723,60 +4865,6 @@ retest_client(Display *dpy, Client *c)
 	}
 }
 
-static const char *
-show_state(int state)
-{
-	switch (state) {
-	case WithdrawnState:
-		return ("WithdrawnState");
-	case NormalState:
-		return ("NormalState");
-	case IconicState:
-		return ("IconicState");
-	case ZoomState:
-		return ("ZoomState");
-	case InactiveState:
-		return ("InactiveState");
-	}
-	return ("UnknownState");
-}
-
-static const char *
-show_atoms(Display *dpy, Atom *atoms, int n)
-{
-	static char buf[BUFSIZ + 1] = { 0, };
-	char *name;
-	int i;
-
-	buf[0] = '\0';
-	for (i = 0; i < n; i++) {
-		if (i)
-			strncat(buf, ",", BUFSIZ);
-		strncat(buf, " ", BUFSIZ);
-		if ((name = XGetAtomName(dpy, atoms[i]))) {
-			strncat(buf, name, BUFSIZ);
-			XFree(name);
-		} else
-			strncat(buf, "???", BUFSIZ);
-	}
-	return (buf);
-}
-
-static const char *
-show_command(char *argv[], int argc)
-{
-	static char buf[BUFSIZ + 1] = { 0, };
-	int i;
-
-	buf[0] = '\0';
-	for (i = 0; i < argc; i++) {
-		strncat(buf, " '", BUFSIZ);
-		strncat(buf, argv[i], BUFSIZ);
-		strncat(buf, "'", BUFSIZ);
-	}
-	return (buf);
-}
-
 /** @brief check a newly created client (top-level) window
   * @param c - client structure pointer
   *
@@ -5081,6 +5169,16 @@ update_client(Display *dpy, Client *c)
 	}
 }
 
+/** @} */
+
+/** @section Desktop Entry File Lookup
+  * @{ */
+
+/** @} */
+
+/** @section Client Lifecycle
+  * @{ */
+
 static Client *
 add_client(XdgScreen *scr, Window win)
 {
@@ -5115,6 +5213,11 @@ get_client(XdgScreen *scr, Window win)
 		c = add_client(scr, win);
 	return (c);
 }
+
+/** @} */
+
+/** @section Desktop Entry Display and Lifecycle
+  * @{ */
 
 static void
 show_entry(const char *prefix, Entry *e)
@@ -5162,6 +5265,11 @@ free_entry(Entry *e)
 	e->path = NULL;
 	free(e);
 }
+
+/** @} */
+
+/** @section Desktop Startup Sequence Display
+  * @{ */
 
 static Bool msg_from_wm(Window w);
 static Bool msg_from_la(Window w);
@@ -5219,6 +5327,11 @@ info_sequence(const char *prefix, Sequence *seq)
 			OPRINTF(1, "%s=\n", *label);
 	}
 }
+
+/** @} */
+
+/** @section Desktop Startup Sequence Handling
+  * @{ */
 
 static Process *remove_process(Process *pr);
 
@@ -5357,6 +5470,11 @@ copy_process_fields(Process *old, Process *new)
 	if (old->seq && new->seq)
 		copy_sequence_fields(old->seq, new->seq);
 }
+
+/** @} */
+
+/** @section Process Lifecycle
+  * @{ */
 
 static Process *
 find_pr_by_id(char *id)
@@ -5515,6 +5633,11 @@ begin_process(Display *dpy, Process *pr)
 	}
 	return (pr);
 }
+
+/** @} */
+
+/** @section Receive Desktop Startup Notification Handling
+  * @{ */
 
 static void
 process_startup_msg(Message *m)
@@ -5791,6 +5914,11 @@ clean_msgs(Display *dpy, Window w)
 	free(m->data);
 	free(m);
 }
+
+/** @} */
+
+/** @section Client Handling (Normal Windows and Events)
+  * @{ */
 
 /** @brief perform actions necessary for a newly managed client
   * @param c - the client
@@ -7256,6 +7384,11 @@ pc_handle_WM_ZOOM_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 	PTRACE(5);
 }
 
+/** @} */
+
+/** @section Client Handling (System Tray Status Icons)
+  * @{ */
+
 enum {
 	XEMBED_EMBEDDED_NOTIFY,
 	XEMBED_WINDOW_ACTIVATE,
@@ -7383,6 +7516,23 @@ cm_handle_XEMBED(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 	managed_client(c, e->data.l[0]);
 }
 
+static void
+pc_handle_NET_SYSTEM_TRAY_ORIENTATION(XdgScreen *scr, XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+static void
+pc_handle_NET_SYSTEM_TRAY_VISUAL(XdgScreen *scr, XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
+}
+
+/** @} */
+
+/** @section MANAGER Selection Detection
+  * @{ */
+
 /** @brief handle MANAGER client message
   * @param e - ClientMessage event
   * @param c - client for message (may be NULL)
@@ -7468,24 +7618,6 @@ cm_handle_MANAGER(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 }
 
 static void
-pc_handle_TIMESTAMP_PROP(XdgScreen *scr, XPropertyEvent *e, Client *c)
-{
-	PTRACE(5);
-}
-
-static void
-pc_handle_NET_SYSTEM_TRAY_ORIENTATION(XdgScreen *scr, XPropertyEvent *e, Client *c)
-{
-	PTRACE(5);
-}
-
-static void
-pc_handle_NET_SYSTEM_TRAY_VISUAL(XdgScreen *scr, XPropertyEvent *e, Client *c)
-{
-	PTRACE(5);
-}
-
-static void
 pc_handle_NET_DESKTOP_LAYOUT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
 	if (!e || e->type != PropertyNotify)
@@ -7502,6 +7634,17 @@ pc_handle_NET_DESKTOP_LAYOUT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 		break;
 	}
 	return;
+}
+
+/** @} */
+
+/** @section X Event Handlers
+  * @{ */
+
+static void
+pc_handle_TIMESTAMP_PROP(XdgScreen *scr, XPropertyEvent *e, Client *c)
+{
+	PTRACE(5);
 }
 
 static void
@@ -7919,6 +8062,11 @@ handle_event(Display *dpy, XEvent *e)
 	}
 }
 
+/** @} */
+
+/** @section PID Reset
+  * @{ */
+
 static void set_seq_pid(Process *pr);
 static void set_seq_id(Process *pr);
 
@@ -7944,6 +8092,20 @@ reset_pid(pid_t pid, Process *pr)
   * We want to perform as much as possible in the master process before the
   * acutal launch so that this information is immediately available to the child
   * process before the launch.
+  *
+  * Things that need to be done here:
+  *
+  * 1. Determine whether we have a window manager and what specs it is compliant
+  *    with.
+  *
+  * 2. If we have a WinWM/WMH or NetWM/EWMH window manager present, use the
+  *    client list (_NET_CLIENT_LIST or _WIN_CLIENT_LIST) to identify existing
+  *    clients.  Also, look for docked dockaspps and status icons installed in
+  *    the system tray.  We should do all of this with the server grabbed, so it
+  *    should be as brief as possible.  If there is no window manager ICCCM 2.0
+  *    compliant window manager, the scan must be performed on top-level
+  *    windows.  We basically want to create a client structure for all windows,
+  *    whether managed or not.
   */
 static void
 setup_to_assist(Process *pr)
@@ -7953,6 +8115,11 @@ setup_to_assist(Process *pr)
 
 	/* FIXME: needs to do more: scan for existing clients... */
 }
+
+/** @} */
+
+/** @section Signal FD Routines
+  * @{ */
 
 static int signal_fd = -1;
 static struct signalfd_siginfo ssi = { 0, };
@@ -7995,6 +8162,11 @@ put_signal_fd(void)
 	}
 	return (signal_fd);
 }
+
+/** @} */
+
+/** @section Timer FD Routines
+  * @{ */
 
 static int timer_fd = -1;
 uint64_t timer_timeouts = 0;
@@ -8048,6 +8220,11 @@ stop_guard_timer(void)
 
 	timerfd_settime(fd, 0, &it, NULL);
 }
+
+/** @} */
+
+/** @section Condition Wait and Check Routines
+  * @{ */
 
 static Bool
 wait_for_condition(Display *dpy, Bool (*condition) (Display *, XPointer), XPointer data, int guard)
@@ -8170,37 +8347,6 @@ wait_for_completion(Display *dpy, Process *pr, int guard)
 	if (options.info)
 		OPRINTF(1, "Might wait for %s completion for %d seconds\n", pr->appid, guard);
 	return wait_for_condition(dpy, &check_for_completion, (XPointer) pr, guard);
-}
-
-static void
-close_files(void)
-{
-	struct rlimit rlim = { 0, };
-	int i;
-
-	getrlimit(RLIMIT_NOFILE, &rlim);
-
-	/* close all fds except stdin, stdout, stderr */
-
-	for (i = 3; i < rlim.rlim_cur; i++)
-		close(i);
-}
-
-static void
-reset_signals(void)
-{
-	sigset_t ss;
-
-	sigfillset(&ss);
-	sigprocmask(SIG_UNBLOCK, &ss, NULL);
-
-	/* don't care about job control */
-	signal(SIGTTIN, SIG_IGN);
-	signal(SIGTTOU, SIG_IGN);
-	signal(SIGTSTP, SIG_IGN);
-	signal(SIGCHLD, SIG_DFL);
-	signal(SIGSTOP, SIG_DFL);
-	signal(SIGCONT, SIG_DFL);
 }
 
 static Bool
@@ -8392,6 +8538,132 @@ try_wait_exited_pid(pid_t pid)
 }
 #endif
 
+static Bool
+check_for_resources(Display *dpy, XPointer data)
+{
+	XdgScreen *scr = screens + DefaultScreen(dpy);
+	long mask = (long) data;
+
+	OPRINTF(1, "Checking for resources:\n");
+	if ((mask & WAITFOR_AUDIOSERVER) && !check_audio(scr))
+		return (False);
+	if ((mask & WAITFOR_WINDOWMANAGER) && !check_window_manager(scr))
+		return (False);
+	if ((mask & WAITFOR_COMPOSITEMANAGER) && !check_compm(scr))
+		return (False);
+	if ((mask & WAITFOR_DESKTOPPAGER) && !check_pager(scr))
+		return (False);
+	if ((mask & WAITFOR_STARTUPHELPER) && !check_shelp(scr))
+		return (False);
+	if ((mask & WAITFOR_SYSTEMTRAY) && !check_stray(scr))
+		return (False);
+	return (True);
+}
+
+static Bool
+wait_for_resources(Display *dpy, long wait_for, int guard)
+{
+	if (options.info) {
+		OPRINTF(1, "Might wait for resources for %d seconds:\n", guard);
+		if (wait_for & WAITFOR_SYSTEMTRAY)
+			OPRINTF(1, "--> system tray\n");
+		if (wait_for & WAITFOR_STARTUPHELPER)
+			OPRINTF(1, "--> startup helper\n");
+		if (wait_for & WAITFOR_DESKTOPPAGER)
+			OPRINTF(1, "--> desktop pager\n");
+		if (wait_for & WAITFOR_COMPOSITEMANAGER)
+			OPRINTF(1, "--> composite manager\n");
+		if (wait_for & WAITFOR_WINDOWMANAGER)
+			OPRINTF(1, "--> window manager\n");
+		if (wait_for & WAITFOR_AUDIOSERVER)
+			OPRINTF(1, "--> audio server\n");
+	}
+	return wait_for_condition(dpy, &check_for_resources, (XPointer) wait_for, guard);
+}
+
+static Window
+check_anywm(XdgScreen *scr)
+{
+	if (scr->netwm_check)
+		return scr->netwm_check;
+	if (scr->winwm_check)
+		return scr->winwm_check;
+	if (scr->maker_check)
+		return scr->maker_check;
+	if (scr->motif_check)
+		return scr->motif_check;
+	if (scr->icccm_check)
+		return scr->icccm_check;
+	if (scr->redir_check)
+		return scr->redir_check;
+	return None;
+}
+
+static Window
+check_wmngr(XdgScreen *scr)
+{
+	PTRACE(5);
+	check_netwm(scr);
+	check_winwm(scr);
+	check_maker(scr);
+	check_motif(scr);
+	check_icccm(scr);
+	check_redir(scr);
+	return check_anywm(scr);
+}
+
+static Bool
+check_window(Display *dpy, XPointer data)
+{
+	XdgScreen *scr = screens + DefaultScreen(dpy);
+	Window (*until)(XdgScreen *) = (typeof(until)) data;
+	return (until(scr) ? True : False);
+}
+
+static Bool
+wait_for_window_manager(Display *dpy)
+{
+	if (options.info)
+		OPRINTF(1, "Might wait for window manager for %d seconds\n", options.guard);
+	return wait_for_condition(dpy, &check_window, (XPointer) &check_wmngr, options.guard);
+}
+
+/** @} */
+
+/** @section Child Forking and Handling
+  * @{ */
+
+static void
+close_files(void)
+{
+	struct rlimit rlim = { 0, };
+	int i;
+
+	getrlimit(RLIMIT_NOFILE, &rlim);
+
+	/* close all fds except stdin, stdout, stderr */
+
+	for (i = 3; i < rlim.rlim_cur; i++)
+		close(i);
+}
+
+static void
+reset_signals(void)
+{
+	sigset_t ss;
+
+	sigfillset(&ss);
+	sigprocmask(SIG_UNBLOCK, &ss, NULL);
+
+	/* don't care about job control */
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGCHLD, SIG_DFL);
+	signal(SIGSTOP, SIG_DFL);
+	signal(SIGCONT, SIG_DFL);
+}
+
 static int
 continue_pid(pid_t pid)
 {
@@ -8553,264 +8825,10 @@ spawn_child(Display *dpy, Process *pr)
 	exit(EXIT_FAILURE);
 }
 
-/** @brief assist the window manager.
-  *
-  * Assist revisited:
-  *
-  * 1. A child is spawned that will execute the command and is stopped: prctl()
-  *    is used to reparent the child when the parent exits.  The display is not
-  *    opened by the parent until after the child is spawned.
-  *
-  * 2. The parent resets the id using the child's pid and sends startup
-  *    notification.
-  *
-  * 3. The parent grabs the display and scans for existing top-level windows in
-  *    the same way a window manager would at startup.
-  *
-  * 4. The parent then continues the child and waits for completion or exit of
-  *    the child.
-  *
-  * 5. When child continues, it resets the startup id using its own pid and uses
-  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
-  *    launches the application.
-  *
-  * 6. While waiting for the child to complete or exit, the parent assists the
-  *    window manager by setting any necessary properties on any window that it
-  *    detects that the client mapped.  Properties that are set include:
-  *    _NET_STARTUP_ID (set to the DESKTOP_STARTUP_ID), _NET_WM_USER_TIME (set
-  *    to the timestamp in the DESKTOP_STARTUP_ID), _NET_WM_DESKTOP (set to the
-  *    DESKTOP= parameter sent in the "new:" message) if the window manager
-  *    supports NetWM/EWMH, WIN_WORKSPACE (set to the DESKTOP= parameter send in
-  *    the "new:" message) if the window manager supports WinWM/WMH.  This
-  *    assists the window manager in doing the right thing with respect to
-  *    focus, and position of the window on the correct monitor and the correct
-  *    workspace.
-  *
-  * 7. When the parent detects completion or exit, it sends the "remove:"
-  *    message, if necessary, and exits.
-  *
-  * 8. The OS reparents the child to the intended sub-reaper.
-  */
-static void
-assist(Display *dpy, Process *pr)
-{
-	pid_t pid = getpid();
+/** @} */
 
-	PTRACE(5);
-	setup_to_assist(pr);
-	XSync(dpy, False);
-	reset_pid(pid, pr);
-	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
-	DPRINTF(1, "Launching with wm assistance\n");
-	if ((pid = fork_parent("continue monitoring"))) {
-		/* parent returns and launches */
-		/* setsid(); */ /* XXX */
-		return;
-	}
-	/* continue on monitoring */
-	dpy = new_display(dpy);
-	wait_for_completion(dpy, pr, options.guard);
-	exit(EXIT_SUCCESS);
-}
-
-/** @brief launch with tool wait
-  *
-  * Toolwait launch revisited:
-  *
-  * 1. A child is spawned that will execute the command and is stopped: prctl()
-  *    is used to reparent the child when the parent exits.  The display is not
-  *    opened by the parent until after the child is spawned.
-  *
-  * 2. The parent resets the id using the child's pid and sends startup
-  *    notification.
-  *
-  * 3. The parent grabs the display and scans for existing top-level windows in
-  *    the same way a window manager would at startup.
-  *
-  * 4. The parent then continues the child and waits for completion or exit of
-  *    the child.
-  *
-  * 5. When child continues, it resets the startup id using its own pid and uses
-  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
-  *    launches the application.
-  *
-  * 6. When the parent detects completion or exit, it sends the "end:" message,
-  *    if necessary.  When assistance is not also required, all that is needed
-  *    is to wait for the startup notificaiton "end:" message (or timeout) and
-  *    then consider the startup complete.  The parent may also detect premature
-  *    or intentional exit of the child.  When assistance is also required, we
-  *    must identify when the application maps its windows and send the "end:"
-  *    message ourselves.  Upon transmission of the "end:" message (or timeout),
-  *    consider the startup complete.  In addition, EWMH properties are set on
-  *    initial windows that are not set by the application.
-  *
-  * 7. The OS reparents the child to the intended sub-reaper.
-  */
-static void
-toolwait(Display *dpy, Process *pr)
-{
-	pid_t pid = getpid();
-
-	PTRACE(5);
-	setup_to_assist(pr);
-	XSync(dpy, False);
-	DPRINTF(1, "Launching with tool wait support\n");
-	if (!(pid = fork_child("continue on monitoring"))) {
-		/* child returns and launches */
-		/* setsid(); */ /* XXX */
-		reset_pid(pid, pr);
-		dpy = new_display(dpy);
-		return;
-	}
-	/* continue on monitoring */
-	reset_pid(pid, pr);
-	wait_for_completion(dpy, pr, options.guard);
-	exit(EXIT_SUCCESS);
-}
-
-/** @brief launch normally without assist or tool wait
-  *
-  * Normal launch revisited:
-  *
-  * Normally we would not create a child at all.  One of the problems is
-  * zombies.  Another is having the child reparented under init() if the parent
-  * exits.
-  *
-  * The former can be handled by intentionally ignoring SIGCHLD before launching
-  * the child, in which case zombies are not created, unless the new program is
-  * willing to reap them.  See wait(2) for details.
-  *
-  * The later can be handled using a sub-reaper with prctl(2) (essentially
-  * assigning which process will be the new parent of the child when its
-  * existing parent exits.
-  *
-  * This later solution is probably the best approach as the child need not send
-  * its own startup notification and need not open the display at all.
-  * Therefore a normal launch is now the same as a toolwait or assist launch and
-  * is also the same for the autostart components of a full session.  The steps
-  * are as follows:
-  *
-  * 1. A child is spawned that will execute the command and is stopped: prctl()
-  *    is used to reparent the child when the parent exits.  The display is not
-  *    opened by the parent until after the child is spawned.
-  *
-  * 2. The parent resets the id using the child's pid and sends startup
-  *    notification.
-  *
-  * 3. The parent then continues the child and waits for it to continue or exit.
-  *
-  * 4. When child continues, it resets the startup id using its own pid and uses
-  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
-  *    launches the application.
-  *
-  * 5. When the child continues or exits, the parent exits.  No startup
-  *    notification completion is tracked nor generated: it is assumed that the
-  *    window manager or application will complete startup notification and set
-  *    the appropriate EWMH properties on all windows.
-  *
-  * 6. The OS reparents the child to the intended sub-reaper.
-  */
-static void
-normal(Display *dpy, Process *pr)
-{
-	pid_t pid = getpid();
-
-	PTRACE(5);
-	OPRINTF(1, "Launching without assistance or tool wait\n");
-	reset_pid(pid, pr);
-	/* main process returns and launches */
-	return;
-}
-
-static Bool
-check_for_resources(Display *dpy, XPointer data)
-{
-	XdgScreen *scr = screens + DefaultScreen(dpy);
-	long mask = (long) data;
-
-	OPRINTF(1, "Checking for resources:\n");
-	if ((mask & WAITFOR_AUDIOSERVER) && !check_audio(scr))
-		return (False);
-	if ((mask & WAITFOR_WINDOWMANAGER) && !check_window_manager(scr))
-		return (False);
-	if ((mask & WAITFOR_COMPOSITEMANAGER) && !check_compm(scr))
-		return (False);
-	if ((mask & WAITFOR_DESKTOPPAGER) && !check_pager(scr))
-		return (False);
-	if ((mask & WAITFOR_STARTUPHELPER) && !check_shelp(scr))
-		return (False);
-	if ((mask & WAITFOR_SYSTEMTRAY) && !check_stray(scr))
-		return (False);
-	return (True);
-}
-
-static Bool
-wait_for_resources(Display *dpy, long wait_for, int guard)
-{
-	if (options.info) {
-		OPRINTF(1, "Might wait for resources for %d seconds:\n", guard);
-		if (wait_for & WAITFOR_SYSTEMTRAY)
-			OPRINTF(1, "--> system tray\n");
-		if (wait_for & WAITFOR_STARTUPHELPER)
-			OPRINTF(1, "--> startup helper\n");
-		if (wait_for & WAITFOR_DESKTOPPAGER)
-			OPRINTF(1, "--> desktop pager\n");
-		if (wait_for & WAITFOR_COMPOSITEMANAGER)
-			OPRINTF(1, "--> composite manager\n");
-		if (wait_for & WAITFOR_WINDOWMANAGER)
-			OPRINTF(1, "--> window manager\n");
-		if (wait_for & WAITFOR_AUDIOSERVER)
-			OPRINTF(1, "--> audio server\n");
-	}
-	return wait_for_condition(dpy, &check_for_resources, (XPointer) wait_for, guard);
-}
-
-static Window
-check_anywm(XdgScreen *scr)
-{
-	if (scr->netwm_check)
-		return scr->netwm_check;
-	if (scr->winwm_check)
-		return scr->winwm_check;
-	if (scr->maker_check)
-		return scr->maker_check;
-	if (scr->motif_check)
-		return scr->motif_check;
-	if (scr->icccm_check)
-		return scr->icccm_check;
-	if (scr->redir_check)
-		return scr->redir_check;
-	return None;
-}
-
-static Window
-check_wmngr(XdgScreen *scr)
-{
-	PTRACE(5);
-	check_netwm(scr);
-	check_winwm(scr);
-	check_maker(scr);
-	check_motif(scr);
-	check_icccm(scr);
-	check_redir(scr);
-	return check_anywm(scr);
-}
-
-static Bool
-check_window(Display *dpy, XPointer data)
-{
-	XdgScreen *scr = screens + DefaultScreen(dpy);
-	Window (*until)(XdgScreen *) = (typeof(until)) data;
-	return (until(scr) ? True : False);
-}
-
-static Bool
-wait_for_window_manager(Display *dpy)
-{
-	if (options.info)
-		OPRINTF(1, "Might wait for window manager for %d seconds\n", options.guard);
-	return wait_for_condition(dpy, &check_window, (XPointer) &check_wmngr, options.guard);
-}
+/** @section Launch Classification (Resource and Phase Needs)
+  * @{ */
 
 static int
 want_resource(Process *pr)
@@ -8986,6 +9004,185 @@ need_assist(Display *dpy, Process *pr)
 		}
 	}
 	return need_assist;
+}
+
+/** @} */
+
+/** @section Simple Launch Routines
+  * @{ */
+
+/** @brief assist the window manager.
+  *
+  * Assist revisited:
+  *
+  * 1. A child is spawned that will execute the command and is stopped: prctl()
+  *    is used to reparent the child when the parent exits.  The display is not
+  *    opened by the parent until after the child is spawned.
+  *
+  * 2. The parent resets the id using the child's pid and sends startup
+  *    notification.
+  *
+  * 3. The parent grabs the display and scans for existing top-level windows in
+  *    the same way a window manager would at startup.
+  *
+  * 4. The parent then continues the child and waits for completion or exit of
+  *    the child.
+  *
+  * 5. When child continues, it resets the startup id using its own pid and uses
+  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
+  *    launches the application.
+  *
+  * 6. While waiting for the child to complete or exit, the parent assists the
+  *    window manager by setting any necessary properties on any window that it
+  *    detects that the client mapped.  Properties that are set include:
+  *    _NET_STARTUP_ID (set to the DESKTOP_STARTUP_ID), _NET_WM_USER_TIME (set
+  *    to the timestamp in the DESKTOP_STARTUP_ID), _NET_WM_DESKTOP (set to the
+  *    DESKTOP= parameter sent in the "new:" message) if the window manager
+  *    supports NetWM/EWMH, WIN_WORKSPACE (set to the DESKTOP= parameter send in
+  *    the "new:" message) if the window manager supports WinWM/WMH.  This
+  *    assists the window manager in doing the right thing with respect to
+  *    focus, and position of the window on the correct monitor and the correct
+  *    workspace.
+  *
+  * 7. When the parent detects completion or exit, it sends the "remove:"
+  *    message, if necessary, and exits.
+  *
+  * 8. The OS reparents the child to the intended sub-reaper.
+  */
+static void
+assist(Display *dpy, Process *pr)
+{
+	pid_t pid = getpid();
+
+	PTRACE(5);
+	setup_to_assist(pr);
+	XSync(dpy, False);
+	reset_pid(pid, pr);
+	DPRINTF(1, "Reset %s pid to %d\n", pr->appid, pr->pid);
+	DPRINTF(1, "Launching with wm assistance\n");
+	if ((pid = fork_parent("continue monitoring"))) {
+		/* parent returns and launches */
+		/* setsid(); */ /* XXX */
+		return;
+	}
+	/* continue on monitoring */
+	dpy = new_display(dpy);
+	wait_for_completion(dpy, pr, options.guard);
+	exit(EXIT_SUCCESS);
+}
+
+/** @brief launch with tool wait
+  *
+  * Toolwait launch revisited:
+  *
+  * 1. A child is spawned that will execute the command and is stopped. (prctl()
+  *    might be used to reparent the child when the parent exits if the parent's
+  *    parent has set itself as a subreaper.)  The display is not opened by the
+  *    parent until after the child is spawned.
+  *
+  * 2. The parent resets the id using the child's pid and sends startup
+  *    notification.
+  *
+  * 3. The parent grabs the display and scans for existing top-level windows in
+  *    the same way a window manager would at startup.
+  *
+  * 4. The parent performs any necessary wait for resources and either the
+  *    resources appear or the wait times out.
+  *
+  * 5. The parent then continues the child and waits for completion or exit of
+  *    the child.
+  *
+  * 6. When child continues, it resets the startup id using its own pid and uses
+  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
+  *    launches the application.
+  *
+  * 7. When the parent detects completion or exit, it sends the "remove:"
+  *    message, if necessary.  When assistance is not also required, all that is
+  *    needed is to wait for the startup notification "remove:" message (or
+  *    timeout) and then consider the startup complete.  The parent may also
+  *    detect premature or intentional exit of the child.  When assistance is
+  *    also required, we must identify when the application maps its windows and
+  *    send the "remove:" message ourselves.  Upon transmission of the "remove:"
+  *    message (or timeout), consider the startup complete.  In addition, if the
+  *    process completes, EWMH properties are set on initial windows that are
+  *    not set by the application.
+  *
+  * 7. The OS reparents the child to the intended sub-reaper.
+  */
+static void
+toolwait(Display *dpy, Process *pr)
+{
+	pid_t pid = getpid();
+
+	PTRACE(5);
+	setup_to_assist(pr);
+	XSync(dpy, False);
+	DPRINTF(1, "Launching with tool wait support\n");
+	if (!(pid = fork_child("continue on monitoring"))) {
+		/* child returns and launches */
+		/* setsid(); */ /* XXX */
+		reset_pid(pid, pr);
+		dpy = new_display(dpy);
+		return;
+	}
+	/* continue on monitoring */
+	reset_pid(pid, pr);
+	wait_for_completion(dpy, pr, options.guard);
+	exit(EXIT_SUCCESS);
+}
+
+/** @brief launch normally without assist or tool wait
+  *
+  * Normal launch revisited:
+  *
+  * Normally we would not create a child at all.  One of the problems is
+  * zombies.  Another is having the child reparented under init() if the parent
+  * exits.
+  *
+  * The former can be handled by intentionally ignoring SIGCHLD before launching
+  * the child, in which case zombies are not created, unless the new program is
+  * willing to reap them.  See wait(2) for details.
+  *
+  * The later can be handled using a sub-reaper with prctl(2) (essentially
+  * assigning which process will be the new parent of the child when its
+  * existing parent exits.
+  *
+  * This later solution is probably the best approach as the child need not send
+  * its own startup notification and need not open the display at all.
+  * Therefore a normal launch is now the same as a toolwait or assist launch and
+  * is also the same for the autostart components of a full session.  The steps
+  * are as follows:
+  *
+  * 1. A child is spawned that will execute the command and is stopped: prctl()
+  *    is used to reparent the child when the parent exits.  The display is not
+  *    opened by the parent until after the child is spawned.
+  *
+  * 2. The parent resets the id using the child's pid and sends startup
+  *    notification.
+  *
+  * 3. The parent then continues the child and waits for it to continue or exit.
+  *
+  * 4. When child continues, it resets the startup id using its own pid and uses
+  *    the id to set the DESKTOP_STARTUP_ID environment variable.  It then
+  *    launches the application.
+  *
+  * 5. When the child continues or exits, the parent exits.  No startup
+  *    notification completion is tracked nor generated: it is assumed that the
+  *    window manager or application will complete startup notification and set
+  *    the appropriate EWMH properties on all windows.
+  *
+  * 6. The OS reparents the child to the intended sub-reaper.
+  */
+static void
+normal(Display *dpy, Process *pr)
+{
+	pid_t pid = getpid();
+
+	PTRACE(5);
+	OPRINTF(1, "Launching without assistance or tool wait\n");
+	reset_pid(pid, pr);
+	/* main process returns and launches */
+	return;
 }
 
 static char *
@@ -9277,6 +9474,11 @@ launch_xsession(Process *wm)
 	EPRINTF("Should never get here!\n");
 	exit(127);
 }
+
+/** @} */
+
+/** @section Setting Desktop Startup Sequence Fields
+  * @{ */
 
 /** @brief set the screen to be used in startup notification
   *
@@ -10151,6 +10353,59 @@ set_seq_id(Process *pr)
 }
 
 static void
+set_seq_all(Process *pr)
+{
+	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
+
+	PTRACE(5);
+	assert(s != NULL && e != NULL);
+	if (!s->f.name)
+		set_seq_name(pr);
+	if (!s->f.icon)
+		set_seq_icon(pr);
+	if (!s->f.bin)
+		set_seq_bin(pr);
+	if (!s->f.description)
+		set_seq_description(pr);
+	if (!s->f.wmclass)
+		set_seq_wmclass(pr);
+	if (!s->f.silent)
+		set_seq_silent(pr);
+	if (!s->f.application_id)
+		set_seq_application_id(pr);
+	if (!s->f.screen)
+		set_seq_screen(pr);
+	/* must be on correct screen before doing monitor */
+	if (!s->f.monitor)
+		set_seq_monitor(pr);
+	/* must be on correct screen before doing desktop */
+	if (!s->f.desktop)
+		set_seq_desktop(pr);
+	if (!s->f.timestamp)
+		set_seq_timestamp(pr);
+	if (!s->f.hostname)
+		set_seq_hostname(pr);
+	if (!s->f.action)
+		set_seq_action(pr);
+	if (!s->f.command)
+		set_seq_command(pr);
+	if (!s->f.pid)
+		set_seq_pid(pr);
+	if (!s->f.autostart)
+		set_seq_autostart(pr);
+	if (!s->f.xsession)
+		set_seq_xsession(pr);
+	if (!s->f.id)
+		set_seq_id(pr);
+}
+
+/** @} */
+
+/** @section Setting and Overriding Desktop Entry Fields from Options
+  * @{ */
+
+static void
 set_ent_all(Process *pr)
 {
 	Entry *e = pr->ent;
@@ -10240,53 +10495,13 @@ set_ent_all(Process *pr)
 	}
 }
 
-static void
-set_seq_all(Process *pr)
-{
-	Sequence *s = pr->seq;
-	Entry *e = pr->ent;
+/** @} */
 
-	PTRACE(5);
-	assert(s != NULL && e != NULL);
-	if (!s->f.name)
-		set_seq_name(pr);
-	if (!s->f.icon)
-		set_seq_icon(pr);
-	if (!s->f.bin)
-		set_seq_bin(pr);
-	if (!s->f.description)
-		set_seq_description(pr);
-	if (!s->f.wmclass)
-		set_seq_wmclass(pr);
-	if (!s->f.silent)
-		set_seq_silent(pr);
-	if (!s->f.application_id)
-		set_seq_application_id(pr);
-	if (!s->f.screen)
-		set_seq_screen(pr);
-	/* must be on correct screen before doing monitor */
-	if (!s->f.monitor)
-		set_seq_monitor(pr);
-	/* must be on correct screen before doing desktop */
-	if (!s->f.desktop)
-		set_seq_desktop(pr);
-	if (!s->f.timestamp)
-		set_seq_timestamp(pr);
-	if (!s->f.hostname)
-		set_seq_hostname(pr);
-	if (!s->f.action)
-		set_seq_action(pr);
-	if (!s->f.command)
-		set_seq_command(pr);
-	if (!s->f.pid)
-		set_seq_pid(pr);
-	if (!s->f.autostart)
-		set_seq_autostart(pr);
-	if (!s->f.xsession)
-		set_seq_xsession(pr);
-	if (!s->f.id)
-		set_seq_id(pr);
-}
+/** @section History File Support
+  * @{ */
+
+/** @section GLIB2 Support for Mime Types and History Files
+  * @{ */
 
 #ifdef GIO_GLIB2_SUPPORT
 
@@ -10902,6 +11117,11 @@ put_recently_used(char *filename, Process *pr)
 
 #endif				/* GIO_GLIB2_SUPPORT */
 
+/** @} */
+
+/** @section GLIB2 Support for Mime Types and History Files
+  * @{ */
+
 static void
 put_line_history(Process *pr, char *file, char *line)
 {
@@ -11020,6 +11240,13 @@ put_history(Process *pr)
 #endif				/* GIO_GLIB2_SUPPORT */
 }
 
+/** @} */
+
+/** @} */
+
+/** @section Setting Default Mime Type or Category
+  * @{ */
+
 static void
 put_default(Process *pr)
 {
@@ -11029,6 +11256,11 @@ put_default(Process *pr)
 	}
 	EPRINTF("--set-default option not yet supported!\n");
 }
+
+/** @} */
+
+/** @section Process Lifecycle
+  * @{ */
 
 static int
 sort_by_appid(const void *a, const void *b)
@@ -11075,6 +11307,11 @@ delete_pr(Process **prev)
 	Process *pr = remove_pr(prev);
 	free_pr(pr);
 }
+
+/** @} */
+
+/** @section Desktop Entry File Handling
+  * @{ */
 
 static Bool
 check_showin(const char *showin)
@@ -11180,6 +11417,14 @@ check_exec(const char *tryexec, const char *exec)
 	free(binary);
 	return False;
 }
+
+/** @} */
+
+/** @section Session Launch Routines
+  * @{ */
+
+/** @section Autostart Dispatcher
+  * @{ */
 
 static Bool
 check_for_completions(Display *dpy, XPointer data)
@@ -11338,6 +11583,8 @@ dispatcher(void)
 	/* check whether assistance is required and wait around if so */
 	exit(EXIT_SUCCESS);
 }
+
+/** @} */
 
 static void
 launch_startup(Process *wm)
@@ -11836,24 +12083,10 @@ launch_session(Process *wm)
 	exit(EXIT_FAILURE);
 }
 
-static void
-launch(Process *pr)
-{
-	switch (pr->type) {
-	case LaunchType_Application:
-		return launch_application(pr);
-	case LaunchType_Autostart:
-		return launch_autostart(pr);
-	case LaunchType_XSession:
-		return launch_xsession(pr);
-	case LaunchType_Session:
-		return launch_session(pr);
-	case LaunchType_Startup:
-		return launch_startup(pr);
-	}
-	EPRINTF("Invalid launch type %d\n", pr->type);
-	exit (EXIT_FAILURE);
-}
+/** @} */
+
+/** @section Determine Desktop Entry from Options
+  * @{ */
 
 static Process *
 setup_entry(Command command)
@@ -12021,6 +12254,30 @@ setup_entry(Command command)
 		info_entry("Entries", pr->ent);
 
 	return (pr);
+}
+
+/** @} */
+
+/** @section Main
+  * @{ */
+
+static void
+launch(Process *pr)
+{
+	switch (pr->type) {
+	case LaunchType_Application:
+		return launch_application(pr);
+	case LaunchType_Autostart:
+		return launch_autostart(pr);
+	case LaunchType_XSession:
+		return launch_xsession(pr);
+	case LaunchType_Session:
+		return launch_session(pr);
+	case LaunchType_Startup:
+		return launch_startup(pr);
+	}
+	EPRINTF("Invalid launch type %d\n", pr->type);
+	exit (EXIT_FAILURE);
 }
 
 static void
@@ -13047,5 +13304,7 @@ main(int argc, char *argv[])
 	EPRINTF("invalid command\n");
 	exit(EXIT_FAILURE);
 }
+
+/** @} */
 
 // vim: set sw=8 tw=80 com=srO\:/**,mb\:*,ex\:*/,srO\:/*,mb\:*,ex\:*/,b\:TRANS foldmarker=@{,@} foldmethod=marker:
