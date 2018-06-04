@@ -110,7 +110,7 @@ list of desktop environments, I<DESKTOP>, specified.
 
 =item B<-n>, B<--nodisplay>
 
-Exclude entries that are not be be shown in menus.  That is, they have
+Exclude entries that are not to be shown in menus.  That is, they have
 the C<NoDisplay> key field set to B<true>.
 
 =back

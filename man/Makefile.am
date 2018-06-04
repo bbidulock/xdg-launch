@@ -8,6 +8,7 @@ xdg_man1_files = \
 	xdg-launch.man \
 	xdg-list.man \
 	xdg-session.man \
+	xdg-startup.man \
 	xdg-toolwait.man \
 	xdg-types.man \
 	xdg-whereis.man \
@@ -34,6 +35,7 @@ EXTRA_DIST = \
 	xdg-list.pod \
 	xdg-prefs.pod \
 	xdg-session.pod \
+	xdg-startup.pod \
 	xdg-toolwait.pod \
 	xdg-types.pod \
 	xdg-whereis.pod \

@@ -6,15 +6,13 @@ xdg-autostart - an XDG compliant autostart startup notification launcher
 
 =head1 SYNOPSIS
 
-B<xdg-autostart> [I<OPTIONS>] [I<APPID> [I<FILE>|I<URL>]]
-
-B<xdg-autostart> [I<OPTIONS>] -c I<command and arguments>
+B<xdg-autostart> [I<OPTIONS>] [I<APPID>|I<COMMAND>]
 
 =head1 DESCRIPTION
 
 B<xde-autostart> is a program that establishes a simple X session
-utilizing L<xdg-launch(1)>.  It performs the autostart procedure
-specified in the L<XDG Desktop Specification> and then launches the
+utilizing L<xdg-launch(1)>.  It performs the auto-start procedure
+specified in the L<Desktop Entry Specification> and then launches the
 specified window manager.
 
 =head1 ARGUMENTS
@@ -59,14 +57,14 @@ option argument using the B<--appid> option.
 =item I<FILE>
 
 Specifies the file name with which to launch the X session.  This is
-used in C<%f> substitutions in the C<Exec> field of the XDG desktop
+used in I<%f> substitutions in the B<Exec> field of the XDG desktop
 entry file or B<--exec> command line.  This may also be specified with
 the B<--file> option.
 
 =item I<URL>
 
 Specifies the URL with which to launch the X session.  This is used in
-C<%u> substitutions in the C<Exec> field of the XDG desktop entry file
+I<%u> substitutions in the B<Exec> field of the XDG desktop entry file
 or B<--exec> command line.  This may also be specified with the B<--url>
 option.
 
@@ -76,6 +74,766 @@ Arguments are optional and can either be specified using command line
 options; or, when unspecified, no window manager will be launched and
 B<xdg-autostart> will simply return after performing the auto start
 procedure.
+
+=head1 FILE FORMAT
+
+There is only one format for the F<.desktop> file of type B<Autostart>.
+
+=head2 GROUPS
+
+=head3 [Desktop Entry]
+
+=over
+
+=item B<Standard Keys>
+
+The I<Desktop Entry> group may contain the following standard keys:
+
+=over
+
+=item B<Type>
+
+This required key specifies the type of the desktop entry.  The standard
+type for application desktop entry files is B<Application>.  The
+L<Desktop Entry Specification> dictates that unrecognized types are to
+be ignored.
+
+The non-standard type for X session desktop entry files is B<XSession>.
+This key is normally set to B<Application> when the desktop entry file
+may also reside in applications directories.
+
+The non-standard type for auto-start desktop entry files is
+B<Autostart>.  This key is normally set to B<Application> when the
+desktop entry file may also reside in applications directories.
+
+KDE specifies additional non-standard types that are typically ignored
+by all but KDE applications and utilities.
+
+=item B<Version>
+
+This optional key specifies the version of the L<Desktop Entry
+Specification> to which the remainder of the file conforms.  The current
+version is I<1.1>.  The current version is backward compatible with
+version I<1.0>.  There are backward incompatibilities between pre-1.0
+files and file of version I<1.0> and later.  This key is, therefore,
+only really necessary when identifying a pre-1.0 (e.g. I<0.9>) file
+version.
+
+Unless a file is a pre-1.0 version, this key is normally omitted.
+
+As there are no standard versions for B<XSession> or B<Autostart> files,
+this key is normally omitted in those files.
+
+=item B<Name[]>
+
+This required key specifies the name of the entry.
+
+=item B<GenericName[]>
+
+The optional generic name of the entry (e.g. B<Dock Application>).
+
+=item B<NoDisplay>
+
+This optional key, when set to I<true> indicates that the entry should
+not be displayed in the menus.  The key is normally only included to set
+it to I<true>.  This is often for application that perform some other
+function (such as an XSession or Autostart entry, one that just sets its
+MimeType, etc.).
+
+For X sessions and auto-start entries, this key is ignored by the x
+session and auto-start launcher, as it is primarily for use in
+applications sub-directories only.
+
+=item B<Comment[]>
+
+This optional key provides a longer description of the application:
+still normally only consuming one line of text.
+
+=item B<Icon>
+
+This optional key specifies an icon name for the desktop entry.  The
+icon name should not have an extension, and should not contain a path;
+however, many applications recognize both extension and path.  Where
+only an extension is specified and not a path, the application typically
+restricts the selection of icon to one with the same extension as that
+specified.  Where a path is specified, it is normally only used to
+specify an icon that resides outside the normal search paths for icons.
+
+=item B<Hidden>
+
+This optional key is normally only included when specified as I<true>.
+It is used to occlude entries is search path sub-directories with a
+lower priority than the one in which the F<.desktop> file resides.
+
+=item B<OnlyShowIn>
+
+Specifies an exclusive list of desktops in which the application is
+shown in the menus.
+
+This entry is meaningless for X sessions, as the current XDG desktop has
+not yet been set.  This entry is also meaningless for many auto-start
+entries, especially those that start before the current desktop is set.
+
+=item B<NotShowIn>
+
+Specifies and exclusion list of desktop for which the application is not
+shown in the menus.
+
+This entry is meaningless for X sessions, as the current XDG desktop has
+not yet been set.  This entry is also meaningless for many auto-start
+entries, especially those that start before the current desktop is set.
+
+=item B<DBusActivatable>
+
+=item B<TryExec>
+
+This optional key typically contains the absolute path and file name of
+a binary executable that must exist for the desktop entry to be
+considered valid.  It is often specified when the B<Exec> key does not
+contain the primary binary executable in the first word of the command.
+It may also be specified without a path, in which case the B<$PATH>
+environment variable is used to search for the executable as would
+L<which(1)>.  This key is not shell word expanded by the application.
+
+=item B<Exec>
+
+=item B<Path>
+
+=item B<Terminal>
+
+Specifies that the application is to be started as the executed command
+of a terminal (e.g. I<xterm -e>).
+
+=item B<Actions>
+
+=item B<MimeType>
+
+=item B<Categories>
+
+This optional key specifies a list of categories for the entry.
+
+B<XSession> entries have this key set to
+I<WindowManager;System;Applications;>.
+
+B<Autostart> entries can set this key to give hints to the session
+manager as to when the auto-start entry should be launched.  These hints
+are:
+
+=over
+
+=item I<Panel>
+
+=item I<TrayIcon>
+
+=item I<SystemTray>
+
+=item I<DesktopPager>
+
+=item I<Dock>
+
+=item I<DockApp>
+
+=item I<WindowManager>
+
+=item I<CompositeManager>
+
+=back
+
+=item B<Implements>
+
+=item B<Keywords>
+
+=item B<StartupNotify>
+
+Provides a tri-state boolean value and specifies whether the desktop
+entry supports startup notification completion.  This key should be
+specified as I<false> when it is known that the application does not
+perform startup notification and does not map any window (regardless of
+the setting of the B<StartupWMClass> key); I<true>, when it is known
+that it will perform startup notification completion when invoked with a
+B<DESKTOP_STARTUP_ID> environment variable set; and, not present when it
+is unknown whether the desktop entry supports startup notification or
+not.
+
+When set to I<false> in the auto-start file, or when not specified and
+the B<StartupWMClass> key is not set, should the auto-start dispatcher
+send a I<new:> startup notification message, it should not await a
+I<remove:> message and should send one itself at the end of the
+auto-start phase.  Should it send a I<new:> message in such cases, the
+I<new:> message should contain the I<SILENT=1> key.
+
+When this key is not present and the B<StartupNotifyWMClass> key is
+present, the auto-start launcher should await the mapping of a window
+with the appropriate class or name before sending the I<remove:>
+message.  Any sent I<new:> message should not contain the I<SILENT>
+parameter.
+
+When the window manager lists support for atoms
+B<_NET_STARTUP_INFO_BEGIN> and B<_NET_STARTUP_INFO>, and the window
+manager has already been launched, the window manager will be
+responsible for sending the I<remove:> message once a window of the
+necessary I<res_class> or I<res_name> has mapped.
+
+=item B<StartupWMClass>
+
+If specified, it is known that the application will map at least one
+window with the given string as its WM class or WM name hint.
+L<xdg-launch(1)>, when B<Terminal> is set to I<true>, will use this
+value to have the terminal populate the I<res_class> portion of the
+B<WM_CLASS> property on the terminal, and this value in all lower-case
+to populate the I<res_name> portion of the B<WM_CLASS> property on the
+terminal.  See L<XGetClassHint(3)>.
+
+=back
+
+=item B<Deprecated Keys>
+
+The I<Desktop Entry> group may contain the following deprecated standard
+keys:
+
+=over
+
+=item B<Encoding>
+
+This key is deprecated.  Its only currently valid value is I<UTF-8>.
+This key should be ignored by current applications.
+
+=item B<MiniIcon>
+
+Was used with the I<%m> expansion for B<Exec> strings.  Used to expand
+to I<--miniicon [MiniIcon]>, where, I<[MiniIcon]> is the value of the
+B<MinIcon> key.
+
+=item B<TerminalOptions>
+
+Was used to supply additional terminal options when the B<Terminal> key
+was set to I<true>.  Not used in B<XSession> or B<Autostart> entries.
+
+=item B<Protocols>
+
+=item B<Extensions>
+
+=item B<Extensions>
+
+=item B<BinaryPattern>
+
+=item B<MapNotify>
+
+=item B<SwallowTitle>
+
+A locale string that specified the title of the window if it is
+swallowed onto the panel.
+
+=item B<SwallowExec>
+
+A string that specified the program to execute if the swallowed
+application was clicked.
+
+=item B<SortOrder>
+
+Was used to specify sorting order for menus: other mechanisms are used
+currently.
+
+=item B<FilePattern>
+
+=back
+
+=item B<Non-Standard Keys>
+
+The I<Desktop Entry> group may contain the following non-standard, but
+widely accepted, keys:
+
+=over
+
+=item B<DesktopNames>
+
+This optional key is only used in B<XSession> files.  It specifies the
+contents of the B<$XDG_CURRENT_DESKTOP> environment variables, to be set
+when the session is launched.
+
+Although this key is non-standard, the L<Desktop Entry Specification>
+gives it a glancing reference.  It can also be seen in many B<XSession>
+entry files in the wild.
+
+=item B<GenericComment[]>
+
+=item B<MultipleArgs>
+
+=item B<X-MultipleArgs>
+
+=item B<Patterns>
+
+=item B<SingleInstance>
+
+=item B<AsRoot>
+
+An optional boolean value that, when I<true>, specifies that the B<Exec>
+key is to be executed as root (e.g. with L<sudo(1)>, or another root
+privileges command).
+
+=item B<AutostartPhase>
+
+The same as B<X-GNOME-Autostart-Phase>, below under L</GNOME
+Extensions>.
+
+=item B<AutostartCondition>
+
+A variation of the B<X-KDE-Autostart-condition> key.  Provides a complex
+mechanism for specifying the conditions that must prevail before an
+auto-start entry is considered for launching.  Only applicable to
+auto-start entries.
+
+=item B<X-DBUS-ServiceName>
+
+=item B<X-DBUS-ServiceType>
+
+=item B<X-DBUS-StartupType>
+
+=item B<X-DCOP-ServiceType>
+
+=item B<X-DCOP-StartupType>
+
+=item B<X-Desktop-File-Install-Version>
+
+=item B<X-DocPath>
+
+Another name for the widely used B<DocPath> key.
+
+=back
+
+=item B<GNOME Extensions>
+
+The I<Desktop Entry> group may contain the following C<GNOME> extension
+keys:
+
+=over
+
+=item B<X-GNOME-AutoRestart>
+
+This optional extension key is only included when set to I<true>.  It
+indicates that the application should be restarted should it exit with a
+non-zero exit status or terminate on a signal.  Naturally, the session
+launching this application must not restart it too rapidly.  This
+functionality could be achieved by applications with X11R6 Session
+Management instead, but it is often used as an indication to
+light-weight window managers that a startup application needs to be
+restarted in this fashion, and so is a reasonable extension.  It mostly
+applies to X sessions and auto-start entries.
+
+=item B<X-GNOME-Autostart-Notify>
+
+This optional extension key is only included when set to I<true>.  It
+indicates that the application will use the B<DESKTOP_STARTUP_ID>
+environment variable as the session client identifier to register with
+an X11R6 Session Manager, so that the session manager may pass
+coordinate auto-start activities.  It mostly applies to auto-start
+entries, and potentially window manager X session entries.
+
+=item B<X-GNOME-Autostart-Phase>
+
+This optional key is mostly applicable to auto-start entries and some X
+session entries.  Not normally used with X session files unless the X
+session file specifies only a window manager, in which case, the
+auto-start phase must be set to B<WindowManager>.  Also not normally
+used with application files unless they also specify an auto-start
+entry.
+
+When this optional key is present, it specifies the auto-start phase,
+which may be one of:
+
+=over
+
+=item B<PreDisplayServer>
+
+The first phase of normal startup (startup controlled by F<.desktop>
+files rather than session manager code).  It covers the possible
+installation of files in F<$HOME> by some initial setup programs and
+must be done before other components use those files.  Not normally used
+in XDG auto-start.  Auto-start applications with this phase set likely
+also have B<StartupNotify> set to false and B<StartupWMClass>
+unspecified (as they do cannot map windows).
+
+=item B<Initialization>
+
+Covers low-level stuff like settings helpers, that need to be running
+very early (before any windows are displayed).  Some examples would be
+merging F<.Xresources> files with L<xrdb (1)>.  Setting up F<.Xmodmap>
+files with L<xmodmap(1)>, and executing the shell scripts in
+F</etc/X11/xinit/xinitrd.d/> and B<$HOME>F</.xinitrc.d`>.
+
+Examples are setting up canberra GTK modules, importing the B<$DISPLAY>
+and B<$XAUTHORITY> environment variables into L<systemd(8)> and also the
+DBUS activation environment.  F<.desktop> files are seldom used instead
+of scripts for these functions.  One exception is the pusle audio X11
+integration.
+
+=item B<WindowManager>
+
+Includes window managers and compositing managers, and anything else
+that has to be running before any windows are mapped.  L<xdg-launch(1)>
+also interprets this as the phase necessary to set up docks, slits or
+harbours for dock apps.
+
+=item B<Desktop>
+
+Includes anything that draws directly on the desktop (e.g.
+backgrounder).  L<xdg-launch(1)> also interprets this as the phase
+necessary to set up desktop layouts for desktop pagers.
+
+=item B<Panel>
+
+Includes anything that permanently takes up screen real estate (via EWMH
+struts).  This is the first phase where things actually appear on the
+screen.  L<xdg-launch(1)> also interprets this as the phase necessary to
+set up system trays for status icons.
+
+=item B<Application>
+
+Sometimes called B<Applications> (with the C<s> on the end).  This is
+everything else.
+
+=back
+
+=item B<X-GNOME-Autostart-Delay>
+
+This optional key is normally only specified when set to a non-zero
+number of seconds.
+
+=item B<X-GNOME-Bugzilla-Bugzilla>,
+      B<X-GNOME-Bugzilla-Component>,
+      B<X-GNOME-Bugzilla-Product>,
+      B<X-GNOME-Bugzilla-Version>,
+      B<X-GNOME-Bugzilla-OtherBinaries>,
+      B<X-GNOME-Bugzilla-ExtraInfoScript>
+
+These keys are ignored by most tools other than C<GNOME> tools.
+
+=item B<X-GNOME-WMName>
+
+For B<XSession> entries, specifies the name that will be placed on the
+window manager check window.  Note that this may also now be specified
+with the B<StartupWMClass> key for the window manager.
+
+=item B<X-GNOME-WMSettingsModule>
+
+For C<GNOME>, specifies the window manager settings module to be used by
+L<gconf(1)>.  Not useful for other desktops.
+
+=item B<X-GnomeWMSettingsLibrary>
+
+For C<GNOME>, specifies the window manager settings library to be used by
+L<gconf(1)>.  Not useful for other desktops.
+
+=item B<X-GNOME-FullName[]>
+
+An optional locale string that can be used to specify a longer name for
+the application.
+
+=item B<X-GNOME-Keywords>
+
+Old name for the now standard B<Keywords> key.
+
+=item B<X-GNOME-Provides>
+
+Specifies the capability that the application, auto-start entry or X
+session provides.  Typical values (that may be combined into a
+semi-colon separated list) are:
+
+=over
+
+=item I<filemanager>
+
+=item I<login-sound>
+
+=item I<panel>
+
+=item I<screen-keyboard>
+
+=item I<screen-magnifier>
+
+=item I<screen-reader>
+
+=item I<windowmanager>
+
+=back
+
+These values may be combined into a list: for example, it is common to
+see "I<panel>;I<windowmanager>;" as a value.  By far the most common use
+of this key is to identify in an B<XSession> entry that the entry
+provides a window manager.
+
+=item B<X-GNOME-DocPath>
+
+Another name for the widely used B<DocPath> key.
+
+=item B<X-GNOME-Autostart-enabled>
+
+The B<Hidden> key is not completely satisfactory for use in enabling or
+disabling auto-start entries.  Therefore, this optional extension key
+may be used to enable or disable an auto-start entry that is not hidden.
+Both L<xdg-launch(1)> and L<xde-session(1)> respect this key.  When
+absent on an auto-start entry that is not hidden, the default value of
+this key is I<true>, instead of I<false> (as is the case for most keys).
+
+L<xdg-launch(1)> handles this key when performing session startup by
+setting the B<Hidden> key to the inverse of this boolean value when it
+is present and the launch type is B<Autostart>.
+
+=item B<X-GNOME-Autostart-startup-id>,
+      B<X-GNOME-Autostart-discard-exec>
+
+These two extension keys are used by L<gnome-session(1)> to save session
+state for auto-start entries with B<X-GNOME-Autostart-Notify> set to
+true.  They should never appear in XDG directories.
+
+=back
+
+=item B<KDE Extensions>
+
+The I<Desktop Entry> group may contain the following C<KDE> extension
+keys:
+
+=over
+
+=item B<DocPath>, B<X-KDE-DocPath>
+
+Another name for the widely used B<DocPath> key.
+
+=item B<InitialPreference>, B<X-KDE-InitialPreference>
+
+=item B<Keywords>, B<X-KDE-Keywords>
+
+Old name for the now standard B<Keywords> key.
+
+=item B<ServiceTypes>, B<X-KDE-ServiceTypes>
+
+=item B<X-KDE-StartupNotify>
+
+This key was used before the B<StartupNotify> key was standardized.  It
+has similar semantics to the standard B<StartupNotify> key.
+
+=item B<X-KDE-autostart-condition>
+
+=item B<X-KDE-autostart-after>
+
+This optional key is used to further order auto-start entries that start
+in the C<KDE> auto-start phase I<2> (I<Applications>).  All auto-start
+applications in C<KDE> phase I<2> start after the window manager.
+Typical values seen in the wild are:
+
+=over
+
+=item I<panel>
+
+Auto-start the entry after the panel has already started up.
+This is roughly equivalent to the C<GNOME> auto-start phase just after I<Panel>.
+
+=item I<kdesktop>
+
+Auto-start the entry after the desktop has already started up.
+This is roughly equivalent to the C<GNOME> auto-start phase just after I<Desktop>.
+
+=back
+
+=item B<X-KDE-autostart-phase>
+
+When present, specifies the auto-start phase for an auto-start entry.
+This is an integer value that can have one of the following values:
+
+=over
+
+=item I<0>
+
+Roughly corresponds to the I<PreDisplayServer> C<GNOME> auto-start
+phase.
+
+=item I<1>
+
+Roughly corresponds to the I<Initialization> C<GNOME> auto-start
+phase.
+
+=item I<2>
+
+Roughly corresponds to the I<Applications> C<GNOME> auto-start
+phase.
+
+=back
+
+This key only applies to auto-start entries.  The default value if not
+present is the I<Applications> phase (I<2>).
+
+=item B<X-KDE-AuthorizeAction>
+
+=item B<X-KDE-BrowserView-Args>
+
+=item B<X-KDE-ExtraNativeMimeTypes>
+
+=item B<X-KDE-FactoryName>
+
+=item B<X-KDE-HasReadOnlyMode>
+
+=item B<X-KDE-HasTempFileOption>
+
+=item B<X-KDE-Library>
+
+=item B<X-KDE-ModuleType>
+
+=item B<X-KDE-NativeMimeType>
+
+=item B<X-KDE-Protocols>
+
+=item B<X-KDE-RootOnly>
+
+=item B<X-KDE-StartupNotify>
+
+This key was used before the B<StartupNotify> key was standardized.  It
+has similar semantics to the standard B<StartupNotify> key.
+
+=item B<X-KDE-SubstituteUID>
+
+=item B<X-KDE-UniqueApplet>
+
+=item B<X-KDE-Username>
+
+=item B<X-KDE-WindowManagerId>
+
+=item B<X-KDE-WindowManagerConfigure>
+
+=item B<X-KDE-WindowManagerRestartArgument>
+
+=back
+
+=item B<MATE Extensions>
+
+The I<Desktop Entry> group may contain the following C<MATE> extension
+keys, that correspond to the equivalent C<GNOME> extension keys:
+
+=over
+
+=item B<X-MATE-AutoRestart>
+
+The same as the B<X-GNOME-AutoRestart> key, except for C<MATE>.  See
+B<X-GNOME-AutoRestart>, above.
+
+=item B<X-MATE-Autostart-Notify>
+
+The same as the B<X-GNOME-Autostart-Notify> key, except for C<MATE>.
+See B<X-GNOME-Autostart-Notify>, above.
+
+=item B<X-MATE-Autostart-Phase>
+
+The same as the B<X-GNOME-Autostart-Phase> key, except for C<MATE>.  See
+B<X-GNOME-Autostart-Phase>, above.
+
+=item B<X-MATE-Bugzilla-Bugzilla>,
+      B<X-MATE-Bugzilla-Component>,
+      B<X-MATE-Bugzilla-Product>,
+      B<X-MATE-Bugzilla-Version>
+
+These keys are ignored by most tools other than C<MATE> tools.
+
+=item B<X-MATE-Provides>
+
+The same as the B<X-GNOME-Provides> key, except for C<MATE>.  The only
+values I have seen for C<MATE> are:
+
+=over
+
+=item I<panel>
+
+=item I<windowmanager>
+
+=back
+
+See B<X-GNOME-Provides>, above.
+
+=item B<X-MATE-WMName>
+
+The same as the B<X-GNOME-WMName> key, except for C<MATE>.  See
+B<X-GNOME-WMName>, above.
+
+=item B<X-MATE-WMSettingsModule>
+
+The same as the B<X-GNOME-WMSettingsModule> key, except for C<MATE>.
+See B<X-GNOME-WMSettingsModule>, above.
+
+=item B<X-MateWMSettingsLibrary>
+
+The same as the B<X-GnomeWMSettingsLibrary> key, except for C<MATE>.
+See B<X-GnomeWMSettingsLibrary>, above.
+
+=back
+
+=item B<XFCE Extensions>
+
+The I<Desktop Entry> group may contain the following C<XFCE> extension
+keys:
+
+=over
+
+=item B<X-XFCE-Binaries>
+
+=item B<X-XFCE-Category>
+
+=item B<X-XFCE-Commands>
+
+=item B<X-XFCE-CommandsWithParameter>
+
+=item B<X-XFCE-MimeType>
+
+=back
+
+=item B<SuSE Extensions>
+
+The I<Desktop Entry> group may contain the following C<SuSE> extension
+keys:
+
+=over
+
+=item B<X-SuSE-YaST-RootOnly>
+
+=item B<X-SuSE-translate>
+
+=back
+
+=item B<LightDM Extensions>
+
+The I<Desktop Entry> group may contain the following C<LightDM>
+extension keys:
+
+=over
+
+=item B<X-LightDM-DesktopName>
+
+=back
+
+=back
+
+=head3 [Desktop Action ACTION]
+
+The I<Desktop Action> group is not used in B<Autostart> entries.
+
+The I<Desktop Action> group may contain the following standard keys:
+
+=over
+
+=back
+
+=head3 [Window Manager]
+
+The B<Window Manager> group is a non-standard group, but is one which is
+supported by a number of session managers.  It may contain the following
+keys:
+
+=over
+
+=item B<SessionManaged>
+
+=item B<StartupNotification>
+
+=item B<ConfigExec>
+
+=back
 
 =head1 ENVIRONNMENT
 
@@ -97,7 +855,7 @@ L<https://github.com/bbidulock/xdg-launch/issues>.
 =head1 SEE ALSO
 
 L<xdg-launch(1)>,
-L<XDG Desktop Specification>.
+L<Desktop Entry Specification>.
 
 =head1 AUTHOR
 

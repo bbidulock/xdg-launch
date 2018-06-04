@@ -576,9 +576,9 @@ settings of the session options, above.  In particular:
 
 =over
 
-=item C<Initializting>
+=item C<Initialization>
 
-When an autostart phase of C<Initializing> is specified, B<xdg-launch>
+When an autostart phase of C<Initialization> is specified, B<xdg-launch>
 will not wait for any desktop resource before running the application or
 command.
 

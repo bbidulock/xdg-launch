@@ -1,0 +1,6 @@
+#!/bin/sh
+
+prog="xdg-launch"
+dir=$(dirname "$0")
+test -x "$dir/$prog" && prog="$dir/$prog"
+exec $prog --startup $@

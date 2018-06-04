@@ -2,27 +2,25 @@
 
 =head1 NAME
 
-xdg-session - an XDG compliant X session startup notification launcher
+xdg-startup - an XDG compliant X startup notification launcher
 
 =head1 SYNOPSIS
 
-B<xdg-session> [I<OPTIONS>] [I<APPID>|I<COMMAND>]
+B<xdg-startup> [I<OPTIONS>] [I<APPID>|I<COMMAND>]
 
 =head1 DESCRIPTION
 
-B<xdg-session> is a script that simply executes L<xdg-launch(1)> with
-the appropriate arguments (B<--session>).
+B<xdg-startup> is a script that simply executes L<xdg-launch(1)> with
+the appropriate arguments (B<--startup>).
 See L<xdg-launch(1)/COMMAND OPTIONS> for more information.
 
 =head1 FILE FORMAT
-
-For the format of X session files, see L<xdg-xsession(1)>.
 
 For the format of auto-start files, see L<xdg-autostart(1)>.
 
 =head1 BUGS
 
-B<xdg-session> has no known bugs.
+B<xdg-startup> has no known bugs.
 Please report bugs to the source code repository at
 L<https://github.com/bbidulock/xdg-launch/issues>.
 
