@@ -9436,6 +9436,40 @@ launch_autostart(Process *pr)
 	return launch_simple(pr); // for now
 }
 
+static Bool
+set_desktop(Process *wm, Bool automatic)
+{
+	if (!getenv("XDG_CURRENT_DESKTOP")) {
+		if (options.desktop) {
+			if (options.desktop[0])
+				try_setenv("XDG_CURRENT_DESKTOP", options.desktop, 1);
+		} else if (automatic && wm) {
+			if (wm->ent->DesktopNames) {
+				/* not sure we should do this */
+				try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
+			} else if (wm->ent->path) {
+				char *desktop, *p;
+
+				/* not sure we should do this */
+				desktop = extract_appid(wm->ent->path);
+				for (p = desktop; p && *p; p++)
+					*p = toupper(*p);
+				try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
+				free(desktop);
+			} else {
+				EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
+				EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
+				return False;
+			}
+		} else {
+			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
+			EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
+			return False;
+		}
+	}
+	return True;
+}
+
 /** @brief launch an XSession entry
   *
   * Launching an XSession entry is a little different that launching an
@@ -9457,20 +9491,8 @@ launch_xsession(Process *wm)
 		try_setenv("XDG_SESSION_PID", buf, 1);
 	}
 
-	if (wm->ent->DesktopNames)
-		try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
-	if (!getenv("XDG_CURRENT_DESKTOP")) {
-		if (wm->ent->path) {
-			char *desktop, *p;
-
-			desktop = extract_appid(wm->ent->path);
-			for (p = desktop; p && *p; p++)
-				*p = toupper(*p);
-			try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
-			free(desktop);
-		} else
-			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
-	}
+	/* not sure we should do this at all for just an x session */
+	// set_desktop(wm, False);
 
 	dpy = get_display();
 
@@ -11711,7 +11733,7 @@ launch_startup(Process *wm)
 	char home[PATH_MAX + 1];
 	size_t i, count = 0;
 
-	OPRINTF(1, "Launching full autostart seqeuence\n");
+	OPRINTF(1, "Launching full autostart sequence\n");
 	if (wm)
 		wm->type = LaunchType_XSession;
 
@@ -11722,28 +11744,10 @@ launch_startup(Process *wm)
 		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
 		try_setenv("XDG_SESSION_PID", buf, 1);
 	}
-	if (!getenv("XDG_CURRENT_DESKTOP")) {
-		if (options.desktop)
-			try_setenv("XDG_CURRENT_DESKTOP", options.desktop, 1);
-		else if (wm) {
-			if (wm->ent->DesktopNames)
-				try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
-			else if (wm->ent->path) {
-				char *desktop, *p;
 
-				desktop = extract_appid(wm->ent->path);
-				for (p = desktop; p && *p; p++)
-					*p = toupper(*p);
-				try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
-				free(desktop);
-			} else {
-				EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
-				exit(EXIT_FAILURE);
-			}
-		} else {
-			EPRINTF("XDG_CURRENT_DESKTOP or --desktop must be set when no APPID\n");
-			exit(EXIT_FAILURE);
-		}
+	if (!set_desktop(wm, False)) {
+		/* not sure we should exit here */
+		exit(EXIT_FAILURE);
 	}
 
 	char *xdg, *dirs, *env;
@@ -11978,20 +11982,8 @@ launch_session(Process *wm)
 		snprintf(buf, sizeof(buf-1), "%d", options.ppid);
 		try_setenv("XDG_SESSION_PID", buf, 1);
 	}
-	if (wm->ent->DesktopNames)
-		try_setenv("XDG_CURRENT_DESKTOP", wm->ent->DesktopNames, 1);
-	if (!getenv("XDG_CURRENT_DESKTOP")) {
-		if (wm->ent->path) {
-			char *desktop, *p;
 
-			desktop = extract_appid(wm->ent->path);
-			for (p = desktop; p && *p; p++)
-				*p = toupper(*p);
-			try_setenv("XDG_CURRENT_DESKTOP", desktop, 1);
-			free(desktop);
-		} else
-			EPRINTF("XDG_CURRENT_DESKTOP cannot be set\n");
-	}
+	set_desktop(wm, True);
 
 	char *xdg, *dirs, *env;
 	char *p, *q;
