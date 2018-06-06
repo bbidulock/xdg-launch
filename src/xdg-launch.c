@@ -2978,8 +2978,7 @@ parse_file(Process *pr, char *path)
 			if (!e->AutostartPhase) {
 				if (strcmp(val, "Applications") == 0) {
 					e->AutostartPhase = strdup(phase_str(AutostartPhase_Application));
-					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key,
-						path);
+					OPRINTF(0, "change \"%s=%s\" to \"%s=Application\" in %s\n", key, val, key, path);
 				} else
 					e->AutostartPhase = strdup(val);
 			}
@@ -4687,73 +4686,73 @@ setup_client(Display *dpy, Client *c)
 		if (msg_from_wm(seq->remover)) {
 			CPRINTF(1, c, "[sc] window manager completed sequence %s\n", seq->f.id);
 			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
-				OPRINTF(0, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
+				OPRINTF(1, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
 			}
 			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
-				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+				OPRINTF(1, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
 			}
 		} else if (msg_from_la(seq->remover)) {
 			CPRINTF(1, c, "[sc] launch assistant completed sequence %s\n", seq->f.id);
 			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
-				OPRINTF(0, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
+				OPRINTF(1, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
 			}
 			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
-				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+				OPRINTF(1, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
 			}
 		} else if (msg_from_me(seq->remover)) {
 			CPRINTF(1, c, "[sc] completed sequence %s\n", seq->f.id);
 			if (e->StartupNotify && !strcmp(e->StartupNotify, "true")) {
-				OPRINTF(0, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
+				OPRINTF(1, "remove \"StartupNotify=%s\" from %s\n", e->StartupNotify, e->path);
 			}
 			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
-				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+				OPRINTF(1, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
 			}
 		} else if (msg_from_ap(seq->remover, c->win) || msg_from_ap(seq->from, c->win)) {
 			CPRINTF(1, c, "[sc] application completed sequence %s\n", seq->f.id);
 			if (!e->StartupNotify || strcmp(e->StartupNotify, "true")) {
-				OPRINTF(0, "add \"StartupNotify=true\" to %s\n", e->path);
+				OPRINTF(1, "add \"StartupNotify=true\" to %s\n", e->path);
 			}
 		} else {
 			CPRINTF(1, c, "[sc] unknown window 0x%08lx completed sequence %s\n", seq->from, seq->f.id);
 			if (c->ch.res_class && (!e->StartupWMClass || strcmp(e->StartupWMClass, c->ch.res_class))) {
-				OPRINTF(0, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
+				OPRINTF(1, "add \"StartupWMClass=%s\" to %s\n", c->ch.res_class, e->path);
 			}
 		}
 	}
 
 	if (is_dockapp(c)) {
 		if (!e->Categories || !strstr(e->Categories, "DockApp")) {
-			OPRINTF(0, "add \"Categories=DockApp\" to %s\n", e->path);
+			OPRINTF(1, "add \"Categories=DockApp\" to %s\n", e->path);
 		}
 		if (pr->type == LaunchType_Autostart) {
 			if (e->AutostartPhase
 			    && strncmp(e->AutostartPhase, "Applications",
 				       strlen(e->AutostartPhase))) {
-				OPRINTF(0, "remove \"AutostartPhase=%s\" from %s\n",
+				OPRINTF(1, "remove \"AutostartPhase=%s\" from %s\n",
 					e->AutostartPhase, e->path);
 			}
 		}
 	} else {
 		if (e->Categories && strstr(e->Categories, "DockApp")) {
-			OPRINTF(0, "remove \"Categories=DockApp\" from %s\n", e->path);
+			OPRINTF(1, "remove \"Categories=DockApp\" from %s\n", e->path);
 
 		}
 	}
 	if (is_trayicon(c)) {
 		if (!e->Categories || !strstr(e->Categories, "TrayIcon")) {
-			OPRINTF(0, "add \"Categories=TrayIcon\" to %s\n", e->path);
+			OPRINTF(1, "add \"Categories=TrayIcon\" to %s\n", e->path);
 		}
 		if (pr->type == LaunchType_Autostart) {
 			if (e->AutostartPhase
 			    && strncmp(e->AutostartPhase, "Applications",
 				       strlen(e->AutostartPhase))) {
-				OPRINTF(0, "remove \"AutostartPhase=%s\" from %s\n",
+				OPRINTF(1, "remove \"AutostartPhase=%s\" from %s\n",
 					e->AutostartPhase, e->path);
 			}
 		}
 	} else {
 		if (e->Categories && strstr(e->Categories, "TrayIcon")) {
-			OPRINTF(0, "remove \"Categories=TrayIcon\" from %s\n", e->path);
+			OPRINTF(1, "remove \"Categories=TrayIcon\" from %s\n", e->path);
 		}
 	}
 }
@@ -9352,7 +9351,7 @@ launch_simple(Process *pr)
 		if (options.info) {
 			char **p;
 
-			OPRINTF(0, "Command would be:");
+			OPRINTF(1, "Command would be:");
 			for (p = &eargv[0]; p && *p; p++)
 				fprintf(stdout, "'%s' ", *p);
 			fputs("\n", stdout);
@@ -9369,7 +9368,7 @@ launch_simple(Process *pr)
 		execvp(eargv[0], eargv);
 	} else {
 		if (options.info) {
-			OPRINTF(0, "Command would be: sh -c \"%s\"\n", pr->seq->f.command);
+			OPRINTF(1, "Command would be: sh -c \"%s\"\n", pr->seq->f.command);
 			return;
 		}
 		DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
@@ -10065,7 +10064,7 @@ set_seq_timestamp(Process *pr)
 	else {
 		ulong ts = 0UL;
 
-		EPRINTF("options.timestamp was not set by get_defaults()!\n");
+		DPRINTF(1, "options.timestamp was not set by get_defaults()!\n");
 		if (s->f.id && (p = strstr(s->f.id, "_TIME")) && (ts = strtoul(p + 5, &endptr, 0)) && !*endptr) {
 			EPRINTF("using timestamp DESKTOP_STARTUP_ID time %lu\n", ts);
 		} else {
@@ -12321,76 +12320,76 @@ setup_entry(Command command)
 		exit(EXIT_FAILURE);
 	}
 	pr->type = options.type;
-	OPRINTF(0, "launch type is %s\n", show_type(pr->type));
+	OPRINTF(1, "launch type is %s\n", show_type(pr->type));
 
 	if (options.audio) {
-		OPRINTF(0, "will wait for audio server\n");
+		OPRINTF(1, "will wait for audio server\n");
 		pr->wait_for |= WAITFOR_AUDIOSERVER;
 	}
 	if (options.manager) {
-		OPRINTF(0, "will wait for window manager\n");
+		OPRINTF(1, "will wait for window manager\n");
 		pr->wait_for |= WAITFOR_WINDOWMANAGER;
 	}
 	if (options.composite) {
-		OPRINTF(0, "will wait for composite manager\n");
+		OPRINTF(1, "will wait for composite manager\n");
 		pr->wait_for |= WAITFOR_COMPOSITEMANAGER;
 	}
 	if (options.tray) {
-		OPRINTF(0, "will wait for system tray\n");
+		OPRINTF(1, "will wait for system tray\n");
 		pr->wait_for |= WAITFOR_SYSTEMTRAY;
 	}
 	if (options.pager) {
-		OPRINTF(0, "will wait for desktop pager\n");
+		OPRINTF(1, "will wait for desktop pager\n");
 		pr->wait_for |= WAITFOR_DESKTOPPAGER;
 	}
 	if (eargv) {
 		/* it is not an error if this fails: worth a shot */
-		OPRINTF(0, "looking up file by EXEC %s\n", basename(eargv[0]));
+		OPRINTF(1, "looking up file by EXEC %s\n", basename(eargv[0]));
 		if (!lookup_proc_by_name(pr, basename(eargv[0]))) {
-			OPRINTF(0, "could not find file for exec '%s'\n", basename(eargv[0]));
+			OPRINTF(1, "could not find file for exec '%s'\n", basename(eargv[0]));
 		} else {
-			OPRINTF(0, "found entry at %s\n", pr->path);
+			OPRINTF(1, "found entry at %s\n", pr->path);
 		}
 	} else if (options.appid) {
-		OPRINTF(0, "looking up file by APPID %s\n", options.appid);
+		OPRINTF(1, "looking up file by APPID %s\n", options.appid);
 		if (!lookup_proc_by_name(pr, options.appid)) {
 			EPRINTF("could not find file for name '%s'\n", options.appid);
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.mimetype) {
-		OPRINTF(0, "looking up file by MIMETYPE %s\n", options.mimetype);
+		OPRINTF(1, "looking up file by MIMETYPE %s\n", options.mimetype);
 		if (!lookup_proc_by_type(pr, options.mimetype)) {
 			EPRINTF("could not find file for type '%s'\n", options.mimetype);
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.category) {
-		OPRINTF(0, "looking up file by CATEGORY %s\n", options.category);
+		OPRINTF(1, "looking up file by CATEGORY %s\n", options.category);
 		if (!lookup_proc_by_kind(pr, options.category)) {
 			EPRINTF("could not find file for kind '%s'\n", options.category);
 			exit(EXIT_FAILURE);
 		}
 	} else if (startup && options.desktop) {
-		OPRINTF(0, "looking up file by DESKTOP %s\n", options.desktop);
+		OPRINTF(1, "looking up file by DESKTOP %s\n", options.desktop);
 		if (!lookup_proc_by_desk(pr, options.desktop)) {
 			EPRINTF("could not find file for desk '%s'\n", options.desktop);
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.appspec) {
-		OPRINTF(0, "looking up file by APPSPEC %s\n", options.appspec);
+		OPRINTF(1, "looking up file by APPSPEC %s\n", options.appspec);
 		if (lookup_proc_by_name(pr, options.appspec)) {
-			OPRINTF(0, "found file by APPID %s\n", options.appspec);
+			OPRINTF(1, "found file by APPID %s\n", options.appspec);
 			free(options.appid);
 			options.appid = strdup(options.appspec);
 		} else if (lookup_proc_by_type(pr, options.appspec)) {
-			OPRINTF(0, "found file by MIMETYPE %s\n", options.appspec);
+			OPRINTF(1, "found file by MIMETYPE %s\n", options.appspec);
 			free(options.mimetype);
 			options.mimetype = strdup(options.appspec);
 		} else if (lookup_proc_by_kind(pr, options.appspec)) {
-			OPRINTF(0, "found file by CATEGORY %s\n", options.appspec);
+			OPRINTF(1, "found file by CATEGORY %s\n", options.appspec);
 			free(options.category);
 			options.category = strdup(options.appspec);
 		} else if (startup && lookup_proc_by_desk(pr, options.desktop)) {
-			OPRINTF(0, "found file by DESKTOP %s\n", options.appspec);
+			OPRINTF(1, "found file by DESKTOP %s\n", options.appspec);
 			free(options.desktop);
 			options.desktop = strdup(options.appspec);
 		} else {
@@ -12400,11 +12399,11 @@ setup_entry(Command command)
 	} else if (options.exec) {
 		char *bin = first_word(options.exec);
 
-		OPRINTF(0, "looking up file by EXEC %s\n", basename(bin));
+		OPRINTF(1, "looking up file by EXEC %s\n", basename(bin));
 		if (!lookup_proc_by_name(pr, basename(bin))) {
-			OPRINTF(0, "could not find file for exec '%s'\n", basename(bin));
+			OPRINTF(1, "could not find file for exec '%s'\n", basename(bin));
 		} else {
-			OPRINTF(0, "found entry at %s\n", pr->path);
+			OPRINTF(1, "found entry at %s\n", pr->path);
 		}
 		free(bin);
 	} else {
