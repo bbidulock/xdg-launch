@@ -1,5 +1,33 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit b1e4cb00933166cd9e2c62681620e75dde360c18
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 6 10:08:26 2018 -0600
+
+    update release files
+
+ ChangeLog | 29 +++++++++++++++--------------
+ NEWS      |  3 ++-
+ 2 files changed, 17 insertions(+), 15 deletions(-)
+
+commit 08d21aa5664184a15e77d868bc10002cfc9665f4
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 6 10:08:15 2018 -0600
+
+    document --desktop option
+
+ man/xdg-launch.pod | 21 ++++++++++++++++-----
+ 1 file changed, 16 insertions(+), 5 deletions(-)
+
+commit 53dd7c3ff0ee690bcd383b387669782f694c1d99
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 6 10:07:57 2018 -0600
+
+    factor set_desktop
+
+ src/xdg-launch.c | 92 ++++++++++++++++++++++++----------------------------
+ 1 file changed, 42 insertions(+), 50 deletions(-)
+
 commit 1e6b863a0d015dfda0b9d437cbcdb9c0118e7656
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Wed Jun 6 08:55:50 2018 -0600
@@ -4918,40 +4946,3 @@ Date:   Sun Jan 26 07:37:22 2014 -0700
  TODO               |   0
  configure.template |   2 +-
  8 files changed, 678 insertions(+), 2 deletions(-)
-
-commit 9da48cef34b432c01f257b14d558bf6ac34a436a
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Sun Jan 26 07:27:33 2014 -0700
-
-    trimmed down to just xdg-launch
-
- Makefile.am        |   18 +-
- configure.template |    8 +-
- xde-keys.c         |  330 ----------
- xde-theme.c        | 1622 ------------------------------------------------
- xde-theme.pod      |  466 --------------
- xdg-launch.man.in  |  553 -----------------
- xdg-launch.pod     |  455 ++++++++++++++
- 7 files changed, 465 insertions(+), 2987 deletions(-)
-
-commit 03222f6de203d6914b8a25a92b0f0cecf7661f10
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Sun Jan 26 06:08:01 2014 -0700
-
-    compiles
-
- .indent.pro |  10 +-
- xde-theme.c | 792 +++++++++++++++++++++++++++++++++++++++++++++++++++++---
- 2 files changed, 770 insertions(+), 32 deletions(-)
-
-commit 5d9e70dd89b56d84ba3bda225293b159bbcd7e7b
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri Jan 17 22:54:18 2014 -0700
-
-    working up xde-theme
-
- .gitignore                |   3 +-
- Makefile.am               |   9 +-
- xde-theme.c => xde-keys.c | 219 ++----------
- xde-theme.c               | 769 ++++++++++++++++++++++++++++++++----------
- 4 files changed, 629 insertions(+), 371 deletions(-)
