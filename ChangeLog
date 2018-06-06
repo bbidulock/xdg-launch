@@ -1,5 +1,20 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 1e6b863a0d015dfda0b9d437cbcdb9c0118e7656
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 6 08:55:50 2018 -0600
+
+    always accept version and copying
+
+ AUTHORS          |    2 +-
+ ChangeLog        | 1123 +++++++++++++++++++++++++++++++++++++++++++++++---
+ NEWS             |  147 ++++++-
+ README           |   64 +--
+ README.md        |   48 +--
+ configure.ac     |    8 +-
+ src/xdg-launch.c |   12 +-
+ 7 files changed, 1261 insertions(+), 143 deletions(-)
+
 commit b6e16d602853c77e519a5ba0d325a248c1f4b123
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Wed Jun 6 08:47:01 2018 -0600
@@ -4940,17 +4955,3 @@ Date:   Fri Jan 17 22:54:18 2014 -0700
  xde-theme.c => xde-keys.c | 219 ++----------
  xde-theme.c               | 769 ++++++++++++++++++++++++++++++++----------
  4 files changed, 629 insertions(+), 371 deletions(-)
-
-commit 83b45374b1a58269b71aeb9be7360f42c5732d7d
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri Jan 17 02:51:13 2014 -0700
-
-    working up launch utility
-
- .gitignore    |   3 +
- .indent.pro   | 226 ++++++++++++++++++
- Makefile.am   |  21 +-
- xde-theme.c   | 485 +++++++++++++++++++++++++++++++++++++
- xde-theme.pod | 466 ++++++++++++++++++++++++++++++++++++
- xdg-launch.c  | 699 ++++++++++++++++++++++++++++++++++++++++++++++--------
- 6 files changed, 1804 insertions(+), 96 deletions(-)
