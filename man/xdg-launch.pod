@@ -6,12 +6,12 @@ xdg-launch - an XDG compliant startup notification launcher
 
 =head1 SYNOPSIS
 
-B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|I<COMMAND>]
+B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]...|I<COMMAND>]
  B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
  B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
  B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
  B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
- B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|I<COMMAND>]
+ B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]...|I<COMMAND>]
  B<xdg-launch> {B<-V>|B<--version>}
  B<xdg-launch> {B<-C>|B<--copying>}
 
@@ -57,7 +57,7 @@ C<gvim.desktop>); the same restrictions as (1), above, apply; or,
 
 =item 3.
 
-The full path (absolute or relative) and filename of a desktop entry
+The full path (absolute or relative) and file name of a desktop entry
 file (e.g.  F</usr/share/applications/gvim.desktop>); the full path must
 contain at least one C</> and start with either a C</> or a C<.>.
 
@@ -105,19 +105,28 @@ unless the B<--exec>, B<--appid>, B<--mimetype> or B<--category> options
 are specified, in which case it should not be specified as a non-option
 argument.
 
-=item [{B<-f>,B<--file>}] I<FILE>
+=item [{B<-f>,B<--file>}] I<FILE> ...
 
 Specifies the file name with which to launch the application.  This is
 used in C<%f> substitutions in the C<Exec> field of the XDG desktop
 entry file or B<--exec> command line.  This may also be Specified with
-the B<--file> option.
+the B<--file> option.  The option or argument can be repeated to specify
+multiple files.
 
-=item [{B<-u>,B<--url>}] I<URL>
+=item [{B<-u>,B<--url>}] I<URL> ...
 
 Specifies the URL with which to launch the application.  This is used in
 C<%u> substitutions in the C<Exec> field of the XDG desktop entry file
 or B<--exec> command line.  This may also be specified with the B<--url>
-option.
+option.  The option or argument can be repeated to specify multiple
+URLs.
+
+=back
+
+Mixing I<FILE> and I<URL> arguments or options is not currently
+recommended.
+
+=over
 
 =item I<COMMAND> = {{B<-x>,B<--exec>} "I<EXEC ARGUMENT>..."|B<-e> I<EXEC ARGUMENT>...}
 
@@ -156,12 +165,17 @@ scheme handler that will identify the application to launch.
 Specify an XDG menu specification category, I<CATEGORY>, that identifies
 the application to launch.
 
+=item B<--desktop> I<DESKTOP>
+
+Specify an XDG menu specification desktop environment name, I<DESKTOP>,
+that identifies the X session for which to launch.
+
 =item B<-f>, B<--file> I<FILE>
 
-Specifies a filename, I<FILE>, to be substituted into the XDG desktop
+Specifies a file name, I<FILE>, to be substituted into the XDG desktop
 entry C<Exec> command in accordance with XDG desktop entry
 specifications.  The default is to use the non-option I<FILE> argument,
-or no filename.  When B<--url> or URL is specified as a F<file://> URL,
+or no file name.  When B<--url> or URL is specified as a F<file://> URL,
 this option defaults to the URL with the F<file:> portion removed.
 
 =item B<-u>, B<--url> I<URL>
