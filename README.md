@@ -1,9 +1,9 @@
-[xdg-launch -- read me first file.  2018-04-30]: #
+[xdg-launch -- read me first file.  2018-06-06]: #
 
 xdg-launch
 ===============
 
-Package `xdg-launch-1.7` was released under GPLv3 license 2018-04-30.
+Package `xdg-launch-1.8` was released under GPLv3 license 2018-06-06.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -20,7 +20,7 @@ wrapper scripts.
 Release
 -------
 
-This is the `xdg-launch-1.7` package, released 2018-04-30.  This
+This is the `xdg-launch-1.8` package, released 2018-06-06.  This
 release, and the latest version, can be obtained from [GitHub][1], using
 a command such as:
 
@@ -131,26 +131,26 @@ Report issues on GitHub [here][2].
 
 [1]: https://github.com/bbidulock/xdg-launch
 [2]: https://github.com/bbidulock/xdg-launch/issues
-[3]: https://github.com/bbidulock/xdg-launch/blob/1.7/NEWS
-[4]: https://github.com/bbidulock/xdg-launch/blob/1.7/ChangeLog
-[5]: https://github.com/bbidulock/xdg-launch/blob/1.7/TODO
-[6]: https://github.com/bbidulock/xdg-launch/blob/1.7/COMPLIANCE
-[7]: https://github.com/bbidulock/xdg-launch/blob/1.7/INSTALL
-[8]: https://github.com/bbidulock/xdg-launch/blob/1.7/LICENSE
-[9]: https://github.com/bbidulock/xdg-launch/blob/1.7/COPYING
-[10]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-launch.pod
-[11]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/dmenu_launch.pod
-[12]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-autostart.pod
-[13]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-xsession.pod
-[14]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-session.pod
-[15]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-entry.pod
-[16]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-toolwait.pod
-[17]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-which.pod
-[18]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-whereis.pod
-[19]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-assist.pod
-[20]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-list.pod
-[21]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-types.pod
-[22]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-find.pod
-[23]: https://github.com/bbidulock/xdg-launch/blob/1.7/man/xdg-prefs.pod
+[3]: https://github.com/bbidulock/xdg-launch/blob/1.8/NEWS
+[4]: https://github.com/bbidulock/xdg-launch/blob/1.8/ChangeLog
+[5]: https://github.com/bbidulock/xdg-launch/blob/1.8/TODO
+[6]: https://github.com/bbidulock/xdg-launch/blob/1.8/COMPLIANCE
+[7]: https://github.com/bbidulock/xdg-launch/blob/1.8/INSTALL
+[8]: https://github.com/bbidulock/xdg-launch/blob/1.8/LICENSE
+[9]: https://github.com/bbidulock/xdg-launch/blob/1.8/COPYING
+[10]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-launch.pod
+[11]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/dmenu_launch.pod
+[12]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-autostart.pod
+[13]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-xsession.pod
+[14]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-session.pod
+[15]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-entry.pod
+[16]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-toolwait.pod
+[17]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-which.pod
+[18]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-whereis.pod
+[19]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-assist.pod
+[20]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-list.pod
+[21]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-types.pod
+[22]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-find.pod
+[23]: https://github.com/bbidulock/xdg-launch/blob/1.8/man/xdg-prefs.pod
 
 [ vim: set ft=markdown sw=4 tw=72 nocin nosi fo+=tcqlorn spell: ]: #

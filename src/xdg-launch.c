@@ -13395,18 +13395,10 @@ main(int argc, char *argv[])
 			command = CommandHelp;
 			break;
 		case 'V':	/* -V, --version */
-			if (options.command != CommandDefault)
-				goto bad_command;
-			if (command == CommandDefault)
-				command = CommandVersion;
-			options.command = CommandVersion;
+			command = CommandVersion;
 			break;
 		case 'C':	/* -C, --copying */
-			if (options.command != CommandDefault)
-				goto bad_command;
-			if (command == CommandDefault)
-				command = CommandCopying;
-			options.command = CommandCopying;
+			command = CommandCopying;
 			break;
 		case '?':
 		default:

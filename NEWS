@@ -1,11 +1,141 @@
-xdg-launch -- history of user-visible changes.  2018-04-30
+xdg-launch -- history of user-visible changes.  2018-06-06
 
-Release xdg-launch-1.7 released 2018-04-30
+Release xdg-launch-1.8 released 2018-06-06
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.8...HEAD
+
+
+
+
+Release xdg-launch-1.8 released 2018-06-06
+------------------------------------------
+
+git shortlog -e -n -w80,6,8 1.7...1.8
+
+Brian Bidulock <bidulock@openss7.org> (114):
+      correct logic error
+      add parent pid option
+      set default ppid to XDG_SESSION_PID
+      some comments
+      get rid of zombie assist processes
+      prepare to wait without each app testing for itself
+      missing get_display()
+      full wm check before needs check
+      zero signum
+      clear pending events before polling
+      turn up volume on debugs
+      do not wait when launching wm
+      add timestamps to messages
+      debug launch
+      debug waiting
+      more event handler debugging
+      proper display handling
+      quiet down
+      end display before execvp
+      actually check for a window manager
+      wait another second for condition to stabilize
+      try setting subreaper
+      set subrepeaper just before execvp
+      use execlp instead of wordexp execvp
+      use execlp where possible
+      do not set subreaper if it is parent
+      update documentation
+      do not autostart PreDisplayServer entries
+      correction
+      execute setup and start scripts if available
+      relax a bit
+      use process as primary argument
+      collapse to single loop and use dispatcher method
+      Merge branch 'master' of github.com:bbidulock/xdg-launch
+      errors
+      revert to stable
+      some corrections during debugging
+      do not need to handle sigchld
+      remove global display
+      get rid of nscr global
+      parameterize screen
+      remove set_timestamp dependency on setup display
+      also no display to set_id and reset_pid
+      do not open display for set_timestamp
+      do not open display in set_screen
+      do not open display in set_monitor
+      do not open display on set_desktop
+      work options into process struct
+      collect launch types
+      use pr->appid where possible
+      avoid using options to set things excecpt on leader
+      update help
+      rework command options
+      improve help/usage printout
+      cleanup: fix coredump in lookup_file_by_kind()
+      control default, recommended fallback mimetypes or categories
+      add to help()
+      update documentation
+      simplify finding screen
+      make set_seq_screen more robust
+      make set_seq_monitor and screen open their own displays
+      more simplification set seq monitor and screen
+      simplify info reporting
+      start launch rework
+      prepare for autostart only
+      rearrange documentation
+      straighten out history files
+      tri-state booleans
+      rearrange options
+      factor setup_entry
+      strap in auto start procedure
+      use current desktop
+      get info option working again
+      do not set env vars on dry run
+      setting seq later now
+      setting seq later now
+      talk about X display
+      do not signal processes when dry run
+      launch xsessions different
+      set up window manager better
+      do not exec wm under dry run
+      set seq not necessarily monitor
+      do not run checks when setting up screens
+      override type read from file
+      cannot show source without setup screens
+      reduce noise
+      set screen monitor and timestamp without X display
+      intern necessary atom
+      wait for dispatcher to exit on startup
+      actually run dispatcher during dry run
+      actually fork dispatcher
+      apply categories to autostart
+      Desktop before Panel; Initialization not Initializing
+      default phase is Applications
+      correct Desktop/Panel reversal
+      handle subreaper correctly
+      setup window manager earlier
+      handle signals better
+      always set the SCREEN= field
+      use only default screen for XSession and Autostart
+      add more debugs
+      use X-KDE-autostart-after where possible
+      correct message
+      add handlers for undetected atoms
+      debug incomplete phases
+      more completion debugging
+      bump reference count
+      provide some additional autostart parms
+      add some desktop entry extension fields
+      break file into sections
+      added delay option: No! not another option!
+      expand documentation
+      handle muliple files, deprecated substitutions
+      reduce noise
+
+
+Release xdg-launch-1.7 released 2018-04-29
 ------------------------------------------
 
 git shortlog -e -n -w80,6,8 1.6...1.7
 
-Brian Bidulock <bidulock@openss7.org> (14):
+Brian Bidulock <bidulock@openss7.org> (15):
       remove stray line
       try to bring up autostart processes
       update copyright statement
@@ -20,6 +150,7 @@ Brian Bidulock <bidulock@openss7.org> (14):
       check for zero window
       better debugging, caught several core dumps
       Merge branch 'master' of github.com:bbidulock/xdg-launch
+      update release files
 
 
 Release xdg-launch-1.6 released 2018-03-25
@@ -265,15 +396,5 @@ git shortlog -e -n -w80,6,8 0.7...0.8
 Brian Bidulock <bidulock@openss7.org> (3):
       add guard timer
       update README.md
-      update release files
-
-
-Release xdg-launch-0.7 released 2016-03-26
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.6...0.7
-
-Brian Bidulock <bidulock@openss7.org> (2):
-      add wait for audio server
       update release files
 
