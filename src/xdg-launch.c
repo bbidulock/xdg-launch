@@ -238,6 +238,10 @@ typedef struct {
 	char *exec;
 	char *file;
 	char *url;
+	char **files;
+	char **urls;
+	int nfiles;
+	int nurls;
 	pid_t pid;
 	pid_t ppid;
 	char *id;
@@ -303,6 +307,10 @@ Options options = {
 	.exec = NULL,
 	.file = NULL,
 	.url = NULL,
+	.files = NULL,
+	.urls = NULL,
+	.nfiles = 0,
+	.nurls = 0,
 	.pid = 0,
 	.ppid = 0,
 	.id = NULL,
@@ -366,8 +374,12 @@ Options defaults = {
 	.wmclass = "[StartupWMClass=]",
 	.silent = "0",
 	.exec = "[EXEC ARGUMENT...]",
-	.file = "[FILE]",
-	.url = "[URL]",
+	.file = "[FILE...]",
+	.url = "[URL...]",
+	.files = NULL,
+	.urls = NULL,
+	.nfiles = 0,
+	.nurls = 0,
 	.pid = 0,
 	.ppid = 0,
 	.id = "$DESKTOP_STARTUP_ID",
@@ -411,6 +423,8 @@ static const char *DesktopEntryFields[] = {
 	"Name",
 	"Comment",
 	"Icon",
+	"MiniIcon",
+	"Device",
 	"TryExec",
 	"Exec",
 	"Terminal",
@@ -439,6 +453,8 @@ typedef struct _Entry {
 	char *Name;
 	char *Comment;
 	char *Icon;
+	char *MiniIcon;
+	char *Device;
 	char *TryExec;
 	char *Exec;
 	char *Terminal;
@@ -2892,6 +2908,14 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "Icon") == 0) {
 			free(e->Icon);
 			e->Icon = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "MiniIcon") == 0) {
+			free(e->MiniIcon);
+			e->MiniIcon = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "Device") == 0) {
+			free(e->Device);
+			e->Device = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "TryExec") == 0) {
 			if (!e->TryExec)
@@ -10077,7 +10101,7 @@ set_seq_timestamp(Process *pr)
 }
 
 static void
-do_subst(char *cmd, char *chars, char *str)
+do_subst(char *cmd, const char *chars, const char *str)
 {
 	int len = 0;
 	char *p;
@@ -10095,21 +10119,201 @@ do_subst(char *cmd, char *chars, char *str)
 	}
 }
 
+static const char *
+get_miniicon(Entry * e)
+{
+	static char *buf = NULL;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if (e && e->MiniIcon) {
+		static const char *option = "--miniicon ";
+		size_t len = strlen(option) + strlen(e->MiniIcon) + 1;
+
+		if ((buf = calloc(len, sizeof(*buf)))) {
+			strcpy(buf, option);
+			strcat(buf, e->MiniIcon);
+		}
+	}
+	return (buf);
+}
+
+static const char *
+get_list(char **list, int num)
+{
+	static char *buf = NULL;
+	size_t len;
+	int i;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if (list && num > 0) {
+		for (len = 0, i = 0; i < num; i++)
+			len += strlen(list[i]) + 1;
+		if ((buf = calloc(len, sizeof(*buf)))) {
+			for (i = 0; i < num; i++) {
+				strcat(buf, list[i]);
+				if (i + 1 < num)
+					strcat(buf, " ");
+			}
+		}
+	}
+	return (buf);
+}
+
+static const char *
+get_file_list(char **list, int num)
+{
+	static char *buf = NULL;
+	const char *lst;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if ((lst = get_list(list, num)))
+		buf = strdup(lst);
+	return (buf);
+}
+
+static const char *
+get_url_list(char **list, int num)
+{
+	static char *buf = NULL;
+	const char *lst;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if ((lst = get_list(list, num)))
+		buf = strdup(lst);
+	return (buf);
+}
+
+static const char *
+get_name(const char *path)
+{
+	if (!path)
+		return (path);
+	return basename(path);
+}
+
+static const char *
+get_dir(const char *path)
+{
+	static char *buf = NULL;
+	char *p;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if (path) {
+		buf = strdup(path);
+		if ((p = strrchr(buf, '/')))
+			*p = '\0';
+		if (!p || buf[0] == '\0') {
+			free(buf);
+			buf = strdup(".");
+		}
+	}
+	return (buf);
+}
+
+static const char *
+get_names(char **list, int num)
+{
+	static char *buf = NULL;
+	size_t len;
+	int i;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if (list && num > 0) {
+		for (len = 0, i = 0; i < num; i++)
+			len += strlen(get_name(list[i])) + 1;
+		if ((buf = calloc(len, sizeof(*buf)))) {
+			for (i = 0; i < num; i++) {
+				strcat(buf, get_name(list[i]));
+				if (i + 1 < num)
+					strcat(buf, " ");
+			}
+		}
+	}
+	return (buf);
+}
+
+static const char *
+get_dirs(char **list, int num)
+{
+	static char *buf = NULL;
+	size_t len;
+	int i;
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
+	if (list && num > 0) {
+		for (len = 0, i = 0; i < num; i++)
+			len += strlen(get_dir(list[i])) + 1;
+		if ((buf = calloc(len, sizeof(*buf)))) {
+			for (i = 0; i < num; i++) {
+				strcat(buf, get_dir(list[i]));
+				if (i + 1 < num)
+					strcat(buf, " ");
+			}
+		}
+	}
+	return (buf);
+}
+
 static void
-subst_command(char *cmd, Process *pr)
+subst_command(char *cmd, Process * pr)
 {
 	Sequence *s = pr->seq;
+	Entry *e = pr->ent;
 	int len;
 	char *p;
+
+	/* %d - (deprecated) directory of the file to open */
+	/* %D - (deprecated) list of directories */
+	/* %n - (deprecated) a single filename (without path) */
+	/* %N - (deprecated) a list of filenames (without path) */
+	/* %m - (deprecated) --miniicon MiniIcon= entry */
+	/* %d - (deprecated) Device= entry */
+
+	/* TODO: note that for %f and %F, when one or more URLs are provided, should
+	   download the file to a temporary location and susbstitute the downloaded file
+	   name(s). This requires a different approach than is taken here. */
+
+	/* TODO: note that for %f and %u, when multiple files or URLs are provided,
+	   should launch one copy of the application for each provided file or
+	   URL. This requires a different approach than is taken here, and
+	   currently only a single file and URL is supported. */
 
 	assert(s != NULL);
 	do_subst(cmd, "i", s->f.icon);
 	do_subst(cmd, "c", s->f.name);
 	do_subst(cmd, "C", s->f.wmclass);
 	do_subst(cmd, "k", s->f.application_id);
-	do_subst(cmd, "uU", options.url);
-	do_subst(cmd, "fF", options.file);
-	do_subst(cmd, "dDnNvm", NULL);
+	do_subst(cmd, "u", options.url);
+	do_subst(cmd, "U", get_list(options.urls, options.nurls));
+	do_subst(cmd, "f", options.file);
+	do_subst(cmd, "F", get_list(options.files, options.nfiles));
+	do_subst(cmd, "m", get_miniicon(e));
+	do_subst(cmd, "v", e ? e->Device : NULL);
+	do_subst(cmd, "d", get_dir(options.file));
+	do_subst(cmd, "D", get_dirs(options.files, options.nfiles));
+	do_subst(cmd, "n", get_name(options.file));
+	do_subst(cmd, "N", get_names(options.files, options.nfiles));
 	// do_subst(cmd, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", NULL);
 	do_subst(cmd, "%", "%");
 	if ((len = strspn(cmd, " \t")))
@@ -12107,7 +12311,6 @@ setup_entry(Command command)
 {
 	Process *pr = NULL;
 	Bool startup = (command == CommandStartup) ? True : False;
-	char *p;
 
 	if (!eargv && !options.appspec && !options.appid && !options.mimetype && !options.category
 	    && !options.exec && startup && !options.desktop) {
@@ -12235,35 +12438,6 @@ setup_entry(Command command)
 	pr->type = options.type;
 	pr->action = options.action ? strdup(options.action) : NULL;
 	set_ent_all(pr);	/* fill in entry from options */
-	if (options.file && options.file[0] && !options.url) {
-		if (options.file[0] == '/') {
-			int size = strlen("file://") + strlen(options.file) + 1;
-
-			options.url = calloc(size, sizeof(*options.url));
-			strcpy(options.url, "file://");
-			strcat(options.url, options.file);
-		} else if (options.file[0] == '.' && options.file[1] == '/') {
-			char *cwd = get_current_dir_name();
-			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
-
-			options.url = calloc(size, sizeof(*options.url));
-			strcpy(options.url, "file://");
-			strcat(options.url, cwd);
-			strcat(options.url, "/");
-			strcat(options.url, options.file + 2);
-		} else {
-			char *cwd = get_current_dir_name();
-			int size = strlen("file://") + strlen(cwd) + 1 + strlen(options.file) + 1;
-
-			options.url = calloc(size, sizeof(*options.url));
-			strcpy(options.url, "file://");
-			strcat(options.url, cwd);
-			strcat(options.url, "/");
-			strcat(options.url, options.file);
-		}
-	} else if (options.url && !options.file && (p = strstr(options.url, "file://")) == options.url) {
-		options.file = strdup(options.url + 7);
-	}
 	if (options.output > 1)
 		show_entry("Entries", pr->ent);
 	if (options.info)
@@ -12369,12 +12543,12 @@ usage(int argc, char *argv[])
 		return;
 	(void) fprintf(stderr, "\
 Usage:\n\
-    %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
+    %1$s [options] [APPSPEC [FILE...|URL...] | COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
     %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
     %1$s {-B|--startup}   [options] [APPID | COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
-    %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
+    %1$s {-h|--help} [options] [APPPEC [FILE...|URL...] | COMMAND]\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 ", argv[0]);
@@ -12402,12 +12576,12 @@ help(int argc, char *argv[])
 	/* *INDENT-OFF* */
 	(void) fprintf(stdout, "\
 Usage:\n\
-    %1$s [options] [APPSPEC [FILE|URL] | COMMAND]\n\
+    %1$s [options] [APPSPEC [FILE...|URL...] | COMMAND]\n\
     %1$s {-U|--autostart} [options] [APPID | COMMAND]\n\
     %1$s {-X|--xsession}  [options] [APPID | COMMAND]\n\
     %1$s {-B|--startup}   [options] [APPID | COMMAND]\n\
     %1$s {-E|--session}   [options] [APPID | COMMAND]\n\
-    %1$s {-h|--help} [options] [APPPEC [FILE|URL] | COMMAND]\n\
+    %1$s {-h|--help} [options] [APPPEC [FILE...|URL...] | COMMAND]\n\
     %1$s {-V|--version}\n\
     %1$s {-C|--copying}\n\
 Arguments:\n\
@@ -12421,10 +12595,12 @@ Arguments:\n\
 	the XDG menu category of the application to launch [default: '%5$s']\n\
     [--desktop] DESKTOP\n\
 	the XDG desktop name of the X session to launch [default: '%6$s']\n\
-    [-f,--file] FILE\n\
+    [-f,--file] FILE ...\n\
         the file name with which to launch the application [default: '%7$s']\n\
-    [-u,--url] URL\n\
+	this may be repeated to specify multiple files\n\
+    [-u,--url] URL ...\n\
         the URL with which to launch the application [default: '%8$s']\n\
+	this may be repeated to specify multiple URLs\n\
     COMMAND = {-x,--exec \"EXEC ARGUMENT...\" | -e EXEC ARGUMENT...}\n\
         the COMMAND to launch the application [default: '%9$s']\n\
 Options:\n\
@@ -12548,8 +12724,8 @@ Options:\n\
 	, defaults.mimetype ? : ""
 	, defaults.category ? : ""
 	, defaults.desktop ? : ""
-	, defaults.file ? : ""
-	, defaults.url ? : ""
+	, get_file_list(defaults.files, defaults.nfiles) ? : ""
+	, get_url_list(defaults.urls, defaults.nurls) ? : ""
 	, defaults.exec ? : ""
 	, show_bool(defaults.type == LaunchType_XSession)
 	, show_bool(defaults.type == LaunchType_Autostart)
@@ -12981,12 +13157,24 @@ main(int argc, char *argv[])
 			defaults.appspec = options.appspec = strdup(optarg);
 			break;
 		case 'f':	/* -f, --file FILE */
-			free(options.file);
-			defaults.file = options.file = strdup(optarg);
+			if (!options.file)
+				defaults.file = options.file = strdup(optarg);
+			options.nfiles++;
+			defaults.files = options.files = reallocarray(options.files, options.nfiles + 1, sizeof(*options.files));
+			options.files[options.nfiles - 1] = strdup(optarg);
+			options.files[options.nfiles] = NULL;
+			defaults.nfiles = options.nfiles;
+			DPRINTF(1, "File list is now '%s'\n", get_list(defaults.files, defaults.nfiles));
 			break;
 		case 'u':	/* -u, --url URL */
-			free(options.url);
-			defaults.url = options.url = strdup(optarg);
+			if (!options.url)
+				defaults.url = options.url = strdup(optarg);
+			options.nurls++;
+			defaults.urls = options.urls = reallocarray(options.urls, options.nurls + 1, sizeof(*options.urls));
+			options.urls[options.nurls - 1] = strdup(optarg);
+			options.urls[options.nurls] = NULL;
+			defaults.nurls = options.nurls;
+			DPRINTF(1, "URL list is now '%s'\n", get_list(defaults.urls, defaults.nurls));
 			break;
 		case 'K':	/* -K, --keyboard */
 			if (options.pointer)
@@ -13264,25 +13452,95 @@ main(int argc, char *argv[])
 		if (options.appspec)
 			optind++;
 		else
-			options.appspec = strdup(argv[optind++]);
-		if (optind < argc) {
-			if (strchr(argv[optind], ':')) {
-				if (options.url)
-					optind++;
-				else
-					options.url = strdup(argv[optind++]);
+			defaults.appspec = options.appspec = strdup(argv[optind++]);
+		for (; optind < argc; optind++) {
+			if (!strchr(argv[optind], ':')) {
+				DPRINTF(1, "adding file %s\n", argv[optind]);
+				if (!options.file)
+					defaults.file = options.file = strdup(argv[optind]);
+				options.nfiles++;
+				defaults.files = options.files = reallocarray(options.files, options.nfiles + 1, sizeof(*options.files));
+				options.files[options.nfiles - 1] = strdup(argv[optind]);
+				options.files[options.nfiles] = NULL;
+				defaults.nfiles = options.nfiles;
+				DPRINTF(1, "File list is now '%s'\n", get_list(defaults.files, defaults.nfiles));
 			} else {
-				if (options.file)
-					optind++;
-				else
-					options.file = strdup(argv[optind++]);
+				DPRINTF(1, "adding url %s\n", argv[optind]);
+				if (!options.url)
+					defaults.file = options.url = strdup(argv[optind]);
+				options.nurls++;
+				defaults.urls = options.urls = reallocarray(options.urls, options.nurls + 1, sizeof(*options.urls));
+				options.urls[options.nurls - 1] = strdup(argv[optind]);
+				options.urls[options.nurls] = NULL;
+				defaults.nurls = options.nurls;
+				DPRINTF(1, "URL list is now '%s'\n", get_list(defaults.urls, defaults.nurls));
 			}
-			if (optind > argc)
-				goto bad_nonopt;
 		}
 	}
 
 	get_defaults(argc, argv);
+
+	/* TODO: Note also that for %f and %F, when one or more URLs are
+	   provided, should download the file to a temporary location and
+	   susbstitute the downloaded file name(s). This requires a different
+	   approach than is taken here. */
+	if (options.file && !options.url) {
+		for (int i = 0; i < options.nfiles; i++) {
+			char *url, *file = options.files[i];
+			if (file[0] == '/') {
+				size_t size = strlen("file://") + strlen(file) + 1;
+
+				url = calloc(size, sizeof(*url));
+				strcpy(url, "file://");
+				strcat(url, file);
+				DPRINTF(1, "converted file '%s' to url '%s'\n", file, url);
+			} else if (file[0] == '.' && file[1] == '/') {
+				char *cwd = get_current_dir_name();
+				size_t size = strlen("file://") + strlen(cwd) + 1 + strlen(file) + 1;
+
+				url = calloc(size, sizeof(*url));
+				strcpy(url, "file://");
+				strcat(url, cwd);
+				strcat(url, "/");
+				strcat(url, file + 2);
+				DPRINTF(1, "converted file '%s' to url '%s'\n", file, url);
+			} else {
+				char *cwd = get_current_dir_name();
+				size_t size = strlen("file://") + strlen(cwd) + 1 + strlen(file) + 1;
+
+				url = calloc(size, sizeof(*url));
+				strcpy(url, "file://");
+				strcat(url, cwd);
+				strcat(url, "/");
+				strcat(url, file);
+				DPRINTF(1, "converted file '%s' to url '%s'\n", file, url);
+			}
+			if (!options.url)
+				defaults.url = options.url = strdup(url);
+			options.nurls++;
+			defaults.urls = options.urls = reallocarray(options.urls, options.nurls + 1, sizeof(*options.urls));
+			options.urls[options.nurls - 1] = url;
+			options.urls[options.nurls] = NULL;
+			defaults.nurls = options.nurls;
+			DPRINTF(1, "URL list is now '%s'\n", get_list(defaults.urls, defaults.nurls));
+		}
+	} else if (options.url && !options.file) {
+		for (int i = 0; i < options.nurls; i++) {
+			char *file, *url = options.urls[i];
+
+			if (((file = strstr(url, "file://")) != url))
+				continue;
+			file = strdup(url + 7);
+			if (!options.file)
+				defaults.file = options.file = strdup(file);
+			options.nfiles++;
+			defaults.files = options.files = reallocarray(options.files, options.nfiles + 1, sizeof(*options.files));
+			options.files[options.nfiles - 1] = file;
+			options.files[options.nfiles] = NULL;
+			defaults.nfiles = options.nfiles;
+			DPRINTF(1, "File list is now '%s'\n", get_list(defaults.files, defaults.nfiles));
+		}
+	}
 
 	switch (command) {
 	case CommandHelp:
