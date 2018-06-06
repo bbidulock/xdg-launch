@@ -7,10 +7,10 @@ xdg-launch - an XDG compliant startup notification launcher
 =head1 SYNOPSIS
 
 B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|I<COMMAND>]
- B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|I<COMMAND>]
- B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|I<COMMAND>]
- B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|I<COMMAND>]
- B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|I<COMMAND>]
+ B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
+ B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
  B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]|I<COMMAND>]
  B<xdg-launch> {B<-V>|B<--version>}
  B<xdg-launch> {B<-C>|B<--copying>}
@@ -28,7 +28,7 @@ The program accepts the following arguments:
 
 =over
 
-=item I<APPSPEC> = {I<APPID>|I<MIMETYPE>|I<CATEGORY>}
+=item I<APPSPEC> = {I<APPID>|I<MIMETYPE>|I<CATEGORY>|I<DESKTOP>}
 
 Specifies the XDG desktop application to launch.  The application
 specifier, I<APPSPEC>, can be one of the following:
@@ -86,6 +86,17 @@ The XDG menu specification category, I<CATEGORY>, can alternatively be
 specified as an option argument using the B<--category> option.  Where
 the category would conflict with an existing I<APPID>, it must be
 specified with the B<--category> option.
+
+=item [B<--desktop>] I<DESKTOP>
+
+The XDG menu specification desktop name that identifies the X session
+for which to launch.  This I<APPSPEC> is only applicable when
+B<--xsession>, B<--startup> or B<--session> is specified.
+
+The XDG menu specification desktop name, I<DESKTOP>, can alternatively
+be specified as an option argument using the B<--desktop> option.  Where
+the desktop name would conflict with an existing I<APPID>, it must be
+specified with the B<--desktop> option.
 
 =back
 
