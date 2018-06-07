@@ -1409,19 +1409,28 @@ check_window_manager(void)
 	scr->net_startup_info = False;
 	OPRINTF(1, "checking NetWM/EWMH compliance\n");
 	if (check_netwm()) {
+		Bool supporting = True;
+
 		have_wm = True;
 		OPRINTF(1, "NetWM/EWMH window 0x%08lx\n", scr->netwm_check);
 		if (check_supported(_XA_NET_SUPPORTED, _XA_NET_WM_USER_TIME)) {
 			OPRINTF(1, "_NET_WM_USER_TIME supported\n");
 			scr->net_wm_user_time = True;
-		}
+		} else
+			supporting = False;
 		if (check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_ID)) {
 			OPRINTF(1, "_NET_STARTUP_ID supported\n");
 			scr->net_startup_id = True;
-		}
+		} else
+			supporting = False;
 		if (check_supported(_XA_NET_SUPPORTED, _XA_NET_STARTUP_INFO)) {
 			OPRINTF(1, "_NET_STARTUP_INFO supported\n");
 			scr->net_startup_info = True;
+		} else
+			supporting = False;
+		if (supporting) {
+			DPRINTF(1, "supporting window manager, exiting\n");
+			exit(EXIT_SUCCESS);
 		}
 	}
 	return have_wm;
