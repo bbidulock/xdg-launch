@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Calculator
+GenericName=Calculator
+Comment=Desktop calculator
+Icon=accessories-calculator
+TryExec=/usr/bin/xdg-launch
+Exec=xdg-launch --chain Calculator
+NoDisplay=true
+Categories=Preferred;

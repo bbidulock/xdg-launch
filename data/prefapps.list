@@ -1,0 +1,17 @@
+[Added Categories]
+Launcher=xde-run.desktop;xde-app.desktop;gmrun.desktop;fbrun.desktop;bbrun.desktop;dmenu.desktop;dmenu_launch.desktop;
+FileManager=pcmanfm.desktop;xfe.desktop;vifm.desktop;fluff.desktop;qtfm.desktop;mc.desktop;Tunar.desktop;spacefm.desktop;nautilus.desktop;
+MailReader=thunderbird.desktop;mutt.desktop;basla.desktop;evolution.desktop;sylpheed-claws.desktop;sylpheed.desktop;
+TerminalEmulator=roxterm.desktop;uxterm.desktop;
+TextEditor=vim.desktop;gvim.desktop;
+WebBrowser=chromium.desktop;firefox.desktop;
+Calculator=calcoo.desktop;calculator.desktop;xcalc.desktop;gcalctool.desktop;
+
+[Default Applications]
+Launcher=xde-run.desktop
+FileManager=pcmanfm.desktop
+MailReader=thunderbird.desktop
+TerminalEmulator=roxterm.desktop
+TextEditor=gvim.desktop
+WebBrowser=chromium.desktop
+Calculator=calcoo.desktop

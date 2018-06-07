@@ -8,9 +8,9 @@ xdg-launch - an XDG compliant startup notification launcher
 
 B< xdg-launch> [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]...|I<COMMAND>]
  B<xdg-launch> {B<-U>|B<--autostart>} [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
- B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
- B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
- B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<APPID>|I<DESKTOP>|I<COMMAND>]
+ B<xdg-launch> {B<-X>|B<--xsession>}  [I<OPTIONS>] [I<ACTID>|I<DESKTOP>|I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--startup>}   [I<OPTIONS>] [I<ACTID>|I<DESKTOP>|I<COMMAND>]
+ B<xdg-launch> {B<-E>|B<--session>}   [I<OPTIONS>] [I<ACTID>|I<DESKTOP>|I<COMMAND>]
  B<xdg-launch> {B<-h>|B<--help>} [I<OPTIONS>] [I<APPSPEC> [I<FILE>|I<URL>]...|I<COMMAND>]
  B<xdg-launch> {B<-V>|B<--version>}
  B<xdg-launch> {B<-C>|B<--copying>}
@@ -28,10 +28,17 @@ The program accepts the following arguments:
 
 =over
 
-=item I<APPSPEC> = {I<APPID>|I<MIMETYPE>|I<CATEGORY>|I<DESKTOP>}
+=item I<APPSPEC> = {I<ACTID>|I<MIMETYPE>|I<CATEGORY>|I<DESKTOP>}
 
 Specifies the XDG desktop application to launch.  The application
 specifier, I<APPSPEC>, can be one of the following:
+
+=over
+
+=item I<ACTID> = I<APPID>[:I<ACTION>]
+
+Specifies the application identifier and optional action of an XDG
+desktop application to launch.
 
 =over
 
@@ -65,6 +72,18 @@ contain at least one C</> and start with either a C</> or a C<.>.
 
 The application identifier, I<APPID>, can alternately be specified as an
 option argument using the B<--appid> option.
+
+=item [{B<-A>,B<--action>}] I<ACTION>
+
+Specifies the action of an XDG desktop application to launch.  The
+action must appear in the B<Actions> key in the desktop entry and have a
+corresponding I<[Desktop Action ACTION]> group defining the action.
+Note that auto-start desktop entries do no have actions.
+
+The action, I<ACTION>, can alternately be specified as an option
+argument using the B<--action> option.
+
+=back
 
 =item [B<--mimetype>] I<MIMETYPE>
 
@@ -152,7 +171,15 @@ Override the application identifier.  This overrides the name of the XDG
 application file.  When unspecified, the default is to use the
 non-option I<APPID> argument to determine the application identifier.
 This value, when available, is placed in the C<APPLICATION_ID> key-value
-entry in the startup notification C<new> message.
+entry in the startup notification C<new:> message.
+
+=item B<-A>, B<--action> I<ACTION>
+
+Specifies a desktop action, I<ACTION>, to perform instead of the default
+action.  The default is to perform the default action in the desktop
+entry file.  This value, when available, is placed in the "ACTION"
+key-value entry in the startup notification C<new:> message.
+
 
 =item B<--mimetype> I<MIMETYPE>
 
@@ -259,6 +286,17 @@ When specified, instead of launching the application selected, print
 information about the final desktop file selected to launch the actions
 that would have been taken to launch the desktop entry if this option
 had not been specified.  This is equivalent to a dry run.
+
+=item B<-c>, B<--chain>
+
+Specifies that the launch should be chained from an preceding launch
+operation.  This is the default when a B<DESKTOP_STARTUP_ID> environment
+variable exists when B<xdg-launch> is initiated.  However, this option
+can be used to ensure that an additional launch operation is not
+initiated when B<xdg-launch> is used in the B<Exec> key of a desktop
+entry file.  Also, when specified, none of the options that follow are
+significant, with the exception of L</HISTORY OPTIONS> and L</GENERAL
+OPTIONS>.  See L</LAUNCH CHAINING>, below, for detail.
 
 =item B<-h>, B<--help>
 
@@ -423,13 +461,6 @@ to zero.  This is useful for applications launched by a window manager
 to ensure that if the window manager crashes, it may be restarted by the
 session and the application child processes will be re-parented to the
 session.
-
-=item B<-A>, B<--action> I<ACTION>
-
-Specifies a desktop action, I<ACTION>, to perform instead of the default
-action.  The default is to perform the default action in the desktop
-entry file.  This value, when available, is placed in the "ACTION"
-key-value entry in the startup notification "new" message.
 
 =back
 
@@ -1110,6 +1141,101 @@ B<WM_COMMAND> with C<sh>, C<COMMAND> if necessary.
 
 =back
 
+=head2 LAUNCH CHAINING
+
+So that the B<xdg-launch> command can be used within a desktop entry
+file, B<xdg-launch> support launch chaining.   When a
+B<DESKTOP_STARTUP_ID> environment variable is set before the program
+executed, B<xdg-launch> assumes that it has been executed from within a
+desktop entry file.  The normal behaviour in this case is to act as
+normal, except that a C<change:> message is sent where a C<new:> message
+would be sent.
+
+As, this may be confusing to some desktops or launch monitors, and may
+confuse a window manager that supports desktop startup notification
+completion, B<xdg-launch> supports the B<--chain> option.  When the
+B<--chain> option is specified, the launch chaining behaviour is
+invoked.  The differences are as follows:
+
+=over
+
+=item 1.
+
+When the B<xdg-launch> program starts, it fails when there is no
+B<DESKTOP_STARTUP_ID> environment variable set.
+
+=item 2.
+
+When launching the chained application, no C<new:> or C<change:> message
+will be sent and the B<DESKTOP_STARTUP_ID> environment variable will
+be passed to the chained application.  The options described
+under L</LAUNCH OPTIONS> and L</CONTEXT OPTIONS> are ignored.
+
+=item 3.
+
+No tool wait, assistance, wait for resources, not content setting
+procedures will be invoked.  The options described under L</ASSIST
+OPTIONS>, L<TOOL WAIT OPTIONS>, L</SESSION OPTIONS> and the set
+operations of L</CONTENT OPTIONS> are ignored.
+
+=item 4.
+
+The chained application will be executed in replacement for the
+B<xdg-launch> program. 
+
+=back
+
+Chaining launches in this fashion is intended to be used to allow an
+B<xdg-launch> command in a desktop entry file.  Intended uses are with
+the B<--mimetype> and B<--category> methods of specifying an application
+to launch.  A set of "preferred" application desktop entries are
+included in the distribution of B<xdg-launch>.  See the following
+desktop entry files installed in the F</usr/share/applications>
+directory.
+
+=over
+
+=item I<preffered-execute.desktop>
+
+Launches the user's preferred run dialog with the B<Exec> key:
+C<xdg-launch --chain RunCommand>.
+
+=item I<preffered-file-manager.desktop>
+
+Launches the user's preferred file manager with the B<Exec> key:
+C<xdg-launch --chain FileManager>.
+
+=item I<preffered-mail-reader.desktop>
+
+Launches the user's preferred mail reader with the B<Exec> key:
+C<xdg-launch --chain MailReader>.
+
+=item I<preffered-terminal.desktop>
+
+Launches the user's preferred terminal with the B<Exec> key:
+C<xdg-launch --chain TerminalEmulator>.
+
+=item I<preffered-text-editor.desktop>
+
+Launches the user's preferred text editor with the B<Exec> key:
+C<xdg-launch --chain TextEditor>.
+
+=item I<preffered-web-browser.desktop>
+
+Launches the user's preferred web browser with the B<Exec> key:
+C<xdg-launch --chain text/html>.
+
+=item I<preffered-calculator.desktop>
+
+Launches the user's preferred calculator with the B<Exec> key:
+C<xdg-launch --chain Calculator>.
+
+=back
+
+The B<xdg-launch> package installs a reasonable distribution-provided
+F<prefapps.list> file alongside the F<mimeapps.list> file of the XDG
+L<Association between MIME types and applications> specification.
+
 =head2 RECENTLY USED FILES, URLS, APPLICATIONS
 
 By default, when simple applications are launched by B<xdg-launch>,
@@ -1275,6 +1401,22 @@ The location of the XDE theme file that will be used for the GTK theme
 when it exists.  The program will also respect the C<_XDE_THEME_NAME>
 property on the root window of the screen for which the program was
 launched.
+
+=item F<$desktop-mimeapps.list>, F<mimeapps.list>
+
+These files are searched in F<$XDG_CONFIG_HOME>, F<$XDG_CONFIG_DIRS>,
+F<$XDG_DATA_HOME/applications>, F<$XDG_DATA_DIRS/applications> to
+determine associations between I<MIMETYPE> and I<APPLICATION_ID>.  The
+user's F<$XDG_CONFIG_HOME/$desktop-mimeapps.list> file is altered when
+B<--set-default> or B<--set-preffered> are specified.
+
+=item F<$desktop-prefapps.list>, F<prefapps.list>
+
+These files are searched in F<$XDG_CONFIG_HOME>, F<$XDG_CONFIG_DIRS>,
+F<$XDG_DATA_HOME/applications>, F<$XDG_DATA_DIRS/applications> to
+determine associations between I<CATEGORY> and I<APPLICATION_ID>.  The
+user's F<$XDG_CONFIG_HOME/$desktop-prefapps.list> file is altered when
+B<--set-default> or B<--set-preffered> are specified.
 
 =back
 
