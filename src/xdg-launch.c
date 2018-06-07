@@ -257,6 +257,7 @@ typedef struct {
 	char *recent;
 	int keep;
 	Bool info;
+	Bool chain;
 	Bool toolwait;
 	int timeout;
 	int mappings;
@@ -326,6 +327,7 @@ Options options = {
 	.recent = NULL,
 	.keep = 20,
 	.info = False,
+	.chain = False,
 	.toolwait = False,
 	.timeout = 15,
 	.mappings = 1,
@@ -394,6 +396,7 @@ Options defaults = {
 	.recent = NULL,
 	.keep = 20,
 	.info = False,
+	.chain = False,
 	.toolwait = False,
 	.timeout = 15,
 	.mappings = 1,
@@ -13009,6 +13012,7 @@ main(int argc, char *argv[])
 			{"keep",	required_argument,	NULL, 'k'},
 			{"recent",	required_argument,	NULL, 'r'},
 			{"info",	no_argument,		NULL, 'I'},
+			{"chain",	no_argument,		NULL, 'c'},
 
 			{"ppid",	required_argument,	NULL,  10},
 			{"assist",	no_argument,		NULL,  6 },
@@ -13049,10 +13053,10 @@ main(int argc, char *argv[])
 		/* *INDENT-ON* */
 
 		c = getopt_long_only(argc, argv,
-				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEBk:r:ITMYGORg::D::v::hVCH?",
+				     "L:l:S:n:m:s:p::w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEBk:r:IcTMYGORg::D::v::hVCH?",
 				     long_options, &option_index);
 #else				/* defined _GNU_SOURCE */
-		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEBk:r:ITMYGORg:DvhVC?");
+		c = getopt(argc, argv, "L:l:S:n:m:s:p:w:t:N:i:b:d:W:q:a:ex:f:u:KPA:XUEBk:r:IcTMYGORg:DvhVC?");
 #endif				/* defined _GNU_SOURCE */
 		if (c == -1 || exec_mode) {
 			if (options.debug)
@@ -13265,6 +13269,9 @@ main(int argc, char *argv[])
 			break;
 		case 'I':	/* -I, --info */
 			defaults.info = options.info = True;
+			break;
+		case 'c':	/* -c, --chain */
+			defaults.chain = options.chain = True;
 			break;
 		case 10:	/* --ppid PPID */
 			val = strtoul(optarg, &endptr, 0);
