@@ -2578,8 +2578,9 @@ static Bool
 find_focus_screen(Display *dpy, int *screen)
 {
 	Window focus = None, froot = None, dw;
+	int di;
 
-	XGetInputFocus(dpy, &focus, NULL);
+	XGetInputFocus(dpy, &focus, &di);
 	switch (focus) {
 	case None:
 		/* If focus is None, all keyboard events are discarded until a new focus

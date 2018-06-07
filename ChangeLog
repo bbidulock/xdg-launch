@@ -1,5 +1,15 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 8a9529911c6d6deb685d7377e48a292aec5ea4c6
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Jun 6 10:12:00 2018 -0600
+
+    update release files
+
+ ChangeLog | 65 +++++++++++++++++++++++++----------------------------------
+ NEWS      |  5 ++++-
+ 2 files changed, 32 insertions(+), 38 deletions(-)
+
 commit b1e4cb00933166cd9e2c62681620e75dde360c18
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Wed Jun 6 10:08:26 2018 -0600
@@ -4930,19 +4940,3 @@ Date:   Sun Jan 26 08:17:36 2014 -0700
  autogen.sh         | 14 ++++++++--
  configure.template |  2 +-
  9 files changed, 179 insertions(+), 3 deletions(-)
-
-commit 290e1270d277774f61bd194612333a12da259a74
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Sun Jan 26 07:37:22 2014 -0700
-
-    cleanup of build system, passes distcheck
-
- .gitignore         |   2 +
- AUTHORS            |   0
- COPYING            | 674 +++++++++++++++++++++++++++++++++++++++++++++++++
- Makefile.am        |   2 +-
- NEWS               |   0
- README             |   0
- TODO               |   0
- configure.template |   2 +-
- 8 files changed, 678 insertions(+), 2 deletions(-)
