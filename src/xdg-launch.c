@@ -9300,26 +9300,29 @@ launch_simple(Process *pr)
 	setup_sequence(pr, 0);
 	if (options.puthist)
 		put_history(pr);
-	if (options.setpref)
-		put_default(pr);
-	if (pr->type == LaunchType_Autostart && pr->delay) {
-		if (options.info)
-			OPRINTF(1, "Would sleep for %u seconds\n", pr->delay);
-		else
-			sleep(pr->delay);
+	if (!options.chain) {
+		if (options.setpref)
+			put_default(pr);
+		if (pr->type == LaunchType_Autostart && pr->delay) {
+			if (options.info)
+				OPRINTF(1, "Would sleep for %u seconds\n", pr->delay);
+			else
+				sleep(pr->delay);
+		}
+		OPRINTF(1, "checking auto-wait resources:\n");
+		if (options.wait) {
+			/* no startup helper because we check for assistance below */
+			if ((mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER))
+				wait_for_resources(dpy, mask, options.guard);
+		}
+		if (options.autoassist)
+			options.assist = need_assist(dpy, pr);
 	}
-	OPRINTF(1, "checking auto-wait resources:\n");
-	if (options.wait) {
-		/* no startup helper because we check for assistance below */
-		if ((mask = pr->wait_for = want_resource(pr) & ~WAITFOR_STARTUPHELPER))
-			wait_for_resources(dpy, mask, options.guard);
-	}
-	if (options.autoassist)
-		options.assist = need_assist(dpy, pr);
-
 	/* make the call... */
-
-	if (options.toolwait) {
+	if (options.chain) {
+		OPRINTF(1, "Chaining launch\n");
+		normal(dpy, pr);
+	} else if (options.toolwait) {
 		OPRINTF(1, "Tool wait requested\n");
 		toolwait(dpy, pr);
 	} else if (options.assist) {
@@ -9330,13 +9333,14 @@ launch_simple(Process *pr)
 		normal(dpy, pr);
 	}
 
-	add_process(pr);
+	if (!options.chain) {
+		add_process(pr);
 
-	if (options.id)
-		send_change(dpy, pr);
-	else
-		send_new(dpy, pr);
-
+		if (options.id)
+			send_change(dpy, pr);
+		else
+			send_new(dpy, pr);
+	}
 	put_display(dpy);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
@@ -9502,27 +9506,29 @@ launch_xsession(Process *wm)
 	/* not sure we should do this at all for just an x session */
 	// set_desktop(wm, False);
 
-	dpy = get_display();
+	if (!options.chain) {
+		dpy = get_display();
 
-	setup_window_manager(wm);
+		setup_window_manager(wm);
 
-	if (options.wait) {
-		wm->phase = want_phase(wm);
-		if ((wm->wait_for = want_resource(wm) & mask_fors[wm->phase - 1]))
-			wait_for_resources(dpy, wm->wait_for, options.guard);
+		if (options.wait) {
+			wm->phase = want_phase(wm);
+			if ((wm->wait_for = want_resource(wm) & mask_fors[wm->phase - 1]))
+				wait_for_resources(dpy, wm->wait_for, options.guard);
+		}
+
+		add_process(wm);
+
+		if (options.id)
+			send_change(dpy, wm);
+		else
+			send_new(dpy, wm);
+
+		put_display(dpy);
+
+		if (options.puthist)
+			put_history(wm);
 	}
-
-	add_process(wm);
-
-	if (options.id)
-		send_change(dpy, wm);
-	else
-		send_new(dpy, wm);
-
-	put_display(dpy);
-
-	if (options.puthist)
-		put_history(wm);
 
 	/* set the DESKTOP_STARTUP_ID environment variable */
 	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
@@ -12930,6 +12936,8 @@ get_defaults(int argc, char *argv[])
 	}
 	switch (options.type) {
 	case LaunchType_Application:
+		if (options.chain && !options.id)
+			defaults.chain = options.chain = False;
 		if (options.puthist == -1)
 			defaults.puthist = options.puthist = True;
 		if (options.wait == -1)
@@ -12937,8 +12945,18 @@ get_defaults(int argc, char *argv[])
 		break;
 	case LaunchType_Autostart:
 	case LaunchType_XSession:
+		if (options.chain && !options.id)
+			defaults.chain = options.chain = False;
+		if (options.puthist == -1)
+			defaults.puthist = options.puthist = False;
+		if (options.wait == -1)
+			defaults.wait = options.wait = True;
+		break;
 	case LaunchType_Session:
 	case LaunchType_Startup:
+		defaults.chain = options.chain = False;
+		free(options.id);
+		defaults.id = options.id = NULL;
 		if (options.puthist == -1)
 			defaults.puthist = options.puthist = False;
 		if (options.wait == -1)
@@ -12953,19 +12971,19 @@ main(int argc, char *argv[])
 	Command command = CommandDefault;
 	int exec_mode = 0;		/* application mode is default */
 	Process *pr;
+	const char *env;
+
+	setlocale(LC_ALL, "");
 
 	/* don't care about job control */
 	signal(SIGTTIN, SIG_IGN);
 	signal(SIGTTOU, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 
-#if 0
-	/* not sure that we ever want to do this */
-	if ((p = getenv("DESKTOP_STARTUP_ID")) && *p) {
+	if ((env = getenv("DESKTOP_STARTUP_ID")) && *env) {
 		free(options.id);
-		options.id = strdup(p);
+		options.id = strdup(env);
 	}
-#endif
 	unsetenv("DESKTOP_STARTUP_ID");
 
 	set_defaults(argc, argv);
