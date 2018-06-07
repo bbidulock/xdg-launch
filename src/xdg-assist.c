@@ -1428,7 +1428,7 @@ check_window_manager(void)
 			scr->net_startup_info = True;
 		} else
 			supporting = False;
-		if (supporting) {
+		if (supporting && options.command != CommandMonitor) {
 			DPRINTF(1, "supporting window manager, exiting\n");
 			exit(EXIT_SUCCESS);
 		}
