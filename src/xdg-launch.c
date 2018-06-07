@@ -2577,7 +2577,8 @@ find_pointer_screen(Display *dpy, int *screen)
 static Bool
 find_focus_screen(Display *dpy, int *screen)
 {
-	Window focus = None, froot = None, dw;
+	Window focus = None, froot = None, dw = 0, *dwp = NULL;
+	unsigned int du = 0;
 	int di;
 
 	XGetInputFocus(dpy, &focus, &di);
@@ -2602,9 +2603,11 @@ find_focus_screen(Display *dpy, int *screen)
 		   screen numbers and matching the root window using the RootWindow()
 		   macro. */
 		DPRINTF(1, "focus = 0x%08lx: searching for focus root and screen\n", focus);
-		if (XQueryTree(dpy, focus, &froot, &dw, NULL, NULL))
+		if (XQueryTree(dpy, focus, &froot, &dw, &dwp, &du)) {
+			if (dwp)
+				XFree(dwp);
 			return screen_from_root(dpy, froot, screen);
-		else
+		} else
 			EPRINTF("could not query tree for window 0x%08lx\n", focus);
 		return (False);
 	}
