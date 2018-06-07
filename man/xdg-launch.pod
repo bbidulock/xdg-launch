@@ -1144,7 +1144,7 @@ B<WM_COMMAND> with C<sh>, C<COMMAND> if necessary.
 =head2 LAUNCH CHAINING
 
 So that the B<xdg-launch> command can be used within a desktop entry
-file, B<xdg-launch> support launch chaining.   When a
+file, B<xdg-launch> supports launch chaining.   When a
 B<DESKTOP_STARTUP_ID> environment variable is set before the program
 executed, B<xdg-launch> assumes that it has been executed from within a
 desktop entry file.  The normal behaviour in this case is to act as
@@ -1153,27 +1153,39 @@ would be sent.
 
 As, this may be confusing to some desktops or launch monitors, and may
 confuse a window manager that supports desktop startup notification
-completion, B<xdg-launch> supports the B<--chain> option.  When the
-B<--chain> option is specified, the launch chaining behaviour is
-invoked.  The differences are as follows:
+completion, B<xdg-launch> attempts to detect the situation where it is
+used to launch a desktop entry that uses B<xdg-launch> (or one of its
+derivatives) in the B<Exec> line.  In the case that it detects a chained
+invocation, it simply executes the command without setting the
+B<DESKTOP_STARTUP_ID> and without sending a C<new:> message.  Then the
+chained invocation will perform startup notification as though it was
+invoked by itself.
+
+To handle the case there a different launch is used to launch a desktop
+entry that contains an B<xdg-launch> command, B<xdg-launch> also
+supports the B<--chain> option.  When the B<--chain> option is
+specified, the launch chaining behaviour is invoked.  The differences
+are as follows:
 
 =over
 
 =item 1.
 
-When the B<xdg-launch> program starts, it fails when there is no
-B<DESKTOP_STARTUP_ID> environment variable set.
+When the B<xdg-launch> program starts, and there is no
+B<DESKTOP_STARTUP_ID> environment variable set, it behaves normally;
+when it is set, the chaining behaviour is invoked, and the following
+differences apply:
 
 =item 2.
 
 When launching the chained application, no C<new:> or C<change:> message
 will be sent and the B<DESKTOP_STARTUP_ID> environment variable will
-be passed to the chained application.  The options described
+be passed to the chained application unchanged.  The options described
 under L</LAUNCH OPTIONS> and L</CONTEXT OPTIONS> are ignored.
 
 =item 3.
 
-No tool wait, assistance, wait for resources, not content setting
+No tool wait, assistance, wait for resources, nor content setting
 procedures will be invoked.  The options described under L</ASSIST
 OPTIONS>, L<TOOL WAIT OPTIONS>, L</SESSION OPTIONS> and the set
 operations of L</CONTENT OPTIONS> are ignored.
@@ -1181,7 +1193,7 @@ operations of L</CONTENT OPTIONS> are ignored.
 =item 4.
 
 The chained application will be executed in replacement for the
-B<xdg-launch> program. 
+B<xdg-launch> program and no children will be spawned.
 
 =back
 
@@ -1295,6 +1307,7 @@ Used by B<xdg-launch> at program startup to determine whether it itself
 has been launched with startup notification.  The B<DESKTOP_STARTUP_ID>
 is reused in this case.  This environment variable is set to the startup
 notification identifier just prior to executing the launched program.
+See L</LAUNCH CHAINING> for details.
 
 =item B<LANG>
 
