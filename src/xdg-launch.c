@@ -657,6 +657,7 @@ typedef struct _Process {
 	Bool started;			/* is this process started? */
 	Bool stopped;			/* is this process stopped? */
 	Bool running;			/* is this process running? */
+	Bool chain;			/* is this a chained launch? */
 	int wait_for;			/* things to wait for */
 	pid_t pid;			/* pid for this process */
 	pid_t ppid;			/* parent pid for this process */
@@ -8847,10 +8848,11 @@ spawn_child(Display *dpy, Process *pr)
 	/* child continues here */
 	reset_pid(getpid(), pr);
 
-	/* set the DESKTOP_STARTUP_ID environment variable (with correct PID) */
-	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
-	DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", pr->seq->f.id);
-
+	if (!pr->chain) {
+		/* set the DESKTOP_STARTUP_ID environment variable (with correct PID) */
+		try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
+		DPRINTF(1, "Set DESKTOP_STARTUP_ID to %s\n", pr->seq->f.id);
+	}
 	/* stop here till parent sends us SIGCONT */
 	DPRINTF(1, "PID %d is stopping itself\n", pr->pid);
 	kill(pr->pid, SIGSTOP);
@@ -9300,7 +9302,7 @@ launch_simple(Process *pr)
 	setup_sequence(pr, 0);
 	if (options.puthist)
 		put_history(pr);
-	if (!options.chain) {
+	if (!pr->chain) {
 		if (options.setpref)
 			put_default(pr);
 		if (pr->type == LaunchType_Autostart && pr->delay) {
@@ -9319,7 +9321,7 @@ launch_simple(Process *pr)
 			options.assist = need_assist(dpy, pr);
 	}
 	/* make the call... */
-	if (options.chain) {
+	if (pr->chain) {
 		OPRINTF(1, "Chaining launch\n");
 		normal(dpy, pr);
 	} else if (options.toolwait) {
@@ -9333,7 +9335,7 @@ launch_simple(Process *pr)
 		normal(dpy, pr);
 	}
 
-	if (!options.chain) {
+	if (!pr->chain) {
 		add_process(pr);
 
 		if (options.id)
@@ -9343,21 +9345,23 @@ launch_simple(Process *pr)
 	}
 	put_display(dpy);
 
-	/* set the DESKTOP_STARTUP_ID environment variable */
-	try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
+	if (!pr->chain) {
+		/* set the DESKTOP_STARTUP_ID environment variable */
+		try_setenv("DESKTOP_STARTUP_ID", pr->seq->f.id, 1);
 
-	if (pr->type == LaunchType_XSession) {
-		setup_window_manager(pr);
+		if (pr->type == LaunchType_XSession) {
+			setup_window_manager(pr);
 
-		if (options.info) {
-			OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", pr->seq->f.command);
-			return;
+			if (options.info) {
+				OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", pr->seq->f.command);
+				return;
+			}
+			DPRINTF(1, "Launching window manager %s\n", pr->appid);
+			DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
+			execl("/bin/sh", "sh", "-c", pr->seq->f.command, NULL);
+			EPRINTF("Should never get here!\n");
+			exit(127);
 		}
-		DPRINTF(1, "Launching window manager %s\n", pr->appid);
-		DPRINTF(1, "Command will be: sh -c \"%s\"\n", pr->seq->f.command);
-		execl("/bin/sh", "sh", "-c", pr->seq->f.command, NULL);
-		EPRINTF("Should never get here!\n");
-		exit(127);
 	}
 	if (eargv) {
 		if (options.info) {
@@ -9506,7 +9510,7 @@ launch_xsession(Process *wm)
 	/* not sure we should do this at all for just an x session */
 	// set_desktop(wm, False);
 
-	if (!options.chain) {
+	if (!wm->chain) {
 		dpy = get_display();
 
 		setup_window_manager(wm);
@@ -9525,13 +9529,15 @@ launch_xsession(Process *wm)
 			send_new(dpy, wm);
 
 		put_display(dpy);
-
-		if (options.puthist)
-			put_history(wm);
 	}
 
-	/* set the DESKTOP_STARTUP_ID environment variable */
-	try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
+	if (options.puthist)
+		put_history(wm);
+
+	if (!wm->chain) {
+		/* set the DESKTOP_STARTUP_ID environment variable */
+		try_setenv("DESKTOP_STARTUP_ID", wm->seq->f.id, 1);
+	}
 
 	if (options.info) {
 		OPRINTF(1, "Would launch window manager: sh -c \"%s\"\n", wm->seq->f.command);
@@ -10467,7 +10473,14 @@ set_seq_bin(Process *pr)
 		s->f.bin = first_word(s->f.command);
 	else
 		s->f.bin = NULL;
-	for (; (p = strchr(s->f.bin, '|')); *p = '/') ;
+	if (s->f.bin) {
+		/* detect chained launch */
+		if ((strcmp(basename(s->f.bin), "xdg-launch") == 0) ||
+		    (strcmp(basename(s->f.bin), "xdg-autostart") == 0) ||
+		    (strcmp(basename(s->f.bin), "xdg-xsession") == 0))
+			pr->chain = True;
+		for (; (p = strchr(s->f.bin, '|')); *p = '/') ;
+	}
 	return s->f.bin;
 }
 
@@ -12451,6 +12464,7 @@ setup_entry(Command command)
 	}
 	/* parse_proc() can change the type to that found in the file */
 	pr->type = options.type;
+	pr->chain = options.chain;
 	set_ent_all(pr);	/* fill in entry from options */
 	if (options.output > 1)
 		show_entry("Entries", pr->ent);
