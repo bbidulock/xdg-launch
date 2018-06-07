@@ -107,7 +107,14 @@ running the process.
 
 Nevertheless, it is advantageous to start B<xdg-assist(1)> and run it as
 a background process before the window manager starts.  An XDG autostart
-F<.desktop> file is provided for this purpose.
+F<.desktop> file is provided for this purpose.  When B<xdg-assist>
+detects a window manager that supports startup notification completion,
+it will exit with a zero exit status.
+
+A window manager that supports startup notification completion is one
+that supports NetWM/EWMH and lists B<_NET_STARTUP_ID>,
+B<_NET_STARTUP_INFO_BEGIN> and B<_NET_STARTUP_INFO> in
+B<_NET_SUPPORTED>.
 
 =head1 BEHAVIOUR
 
@@ -134,6 +141,18 @@ outstanding startup notification sequences.
 
 =item 3.
 
+B<xdg-assist> monitors for the appearance of a window manager and
+assesses the capabilities of the window manager.  When the window
+manager supports startup notification completion, B<xdg-assist> exits
+with a zero exit status.
+
+Window managers that support startup notification completion are
+NetWM/EWMH compliant window managers that list atoms B<_NET_STARTUP_ID>,
+B<_NET_STARTUP_INFO_BEGIN> and B<_NET_STARTUP_INFO> in their supported
+atoms list, B<_NET_SUPPORTED>.
+
+=item 4.
+
 B<xdg-assist> monitors for the appearance of new top-level and client
 windows.
 
@@ -159,7 +178,7 @@ C<WithdrawnState> can be used.
 
 =back
 
-=item 4.
+=item 5.
 
 When a definitive match can be made from the properties of the mapped
 window, B<xdg-launch> will populate the following properties unless
@@ -232,7 +251,7 @@ even when populated by the client.
 
 =back
 
-=item 5.
+=item 6.
 
 B<xdg-assist> monitors for the creation and removal of process
 ids (using L<inotify(7)> on the F</proc> file system).  It performs
@@ -241,7 +260,9 @@ perform an L<execve(3)> or related function that changes the current
 executable, and command arguments.
 
 B<xdg-assist> can also monitor when process ids appear that have a
-specified B<DESKTOP_STARTUP_ID> variable in their environment.
+specified B<DESKTOP_STARTUP_ID> variable in their environment.  (This is
+provided that the appearing process is run as the same user as was
+B<xdg-assist>.
 
 =back
 
