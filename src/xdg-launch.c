@@ -3078,7 +3078,7 @@ parse_proc(Process *pr)
 /** @section Desktop Entry File Lookup
   * @{ */
 
-/** @brief look up the file from APPID.
+/** @brief look up the file from APPID[:ACTION].
   *
   * We search in the applications directories first (i.e.
   * /usr/share/applications) and then in the autostart directories (e.g.
@@ -3088,11 +3088,12 @@ parse_proc(Process *pr)
 static char *
 lookup_file_by_name(Process *pr, const char *name)
 {
-	char *path = NULL, *appid;
+	char *path = NULL, *appid, *p;
 
 	appid = calloc(PATH_MAX + 1, sizeof(*appid));
 	strncat(appid, name, PATH_MAX);
-
+	if ((p = strrchr(appid, ':'))) /* strip off action */
+		*p = '\0';
 	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
 		strncat(appid, ".desktop", PATH_MAX);
 	if ((*appid != '/') && (*appid != '.')) {
@@ -9570,7 +9571,7 @@ set_seq_screen(Process *pr)
 	if (screens)
 		dpy = screens[0].display;
 	else {
-		EPRINTF("setting screen without X display\n");
+		DPRINTF(1, "setting screen without X display\n");
 		dpy = XOpenDisplay(0);
 	}
 	if (pr->type != LaunchType_Application) {
@@ -9974,7 +9975,7 @@ set_seq_autostart(Process *pr)
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
-	free(s->f.action);
+	free(s->f.autostart);
 	if (pr->type == LaunchType_Autostart) {
 		s->f.autostart = strdup("1");
 		s->n.autostart = 1;
@@ -9992,7 +9993,7 @@ set_seq_xsession(Process *pr)
 
 	PTRACE(5);
 	assert(s != NULL && e != NULL);
-	free(s->f.action);
+	free(s->f.xsession);
 	if (pr->type == LaunchType_XSession || pr->type == LaunchType_Session) {
 		s->f.xsession = strdup("1");
 		s->n.xsession = 1;
@@ -12371,11 +12372,19 @@ setup_entry(Command command)
 			exit(EXIT_FAILURE);
 		}
 	} else if (options.appspec) {
+		char *p;
+
 		OPRINTF(1, "looking up file by APPSPEC %s\n", options.appspec);
 		if (lookup_proc_by_name(pr, options.appspec)) {
-			OPRINTF(1, "found file by APPID %s\n", options.appspec);
+			OPRINTF(1, "found file by APPID[:ACTION] %s\n", options.appspec);
 			free(options.appid);
 			options.appid = strdup(options.appspec);
+			/* separate [:ACTION] if present */
+			if ((p = strrchr(options.appid, ':'))) {
+				*p = '\0';
+				free(options.action);
+				options.action = strdup(p + 1);
+			} 
 		} else if (lookup_proc_by_type(pr, options.appspec)) {
 			OPRINTF(1, "found file by MIMETYPE %s\n", options.appspec);
 			free(options.mimetype);
@@ -12405,6 +12414,8 @@ setup_entry(Command command)
 	} else {
 		EPRINTF("did not look up file!\n");
 	}
+	/* must set action before parsing */
+	pr->action = options.action ? strdup(options.action) : NULL;
 	if (pr->path) {
 		if (!parse_proc(pr)) {
 			EPRINTF("could not parse file '%s'\n", pr->path);
@@ -12431,7 +12442,6 @@ setup_entry(Command command)
 	}
 	/* parse_proc() can change the type to that found in the file */
 	pr->type = options.type;
-	pr->action = options.action ? strdup(options.action) : NULL;
 	set_ent_all(pr);	/* fill in entry from options */
 	if (options.output > 1)
 		show_entry("Entries", pr->ent);
