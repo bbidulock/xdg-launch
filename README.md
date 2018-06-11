@@ -1,9 +1,9 @@
-[xdg-launch -- read me first file.  2018-06-07]: #
+[xdg-launch -- read me first file.  2018-06-10]: #
 
 xdg-launch
 ===============
 
-Package `xdg-launch-1.8` was released under GPLv3 license 2018-06-07.
+Package `xdg-launch-1.8` was released under GPLv3 license 2018-06-10.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -20,7 +20,7 @@ wrapper scripts.
 Release
 -------
 
-This is the `xdg-launch-1.8` package, released 2018-06-07.  This
+This is the `xdg-launch-1.8` package, released 2018-06-10.  This
 release, and the latest version, can be obtained from [GitHub][1], using
 a command such as:
 

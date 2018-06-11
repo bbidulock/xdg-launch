@@ -1,5 +1,30 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 004ff93139be243f1b83668ce00460c40d3e62a1
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jun 10 20:19:10 2018 -0600
+
+    some more key fields
+
+ man/xdg-autostart.pod |  4 ++--
+ man/xdg-xsession.pod  |  3 +++
+ src/xdg-launch.c      | 24 +++++++++++++++++++++++-
+ 3 files changed, 28 insertions(+), 3 deletions(-)
+
+commit 4bc2a6da1c37ca715cbb79d9a85d4d065af40b62
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jun 7 18:07:22 2018 -0600
+
+    update release files
+
+ AUTHORS      |   2 +-
+ ChangeLog    | 289 +++++++++++++++++++++++++------------------------------
+ NEWS         |  21 +++-
+ README       |   6 +-
+ README.md    |   6 +-
+ configure.ac |   6 +-
+ 6 files changed, 156 insertions(+), 174 deletions(-)
+
 commit d8a72425554324d8fdd7b959ec78694092367241
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Thu Jun 7 17:30:05 2018 -0600
@@ -4891,21 +4916,3 @@ Date:   Mon Jun 9 19:47:18 2014 -0600
  xdg-assist.pod |    4 +-
  xdg-launch.c   | 1095 +++++++++++++++++++++++++++++++++++++-------
  3 files changed, 1905 insertions(+), 485 deletions(-)
-
-commit 67366bc31fcd78903db028c8456bcd139e734cf8
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 28 03:08:09 2014 -0600
-
-    install an X error handler
-
- xdg-launch.c | 24 ++++++++++++++++++++----
- 1 file changed, 20 insertions(+), 4 deletions(-)
-
-commit 8ca3da0e74e1bd66f5d77902298f8a633cdc7afe
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Tue May 27 05:53:30 2014 -0600
-
-    typo
-
- xdg-launch.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)

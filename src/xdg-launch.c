@@ -2952,7 +2952,7 @@ parse_file(Process *pr, char *path)
 				e->StartupWMClass = strdup(val);
 			if (pr->type == LaunchType_XSession)
 				if (!e->WMName)
-					e-WMName = strdup(val);
+					e->WMName = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Categories") == 0) {
 			if (!e->Categories)
@@ -2980,7 +2980,7 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "X-GNOME-WMName") == 0) {
 			free(e->WMName);
 			e->WMName = strdup(val);
-		} else if (strcmp(Key, "X-GNOME-Provides") == 0) {
+		} else if (strcmp(key, "X-GNOME-Provides") == 0) {
 			free(e->Provides);
 			e->Provides = strdup(val);
 		} else if (strcmp(key, "X-GNOME-WMSettingsModule") == 0) {
