@@ -11861,9 +11861,9 @@ launch_startup(Process *wm)
 					pr->type = LaunchType_Autostart;
 					pr->appid = strdup(appid);
 					pr->path = calloc(len + 1, sizeof(*pr->path));
-					strncpy(pr->path, path, len);
-					strncat(pr->path, appid, len);
-					strncat(pr->path, ".desktop", len);
+					strcpy(pr->path, path);
+					strcat(pr->path, appid);
+					strcat(pr->path, ".desktop");
 					pr->next = autostart;
 					autostart = pr;
 					count++;
@@ -12096,9 +12096,9 @@ launch_session(Process *wm)
 					pr->type = LaunchType_Autostart;
 					pr->appid = strdup(appid);
 					pr->path = calloc(len + 1, sizeof(*pr->path));
-					strncpy(pr->path, path, len);
-					strncat(pr->path, appid, len);
-					strncat(pr->path, ".desktop", len);
+					strcpy(pr->path, path);
+					strcat(pr->path, appid);
+					strcat(pr->path, ".desktop");
 					pr->next = autostart;
 					autostart = pr;
 					count++;

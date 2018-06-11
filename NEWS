@@ -13,7 +13,7 @@ Release xdg-launch-1.8 released 2018-06-10
 
 git shortlog -e -n -w80,6,8 1.7...1.8
 
-Brian Bidulock <bidulock@openss7.org> (134):
+Brian Bidulock <bidulock@openss7.org> (135):
       correct logic error
       add parent pid option
       set default ppid to XDG_SESSION_PID
@@ -148,6 +148,7 @@ Brian Bidulock <bidulock@openss7.org> (134):
       detect chaining
       update release files
       some more key fields
+      udpate release files
 
 
 Release xdg-launch-1.7 released 2018-04-29

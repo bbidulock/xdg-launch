@@ -1,5 +1,20 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit a7fa81d6c18cc257172e7b46f846ebd6a72fb9aa
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jun 10 21:11:17 2018 -0600
+
+    udpate release files
+
+ AUTHORS          |  2 +-
+ ChangeLog        | 43 +++++++++++++++++++++++++------------------
+ NEWS             | 10 ++++++----
+ README           |  6 +++---
+ README.md        |  6 +++---
+ configure.ac     |  2 +-
+ src/xdg-launch.c |  4 ++--
+ 7 files changed, 41 insertions(+), 32 deletions(-)
+
 commit 004ff93139be243f1b83668ce00460c40d3e62a1
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Jun 10 20:19:10 2018 -0600
@@ -4905,14 +4920,3 @@ Date:   Thu Jun 19 19:51:48 2014 -0600
 
  configure.sh | 38 ++++++++++++++++++++++++++++++++++++++
  1 file changed, 38 insertions(+)
-
-commit 0b66aa61e7f786fa54051eaa11f484f1edfeb39f
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Mon Jun 9 19:47:18 2014 -0600
-
-    working up startup notification assistance
-
- xdg-assist.c   | 1291 +++++++++++++++++++++++++++++++++++++++-------------
- xdg-assist.pod |    4 +-
- xdg-launch.c   | 1095 +++++++++++++++++++++++++++++++++++++-------
- 3 files changed, 1905 insertions(+), 485 deletions(-)
