@@ -442,11 +442,14 @@ static const char *DesktopEntryFields[] = {
 	"NotShowIn",
 	"DesktopNames",
 	"WMName",
+	"Provides",
 	"AutoRestart",
 	"AutostartPhase",
 	"AutostartNotify",
 	"AutostartDelay",
 	"UniqeApplet",
+	"SessionManaged",
+	"StartupNotification",
 	NULL
 };
 
@@ -472,11 +475,14 @@ typedef struct _Entry {
 	char *NotShowIn;
 	char *DesktopNames;
 	char *WMName;
+	char *Provides;
 	char *AutoRestart;
 	char *AutostartPhase;
 	char *AutostartNotify;
 	char *AutostartDelay;
 	char *UniqueApplet;
+	char *SessionManaged;
+	char *StartupNotification;
 } Entry;
 
 static const char *StartupNotifyFields[] = {
@@ -2843,7 +2849,7 @@ parse_file(Process *pr, char *path)
 			free(section);
 			section = strdup(p + 1);
 			outside_entry = strcmp(section, "Desktop Entry");
-			if (outside_entry && pr->type == LaunchType_XSession)
+			if (outside_entry && pr->type == LaunchType_XSession && !pr->action)
 				outside_entry = strcmp(section, "Window Manager");
 			if (outside_entry && pr->action &&
 			    strstr(section, "Desktop Action ") == section &&
@@ -2944,6 +2950,9 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "StartupWMClass") == 0) {
 			if (!e->StartupWMClass)
 				e->StartupWMClass = strdup(val);
+			if (pr->type == LaunchType_XSession)
+				if (!e->WMName)
+					e-WMName = strdup(val);
 			ok = 1;
 		} else if (strcmp(key, "Categories") == 0) {
 			if (!e->Categories)
@@ -2969,6 +2978,11 @@ parse_file(Process *pr, char *path)
 			free(e->AutostartPhase);
 			e->AutostartPhase = strdup(val);
 		} else if (strcmp(key, "X-GNOME-WMName") == 0) {
+			free(e->WMName);
+			e->WMName = strdup(val);
+		} else if (strcmp(Key, "X-GNOME-Provides") == 0) {
+			free(e->Provides);
+			e->Provides = strdup(val);
 		} else if (strcmp(key, "X-GNOME-WMSettingsModule") == 0) {
 		} else if (strcmp(key, "X-GNOME-Autostart-enabled") == 0) {
 			if (pr->type == LaunchType_Autostart) {
@@ -3049,6 +3063,14 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "DesktopNames") == 0) {
 			if (!e->DesktopNames)
 				e->DesktopNames = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "SessionManaged") == 0) {
+			if (!e->SessionManaged)
+				e->SessionManaged = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "StartupNotification") == 0) {
+			if (!e->StartupNotification)
+				e->StartupNotification = strdup(val);
 			ok = 1;
 		}
 	}

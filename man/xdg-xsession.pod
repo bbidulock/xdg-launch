@@ -32,6 +32,9 @@ window managers.
 
 =back
 
+Detecting between the two can be performed fairly reliably on the basis
+of examining the I<XSession> desktop entry keys and values.
+
 =head2 GROUPS
 
 =head3 [Desktop Entry]

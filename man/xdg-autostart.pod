@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-xdg-autostart - an XDG compliant autostart startup notification launcher
+xdg-autostart - an XDG compliant Autostart startup notification launcher
 
 =head1 SYNOPSIS
 
@@ -43,7 +43,7 @@ F<blackbox.desktop>); the same restrictions as (1), above, apply; or,
 
 =item 3.
 
-The full path (absolute or relative) and filename of a desktop entry
+The full path (absolute or relative) and file name of a desktop entry
 file (e.g. F</usr/share/xsessions/backbox.desktop>); the full path must
 contain at least one C</> and start with either a C</> or a C<.>.
 
