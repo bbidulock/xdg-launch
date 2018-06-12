@@ -1,5 +1,16 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 9c9004e39ff2d91e82cd5e1205d7b8da28d0fe19
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Jun 10 23:23:20 2018 -0600
+
+    remove warnings
+
+ ChangeLog        | 26 +++++++++++++++-----------
+ NEWS             |  3 ++-
+ src/xdg-launch.c | 12 ++++++------
+ 3 files changed, 23 insertions(+), 18 deletions(-)
+
 commit a7fa81d6c18cc257172e7b46f846ebd6a72fb9aa
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Jun 10 21:11:17 2018 -0600
@@ -4911,12 +4922,3 @@ Date:   Thu Jun 19 19:52:01 2014 -0600
 
  xdg-launch.c | 392 ++++++++++++++++++++++++++++++++++++++++++++++++++-----
  1 file changed, 358 insertions(+), 34 deletions(-)
-
-commit 1a92bf79e3442831912d4fbdd13ba2eeac0d289c
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Jun 19 19:51:48 2014 -0600
-
-    add maintainer script
-
- configure.sh | 38 ++++++++++++++++++++++++++++++++++++++
- 1 file changed, 38 insertions(+)
