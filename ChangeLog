@@ -1,5 +1,19 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 4a0713515ce8e6870a16b1b26a2893c681003ca0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 12 03:25:20 2018 -0600
+
+    update release files (again)
+
+ AUTHORS      |  2 +-
+ ChangeLog    | 19 ++++++++++---------
+ NEWS         |  9 +++++----
+ README       |  6 +++---
+ README.md    |  6 +++---
+ configure.ac |  2 +-
+ 6 files changed, 23 insertions(+), 21 deletions(-)
+
 commit 0f3f5142f8c801299b19578c4ca0b70f68ae1c44
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Tue Jun 12 03:23:07 2018 -0600
@@ -4910,16 +4924,3 @@ Date:   Sun Jun 22 02:03:34 2014 -0600
  .indent.pro   |   9 +
  xdg-monitor.c | 478 +++++++++++++++++++++++++++++++++++++++++++++++++-----
  2 files changed, 450 insertions(+), 37 deletions(-)
-
-commit 2b3afa2bc88686a1577f37a12cd4ee3ddb5ad390
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri Jun 20 00:44:29 2014 -0600
-
-    add xdg-monitor
-
- .gitignore                    |   1 +
- Makefile.am                   |  34 +++++---
- configure.template            |  22 ++++++
- xdg-assist.c                  | 104 ++++++++++++------------
- xdg-assist.c => xdg-monitor.c | 162 +++++++++++++++++++-------------------
- 5 files changed, 181 insertions(+), 142 deletions(-)
