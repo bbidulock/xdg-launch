@@ -1,5 +1,15 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 0f3f5142f8c801299b19578c4ca0b70f68ae1c44
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Jun 12 03:23:07 2018 -0600
+
+    update release files
+
+ ChangeLog | 20 +++++++++++---------
+ NEWS      |  3 ++-
+ 2 files changed, 13 insertions(+), 10 deletions(-)
+
 commit 9c9004e39ff2d91e82cd5e1205d7b8da28d0fe19
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Jun 10 23:23:20 2018 -0600
@@ -4913,12 +4923,3 @@ Date:   Fri Jun 20 00:44:29 2014 -0600
  xdg-assist.c                  | 104 ++++++++++++------------
  xdg-assist.c => xdg-monitor.c | 162 +++++++++++++++++++-------------------
  5 files changed, 181 insertions(+), 142 deletions(-)
-
-commit 390d098663240faea16ffd86afb62aaf264edc9b
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Jun 19 19:52:01 2014 -0600
-
-    start preparing to assist window manager in xdg-launch
-
- xdg-launch.c | 392 ++++++++++++++++++++++++++++++++++++++++++++++++++-----
- 1 file changed, 358 insertions(+), 34 deletions(-)
