@@ -360,3 +360,4 @@
 -TXSession
 -TXWMIconGeometry
 -TXWMState
+-TTerminal
