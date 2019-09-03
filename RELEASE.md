@@ -1,4 +1,4 @@
-[xdg-launch -- release notes.  2019-08-31]: #
+[xdg-launch -- release notes.  2019-09-03]: #
 
 Maintenance Release 1.9
 =======================
