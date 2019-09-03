@@ -213,6 +213,51 @@ show_type(LaunchType type)
 }
 
 typedef struct {
+	char *exec;
+	char *resopts;
+	char *options;
+} Terminal;
+
+Terminal terminals[] = {
+	{ "uxterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "xterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "st",			" -c \"%s\" -t \"%%c\" -e ",	" -t \"%c\" -e "	},
+	{ "pterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "Eterm",		" -n \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "aterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "urxvtc",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "urxvt",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "rxvt",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "urxvt-tabbed",	" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "termit",		" -n \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "terminator",		" -c \"%s\" -T \"%%c\" -x ",	" -T \"%c\" -x "	},
+	{ "gnome-terminal",	" --name=\"%s\" -t \"%%c\" -- "," -t \"%c\" -- "	},
+	{ "termite",		" --name=\"%s\" -t \"%%c\" -e "," -t \"%c\" -e "	},
+	{ "mate-terminal",	" --name=\"%s\" -t \"%%c\" -e "," -t \"%c\" -e "	},
+	{ "terminology",	" --name=\"%s\" -T=\"%%c\" -e "," -T=\"%c\" -e "	},
+	{ "kitty",		" --name \"%s\" -T \"%%c\" ",	" -T \"%c\" "		},
+	{ "alacritty",		" --class \"%s\" -t \"%%c\" -e "," -t \"%c\" -e "	},
+
+	{ "roxterm",		NULL,				" -T \"%c\" -e "	},
+	{ "lxterminal",		NULL,				" -t \"%c\" -e "	},
+	{ "xfce4-terminal",	NULL,				" -T \"%c\" -x "	},
+	{ "lilyterm",		NULL,				" -T \"%c\" -E "	},
+	{ "tilix",		NULL,				" -t \"%c\" -e "	},
+	{ "guake",		NULL,				" -r \"%c\" -e "	},
+	{ "x-terminal-emulator",NULL,				" -e "			},
+	{ "deepin-terminal",	NULL,				" -e "			},
+	{ "qterminal",		NULL,				" -e "			},
+	{ "konsole",		NULL,				" -e "			},
+	{ "tilda",		NULL,				" -c "			},
+	{ "terminix",		NULL,				NULL			},
+	{ "hyper",		NULL,				NULL			},
+
+	{ "koi8rxterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+
+	{ NULL,			NULL,				NULL			}
+};
+
+typedef struct {
 	int debug;
 	int output;
 	Command command;
@@ -280,6 +325,8 @@ typedef struct {
 	Bool fallback;
 	Bool recommend;
 	Bool preferred;
+	char *terminal;
+	char *termresn;
 } Options;
 
 Options options = {
@@ -350,6 +397,8 @@ Options options = {
 	.fallback = True,
 	.recommend = True,
 	.preferred = True,
+	.terminal = NULL,
+	.termresn = NULL,
 };
 
 Options defaults = {
@@ -419,6 +468,8 @@ Options defaults = {
 	.fallback = True,
 	.recommend = True,
 	.preferred = True,
+	.terminal = "xterm -T \"%c\" -e ",
+	.termresn = "xterm -name \"%s\" -T \"%%c\" -e ",
 };
 
 static const char *DesktopEntryFields[] = {
@@ -10409,6 +10460,14 @@ truth_value(char *p)
 }
 
 static char *
+first_word(const char *str)
+{
+	char *q = strchrnul(str, ' ');
+
+	return strndup(str, q - str);
+}
+
+static char *
 set_seq_command(Process *pr)
 {
 	Sequence *s = pr->seq;
@@ -10431,16 +10490,17 @@ set_seq_command(Process *pr)
 			free(s->f.wmclass);
 			s->f.wmclass = strdup(basename(s->f.bin));
 		}
-		if (!s->f.wmclass) {
-			free(s->f.wmclass);
-			s->f.wmclass = strdup("xterm");
-		}
-		if (s->f.wmclass) {
-			snprintf(cmd, 1024, "xterm -name \"%s\" -T \"%%c\" -e ", s->f.wmclass);
+		if (s->f.wmclass && options.termresn) {
+			snprintf(cmd, 1024, options.termresn, s->f.wmclass);
 			free(s->f.silent);
 			s->f.silent = NULL;
 		} else {
-			strncat(cmd, "xterm -T \"%c\" -e ", 1024);
+			char *exec = first_word(options.terminal);
+
+			strncat(cmd, options.terminal, 1024);
+			free(s->f.wmclass);
+			s->f.wmclass = strdup(basename(exec));
+			free(exec);
 		}
 	}
 	if (e->Exec)
@@ -10469,14 +10529,6 @@ set_seq_silent(Process *pr)
 		snprintf(s->f.silent, 64, "%d", 1);
 	} else
 		s->f.silent = NULL;
-}
-
-static char *
-first_word(const char *str)
-{
-	char *q = strchrnul(str, ' ');
-
-	return strndup(str, q - str);
 }
 
 static char *
@@ -11567,6 +11619,28 @@ check_noshow(const char *noshow)
 }
 
 static Bool
+check_exec_path(const char *binary)
+{
+	char *path, *pstr, *ptok, *psav;
+	char file[PATH_MAX + 1];
+
+	if (!(path = strdup(getenv("PATH") ? : "")))
+		return False;
+
+	for (pstr = path; (ptok = strtok_r(pstr, ":", &psav)); pstr = NULL) {
+		strncpy(file, ptok, PATH_MAX);
+		strncat(file, "/", PATH_MAX);
+		strncat(file, binary, PATH_MAX);
+		if (!access(file, X_OK)) {
+			free(path);
+			return True;
+		}
+	}
+	free(path);
+	return False;
+}
+
+static Bool
 check_exec(const char *tryexec, const char *exec)
 {
 	char *binary;
@@ -11587,24 +11661,10 @@ check_exec(const char *tryexec, const char *exec)
 		}
 		DPRINTF(1, "%s: %s\n", binary, strerror(errno));
 	} else {
-		char *path, *pstr, *ptok, *psav;
-		char file[PATH_MAX + 1];
-
-		if (!(path = strdup(getenv("PATH") ? : ""))) {
+		if (check_exec_path(binary)) {
 			free(binary);
-			return False;
+			return True;
 		}
-		for (pstr = path; (ptok = strtok_r(pstr, ":", &psav)); pstr = NULL) {
-			strncpy(file, ptok, PATH_MAX);
-			strncat(file, "/", PATH_MAX);
-			strncat(file, binary, PATH_MAX);
-			if (!access(file, X_OK)) {
-				free(path);
-				free(binary);
-				return True;
-			}
-		}
-		free(path);
 		DPRINTF(1, "%s: not found in PATH\n", binary);
 	}
 	free(binary);
@@ -12966,6 +13026,73 @@ set_defaults(int argc, char *argv[])
 	set_default_files();
 }
 
+static Bool
+get_terminal(Terminal *t)
+{
+	size_t len;
+	char *p;
+
+	len = strlen(t->exec) + strlen(t->options) + 1;
+	if (!(p = calloc(len + 1, sizeof(*p))))
+		return False;
+	strcpy(p, t->exec);
+	strcat(p, t->options);
+	defaults.terminal = options.terminal = p;
+
+	if (!t->resopts)
+		return True;
+	len = strlen(t->exec) + strlen(t->resopts) + 1;
+	if (!(p = calloc(len + 1, sizeof(*p))))
+		return True;
+	strcpy(p, t->exec);
+	strcat(p, t->resopts);
+	defaults.termresn = options.termresn = p;
+	return True;
+}
+
+static void
+get_default_terminal(void)
+{
+	const char *env;
+
+	if (!options.terminal && (env = getenv("XDG_TERMINAL"))) {
+		defaults.terminal = options.terminal = strdup(env);
+	}
+	if (!options.termresn && (env = getenv("XDG_TERMRESN")) && options.terminal) {
+		defaults.termresn = options.termresn = strdup(env);
+	}
+	if (!options.terminal && (env = getenv("TERMINAL"))) {
+		Terminal *t;
+
+		for (t = terminals; t->exec; t++) {
+			if (!t->options)
+				continue;
+			if (!strcmp(t->exec, env)) {
+				if (get_terminal(t))
+					break;
+			}
+		}
+	}
+	if (!options.terminal) {
+		Terminal *t;
+
+		for (t = terminals; t->exec; t++) {
+			if (!t->options)
+				continue;
+			if (check_exec_path(t->exec)) {
+				if (get_terminal(t))
+					break;
+			}
+		}
+	}
+	if (!options.terminal) {
+		defaults.terminal = options.terminal = strdup(defaults.terminal);
+		defaults.termresn = options.termresn = strdup(defaults.termresn);
+	}
+	DPRINTF(1, NAME ": options.terminal = '%s'\n", options.terminal ? : "NULL");
+	DPRINTF(1, NAME ": options.termresn = '%s'\n", options.termresn ? : "NULL");
+}
+
 static void
 get_defaults(int argc, char *argv[])
 {
@@ -12988,6 +13115,7 @@ get_defaults(int argc, char *argv[])
 			defaults.puthist = options.puthist = True;
 		if (options.wait == -1)
 			defaults.wait = options.wait = False;
+		get_default_terminal();
 		break;
 	case LaunchType_Autostart:
 	case LaunchType_XSession:
