@@ -1357,6 +1357,40 @@ applications.  Note that when performing autostart, B<xdg-launch> will
 set this environment variable to its own PID when the variable is not
 already set.
 
+=item B<XDG_TERMINAL>
+
+Used by B<xdg-launch> as the command to prefix to the exec line of
+terminal applications to launch applications within a terminal.
+
+=item B<XDG_TERMRESN>
+
+Used by B<xdg-launch> as the command to prefix to the exec line of
+terminal applications to launch applications within a terminal when a
+resource name is available to be set on the terminal.  (Not necessarily
+defined for all terminal types).
+
+=item B<TERMINAL>
+
+Use by B<xdg-launch> as the name of the preferred terminal program to
+run.  If this terminal is known to B<xdg-launch>, it will automatically
+determine the corresponding B<XDG_TERMINAL> and B<XDG_TERMRESN> commands
+when they are not specified.  Terminal programs that are known to
+B<xdg-launch> are: L<uxterm(1)>, L<xterm(1)>, L<st(1)>, L<pterm(1)>,
+L<Eterm(1)>, L<aterm(1)>, L<urxvtc(1)>, L<urxvt(1)>, L<rxvt(1)>,
+L<urxvt-tabbed(1)>, L<termit(1)>, L<terminator(1)>,
+L<gnome-terminal(1)>, L<termite(1)>, L<mate-terminal(1)>,
+L<terminology(1)>, L<kitty(1)>, L<alacritty(1)>, L<roxterm(1)>,
+L<lxterminal(1)>, L<xfce4-terminal(1)>, L<lilyterm(1)>, L<tilix(1)>,
+L<guake(1)>, L<x-terminal-emulator(1)>, L<deepin-terminal(1)>,
+L<qterminal(1)>, L<konsole(1)>, L<tilda(1)> and L<koi8rxterm(1)>.
+
+When no terminal environment variables are specified, terminal programs
+will be detected in the user's B<PATH> in the order specified above.
+
+Note that L<terminix(1)> and L<hyper(1)> are currently unknown.
+B<XDG_TERMINAL> and B<XDG_TERMRESN> must currently be specified to use
+those terminals.
+
 =back
 
 =head1 FILES
