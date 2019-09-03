@@ -2287,7 +2287,11 @@ send_msg(char *msg)
 	l = strlen((p = msg)) + 1;
 
 	while (l > 0) {
-		strncpy(xev.xclient.data.b, p, 20);
+		if (l <= 20) {
+			strncpy(xev.xclient.data.b, p, 19);
+		} else {
+			memcpy(xev.xclient.data.b, p, 20);
+		}
 		p += 20;
 		l -= 20;
 		/* just PropertyChange mask in the spec doesn't work :( */
@@ -6674,7 +6678,11 @@ startup_notification_complete(Window selwin)
 
 		l = strlen((p = msg)) + 1;
 		while (l > 0) {
-			strncpy(xev.xclient.data.b, p, 20);
+			if (l <= 20) {
+				strncpy(xev.xclient.data.b, p, 19);
+			} else {
+				memcpy(xev.xclient.data.b, p, 20);
+			}
 			p += 20;
 			l -= 20;
 			/* just PropertyChange mask in the spec doesn't work :( */

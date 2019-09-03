@@ -3734,7 +3734,11 @@ send_msg(Display *dpy, Process *pr, char *msg)
 	l = strlen((p = msg)) + 1;
 
 	while (l > 0) {
-		strncpy(xev.xclient.data.b, p, 20);
+		if (l <= 20) {
+			strncpy(xev.xclient.data.b, p, 19);
+		} else {
+			memcpy(xev.xclient.data.b, p, 20);
+		}
 		p += 20;
 		l -= 20;
 		/* just PropertyChange mask in the spec doesn't work :( */
@@ -11808,8 +11812,6 @@ launch_startup(Process *wm)
 	options.assist = False;
 	options.wait = False;
 
-	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
-
 	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || !*dirs)
 		dirs = "/etc/xdg";
 	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
@@ -11821,9 +11823,12 @@ launch_startup(Process *wm)
 			strcpy(home, ".");
 		strcat(home, "/.config");
 	}
-	strncpy(xdg, home, PATH_MAX);
-	strncat(xdg, ":", PATH_MAX);
-	strncat(xdg, dirs, PATH_MAX);
+
+	xdg = calloc(strlen(home) + 1 + strlen(dirs) + 1, sizeof(*xdg));
+
+	strcpy(xdg, home);
+	strcat(xdg, ":");
+	strcat(xdg, dirs);
 
 	/* process directories in reverse order */
 	do {
@@ -11852,9 +11857,11 @@ launch_startup(Process *wm)
 				appid[len] = '\0';
 				for (pr = autostart; pr && strcmp(pr->appid, appid); pr = pr->next) ;
 				if (pr) {
-					pr->path = realloc(pr->path, PATH_MAX + 1);
-					strncpy(pr->path, path, PATH_MAX);
-					strncat(pr->path, d->d_name, PATH_MAX);
+					size_t len = strlen(path) + strlen(d->d_name) + 1;
+
+					pr->path = realloc(pr->path, len + 1);
+					strcpy(pr->path, path);
+					strcat(pr->path, d->d_name);
 				} else if ((pr = calloc(1, sizeof(*pr)))) {
 					size_t len = strlen(path) + strlen(appid) + 8 + 1;
 
@@ -12043,8 +12050,6 @@ launch_session(Process *wm)
 	options.assist = False;
 	options.wait = False;
 
-	xdg = calloc(PATH_MAX + 1, sizeof(*xdg));
-
 	if (!(dirs = getenv("XDG_CONFIG_DIRS")) || !*dirs)
 		dirs = "/etc/xdg";
 	if ((env = getenv("XDG_CONFIG_HOME")) && *env)
@@ -12056,9 +12061,12 @@ launch_session(Process *wm)
 			strcpy(home, ".");
 		strcat(home, "/.config");
 	}
-	strncpy(xdg, home, PATH_MAX);
-	strncat(xdg, ":", PATH_MAX);
-	strncat(xdg, dirs, PATH_MAX);
+
+	xdg = calloc(strlen(home) + 1 + strlen(dirs) + 1, sizeof(*xdg));
+
+	strcpy(xdg, home);
+	strcat(xdg, ":");
+	strcat(xdg, dirs);
 
 	/* process directories in reverse order */
 	do {
@@ -12087,9 +12095,11 @@ launch_session(Process *wm)
 				appid[len] = '\0';
 				for (pr = autostart; pr && strcmp(pr->appid, appid); pr = pr->next) ;
 				if (pr) {
-					pr->path = realloc(pr->path, PATH_MAX + 1);
-					strncpy(pr->path, path, PATH_MAX);
-					strncat(pr->path, d->d_name, PATH_MAX);
+					size_t len = strlen(path) + strlen(d->d_name) + 1;
+
+					pr->path = realloc(pr->path, len + 1);
+					strcpy(pr->path, path);
+					strcat(pr->path, d->d_name);
 				} else if ((pr = calloc(1, sizeof(*pr)))) {
 					size_t len = strlen(path) + strlen(appid) + 8 + 1;
 
