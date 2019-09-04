@@ -216,45 +216,49 @@ typedef struct {
 	char *exec;
 	char *resopts;
 	char *options;
+	Bool notify;
 } Terminal;
 
 Terminal terminals[] = {
-	{ "uxterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "xterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "st",			" -c \"%s\" -t \"%%c\" -e ",	" -t \"%c\" -e "	},
-	{ "pterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "Eterm",		" -n \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "aterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "urxvtc",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "urxvt",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "rxvt",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "urxvt-tabbed",	" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "termit",		" -n \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
-	{ "terminator",		" -c \"%s\" -T \"%%c\" -x ",	" -T \"%c\" -x "	},
-	{ "gnome-terminal",	" --name=\"%s\" -t \"%%c\" -- "," -t \"%c\" -- "	},
-	{ "termite",		" --name=\"%s\" -t \"%%c\" -e "," -t \"%c\" -e "	},
-	{ "mate-terminal",	" --name=\"%s\" -t \"%%c\" -e "," -t \"%c\" -e "	},
-	{ "terminology",	" --name=\"%s\" -T=\"%%c\" -e "," -T=\"%c\" -e "	},
-	{ "kitty",		" --name \"%s\" -T \"%%c\" ",	" -T \"%c\" "		},
-	{ "alacritty",		" --class \"%s\" -t \"%%c\" -e "," -t \"%c\" -e "	},
+	{ "uxterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	False	},
+	{ "xterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	False	},
+	{ "st",			" -c \"%s\" -t \"%%c\" -e ",	" -t \"%c\" -e ",	False	},
+	{ "aterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	False	},
+	{ "rxvt",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	False	},
+	{ "alacritty",		" --class \"%s\" -t \"%%c\" -e "," -t \"%c\" -e ",	False	},
 
-	{ "roxterm",		NULL,				" -T \"%c\" -e "	},
-	{ "lxterminal",		NULL,				" -t \"%c\" -e "	},
-	{ "xfce4-terminal",	NULL,				" -T \"%c\" -x "	},
-	{ "lilyterm",		NULL,				" -T \"%c\" -E "	},
-	{ "tilix",		NULL,				" -t \"%c\" -e "	},
-	{ "guake",		NULL,				" -r \"%c\" -e "	},
-	{ "x-terminal-emulator",NULL,				" -e "			},
-	{ "deepin-terminal",	NULL,				" -e "			},
-	{ "qterminal",		NULL,				" -e "			},
-	{ "konsole",		NULL,				" -e "			},
-	{ "tilda",		NULL,				" -c "			},
-	{ "terminix",		NULL,				NULL			},
-	{ "hyper",		NULL,				NULL			},
+	{ "pterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	True	},
+	{ "Eterm",		" -n \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	True	},
+//	{ "urxvtc",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	False	},
+	{ "urxvt",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	True	},
+	{ "urxvt-tabbed",	" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	True	},
+	{ "termit",		" -n \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	True	},
+	{ "gnome-terminal",	" --name=\"%s\" -t \"%%c\" -- "," -t \"%c\" -- ",	True	},
+	{ "termite",		" --name=\"%s\" -t \"%%c\" -e "," -t \"%c\" -e ",	True	},
+	{ "mate-terminal",	" --name=\"%s\" -t \"%%c\" -e "," -t \"%c\" -e ",	True	},
+	{ "terminology",	" --name=\"%s\" -T=\"%%c\" -e "," -T=\"%c\" -e ",	True	},
+	{ "kitty",		" --name \"%s\" -T \"%%c\" ",	" -T \"%c\" ",		True	},
 
-	{ "koi8rxterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e "	},
+	{ "roxterm",		NULL,				" -T \"%c\" -e ",	True	},  // ??? fist instance only?
+	{ "lxterminal",		NULL,				" -t \"%c\" -e ",	True	},
+	{ "xfce4-terminal",	NULL,				" -T \"%c\" -x ",	True	},
+	{ "lilyterm",		NULL,				" -T \"%c\" -E ",	True	},
+	{ "tilix",		NULL,				" -t \"%c\" -e ",	True	},
+	{ "guake",		NULL,				" -r \"%c\" -e ",	True	},
+	{ "terminator",		" -c \"%s\" -T \"%%c\" -x ",	" -T \"%c\" -x ",	True	},  // resclass doesn't work...
+	{ "x-terminal-emulator",NULL,				" -e ",			True	},
+	{ "deepin-terminal",	NULL,				" -e ",			True	},
+	{ "tilda",		NULL,				" -c ",			True	},
 
-	{ NULL,			NULL,				NULL			}
+	{ "qterminal",		NULL,				" -e ",			False	},
+	{ "konsole",		NULL,				" -e ",			False	},
+
+	{ "terminix",		NULL,				NULL,			False	},
+	{ "hyper",		NULL,				NULL,			False	},
+
+	{ "koi8rxterm",		" -name \"%s\" -T \"%%c\" -e ",	" -T \"%c\" -e ",	False	},
+
+	{ NULL,			NULL,				NULL,			False	}
 };
 
 typedef struct {
@@ -10490,17 +10494,19 @@ set_seq_command(Process *pr)
 			free(s->f.wmclass);
 			s->f.wmclass = strdup(basename(s->f.bin));
 		}
+		if (!s->f.wmclass && !options.termresn) {
+			char *exec = first_word(options.terminal);
+
+			free(s->f.wmclass);
+			s->f.wmclass = strdup(basename(exec));
+			free(exec);
+		}
 		if (s->f.wmclass && options.termresn) {
 			snprintf(cmd, 1024, options.termresn, s->f.wmclass);
 			free(s->f.silent);
 			s->f.silent = NULL;
 		} else {
-			char *exec = first_word(options.terminal);
-
 			strncat(cmd, options.terminal, 1024);
-			free(s->f.wmclass);
-			s->f.wmclass = strdup(basename(exec));
-			free(exec);
 		}
 	}
 	if (e->Exec)
