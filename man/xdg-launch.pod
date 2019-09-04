@@ -969,23 +969,28 @@ monitor index.
 
 =head2 TERMINAL PROGRAMS
 
-For desktop entries that set C<Terminal=true>, when they also set
+For desktop entries that set C<Terminal=true>, when they may also set
 C<StartupWMClass> to a class name specific to the program being
 executed.  Most terminal programs (and L<xterm(1)> specifically) can set
 the C<WMCLASS> name and class to something other than that of the
 terminal program (i.e. instead of C<xterm.XTerm>).  When the desktop
 entries do so, B<xdg-launch> will set the name attribute on the terminal
-to the name specified when the terminal is launched.  This also permits,
-for L<xterm(1)>, the ability to set special terminal resources by
-application.  Because not many desktop entry files do this, when no
-C<StartupWMClass> is specified, the C<APPID> or C<BINARY> will be used
-instead and C<StartupWMClass> will be automatically populated.
+to the name specified when the terminal is launched, if possible.  This
+also permits, for terminal emulation programs such as L<xterm(1)>, the
+ability to set special terminal resources by application.  Because not
+many desktop entry files do this, when no C<StartupWMClass> is
+specified, the C<APPID> or C<BINARY> will be used instead and
+C<StartupWMClass> will be automatically populated.
 
 This procedure provides additional assistance to window managers when
-terminal programs do not properly observe startup notification.  (Note
-that L<xterm(1)> does not properly observe startup notification, even
-though it properly observes X11 Session Management, whereas many other
-terminal emulators support both.)
+terminal emulation programs do not properly observe startup
+notification.  (For example, L<xterm(1)> does not properly observe
+startup notification, even though it properly observes X11 Session
+Management, whereas many other terminal emulators support both.)
+
+It is possible to change the default terminal emulation program used
+when these applications are launched by using environment variables (see
+L</ENVIRONMENT>) or X resources (see L</X RESOURCES>).
 
 Terminal programs that are known to B<xdg-launch> are:
 L<uxterm(1)>,
@@ -1430,7 +1435,9 @@ defined for all terminal types).
 Use by B<xdg-launch> as the name of the preferred terminal program to
 run.  If this terminal is known to B<xdg-launch>, it will automatically
 determine the corresponding B<XDG_TERMINAL> and B<XDG_TERMRESN> commands
-when they are not specified.  See L</TERMINAL PROGRAMS> above.
+when they are not specified.
+See L</TERMINAL PROGRAMS>, above, for a list of known terminal emulation
+programs.
 
 =back
 
