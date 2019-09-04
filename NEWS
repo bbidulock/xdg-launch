@@ -1,11 +1,57 @@
-xdg-launch -- history of user-visible changes.  2018-06-12
+xdg-launch -- history of user-visible changes.  2019-09-04
 
-Release xdg-launch-1.8 released 2018-06-12
+Release xdg-launch-1.9 released 2019-09-04
 ------------------------------------------
 
-git shortlog -e -n -w80,6,8 1.8...HEAD
+git tag -n100 -l 1.9
 
+1.9             Maintenance Release 1.9
 
+    This is another stable release of the xdg-launch package that provides
+    a "C"-language program that can be used to launch XDG desktop
+    applications with full startup notification and window manager
+    assistance from the command line. The command is able to launch desktop
+    applications, autostart entries and xsession entries.
+
+    This release is a maintenance release that updates the build system,
+    generates a better NEWS file, handles annotated tags better, and
+    converts the release archives to lzip complression.
+
+    In addition to build improvements, this release includes the ability to
+    select the terminal emulation program that is used to run desktop
+    applications that specify Terminal=true in their desktop entry files,
+    using environment variables. Baring selection, it will search for
+    available terminal emulation programs from a long list of popular ones
+    and select the first one found.
+
+    Included in the release is an autoconf tarball for building the package
+    from source. See the NEWS and TODO file in the release for more
+    information. Please report problems to the issues list on GitHub.
+
+git shortlog -e -n -w80,6,8 1.8...1.9
+
+Brian Bidulock <bidulock@openss7.org> (21):
+      reformat TODO
+      update for gettext 0.20.1
+      place filename last in sed command
+      build release notes with distribution
+      add release notes
+      add license file to git repo
+      build release notes
+      better defaults, lzip compressed archive
+      now have better defaults
+      build better NEWS file for annotated tags
+      update release notes
+      handle gcc 9.1 string truncation stupidity
+      add Terminal type
+      add ability to alter terminal used from xterm
+      update xterm replacement for xdg-launch
+      choose terminals better
+      regroup terminals
+      document terminal selection
+      a little clearer docs
+      update release notes
+      one less todo: thought of another
 
 
 Release xdg-launch-1.8 released 2018-06-12
@@ -13,7 +59,7 @@ Release xdg-launch-1.8 released 2018-06-12
 
 git shortlog -e -n -w80,6,8 1.7...1.8
 
-Brian Bidulock <bidulock@openss7.org> (138):
+Brian Bidulock <bidulock@openss7.org> (139):
       correct logic error
       add parent pid option
       set default ppid to XDG_SESSION_PID
@@ -152,6 +198,7 @@ Brian Bidulock <bidulock@openss7.org> (138):
       remove warnings
       update release files
       update release files (again)
+      release
 
 
 Release xdg-launch-1.7 released 2018-04-29
@@ -314,111 +361,5 @@ Brian Bidulock <bidulock@openss7.org> (10):
       bug: pointer options not being set
       cosmetics
       add options to xdg-prefs
-      update release files
-
-
-Release xdg-launch-1.2 released 2016-07-08
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 1.1...1.2
-
-Brian Bidulock <bidulock@openss7.org> (3):
-      be pedantic about startup id mismatches
-      better automatic log generation
-      update release files
-
-
-Release xdg-launch-1.1 released 2016-07-08
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 1.0...1.1
-
-Brian Bidulock <bidulock@openss7.org> (7):
-      remove unusable xdg-monitor.desktop file
-      always run xdg-assist in the foreground
-      updates to xdg-assist
-      create selection window for each screen at startup
-      update release files
-      automatically generate GNU NEWS file from git
-      update release files
-
-
-Release xdg-launch-1.0 released 2016-07-07
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.9...1.0
-
-Brian Bidulock <bidulock@openss7.org> (16):
-      rationalize xdg-assist, monitor, show
-      tweaks to xdg-assist, show, monitor
-      make assist more consistent with launch
-      big workup of startup notification monitoring
-      do expansion and substitution on command
-      working well now
-      major rework of launch tools
-      some tweaks and twerks
-      final updates for startup notification
-      remove useless xdg-monitor (see xde-monitor)
-      disable extra libraries by default
-      disable extra libraries by default
-      throw away extra libraries
-      remove useless xdg-show (use xdg-assist w/ options)
-      update README files
-      update release files
-
-
-Release xdg-launch-0.9 released 2016-06-27
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.8...0.9
-
-Brian Bidulock <bidulock@openss7.org> (37):
-      start documenting xdg-types
-      working up xde-types manual page
-      working up xde-types manual page
-      working up xde-types manual page
-      add examples to xdg-which
-      first cut of xdg-types
-      overload xdg-which too
-      working up mime output
-      check for gio/glib2 anyway
-      use gio to output types if available
-      option updates
-      update usage output
-      document todo
-      update TODO
-      document xdg-prefs tool
-      working up manpage
-      working up tool docs
-      not limitations
-      not limitations
-      building up xdg-find documentation
-      working up xdg-find app
-      working up xdg-prefs
-      working up xdg-prefs
-      fill out xdg-find functions
-      conditionally compile tools requiring gio-unix-2.0
-      document categories
-      more category descriptions
-      more category documentation
-      more category updates
-      more doc updates
-      update NEWS
-      document mime types and categories
-      working up manpage
-      rationalize xdg-assist and monitor
-      only autostart xdg-assist
-      update release files
-      update release files
-
-
-Release xdg-launch-0.8 released 2016-03-29
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 0.7...0.8
-
-Brian Bidulock <bidulock@openss7.org> (3):
-      add guard timer
-      update README.md
       update release files
 
