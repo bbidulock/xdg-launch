@@ -246,6 +246,7 @@ Terminal terminals[] = {
 	{ "tilix",		NULL,				" -t \"%c\" -e ",	True	},
 	{ "guake",		NULL,				" -r \"%c\" -e ",	True	},
 	{ "terminator",		" -c \"%s\" -T \"%%c\" -x ",	" -T \"%c\" -x ",	True	},  // resclass doesn't work...
+
 	{ "x-terminal-emulator",NULL,				" -e ",			True	},
 	{ "deepin-terminal",	NULL,				" -e ",			True	},
 	{ "tilda",		NULL,				" -c ",			True	},
