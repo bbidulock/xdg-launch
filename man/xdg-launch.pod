@@ -987,6 +987,62 @@ that L<xterm(1)> does not properly observe startup notification, even
 though it properly observes X11 Session Management, whereas many other
 terminal emulators support both.)
 
+Terminal programs that are known to B<xdg-launch> are:
+L<uxterm(1)>,
+L<xterm(1)>,
+L<st(1)>,
+L<aterm(1)>,
+L<rxvt(1)>,
+L<alacritty(1)>,
+which do not support startup notification, but do support setting the
+resource name;
+L<pterm(1)>,
+L<Eterm(1)>,
+L<urxvt(1)>,
+L<urxvt-tabbed(1)>,
+L<termit(1)>,
+L<gnome-terminal(1)>,
+L<termite(1)>,
+L<mate-terminal(1)>,
+L<terminology(1)>,
+L<kitty(1)>,
+which do support startup notification and do support setting the
+resource name;
+L<roxterm(1)>,
+L<lxterminal(1)>,
+L<xfce4-terminal(1)>,
+L<lilyterm(1)>,
+L<tilix(1)>,
+L<guake(1)>,
+L<terminator(1)>,
+which do support startup notification but do not support setting the
+resource name;
+L<x-terminal-emulator(1)>,
+L<deepin-terminal(1)>,
+L<tilda(1)>,
+which do support startup notification but do not support setting the
+resource name, nor setting the window title;
+L<qterminal(1)>,
+L<konsole(1)>,
+which do not support startup notification, nor setting the resource
+name, nor setting the window title; and
+L<koi8rxterm(1)>
+which is language specific.
+
+When the B<TERMINAL> environment variable is set to one of these
+terminals (a terminal known to B<xdg-launch>), it will automatically
+determine the corresponding B<XDG_TERMINAL> and B<XDG_TERMRESN> commands
+when they are not specified.  See L</ENVIRONMENT> below.  When no
+terminal environment variables are specified, terminal programs will be
+detected in the user's B<PATH> in the order specified above.  Note that
+L<terminix(1)> and L<hyper(1)> are currently unknown.  B<XDG_TERMINAL>
+and B<XDG_TERMRESN> must currently be specified to use those or other
+unknown terminals.
+
+See L</ENVIRONMENT> below for more information on selecting the terminal
+to use for launching applications that need one.
+
+
 =head2 AUTO START SESSION
 
 When B<--session> is specified, the program starts the XDG auto start
@@ -1374,22 +1430,7 @@ defined for all terminal types).
 Use by B<xdg-launch> as the name of the preferred terminal program to
 run.  If this terminal is known to B<xdg-launch>, it will automatically
 determine the corresponding B<XDG_TERMINAL> and B<XDG_TERMRESN> commands
-when they are not specified.  Terminal programs that are known to
-B<xdg-launch> are: L<uxterm(1)>, L<xterm(1)>, L<st(1)>, L<pterm(1)>,
-L<Eterm(1)>, L<aterm(1)>, L<urxvtc(1)>, L<urxvt(1)>, L<rxvt(1)>,
-L<urxvt-tabbed(1)>, L<termit(1)>, L<terminator(1)>,
-L<gnome-terminal(1)>, L<termite(1)>, L<mate-terminal(1)>,
-L<terminology(1)>, L<kitty(1)>, L<alacritty(1)>, L<roxterm(1)>,
-L<lxterminal(1)>, L<xfce4-terminal(1)>, L<lilyterm(1)>, L<tilix(1)>,
-L<guake(1)>, L<x-terminal-emulator(1)>, L<deepin-terminal(1)>,
-L<qterminal(1)>, L<konsole(1)>, L<tilda(1)> and L<koi8rxterm(1)>.
-
-When no terminal environment variables are specified, terminal programs
-will be detected in the user's B<PATH> in the order specified above.
-
-Note that L<terminix(1)> and L<hyper(1)> are currently unknown.
-B<XDG_TERMINAL> and B<XDG_TERMRESN> must currently be specified to use
-those terminals.
+when they are not specified.  See L</TERMINAL PROGRAMS> above.
 
 =back
 
