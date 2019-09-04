@@ -1,5 +1,26 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit b8c0b6918447f2b467af340da94dfc41c7f33d4a
+Merge: 827f407 575b240
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Sep 4 00:53:45 2019 -0600
+
+    Merge branch 'master' of github.com:bbidulock/xdg-launch
+
+commit 827f4070bfd3cb6b0b4f9b9c06549b086b39bc4d
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Sep 4 00:52:11 2019 -0600
+
+    update release files
+
+ AUTHORS      |   2 +-
+ ChangeLog    | 406 ++++++++++++++++++++++++++++---------------------------
+ NEWS         | 165 ++++++++--------------
+ README       |  48 +++----
+ README.md    |  48 +++----
+ configure.ac |  12 +-
+ 6 files changed, 314 insertions(+), 367 deletions(-)
+
 commit 644d3b53e794cd3459c00723909d83b07c93bf57
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Wed Sep 4 00:44:59 2019 -0600
@@ -177,6 +198,15 @@ Date:   Tue Sep 3 11:05:52 2019 -0600
 
  autogen.sh | 5 +++--
  1 file changed, 3 insertions(+), 2 deletions(-)
+
+commit 575b240967323561d4c8f3b9a90b5199c5e78568
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Aug 31 01:51:19 2019 -0600
+
+    generate NEWS better
+
+ gennews.sh | 26 +++++++++++++++++++++-----
+ 1 file changed, 21 insertions(+), 5 deletions(-)
 
 commit 86a94b5b8393c6b5ceec58f5e0fccff5a181325e
 Author: Brian Bidulock <bidulock@openss7.org>
@@ -4900,33 +4930,3 @@ Date:   Thu Jun 26 06:03:11 2014 -0600
  .gitignore    |  2 ++
  xdg-monitor.c | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++-----
  2 files changed, 65 insertions(+), 6 deletions(-)
-
-commit 9c2c2de56d7a8bc74ca2a6956734825350394901
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Jun 26 06:02:37 2014 -0600
-
-    add XDG application and autostart files
-
- Makefile.am          |  4 ++++
- configure.template   |  6 ++++++
- dmenu_launch.desktop | 11 +++++++++++
- xdg-monitor.desktop  | 13 +++++++++++++
- 4 files changed, 34 insertions(+)
-
-commit 5d5504112e0df4c2ccfaed093ef589836b415245
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Jun 26 05:09:02 2014 -0600
-
-    for now, close after timeout
-
- xdg-monitor.c | 29 +++++++++++++++++++++++++----
- 1 file changed, 25 insertions(+), 4 deletions(-)
-
-commit 5bd6fbd35e9f52d33e849df1cd41ec354ca58288
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Jun 26 04:54:36 2014 -0600
-
-    update documentation for xdg-monitor
-
- xdg-monitor.pod | 32 ++++++++++++++++++++++++++++----
- 1 file changed, 28 insertions(+), 4 deletions(-)
