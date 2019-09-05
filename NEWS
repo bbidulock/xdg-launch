@@ -30,7 +30,7 @@ git tag -n100 -l 1.9
 
 git shortlog -e -n -w80,6,8 1.8...1.9
 
-Brian Bidulock <bidulock@openss7.org> (24):
+Brian Bidulock <bidulock@openss7.org> (25):
       reformat TODO
       update for gettext 0.20.1
       generate NEWS better
@@ -55,6 +55,7 @@ Brian Bidulock <bidulock@openss7.org> (24):
       one less todo: thought of another
       update release files
       Merge branch 'master' of github.com:bbidulock/xdg-launch
+      update release files after merge
 
 
 Release xdg-launch-1.8 released 2018-06-12

@@ -1,5 +1,15 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit b6eb3a02713521973beb7384a12d270567af5951
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Wed Sep 4 00:57:25 2019 -0600
+
+    update release files after merge
+
+ ChangeLog | 60 +++++++++++++++++++++++++++++------------------------------
+ NEWS      |  5 ++++-
+ 2 files changed, 34 insertions(+), 31 deletions(-)
+
 commit b8c0b6918447f2b467af340da94dfc41c7f33d4a
 Merge: 827f407 575b240
 Author: Brian Bidulock <bidulock@openss7.org>
@@ -4920,13 +4930,3 @@ Date:   Mon Jun 30 18:49:39 2014 -0600
  xdg-xsession       |   3 +
  xdg-xsession.pod   |  28 ++++++++
  9 files changed, 254 insertions(+), 78 deletions(-)
-
-commit f920395fe86bc3e967c0d7d44f28779e69f10070
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Jun 26 06:03:11 2014 -0600
-
-    help the toolkit/window manager a bit
-
- .gitignore    |  2 ++
- xdg-monitor.c | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++-----
- 2 files changed, 65 insertions(+), 6 deletions(-)
