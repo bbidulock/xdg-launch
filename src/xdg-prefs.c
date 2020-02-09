@@ -224,6 +224,7 @@ find_mimeapp_file(GKeyFile *file, const gchar *directory, const char *base)
 	const gchar * const * cdirs;
 	const gchar * const * ddirs;
 
+	(void) directory;
 	cdir = g_get_user_config_dir();
 	ddir = g_get_user_data_dir();
 	cdirs = g_get_system_config_dirs();
@@ -270,6 +271,7 @@ find_default_file(GKeyFile *file, char **desktops, const gchar *directory, const
 	const gchar * const * cdirs;
 	const gchar * const * ddirs;
 
+	(void) directory;
 	cdir = g_get_user_config_dir();
 	ddir = g_get_user_data_dir();
 	cdirs = g_get_system_config_dirs();
@@ -433,6 +435,8 @@ do_pref(int argc, char *argv[])
 	GAppInfo *info;
 	int setcount = 0;
 
+	(void) argc;
+	(void) argv;
 	appid = calloc(PATH_MAX + 1, sizeof(*appid));
 	strncpy(appid, options.appid, PATH_MAX);
 	if (strstr(appid, ".desktop") != appid + strlen(appid) - 8)
@@ -561,6 +565,8 @@ do_exec(int argc, char *argv[])
 	GAppInfo *info = NULL;
 	GDesktopAppInfo *desk = NULL;
 
+	(void) argc;
+	(void) argv;
 	if (!(type = options.types[0])) {
 		EPRINTF("a MIMETYPE or CATEGORY must be specified\n");
 		exit(EXIT_FAILURE);
@@ -710,6 +716,8 @@ do_list(int argc, char *argv[])
 {
 	char **type;
 
+	(void) argc;
+	(void) argv;
 	for (type = options.types; type && *type; type++) {
 		GList *apps, *app;
 		GAppInfo *info;
@@ -782,6 +790,8 @@ do_list(int argc, char *argv[])
 static void
 copying(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -826,6 +836,8 @@ regulations).\n\
 static void
 version(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -848,6 +860,7 @@ See `%1$s --copying' for copying permissions.\n\
 static void
 usage(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stderr, "\
@@ -864,6 +877,7 @@ Usage:\n\
 static void
 help(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\

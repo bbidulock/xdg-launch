@@ -635,7 +635,7 @@ typedef struct _Sequence {
 		unsigned desktop;
 		unsigned timestamp;
 		unsigned silent;
-		unsigned pid;
+		pid_t pid;
 		unsigned sequence;
 		unsigned autostart;
 		unsigned xsession;
@@ -1380,6 +1380,7 @@ xioerror(Display *dpy)
 	char **strings;
 	int i;
 
+	(void) dpy;
 	DPRINTF(0, "X I/O Error: %s\n", strerror(errno));
 	if ((nptr = backtrace(buffer, BUFSIZ-1)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
@@ -1746,7 +1747,7 @@ check_nonrecursive(XdgScreen *scr, Atom atom, Atom type)
   * @return Bool - true if atom is in list
   */
 static Bool
-check_supported(XdgScreen * scr, Atom protocols, Atom supported)
+check_supported(XdgScreen *scr, Atom protocols, Atom supported)
 {
 	Atom real;
 	int format;
@@ -2049,7 +2050,7 @@ check_window_manager(XdgScreen *scr)
 /** @brief Check for a system tray.
   */
 static Window
-check_stray(XdgScreen * scr)
+check_stray(XdgScreen *scr)
 {
 	if (!scr->has.stray) {
 		Window win;
@@ -2071,7 +2072,7 @@ check_stray(XdgScreen * scr)
 }
 
 static Window
-check_pager(XdgScreen * scr)
+check_pager(XdgScreen *scr)
 {
 	if (!scr->has.pager) {
 		Window win;
@@ -2097,7 +2098,7 @@ check_pager(XdgScreen * scr)
 }
 
 static Window
-check_compm(XdgScreen * scr)
+check_compm(XdgScreen *scr)
 {
 	if (!scr->has.compm) {
 		Window win;
@@ -2116,7 +2117,7 @@ check_compm(XdgScreen * scr)
 }
 
 static Window
-check_audio(XdgScreen * scr)
+check_audio(XdgScreen *scr)
 {
 	if (!scr->has.audio) {
 		char *text;
@@ -2152,7 +2153,7 @@ check_audio(XdgScreen * scr)
 }
 
 static Window
-check_shelp(XdgScreen * scr)
+check_shelp(XdgScreen *scr)
 {
 	if (!scr->has.shelp) {
 		Window win;
@@ -2229,257 +2230,409 @@ need_assistance(Display *dpy)
   * @{ */
 
 static void
-pc_handle_DT_WORKSPACE_CURRENT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_DT_WORKSPACE_CURRENT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_DT_WORKSPACE_LIST(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_DT_WORKSPACE_LIST(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_DT_WORKSPACE_PRESENCE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_DT_WORKSPACE_PRESENCE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_ECHINUS_LAYOUT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_ECHINUS_LAYOUT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_ECHINUS_SELTAGS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_ECHINUS_SELTAGS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_GTK_THEME_VARIANT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_GTK_THEME_VARIANT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_KDE_NET_WM_FRAME_STRUT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_KDE_NET_WM_FRAME_STRUT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_MOTIF_WM_HINTS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_MOTIF_WM_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_APPLICATION_ID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_APPLICATION_ID(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_BINARY_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_BINARY_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_DESCRIPTION(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_DESCRIPTION(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_HOSTNAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_HOSTNAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_ICON_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_ICON_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_LAUNCHEE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_LAUNCHEE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_LAUNCHER(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_LAUNCHER(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_PID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_PID(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_SCREEN(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_SCREEN(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_SEQUENCE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_SEQUENCE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_TIMESTAMP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_TIMESTAMP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_APP_WMCLASS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_APP_WMCLASS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_CURRENT_DESKTOP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_CURRENT_DESKTOP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_DESKTOP_GEOMETRY(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_DESKTOP_GEOMETRY(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_DESKTOP_MODES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_DESKTOP_MODES(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_DESKTOP_NAMES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_DESKTOP_NAMES(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_DESKTOP_VIEWPORT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_DESKTOP_VIEWPORT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_NUMBER_OF_DESKTOPS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_NUMBER_OF_DESKTOPS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_SHOWING_DESKTOP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_SHOWING_DESKTOP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_WM_DESKTOP_MASK(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_WM_DESKTOP_MASK(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_WM_SYNC_REQUEST_COUNTER(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_WM_SYNC_REQUEST_COUNTER(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_NET_WORKAREA(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_NET_WORKAREA(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_OB_APP_CLASS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_OB_APP_CLASS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_OB_APP_GROUP_CLASS(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_OB_APP_GROUP_CLASS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_OB_APP_GROUP_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_OB_APP_GROUP_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_OB_APP_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_OB_APP_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_OB_APP_TITLE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_OB_APP_TITLE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_OB_APP_TYPE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_OB_APP_TYPE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_PULSE_COOKIE(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_PULSE_COOKIE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_PULSE_ID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_PULSE_ID(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_PULSE_SERVER(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_PULSE_SERVER(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_AREA(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_AREA(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_AREA_COUNT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_AREA_COUNT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_DESKTOP_BUTTON_PROXY(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_DESKTOP_BUTTON_PROXY(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_WORKAREA(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_WORKAREA(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_WORKSPACE_COUNT(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_WORKSPACE_COUNT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_WORKSPACE_NAMES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_WORKSPACE_NAMES(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WIN_WORKSPACES(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WIN_WORKSPACES(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WM_DESKTOP(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WM_DESKTOP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_WM_LOCALE_NAME(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_WM_LOCALE_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-pc_handle_XROOTPMAP_ID(XdgScreen * scr, XPropertyEvent *e, Client *c)
+pc_handle_XROOTPMAP_ID(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 static void
 pc_handle_WINDOWMAKER_NOTICEBOARD(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange(scr);
 }
@@ -2487,6 +2640,8 @@ pc_handle_WINDOWMAKER_NOTICEBOARD(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_MOTIF_WM_INFO(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange(scr);
 }
@@ -2494,6 +2649,8 @@ pc_handle_MOTIF_WM_INFO(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_SUPPORTED(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange(scr);
 }
@@ -2501,6 +2658,8 @@ pc_handle_NET_SUPPORTED(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_SUPPORTING_WM_CHECK(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange(scr);
 }
@@ -2508,6 +2667,8 @@ pc_handle_NET_SUPPORTING_WM_CHECK(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_PROTOCOLS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange(scr);
 }
@@ -2515,6 +2676,8 @@ pc_handle_WIN_PROTOCOLS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_SUPPORTING_WM_CHECK(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange(scr);
 }
@@ -3938,7 +4101,8 @@ get_proc_file(pid_t pid, char *name, size_t *size)
 	struct stat st;
 	char *file, *buf;
 	FILE *f;
-	size_t read, total;
+	size_t read;
+	ssize_t total;
 
 	file = calloc(PATH_MAX + 1, sizeof(*file));
 	snprintf(file, PATH_MAX, "/proc/%d/%s", pid, name);
@@ -4183,7 +4347,7 @@ test_client(Client *c, Process *pr)
 	Sequence *seq;
 	char *str, *startup_id, *hostname, *res_name, *res_class;
 	char **command;
-	int count;
+	size_t count;
 
 	if (!(seq = pr->seq))
 		return False;
@@ -4310,10 +4474,10 @@ test_client(Client *c, Process *pr)
 		count = l->count;
 	}
 	if (command && (eargv || seq->f.command)) {
-		int i;
-
 		if (eargv) {
 			if (c->count == eargc) {
+				int i;
+
 				for (i = 0; i < c->count; i++)
 					if (strcmp(eargv[i], c->command[i]))
 						break;
@@ -4327,6 +4491,8 @@ test_client(Client *c, Process *pr)
 
 			if (wordexp(seq->f.command, &we, 0) == 0) {
 				if (we.we_wordc == count) {
+					size_t i;
+
 					for (i = 0; i < count; i++)
 						if (strcmp(we.we_wordv[i], command[i]))
 							break;
@@ -5189,7 +5355,7 @@ update_client(Display *dpy, Client *c)
 				if (!seq->f.command)
 					continue;
 				if (!wordexp(seq->f.command, &we, 0)) {
-					if (we.we_wordc == c->count) {
+					if (we.we_wordc == (size_t) c->count) {
 						int i;
 
 						for (i = 0; i < c->count; i++)
@@ -5530,7 +5696,7 @@ convert_sequence_fields(Sequence *seq)
 static void
 free_sequence_fields(Sequence *seq)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < sizeof(seq->f) / sizeof(char *); i++) {
 		free(seq->fields[i]);
@@ -5541,7 +5707,7 @@ free_sequence_fields(Sequence *seq)
 static void
 copy_sequence_fields(Sequence *old, Sequence *new)
 {
-	int i;
+	size_t i;
 
 	old->from = new->from;
 	for (i = 0; i < sizeof(old->f) / sizeof(char *); i++) {
@@ -5605,6 +5771,7 @@ find_pr_by_id(char *id)
 static void
 close_process(Process *pr)
 {
+	(void) pr;
 }
 
 static Process *
@@ -5974,6 +6141,7 @@ cm_handle_NET_STARTUP_INFO_BEGIN(XdgScreen *scr, XClientMessageEvent *e, Client 
 	int len;
 	Display *dpy = scr->display;
 
+	(void) c;
 	PTRACE(5);
 	from = e->window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
@@ -6002,6 +6170,7 @@ cm_handle_NET_STARTUP_INFO(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 	int len;
 	Display *dpy = scr->display;
 
+	(void) c;
 	PTRACE(5);
 	from = e->window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
@@ -6262,6 +6431,7 @@ pc_handle_NET_ACTIVE_WINDOW(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_NET_ACTIVE_WINDOW(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c)
 		return;
@@ -6276,6 +6446,7 @@ cm_handle_NET_ACTIVE_WINDOW(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 pc_handle_NET_CLIENT_LIST(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	PTRACE(5);
 	pc_handle_CLIENT_LIST(scr, e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
@@ -6283,6 +6454,7 @@ pc_handle_NET_CLIENT_LIST(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_CLIENT_LIST_STACKING(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	PTRACE(5);
 	pc_handle_CLIENT_LIST(scr, e, _XA_NET_CLIENT_LIST_STACKING, XA_WINDOW);
 }
@@ -6292,6 +6464,7 @@ cm_handle_NET_CLOSE_WINDOW(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
 	Time time;
 
+	(void) scr;
 	PTRACE(5);
 	if (!c)
 		return;
@@ -6308,6 +6481,7 @@ cm_handle_NET_CLOSE_WINDOW(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 cm_handle_NET_MOVERESIZE_WINDOW(XdgScreen *dpy, XClientMessageEvent *e, Client *c)
 {
+	(void) dpy;
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
@@ -6328,6 +6502,7 @@ cm_handle_NET_MOVERESIZE_WINDOW(XdgScreen *dpy, XClientMessageEvent *e, Client *
 static void
 cm_handle_NET_REQUEST_FRAME_EXTENTS(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c)
 		return;
@@ -6374,6 +6549,7 @@ pc_handle_NET_FRAME_EXTENTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_NET_RESTACK_WINDOW(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
@@ -6460,6 +6636,7 @@ pc_handle_NET_WM_ALLOWED_ACTIONS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_NET_WM_ALLOWED_ACTIONS(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -6472,6 +6649,7 @@ cm_handle_NET_WM_ALLOWED_ACTIONS(XdgScreen *scr, XClientMessageEvent *e, Client 
 static void
 pc_handle_NET_WM_FULLSCREEN_MONITORS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	/* window manager only put this on managed windows */
@@ -6486,6 +6664,7 @@ pc_handle_NET_WM_FULLSCREEN_MONITORS(XdgScreen *scr, XPropertyEvent *e, Client *
 static void
 cm_handle_NET_WM_FULLSCREEN_MONITORS(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -6498,6 +6677,7 @@ cm_handle_NET_WM_FULLSCREEN_MONITORS(XdgScreen *scr, XClientMessageEvent *e, Cli
 static void
 pc_handle_NET_WM_ICON_GEOMETRY(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	/* pager only put this on managed windows */
@@ -6518,12 +6698,16 @@ pc_handle_NET_WM_ICON_GEOMETRY(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_WM_ICON_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 cm_handle_NET_WM_MOVERESIZE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
@@ -6670,6 +6854,7 @@ pc_handle_NET_WM_STATE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_NET_WM_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c || c->managed)
 		return;
@@ -6856,6 +7041,7 @@ pc_handle_NET_WM_DESKTOP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_NET_WM_DESKTOP(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -6868,12 +7054,16 @@ cm_handle_NET_WM_DESKTOP(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 pc_handle_WIN_APP_STATE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_CLIENT_LIST(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	PTRACE(5);
 	pc_handle_CLIENT_LIST(scr, e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
@@ -6881,30 +7071,43 @@ pc_handle_WIN_CLIENT_LIST(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_CLIENT_MOVING(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_FOCUS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_LAYER(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 cm_handle_WIN_LAYER(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -6917,6 +7120,7 @@ cm_handle_WIN_LAYER(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 pc_handle_WIN_STATE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c || (e && e->type != PropertyNotify))
 		return;
@@ -6928,6 +7132,7 @@ pc_handle_WIN_STATE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_WIN_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -6986,6 +7191,7 @@ pc_handle_WIN_WORKSPACE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_WIN_WORKSPACE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -7070,6 +7276,7 @@ pc_handle_WM_CLASS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_WM_CHANGE_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -7253,12 +7460,18 @@ pc_handle_WM_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_WM_ICON_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WM_ICON_SIZE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -7303,18 +7516,25 @@ pc_handle_WM_NAME(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_WM_NORMAL_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WM_PROTOCOLS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 cm_handle_WM_PROTOCOLS(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -7327,22 +7547,34 @@ cm_handle_WM_PROTOCOLS(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 pc_handle_WM_SIZE_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
-cm_handle_GTK_READ_RCFILES(XdgScreen * scr, XClientMessageEvent *e, Client *c)
+cm_handle_GTK_READ_RCFILES(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
-cm_handle_KDE_SPLASH_PROGRESS(XdgScreen * scr, XClientMessageEvent *e, Client *c)
+cm_handle_KDE_SPLASH_PROGRESS(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 }
 
 static void
 cm_handle_KDE_WM_CHANGE_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -7411,6 +7643,7 @@ pc_handle_WM_STATE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_WM_STATE(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 #if 1
 	if (!c || c->managed)
@@ -7496,6 +7729,9 @@ pc_handle_WM_WINDOW_ROLE(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_WM_ZOOM_HINTS(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -7576,6 +7812,7 @@ pc_handle_XEMBED_INFO(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 cm_handle_XEMBED(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 {
+	(void) scr;
 	PTRACE(5);
 	if (!c || !e || e->type != ClientMessage)
 		return;
@@ -7634,12 +7871,18 @@ cm_handle_XEMBED(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 pc_handle_NET_SYSTEM_TRAY_ORIENTATION(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_NET_SYSTEM_TRAY_VISUAL(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -7665,6 +7908,7 @@ cm_handle_MANAGER(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 	Atom selection;
 	Time time;
 
+	(void) c;
 	PTRACE(5);
 	if (!e || e->format != 32)
 		return;
@@ -7735,6 +7979,7 @@ cm_handle_MANAGER(XdgScreen *scr, XClientMessageEvent *e, Client *c)
 static void
 pc_handle_NET_DESKTOP_LAYOUT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	if (!e || e->type != PropertyNotify)
 		return;
 	switch (e->state) {
@@ -7759,6 +8004,9 @@ pc_handle_NET_DESKTOP_LAYOUT(XdgScreen *scr, XPropertyEvent *e, Client *c)
 static void
 pc_handle_TIMESTAMP_PROP(XdgScreen *scr, XPropertyEvent *e, Client *c)
 {
+	(void) scr;
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -7978,6 +8226,8 @@ handle_map_event(Display *dpy, XMapEvent *e)
 static void
 handle_unmap_event(Display *dpy, XUnmapEvent *e)
 {
+	(void) dpy;
+	(void) e;
 	/* we can't tell much from a simple unmap event */
 }
 
@@ -8046,6 +8296,8 @@ handle_reparent_event(Display *dpy, XReparentEvent *e)
 static void
 handle_configure_event(Display *dpy, XConfigureEvent *e)
 {
+	(void) dpy;
+	(void) e;
 }
 
 static void
@@ -8066,24 +8318,29 @@ handle_client_message_event(Display *dpy, XClientMessageEvent *e)
 static void
 handle_mapping_event(Display *dpy, XMappingEvent *e)
 {
+	(void) dpy;
+	(void) e;
 }
 
 static void
 handle_selection_clear(Display *dpy, XSelectionClearEvent *e)
 {
 #if 0
-		if (!find_screen(dpy, e->window)) {
-			DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
-			return;
-		}
-		if (e->selection != scr->slctn_atom)
-			return;
-		if (e->window != scr->selwin)
-			return;
-		XDestroyWindow(dpy, scr->selwin);
-		scr->selwin = None;
-		DPRINTF(1, "lost " SELECTION_ATOM " selection: exiting\n", scr->screen);
-		exit(EXIT_SUCCESS);
+	if (!find_screen(dpy, e->window)) {
+		DPRINTF(1, "could not find screen for window 0x%08lx\n", e->window);
+		return;
+	}
+	if (e->selection != scr->slctn_atom)
+		return;
+	if (e->window != scr->selwin)
+		return;
+	XDestroyWindow(dpy, scr->selwin);
+	scr->selwin = None;
+	DPRINTF(1, "lost " SELECTION_ATOM " selection: exiting\n", scr->screen);
+	exit(EXIT_SUCCESS);
+#else
+	(void) dpy;
+	(void) e;
 #endif
 }
 
@@ -8439,6 +8696,7 @@ check_for_completion(Display *dpy, XPointer data)
 {
 	Process *pr = (typeof(pr)) data;
 
+	(void) dpy;
 	if (!pr->running)
 		return (True);
 	switch (pr->state) {
@@ -8752,7 +9010,7 @@ static void
 close_files(void)
 {
 	struct rlimit rlim = { 0, };
-	int i;
+	rlim_t i;
 
 	getrlimit(RLIMIT_NOFILE, &rlim);
 
@@ -8910,6 +9168,7 @@ spawn_child(Display *dpy, Process *pr)
 {
 	pid_t pid;
 
+	(void) dpy;
 	DPRINTF(1, "Spawning child for %s...\n", pr->appid);
 
 	setup_sequence(pr, 0);
@@ -9294,6 +9553,7 @@ normal(Display *dpy, Process *pr)
 {
 	pid_t pid = getpid();
 
+	(void) dpy;
 	PTRACE(5);
 	OPRINTF(1, "Launching without assistance or tool wait\n");
 	reset_pid(pid, pr);
@@ -9339,7 +9599,7 @@ setup_window_manager(Process *pr)
 		} else {
 
 			DPRINTF(1, "Setting up window manager with %s\n", setup);
-			if (system(setup)) ;
+			if (system(setup)) { }
 		}
 		free(setup);
 	}
@@ -9852,8 +10112,8 @@ find_pointer_monitor(Display *dpy, int *monitor)
 				continue;
 			if (!ci->width || !ci->height)
 				continue;
-			if (x >= ci->x && x <= ci->x + ci->width &&
-			    y >= ci->y && y <= ci->y + ci->height) {
+			if (x >= ci->x && x <= ci->x + (int) ci->width &&
+			    y >= ci->y && y <= ci->y + (int) ci->height) {
 				*monitor = i;
 				XFree(ci);
 				XFree(sr);
@@ -9940,7 +10200,7 @@ set_seq_desktop(Process *pr)
 					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
 					     &format, &nitems, &after, (unsigned char **) &data) == Success
 					    && format != 0 && nitems > 0) {
-						workspace = nitems > monitor ? data[monitor] : data[0];
+						workspace = (int) nitems > monitor ? data[monitor] : data[0];
 						XFree(data);
 						break;
 					} else if (data) {
@@ -9952,7 +10212,7 @@ set_seq_desktop(Process *pr)
 					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
 					     &format, &nitems, &after, (unsigned char **) &data) == Success
 					    && format != 0 && nitems > 0) {
-						workspace = nitems > monitor ? data[monitor] : data[0];
+						workspace = (int) nitems > monitor ? data[monitor] : data[0];
 						XFree(data);
 						break;
 					} else if (data) {
@@ -9966,7 +10226,7 @@ set_seq_desktop(Process *pr)
 					    (dpy, scr->root, atom, 0L, monitor + 1, False, AnyPropertyType, &real,
 					     &format, &nitems, &after, (unsigned char **) &data) == Success
 					    && format != 0 && nitems > 0) {
-						workspace = nitems > monitor ? data[monitor] : data[0];
+						workspace = (int) nitems > monitor ? data[monitor] : data[0];
 						XFree(data);
 						break;
 					} else if (data) {
@@ -10994,6 +11254,10 @@ ru_xml_start_element(GMarkupParseContext *ctx, const gchar *name, const gchar **
 	GList *item = g_list_first(*list);
 	RecentItem *cur = item ? item->data : NULL;
 
+	(void) ctx;
+	(void) attrs;
+	(void) values;
+	(void) err;
 	if (!strcmp(name, "RecentItem")) {
 		if (!(cur = calloc(1, sizeof(RecentItem)))) {
 			EPRINTF("could not allocate element\n");
@@ -11016,6 +11280,7 @@ ru_xml_text(GMarkupParseContext *ctx, const gchar *text, gsize len, gpointer use
 	char *buf, *endptr = NULL;
 	unsigned long int val;
 
+	(void) err;
 	name = g_markup_parse_context_get_element(ctx);
 	if (!strcmp(name, "URI")) {
 		free(cur->uri);
@@ -11143,6 +11408,7 @@ put_recent_applications(char *filename, Process *pr)
 	GList *list = NULL;
 	RecentItem *used;
 
+	(void) pr;
 	file = g_build_filename(g_get_home_dir(), filename, NULL);
 	if (!file) {
 		EPRINTF("cannot record %s without a file\n", filename);
@@ -11383,6 +11649,7 @@ put_line_history(Process *pr, char *file, char *line)
 		char *string;
 	} *history = NULL, *last = NULL, *h;
 
+	(void) pr;
 	if (options.keep > 0) {
 		keep = options.keep;
 		DPRINTF(1, "maximum history entries '%d'\n", keep);
@@ -12597,6 +12864,8 @@ launch(Process *pr)
 static void
 copying(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -12641,6 +12910,8 @@ regulations).\n\
 static void
 version(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -12663,6 +12934,7 @@ See `%1$s --copying' for copying permissions.\n\
 static void
 usage(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stderr, "\
@@ -12695,6 +12967,7 @@ show_bool(Bool truth)
 static void
 help(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	/* *INDENT-OFF* */
@@ -12998,6 +13271,7 @@ set_defaults(int argc, char *argv[])
 {
 	char *buf, *disp, *p;
 
+	(void) argc;
 	buf = basename(argv[0]);
 	if (!strcmp(buf, "xdg-xsession")) {
 		defaults.type = options.type = LaunchType_XSession;
@@ -13102,6 +13376,8 @@ get_defaults(int argc, char *argv[])
 {
 	const char *env;
 
+	(void) argc;
+	(void) argv;
 	if (!options.recent) {
 		char *recent = eargv ? defaults.runhist : defaults.recapps;
 

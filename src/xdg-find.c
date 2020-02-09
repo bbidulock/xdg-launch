@@ -382,6 +382,8 @@ list_paths(WhichEntry which)
 static void
 do_list(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (options.which & (1 << WhichXsession))
 		list_paths(WhichXsession);
 	if (options.which & (1 << WhichAutostart))
@@ -396,6 +398,8 @@ do_find(int argc, char *argv[])
 	GList *apps, *app;
 	char **type;
 
+	(void) argc;
+	(void) argv;
 	if (!(apps = g_app_info_get_all()))
 		return;
 
@@ -484,6 +488,8 @@ do_find(int argc, char *argv[])
 static void
 copying(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -528,6 +534,8 @@ regulations).\n\
 static void
 version(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -550,6 +558,7 @@ See `%1$s --copying' for copying permissions.\n\
 static void
 usage(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stderr, "\
@@ -565,6 +574,7 @@ Usage:\n\
 static void
 help(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\

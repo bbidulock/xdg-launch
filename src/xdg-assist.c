@@ -774,6 +774,7 @@ intern_atoms(void)
 int
 handler(Display *display, XErrorEvent *xev)
 {
+	(void) display;
 	if (options.debug) {
 		char msg[80], req[80], num[80], def[80];
 
@@ -795,6 +796,7 @@ iohandler(Display *display)
 	char **strings;
 	int i;
 
+	(void) display;
 	if ((nptr = backtrace(buffer, 1023)) && (strings = backtrace_symbols(buffer, nptr)))
 		for (i = 0; i < nptr; i++)
 			fprintf(stderr, "backtrace> %s\n", strings[i]);
@@ -1544,6 +1546,8 @@ init_screen(void)
 static void
 pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange();
 }
@@ -1551,6 +1555,8 @@ pc_handle_WINDOWMAKER_NOTICEBOARD(XPropertyEvent *e, Client *c)
 static void
 pc_handle_MOTIF_WM_INFO(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange();
 }
@@ -1558,6 +1564,8 @@ pc_handle_MOTIF_WM_INFO(XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_SUPPORTED(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange();
 }
@@ -1565,6 +1573,8 @@ pc_handle_NET_SUPPORTED(XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange();
 }
@@ -1572,6 +1582,8 @@ pc_handle_NET_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_PROTOCOLS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange();
 }
@@ -1579,6 +1591,8 @@ pc_handle_WIN_PROTOCOLS(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_SUPPORTING_WM_CHECK(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 	handle_wmchange();
 }
@@ -2426,7 +2440,8 @@ get_proc_file(pid_t pid, char *name, size_t *size)
 	struct stat st;
 	char *file, *buf;
 	FILE *f;
-	size_t read, total;
+	size_t read;
+	ssize_t total;
 
 	file = calloc(PATH_MAX + 1, sizeof(*file));
 	snprintf(file, PATH_MAX, "/proc/%d/%s", pid, name);
@@ -2670,7 +2685,7 @@ test_client(Client *c, Sequence *seq)
 	Client *l;
 	char *str, *startup_id, *hostname, *res_name, *res_class;
 	char **command;
-	int count;
+	size_t count;
 
 	CPRINTF(1, c, "[tc] seq '%s': testing\n", seq->f.id);
 	/* correct _NET_WM_STARTUP_ID */
@@ -2717,7 +2732,7 @@ test_client(Client *c, Sequence *seq)
 		}
 		CPRINTF(1, c, "[tc] has comparable hostname %s ~ %s\n", hostname, seq->f.hostname);
 		/* same process id (on same host) */
-		if (pid && seq->n.pid && (pid == seq->n.pid)) {
+		if (pid && seq->n.pid && (pid == (pid_t) seq->n.pid)) {
 			CPRINTF(1, c, "[tc] has correct pid %d\n", pid);
 			return True;
 		}
@@ -2795,10 +2810,10 @@ test_client(Client *c, Sequence *seq)
 		count = l->count;
 	}
 	if (command && (eargv || seq->f.command)) {
-		int i;
-
 		if (eargv) {
 			if (c->count == eargc) {
+				int i;
+
 				for (i = 0; i < c->count; i++)
 					if (strcmp(eargv[i], c->command[i]))
 						break;
@@ -2812,6 +2827,8 @@ test_client(Client *c, Sequence *seq)
 
 			if (wordexp(seq->f.command, &we, 0) == 0) {
 				if (we.we_wordc == count) {
+					size_t i;
+
 					for (i = 0; i < count; i++)
 						if (strcmp(we.we_wordv[i], command[i]))
 							break;
@@ -3569,7 +3586,7 @@ update_client(Client *c)
 		CPRINTF(1, c, "[uc] _NET_WM_PID = %d\n", c->pid);
 		if (!c->seq && !mismatch && c->hostname) {
 			for (seq = sequences; seq; seq = seq->next) {
-				if (!seq->f.pid || c->pid != seq->n.pid)
+				if (!seq->f.pid || c->pid != (pid_t) seq->n.pid)
 					continue;
 				if (!seq->f.hostname)
 					continue;
@@ -3643,7 +3660,7 @@ update_client(Client *c)
 				if (!seq->f.command)
 					continue;
 				if (!wordexp(seq->f.command, &we, 0)) {
-					if (we.we_wordc == c->count) {
+					if (we.we_wordc == (size_t) c->count) {
 						int i;
 
 						for (i = 0; i < c->count; i++)
@@ -3927,7 +3944,7 @@ convert_sequence_fields(Sequence *seq)
 static void
 free_sequence_fields(Sequence *seq)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < sizeof(seq->f) / sizeof(char *); i++) {
 		free(seq->fields[i]);
@@ -3938,7 +3955,7 @@ free_sequence_fields(Sequence *seq)
 static void
 copy_sequence_fields(Sequence *old, Sequence *new)
 {
-	int i;
+	size_t i;
 
 	old->from = new->from;
 	for (i = 0; i < sizeof(old->f) / sizeof(char *); i++) {
@@ -4382,6 +4399,7 @@ cm_handle_NET_STARTUP_INFO_BEGIN(XClientMessageEvent *e, Client *c)
 	Message *m = NULL;
 	int len;
 
+	(void) c;
 	PTRACE(5);
 	from = e->window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m) {
@@ -4409,6 +4427,7 @@ cm_handle_NET_STARTUP_INFO(XClientMessageEvent *e, Client *c)
 	Message *m = NULL;
 	int len;
 
+	(void) c;
 	PTRACE(5);
 	from = e->window;
 	if (XFindContext(dpy, from, MessageContext, (XPointer *) &m) || !m)
@@ -4677,6 +4696,7 @@ cm_handle_NET_ACTIVE_WINDOW(XClientMessageEvent *e, Client *c)
 static void
 pc_handle_NET_CLIENT_LIST(XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	PTRACE(5);
 	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST, XA_WINDOW);
 }
@@ -4684,6 +4704,7 @@ pc_handle_NET_CLIENT_LIST(XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_CLIENT_LIST_STACKING(XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	PTRACE(5);
 	pc_handle_CLIENT_LIST(e, _XA_NET_CLIENT_LIST_STACKING, XA_WINDOW);
 }
@@ -4919,6 +4940,8 @@ pc_handle_NET_WM_ICON_GEOMETRY(XPropertyEvent *e, Client *c)
 static void
 pc_handle_NET_WM_ICON_NAME(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -5268,12 +5291,15 @@ cm_handle_NET_WM_DESKTOP(XClientMessageEvent *e, Client *c)
 static void
 pc_handle_WIN_APP_STATE(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_CLIENT_LIST(XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	PTRACE(5);
 	pc_handle_CLIENT_LIST(e, _XA_WIN_CLIENT_LIST, XA_CARDINAL);
 }
@@ -5281,24 +5307,32 @@ pc_handle_WIN_CLIENT_LIST(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WIN_CLIENT_MOVING(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_FOCUS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_HINTS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WIN_LAYER(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -5666,12 +5700,16 @@ pc_handle_WM_HINTS(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WM_ICON_NAME(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WM_ICON_SIZE(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -5719,12 +5757,16 @@ pc_handle_WM_NAME(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WM_NORMAL_HINTS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_WM_PROTOCOLS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -5743,12 +5785,16 @@ cm_handle_WM_PROTOCOLS(XClientMessageEvent *e, Client *c)
 static void
 pc_handle_WM_SIZE_HINTS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 cm_handle_KDE_WM_CHANGE_STATE(XClientMessageEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -5907,6 +5953,8 @@ pc_handle_WM_WINDOW_ROLE(XPropertyEvent *e, Client *c)
 static void
 pc_handle_WM_ZOOM_HINTS(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
@@ -6051,6 +6099,7 @@ cm_handle_MANAGER(XClientMessageEvent *e, Client *c)
 	Atom selection;
 	Time time;
 
+	(void) c;
 	PTRACE(5);
 	if (!e || e->format != 32)
 		return;
@@ -6115,24 +6164,31 @@ cm_handle_MANAGER(XClientMessageEvent *e, Client *c)
 static void
 pc_handle_TIMESTAMP_PROP(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_NET_SYSTEM_TRAY_ORIENTATION(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_NET_SYSTEM_TRAY_VISUAL(XPropertyEvent *e, Client *c)
 {
+	(void) e;
+	(void) c;
 	PTRACE(5);
 }
 
 static void
 pc_handle_NET_DESKTOP_LAYOUT(XPropertyEvent *e, Client *c)
 {
+	(void) c;
 	if (!e || e->type != PropertyNotify)
 		return;
 	switch (e->state) {
@@ -6357,6 +6413,7 @@ handle_map_event(XMapEvent *e)
 void
 handle_unmap_event(XUnmapEvent *e)
 {
+	(void) e;
 	/* we can't tell much from a simple unmap event */
 }
 
@@ -6423,6 +6480,7 @@ handle_reparent_event(XReparentEvent *e)
 void
 handle_configure_event(XConfigureEvent *e)
 {
+	(void) e;
 }
 
 void
@@ -6439,6 +6497,7 @@ handle_client_message_event(XClientMessageEvent *e)
 void
 handle_mapping_event(XMappingEvent *e)
 {
+	(void) e;
 }
 
 void
@@ -6562,6 +6621,8 @@ sighandler(int sig)
 gboolean
 on_xfd_watch(GIOChannel *chan, GIOCondition cond, gpointer data)
 {
+	(void) chan;
+	(void) data;
 	if (cond & (G_IO_NVAL | G_IO_HUP | G_IO_ERR)) {
 		EPRINTF("poll failed: %s %s %s\n", (cond & G_IO_NVAL) ? "NVAL" : "",
 			(cond & G_IO_HUP) ? "HUP" : "", (cond & G_IO_ERR) ? "ERR" : "");
@@ -6590,6 +6651,8 @@ main_loop(int argc, char *argv[])
 	guint srce;
 	GMainLoop *loop;
 
+	(void) argc;
+	(void) argv;
 	running = True;
 	XSync(dpy, False);
 	xfd = ConnectionNumber(dpy);
@@ -6605,6 +6668,8 @@ main_loop(int argc, char *argv[])
 	int xfd;
 	XEvent ev;
 
+	(void) argc;
+	(void) argv;
 	PTRACE(5);
 	signal(SIGHUP, sighandler);
 	signal(SIGINT, sighandler);
@@ -6853,6 +6918,8 @@ do_quit(int argc, char *argv[])
 	int s, selcount = 0;
 	XEvent ev;
 
+	(void) argc;
+	(void) argv;
 	for (s = 0; s < nscr; s++) {
 		scr = screens + s;
 		XGrabServer(dpy);
@@ -6875,6 +6942,8 @@ do_quit(int argc, char *argv[])
 static void
 copying(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -6919,6 +6988,8 @@ regulations).\n\
 static void
 version(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -6941,6 +7012,8 @@ See `%1$s --copying' for copying permissions.\n\
 static void
 usage(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stderr, "\
@@ -6955,6 +7028,8 @@ Usage:\n\
 static void
 help(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\

@@ -625,6 +625,8 @@ do_which(int argc, char *argv[])
 {
 	char **appid;
 
+	(void) argc;
+	(void) argv;
 	for (appid = options.appids; appid && *appid; appid++)
 		lookup_file(*appid);
 }
@@ -760,6 +762,8 @@ do_whereis(int argc, char *argv[])
 {
 	char *home, *dirs, *list, *env;
 
+	(void) argc;
+	(void) argv;
 	home = getenv("HOME") ? : ".";
 	list = calloc(PATH_MAX + 1, sizeof(*list));
 	if (options.which == WhichAutostart) {
@@ -823,12 +827,16 @@ do_whereis(int argc, char *argv[])
 static void
 do_list(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	list_paths();
 }
 
 static void
 copying(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -873,6 +881,8 @@ regulations).\n\
 static void
 version(int argc, char *argv[])
 {
+	(void) argc;
+	(void) argv;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
@@ -895,6 +905,7 @@ See `%1$s --copying' for copying permissions.\n\
 static void
 usage(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stderr, "\
@@ -910,6 +921,7 @@ Usage:\n\
 static void
 help(int argc, char *argv[])
 {
+	(void) argc;
 	if (!options.output && !options.debug)
 		return;
 	(void) fprintf(stdout, "\
