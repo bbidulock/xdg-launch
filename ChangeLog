@@ -1,5 +1,83 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit fe51aaf46008a0a7378f5cbeebc8e106b490090a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Feb 8 22:36:53 2020 -0700
+
+    update release notes
+
+ RELEASE.md | 18 +++++-------------
+ 1 file changed, 5 insertions(+), 13 deletions(-)
+
+commit 3ee577a11f64ac25f015cbcce49a4d8587fda27f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Feb 8 22:34:46 2020 -0700
+
+    update copyright headers
+
+ src/xdg-assist.c | 6 +++---
+ src/xdg-find.c   | 6 +++---
+ src/xdg-launch.c | 6 +++---
+ src/xdg-list.c   | 6 +++---
+ src/xdg-prefs.c  | 6 +++---
+ src/xdg-types.c  | 6 +++---
+ src/xdg-which.c  | 6 +++---
+ 7 files changed, 21 insertions(+), 21 deletions(-)
+
+commit 646f812c37b5818acd665d4f99ecb84d1db923e8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Feb 8 21:33:07 2020 -0700
+
+    handle -Wextra
+
+ src/xdg-assist.c |  93 +++++++++--
+ src/xdg-find.c   |  10 ++
+ src/xdg-launch.c | 446 +++++++++++++++++++++++++++++++++++++++++----------
+ src/xdg-list.c   |  12 ++
+ src/xdg-prefs.c  |  14 ++
+ src/xdg-types.c  |  10 ++
+ src/xdg-which.c  |  10 ++
+ 7 files changed, 501 insertions(+), 94 deletions(-)
+
+commit a12829aa0acefedc5db0daf4e6d8886efcfe51eb
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Feb 8 20:56:21 2020 -0700
+
+    simplify MDOCDATE and cscope
+
+ autogen.sh   | 8 ++++++--
+ configure.sh | 7 ++-----
+ 2 files changed, 8 insertions(+), 7 deletions(-)
+
+commit de5ae69895784d18dc88cc10c239b4ff1eb7107a
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Sep 5 09:51:10 2019 -0600
+
+    better fix for gcc 9.1 string truncation stupidity
+
+ src/xdg-assist.c | 7 ++-----
+ src/xdg-launch.c | 7 ++-----
+ 2 files changed, 4 insertions(+), 10 deletions(-)
+
+commit e9a910418acf08cc3433c5255c356f6dbb043af0
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Sep 5 09:51:06 2019 -0600
+
+    remove deprecated m4 macro
+
+ configure.ac | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit cc873b35b7a0af0133656022df51841c1113598f
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Sep 5 09:50:46 2019 -0600
+
+    post-release update
+
+ ChangeLog | 20 ++++++++++----------
+ NEWS      |  3 ++-
+ 2 files changed, 12 insertions(+), 11 deletions(-)
+
 commit b6eb3a02713521973beb7384a12d270567af5951
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Wed Sep 4 00:57:25 2019 -0600
@@ -4850,83 +4928,3 @@ Date:   Fri Sep 12 20:23:42 2014 -0600
 
  xdg-which.c | 77 +++++++++++++++++++++++++++++++++++++++++++++++++++++++--
  1 file changed, 75 insertions(+), 2 deletions(-)
-
-commit 9b33e07cfe3dfca781f930808ab77a64f8181a52
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Thu Sep 11 18:15:33 2014 -0600
-
-    added xdg-which utility
-
- .gitignore      |   4 +
- .indent.pro     |   2 +-
- Makefile.am     |  32 +-
- rebuild.sh      |   9 +
- xdg-launch.pod  |  23 +-
- xdg-whereis.c   |   0
- xdg-whereis.pod | 156 ++++++++++
- xdg-which.c     | 828 ++++++++++++++++++++++++++++++++++++++++++++++++++++
- xdg-which.pod   | 182 ++++++++++++
- 9 files changed, 1209 insertions(+), 27 deletions(-)
-
-commit 20ca9be0cb7d4ff4ce546e44e12ba415299c3b73
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed Jul 2 19:11:28 2014 -0600
-
-    user persistent source window for messages
-
- xdg-monitor.c | 9 +--------
- 1 file changed, 1 insertion(+), 8 deletions(-)
-
-commit 60da0c04c77344a334309ff727a6e8d97bec5208
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed Jul 2 19:06:14 2014 -0600
-
-    very unfortunate error after initial release
-
- xdg-launch.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-commit 709954322ac3ae94802deabd533c0fd2fb75e686
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed Jul 2 03:23:08 2014 -0600
-
-    my bad
-
- xdg-launch.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-commit c9636820ad055176a776538e28facbc691711bfa
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Tue Jul 1 04:19:36 2014 -0600
-
-    rework assist logic
-
- xdg-launch.c | 32 +++++++++++++++-----------------
- 1 file changed, 15 insertions(+), 17 deletions(-)
-
-commit e4fb1056db2417339130d7a7d99fc9f22daca271
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Mon Jun 30 19:00:45 2014 -0600
-
-    autodetect XSessions
-
- .gitignore   |  2 ++
- xdg-launch.c | 13 ++++++++++++-
- 2 files changed, 14 insertions(+), 1 deletion(-)
-
-commit 80b28200edfe9a1841e76010160c295e57bf9b2c
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Mon Jun 30 18:49:39 2014 -0600
-
-    add autostart launch behaviour
-
- Makefile.am        |  18 +++--
- xdg-autostart      |   3 +
- xdg-autostart.pod  |  28 ++++++++
- xdg-launch.c       | 174 +++++++++++++++++++++++++++++++++++--------------
- xdg-launch.desktop |  13 ++++
- xdg-launch.pod     |  29 +++++++--
- xdg-monitor.c      |  36 +++++-----
- xdg-xsession       |   3 +
- xdg-xsession.pod   |  28 ++++++++
- 9 files changed, 254 insertions(+), 78 deletions(-)

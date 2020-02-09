@@ -1,4 +1,36 @@
-xdg-launch -- history of user-visible changes.  2019-09-04
+xdg-launch -- history of user-visible changes.  2020-02-08
+
+Release xdg-launch-1.10 released 2020-02-08
+-------------------------------------------
+
+git tag -n100 -l 1.10
+
+1.10            Maintenance Release 1.10
+
+    This is another stable release of the xdg-launch package that provides
+    a "C"-language program that can be used to launch XDG desktop
+    applications with full startup notification and window manager
+    assistance from the command line. The command is able to launch desktop
+    applications, autostart entries and xsession entries.
+
+    This release is a maintenance release that updates the build system and
+    fixes compilation with extra warning flags.
+
+    Included in the release is an autoconf tarball for building the package
+    from source. See the NEWS and TODO file in the release for more
+    information. Please report problems to the issues list on GitHub.
+
+git shortlog -e -n -w80,6,8 1.9...1.10
+
+Brian Bidulock <bidulock@openss7.org> (7):
+      post-release update
+      remove deprecated m4 macro
+      better fix for gcc 9.1 string truncation stupidity
+      simplify MDOCDATE and cscope
+      handle -Wextra
+      update copyright headers
+      update release notes
+
 
 Release xdg-launch-1.9 released 2019-09-04
 ------------------------------------------
@@ -347,23 +379,5 @@ git shortlog -e -n -w80,6,8 1.3...1.4
 
 Brian Bidulock <bidulock@openss7.org> (2):
       replace error handlers too
-      update release files
-
-
-Release xdg-launch-1.3 released 2016-07-18
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 1.2...1.3
-
-Brian Bidulock <bidulock@openss7.org> (10):
-      simplify distribution
-      git hates trailing space
-      better formatting
-      improve distribution process
-      limit changelog
-      tell monitors whether autostart or xsession launched
-      bug: pointer options not being set
-      cosmetics
-      add options to xdg-prefs
       update release files
 
