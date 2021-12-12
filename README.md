@@ -65,6 +65,9 @@ For general information on GNU's `./configure`, see the file
 Dependencies
 ------------
 
+To build and install this package, the `libxrandr`, `libxinerama` and
+`glib2` packages should be installed first.  To run the `dmenu_launch`
+script in the package requires the `dmenu` package to be installed.
 
 Running
 -------
