@@ -140,5 +140,5 @@ Icon=file-manager
 TryExec=/usr/bin/xdg-launch
 #Exec=xdg-launch --chain inode/directory %U
 Exec=xdg-launch --chain FileManager %U
-NoDisplay=true
 Categories=Preferred;
+X-NoHistory=true

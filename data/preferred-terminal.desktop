@@ -93,5 +93,5 @@ Comment[zh_TW]=使用命令列
 Icon=terminal
 TryExec=/usr/bin/xdg-launch
 Exec=xdg-launch --chain TerminalEmulator
-NoDisplay=true
 Categories=Preferred;
+X-NoHistory=true

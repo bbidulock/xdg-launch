@@ -6,5 +6,5 @@ Comment=Run a command from the desktop in the background.
 Icon=system-run
 TryExec=/usr/bin/xdg-launch
 Exec=xdg-launch --chain Launcher
-NoDisplay=true
 Categories=Preferred;
+X-NoHistory=true
