@@ -25,7 +25,7 @@ git tag -n100 -l 1.11
 
 git shortlog -e -n -w80,6,8 1.10...1.11
 
-Brian Bidulock <bidulock@openss7.org> (10):
+Brian Bidulock <bidulock@openss7.org> (11):
       whoops
       new archlinux build flags
       do not write run history when chaining
@@ -36,6 +36,7 @@ Brian Bidulock <bidulock@openss7.org> (10):
       updates for gh-pages
       adjust default preferred apps
       update some files for release
+      update release files
 
 
 Release xdg-launch-1.10 released 2020-02-08

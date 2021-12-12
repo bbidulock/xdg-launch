@@ -1,5 +1,21 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit eb0d597e6f9ee93425e65f67fd51ff8c4006c4d2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Dec 12 02:38:51 2021 -0700
+
+    update release files
+
+ AUTHORS               |   2 +-
+ ChangeLog             | 269 +++++++++++++++++++++-------------------------
+ NEWS                  |  53 ++++++---
+ README                |  52 ++++-----
+ README.md             |  52 ++++-----
+ RELEASE               |  23 ++++
+ configure.ac          |  12 +--
+ README.md => index.md |  55 +++++-----
+ 8 files changed, 276 insertions(+), 242 deletions(-)
+
 commit 8f83f340be43f8fbc5993284b8a6596d9a6bb6e9
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Dec 12 02:36:18 2021 -0700
@@ -4898,12 +4914,3 @@ Date:   Fri May 22 13:50:56 2015 -0600
 
  src/xdg-launch.c | 31 +++++++++++++++----------------
  1 file changed, 15 insertions(+), 16 deletions(-)
-
-commit 3411c5f99830821e7b7236c20e2653cb427d8c96
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 13:20:45 2015 -0600
-
-    get rid of some globals (they were problematic)
-
- src/xdg-launch.c | 103 +++++++++++++++++----------------------------------
- 1 file changed, 33 insertions(+), 70 deletions(-)
