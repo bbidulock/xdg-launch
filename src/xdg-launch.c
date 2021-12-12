@@ -9639,9 +9639,9 @@ launch_simple(Process *pr)
 
 	/* fill out all fields */
 	setup_sequence(pr, 0);
+	if (options.puthist)
+		put_history(pr);
 	if (!pr->chain) {
-		if (options.puthist)
-			put_history(pr);
 		if (options.setpref)
 			put_default(pr);
 		if (pr->type == LaunchType_Autostart && pr->delay) {
