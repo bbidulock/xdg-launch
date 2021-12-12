@@ -1,5 +1,129 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 8f83f340be43f8fbc5993284b8a6596d9a6bb6e9
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Dec 12 02:36:18 2021 -0700
+
+    update some files for release
+
+ README       | 123 +++++++++++++++++++++++++++++--------------------------
+ README.md    | 123 +++++++++++++++++++++++++++++--------------------------
+ README.md.in | 123 +++++++++++++++++++++++++++++--------------------------
+ RELEASE.md   |   9 ++--
+ configure.ac |  12 +++---
+ 5 files changed, 210 insertions(+), 180 deletions(-)
+
+commit f32415b77030c735fcf65d1a882e52f245639ee2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Dec 12 00:58:38 2021 -0700
+
+    adjust default preferred apps
+
+ data/prefapps.list | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit a8059f4f057d796257b85b97b34fe1a799129ba9
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 23:02:51 2021 -0700
+
+    updates for gh-pages
+
+ Makefile.am | 3 +++
+ dist.sh     | 2 +-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+commit 1a2725d774124ae273bd432b3b52a24b244896eb
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 22:59:13 2021 -0700
+
+    added jekyll configurationh file
+
+ _config.yml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit dca4e3cdc5e4039d00cc295ec45971ff209d9f3e
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 22:58:50 2021 -0700
+
+    updates to preferred desktop files
+
+ data/preferred-calculator.desktop   | 192 ++++++++++++++-
+ data/preferred-execute.desktop      |   2 +-
+ data/preferred-file-manager.desktop |   2 +-
+ data/preferred-mail-reader.desktop  | 398 ++++++++++++++++----------------
+ data/preferred-terminal.desktop     |   2 +-
+ data/preferred-text-editor.desktop  | 360 ++++++++++++++++++++++++-----
+ data/preferred-web-browser.desktop  |   5 +-
+ 7 files changed, 701 insertions(+), 260 deletions(-)
+
+commit 1c2b9d817a11cbee2271986b31bf38ae6e522394
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 22:57:25 2021 -0700
+
+    updates for preferred applications
+
+    - do not save history if told to in desktop file with
+      X-NoHistory=true
+    - updates to deprecated time functions in glib
+
+ src/xdg-launch.c | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+commit 75d52e7afec43081be0ee73520d69c6263aab2b2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 17:46:50 2021 -0700
+
+    Revert "do not write run history when chaining"
+
+    This reverts commit dd62e08529e5fcf3fda0c2b10250a33766b1c0b3.
+
+    Too late to stop run history: it is the invocation before this
+    one that will write the offending history.
+
+ src/xdg-launch.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit dd62e08529e5fcf3fda0c2b10250a33766b1c0b3
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 17:18:23 2021 -0700
+
+    do not write run history when chaining
+
+ src/xdg-launch.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit 396bc95b98e96111b9bf4618f173794c7030d5e5
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Dec 11 17:18:07 2021 -0700
+
+    new archlinux build flags
+
+ configure.sh | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+commit fd416b4ee6174f0e116f53d3a11f707ba1748fc6
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Tue Feb 11 08:32:57 2020 -0700
+
+    whoops
+
+ autogen.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit eb71c7616a9cc05a536ceb9f112e8d9fc0714936
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sat Feb 8 22:38:49 2020 -0700
+
+    update release files
+
+ AUTHORS      |   2 +-
+ ChangeLog    | 158 +++++++++++++++++++++++++++----------------------------
+ NEWS         |  52 +++++++++++-------
+ README       |  48 ++++++++---------
+ README.md    |  48 ++++++++---------
+ configure.ac |  10 ++--
+ 6 files changed, 165 insertions(+), 153 deletions(-)
+
 commit fe51aaf46008a0a7378f5cbeebc8e106b490090a
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sat Feb 8 22:36:53 2020 -0700
@@ -4783,148 +4907,3 @@ Date:   Fri May 22 13:20:45 2015 -0600
 
  src/xdg-launch.c | 103 +++++++++++++++++----------------------------------
  1 file changed, 33 insertions(+), 70 deletions(-)
-
-commit ebd9d3d41b888700cae1e8fe1559707e46c50929
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 11:15:19 2015 -0600
-
-    non-gtk2 support for recently-used.xbel works
-
- src/Makefile.am  |   2 +-
- src/xdg-launch.c | 111 +++++++++++++++++++++++++++++++--------------------
- 2 files changed, 68 insertions(+), 45 deletions(-)
-
-commit 7d8a53200f978082e308427f27afe33537daa4fe
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 01:08:09 2015 -0600
-
-    proper handling of xbel files with gtk2
-
-    - this is also a start for handling of xbel files
-      using just glib functions (and the simple xml
-      parser contained therein)
-
- .indent.pro      | 435 ++++++++++++++++++--------------
- src/xdg-launch.c | 682 ++++++++++++++++++++++++++++++++++++++++++++++-----
- 2 files changed, 872 insertions(+), 245 deletions(-)
-
-commit 8d3cb343a41146988b10bcd394fe825a0f88197b
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 20 23:10:20 2015 -0600
-
-    handle ~/.recently-used file updates
-
- src/xdg-launch.c | 283 +++++++++++++++++++++++++++++++++++++++++++++++----
- 1 file changed, 265 insertions(+), 18 deletions(-)
-
-commit d6e85cac47549a7a26f44408e15e6e9590db5b81
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 20 21:27:56 2015 -0600
-
-    indent and prepare for recently-used
-
- src/xdg-launch.c | 220 +++++++++++++++++++++++----------------------------
- 1 file changed, 98 insertions(+), 122 deletions(-)
-
-commit 29bfad4e2115fcf48d83de99d492a2d7d926117a
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 20 21:23:16 2015 -0600
-
-    get history working correctly
-
- src/xdg-launch.c | 127 +++++++++++++++++++++++++++++++++++++++++++++------
- 1 file changed, 113 insertions(+), 14 deletions(-)
-
-commit 0fccacd0bfc38a930ed7e0b1a247e350d95647c7
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 20 18:39:26 2015 -0600
-
-    prepare to update history files
-
- src/xdg-launch.c | 77 +++++++++++++++++++++++++++++++++++++++-------------
- 1 file changed, 58 insertions(+), 19 deletions(-)
-
-commit c5e5787b6337724d904a0c70b3d2b54c3b61d4f4
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 20 17:44:50 2015 -0600
-
-    add provision for recently-used.xbel support
-
- THANKS             |  2 +-
- TODO               |  2 +-
- configure.template | 11 +++++++++++
- src/Makefile.am    |  4 ++--
- src/xdg-launch.c   |  3 +++
- 5 files changed, 18 insertions(+), 4 deletions(-)
-
-commit 2acd3101c53ba965c40130823ebb13950f5e4666
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Wed May 20 14:40:15 2015 -0600
-
-    working up recently used applications support
-
- THANKS             |  2 +-
- TODO               |  9 +++++-
- configure.template | 11 ++++++++
- src/Makefile.am    |  2 ++
- src/xdg-launch.c   | 75 +++++++++++++++++++++++++++++++++++++++++++++++++-
- 5 files changed, 96 insertions(+), 3 deletions(-)
-
-commit 5ff9acaac48f77a788d5decf88059eee45014bb6
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Tue May 19 14:43:51 2015 -0600
-
-    add in XDE run history and recent apps files
-
- TODO.in            |  7 ++++++
- man/xdg-launch.pod | 45 +++++++++++++++++++++++++++++++++++++++
- src/xdg-launch.c   | 58 +++++++++++++++++++++++++++++++++++++++++++++++---
- 3 files changed, 107 insertions(+), 3 deletions(-)
-
-commit e67fdc011d0a4a996f953424581ae7e3c252f1e3
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Tue May 19 01:48:59 2015 -0600
-
-    split up files into subdirectories
-
- Makefile.am                                      | 84 ++++++--------------
- THANKS                                           |  2 +-
- THANKS => THANKS.in                              |  2 +-
- TODO                                             |  2 +-
- TODO => TODO.in                                  |  2 +-
- autogen.sh                                       |  2 +
- configure.template                               | 49 +++++++++---
- data/Makefile.am                                 |  5 ++
- .../dmenu_launch.desktop                         |  0
- xdg-launch.desktop => data/xdg-launch.desktop    |  0
- xdg-monitor.desktop => data/xdg-monitor.desktop  |  0
- man/Makefile.am                                  | 39 +++++++++
- dmenu_launch.pod => man/dmenu_launch.pod         |  0
- xdg-assist.pod => man/xdg-assist.pod             |  0
- xdg-autostart.pod => man/xdg-autostart.pod       |  0
- xdg-launch.pod => man/xdg-launch.pod             |  0
- xdg-monitor.pod => man/xdg-monitor.pod           |  0
- xdg-whereis.pod => man/xdg-whereis.pod           |  0
- xdg-which.pod => man/xdg-which.pod               |  0
- xdg-xsession.pod => man/xdg-xsession.pod         |  0
- rebuild.sh                                       |  2 +-
- src/Makefile.am                                  | 38 +++++++++
- dmenu_apps => src/dmenu_apps                     |  0
- dmenu_launch => src/dmenu_launch                 |  0
- xdg-assist.c => src/xdg-assist.c                 | 10 ++-
- xdg-autostart => src/xdg-autostart               |  0
- xdg-launch.c => src/xdg-launch.c                 | 10 ++-
- xdg-monitor.c => src/xdg-monitor.c               | 10 ++-
- xdg-whereis.c => src/xdg-whereis.c               |  0
- xdg-which.c => src/xdg-which.c                   | 10 ++-
- xdg-xsession => src/xdg-xsession                 |  0
- 31 files changed, 181 insertions(+), 86 deletions(-)
-
-commit 4ee936c1082fac0e90ee269c5fe496eefc8328b0
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri Sep 12 20:23:42 2014 -0600
-
-    add fallback directory to xdg-which
-
- xdg-which.c | 77 +++++++++++++++++++++++++++++++++++++++++++++++++++++++--
- 1 file changed, 75 insertions(+), 2 deletions(-)

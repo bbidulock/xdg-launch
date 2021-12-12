@@ -1,3 +1,6 @@
+---
+layout: default
+---
   [xdg-launch -- read me first file.  2021-12-12]: #
 
 xdg-launch

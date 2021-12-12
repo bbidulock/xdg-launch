@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xdg-launch],[1.10.4],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
-AC_REVISION([1.10.4])
+AC_INIT([xdg-launch],[1.11],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
+AC_REVISION([1.11])
 
 # set better defaults
 AC_PREFIX_DEFAULT([/usr])
@@ -20,17 +20,17 @@ AC_CONFIG_AUX_DIR([scripts])
 AC_USE_SYSTEM_EXTENSIONS
 AC_CANONICAL_TARGET
 
-DATE='2021-12-11'
+DATE='2021-12-12'
 AC_SUBST([DATE])
 
-MDOCDATE='December 11, 2021'
+MDOCDATE='December 12, 2021'
 AC_SUBST([MDOCDATE])
 
-BRANCH='master'
+BRANCH='1.11'
 AC_SUBST([BRANCH])
 
 # Initialize Automake
-AM_INIT_AUTOMAKE([1.16 dist-lzip no-dist-gzip std-options -Wall color-tests silent-rules tar-pax])
+AM_INIT_AUTOMAKE([gnits 1.16 dist-lzip no-dist-gzip std-options -Wall color-tests silent-rules tar-pax])
 AM_MAINTAINER_MODE
 AM_SILENT_RULES([yes])
 
