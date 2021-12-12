@@ -506,6 +506,7 @@ static const char *DesktopEntryFields[] = {
 	"UniqeApplet",
 	"SessionManaged",
 	"StartupNotification",
+	"NoHistory",
 	NULL
 };
 
@@ -539,6 +540,7 @@ typedef struct _Entry {
 	char *UniqueApplet;
 	char *SessionManaged;
 	char *StartupNotification;
+	char *NoHistory;
 } Entry;
 
 static const char *StartupNotifyFields[] = {
@@ -3290,6 +3292,10 @@ parse_file(Process *pr, char *path)
 		} else if (strcmp(key, "StartupNotification") == 0) {
 			if (!e->StartupNotification)
 				e->StartupNotification = strdup(val);
+			ok = 1;
+		} else if (strcmp(key, "NoHistory") == 0 || strcmp(key, "X-NoHistory") == 0) {
+			if (!e->NoHistory)
+				e->NoHistory = strdup(val);
 			ok = 1;
 		}
 	}
@@ -9773,12 +9779,16 @@ launch2(Process *pr)
 		wait_for_completion(dpy, pr, options.guard);
 }
 
+static Bool truth_value(char *p);
+
 /** @brief launch an Application entry
   */
 static void
 launch_application(Process *pr)
 {
 	OPRINTF(1, "Launching Application:\n");
+	if (pr->ent && truth_value(pr->ent->NoHistory))
+		options.puthist = 0;
 	return launch_simple(pr); // for now
 }
 
@@ -9788,6 +9798,7 @@ static void
 launch_autostart(Process *pr)
 {
 	OPRINTF(1, "Launching Autostart:\n");
+	options.puthist = 0;
 	return launch_simple(pr); // for now
 }
 
@@ -11147,7 +11158,11 @@ put_recent_applications_xbel(char *filename, Process *pr)
 		/* XXX: can we set mime_type to NULL here? No mime type for Icon Naming
 		   Convention icons */
 		g_bookmark_file_set_icon(bookmark, options.uri, s->f.icon, NULL);
-	g_bookmark_file_set_visited(bookmark, options.uri, -1);
+	{
+		GDateTime *now = g_date_time_new_now_local();
+		g_bookmark_file_set_visited_date_time(bookmark, options.uri, now);
+		g_date_time_unref(now);
+	}
 	g_bookmark_file_add_application(bookmark, options.uri, "XDG Launcher", "xdg-launch %f");
 	g_bookmark_file_add_group(bookmark, options.uri, "Application");
 
@@ -11198,7 +11213,11 @@ put_recently_used_xbel(char *filename, Process *pr)
 	if (options.mimetype && options.url)
 		g_bookmark_file_set_mime_type(bookmark, options.url, options.mimetype);
 	g_bookmark_file_set_is_private(bookmark, options.url, TRUE);
-	g_bookmark_file_set_visited(bookmark, options.url, -1);
+	{
+		GDateTime *now = g_date_time_new_now_local();
+		g_bookmark_file_set_visited_date_time(bookmark, options.url, now);
+		g_date_time_unref(now);
+	}
 	assert(s != NULL && e != NULL);
 	if (pr->appid) {
 		char *exec;
