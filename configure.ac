@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.71])
 AC_INIT([xdg-launch],[1.11],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
 AC_REVISION([1.11])
 
@@ -92,7 +92,8 @@ PKG_PROG_PKG_CONFIG([0.14.0])
 
 # Checks for header files.
 AS_BOX([Header Files])
-AC_HEADER_STDC
+AC_CHECK_INCLUDES_DEFAULT
+AC_PROG_EGREP
 AC_PATH_X
 AC_PATH_XTRA
 AC_CHECK_HEADERS([fcntl.h locale.h malloc.h stdlib.h string.h strings.h unistd.h])
@@ -115,7 +116,7 @@ AS_BOX([X11 Extension Libraries])
 PKG_CHECK_MODULES([X11],[x11])
 
 AC_ARG_ENABLE([xrandr],
-	AC_HELP_STRING([--disable-xrandr],
+	AS_HELP_STRING([--disable-xrandr],
 		[Disable XRANDR support @<:@default=auto@:>@]))
 if test "x$enable_xrandr" != xno ; then
 	PKG_CHECK_MODULES([XRANDR],[xrandr],
@@ -127,7 +128,7 @@ AC_MSG_RESULT([${enable_xrandr:-yes}])
 AM_CONDITIONAL([HAVE_XRANDR],[test  "x$enable_xrandr" != "xno"])
 
 AC_ARG_ENABLE([xinerama],
-	AC_HELP_STRING([--disable-xinerama],
+	AS_HELP_STRING([--disable-xinerama],
 		[Disable XINERAMA support @<:@default=auto@:>@]))
 if test "x$enable_xinerama" != xno ; then
 	PKG_CHECK_MODULES([XINERAMA],[xinerama],
@@ -139,7 +140,7 @@ AC_MSG_RESULT([${enable_xinerama:-yes}])
 AM_CONDITIONAL([HAVE_XINERAMA],[test  "x$enable_xinerama" != "xno"])
 
 AC_ARG_ENABLE([glib2],
-	AC_HELP_STRING([--disable-glib2],
+	AS_HELP_STRING([--disable-glib2],
 		[Disable use of gio and glib2 @<:@default=auto@:>@]))
 if test "x$enable_glib2" != xno ; then
 	PKG_CHECK_MODULES([GLIB2],[gio-2.0 gio-unix-2.0 glib-2.0],
@@ -151,7 +152,7 @@ AC_MSG_RESULT([${enable_glib2:-yes}])
 AM_CONDITIONAL([HAVE_GIO_GLIB2_SUPPORT],[test  "x$enable_glib2" != "xno"])
 
 AC_ARG_ENABLE([debug],
-	AC_HELP_STRING([--enable-debug],
+	AS_HELP_STRING([--enable-debug],
 		[Enable debugging support @<:@default=disabled@:>@]))
 if test "x$enable_debug" = xyes ; then
 	AC_DEFINE_UNQUOTED([DEBUG],[],[Define to enable debugging])
