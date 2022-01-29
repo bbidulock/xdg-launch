@@ -1,10 +1,10 @@
-  [xdg-launch -- read me first file.  2021-12-12]: #
+  [xdg-launch -- read me first file.  2022-01-28]: #
 
 xdg-launch
 ===============
 
-Package `xdg-launch-1.11` was released under GPLv3 license
-2021-12-12.
+Package `xdg-launch-1.12` was released under GPLv3 license
+2022-01-28.
 
 This is a "C"-language program that can be used to launch XDG desktop
 applications with full startup notification and window manager
@@ -20,7 +20,7 @@ The source for `xdg-launch` is hosted on [GitHub][1].
 Release
 -------
 
-This is the `xdg-launch-1.11` package, released 2021-12-12.
+This is the `xdg-launch-1.12` package, released 2022-01-28.
 This release, and the latest version, can be obtained from [GitHub][1],
 using a command such as:
 
@@ -143,27 +143,27 @@ Report issues on GitHub [here][2].
 
 [1]: https://github.com/bbidulock/xdg-launch
 [2]: https://github.com/bbidulock/xdg-launch/issues
-[3]: https://github.com/bbidulock/xdg-launch/blob/1.11/RELEASE
-[4]: https://github.com/bbidulock/xdg-launch/blob/1.11/NEWS
-[5]: https://github.com/bbidulock/xdg-launch/blob/1.11/ChangeLog
-[6]: https://github.com/bbidulock/xdg-launch/blob/1.11/TODO
-[7]: https://github.com/bbidulock/xdg-launch/blob/1.11/COMPLIANCE
-[8]: https://github.com/bbidulock/xdg-launch/blob/1.11/INSTALL
-[9]: https://github.com/bbidulock/xdg-launch/blob/1.11/LICENSE
-[10]: https://github.com/bbidulock/xdg-launch/blob/1.11/COPYING
-[11]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-launch.pod
-[12]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/dmenu_launch.pod
-[13]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-autostart.pod
-[14]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-xsession.pod
-[15]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-session.pod
-[16]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-entry.pod
-[17]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-toolwait.pod
-[18]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-which.pod
-[19]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-whereis.pod
-[20]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-assist.pod
-[21]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-list.pod
-[22]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-types.pod
-[23]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-find.pod
-[24]: https://github.com/bbidulock/xdg-launch/blob/1.11/man/xdg-prefs.pod
+[3]: https://github.com/bbidulock/xdg-launch/blob/1.12/RELEASE
+[4]: https://github.com/bbidulock/xdg-launch/blob/1.12/NEWS
+[5]: https://github.com/bbidulock/xdg-launch/blob/1.12/ChangeLog
+[6]: https://github.com/bbidulock/xdg-launch/blob/1.12/TODO
+[7]: https://github.com/bbidulock/xdg-launch/blob/1.12/COMPLIANCE
+[8]: https://github.com/bbidulock/xdg-launch/blob/1.12/INSTALL
+[9]: https://github.com/bbidulock/xdg-launch/blob/1.12/LICENSE
+[10]: https://github.com/bbidulock/xdg-launch/blob/1.12/COPYING
+[11]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-launch.pod
+[12]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/dmenu_launch.pod
+[13]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-autostart.pod
+[14]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-xsession.pod
+[15]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-session.pod
+[16]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-entry.pod
+[17]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-toolwait.pod
+[18]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-which.pod
+[19]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-whereis.pod
+[20]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-assist.pod
+[21]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-list.pod
+[22]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-types.pod
+[23]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-find.pod
+[24]: https://github.com/bbidulock/xdg-launch/blob/1.12/man/xdg-prefs.pod
 
 [ vim: set ft=markdown sw=4 tw=72 nocin nosi fo+=tcqlorn spell: ]: #

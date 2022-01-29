@@ -1,5 +1,60 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 158b9044300ce7be58a063c8343df317602916c7
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 28 23:05:56 2022 -0700
+
+    update copyright
+
+ src/xdg-assist.c | 6 +++---
+ src/xdg-find.c   | 6 +++---
+ src/xdg-launch.c | 6 +++---
+ src/xdg-list.c   | 6 +++---
+ src/xdg-prefs.c  | 6 +++---
+ src/xdg-types.c  | 6 +++---
+ src/xdg-which.c  | 6 +++---
+ 7 files changed, 21 insertions(+), 21 deletions(-)
+
+commit 0d02c2438f3e320c82b865be074895b555c502d2
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 27 21:25:52 2022 -0700
+
+    update build flags
+
+ configure.sh | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+commit 9d53f872e5b085e7cc0abec00f58a1da727366c8
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Thu Jan 27 21:25:40 2022 -0700
+
+    autoupdate configure.ac
+
+ configure.ac | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+commit 3c4eed3dd2f4aa1f0aa156978abe49c6b3c98b9c
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Dec 12 02:50:37 2021 -0700
+
+    add dependencies to README
+
+ README       | 3 +++
+ README.md    | 3 +++
+ README.md.in | 3 +++
+ index.md     | 3 +++
+ 4 files changed, 12 insertions(+)
+
+commit 97cf9d0be48cbe0699fcfb91dfb0ae29a9b45663
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Sun Dec 12 02:39:54 2021 -0700
+
+    post-release update
+
+ ChangeLog | 25 ++++++++++++++++---------
+ NEWS      |  3 ++-
+ 2 files changed, 18 insertions(+), 10 deletions(-)
+
 commit eb0d597e6f9ee93425e65f67fd51ff8c4006c4d2
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Sun Dec 12 02:38:51 2021 -0700
@@ -4869,48 +4924,3 @@ Date:   Fri May 22 20:27:42 2015 -0600
 
  src/xdg-launch.c | 72 ++++++++++++++++++++++++++++++++++++++--------------
  1 file changed, 53 insertions(+), 19 deletions(-)
-
-commit 562dbf2de78fee377334f44417bc5ca9106f52d9
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 18:21:07 2015 -0600
-
-    relaunch recent files with xdg-lauch again
-
- src/xdg-launch.c | 36 +++++++++++++++++++++++++++++-------
- 1 file changed, 29 insertions(+), 7 deletions(-)
-
-commit 8dbfb70abf239505503ceb67549d16627b9e81de
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 17:54:25 2015 -0600
-
-    handle proper sizing and ageing of files
-
- src/xdg-launch.c | 65 +++++++++++++++++++++++-----------------------------
- 1 file changed, 29 insertions(+), 36 deletions(-)
-
-commit b564757ed36f11de4e7430e51a75e9dc612164a1
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 17:01:53 2015 -0600
-
-    first stab at complete recent file history
-
- src/xdg-launch.c | 397 +++++++++++++++++++++++++++++++++++++++++++++++++--
- 1 file changed, 389 insertions(+), 8 deletions(-)
-
-commit a266028d815e4987c2d480503bcc541b7b90ef41
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 14:46:07 2015 -0600
-
-    more preparation for recently used files
-
- src/xdg-launch.c | 75 +++++++++++++++++++++++++++++-----------------------
- 1 file changed, 42 insertions(+), 33 deletions(-)
-
-commit a503e00b15c04281d5cca44497850d03008b8aa8
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 13:50:56 2015 -0600
-
-    prepare to keep track of recent files
-
- src/xdg-launch.c | 31 +++++++++++++++----------------
- 1 file changed, 15 insertions(+), 16 deletions(-)

@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.71])
-AC_INIT([xdg-launch],[1.11],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
-AC_REVISION([1.11])
+AC_INIT([xdg-launch],[1.12],[https://github.com/bbidulock/xdg-launch],[xdg-launch],[https://github.com/bbidulock/xdg-launch/issues])
+AC_REVISION([1.12])
 
 # set better defaults
 AC_PREFIX_DEFAULT([/usr])
@@ -20,13 +20,13 @@ AC_CONFIG_AUX_DIR([scripts])
 AC_USE_SYSTEM_EXTENSIONS
 AC_CANONICAL_TARGET
 
-DATE='2021-12-12'
+DATE='2022-01-28'
 AC_SUBST([DATE])
 
-MDOCDATE='December 12, 2021'
+MDOCDATE='January 28, 2022'
 AC_SUBST([MDOCDATE])
 
-BRANCH='1.11'
+BRANCH='1.12'
 AC_SUBST([BRANCH])
 
 # Initialize Automake

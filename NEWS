@@ -1,4 +1,34 @@
-xdg-launch -- history of user-visible changes.  2021-12-12
+xdg-launch -- history of user-visible changes.  2022-01-28
+
+Release xdg-launch-1.12 released 2022-01-28
+-------------------------------------------
+
+git tag -n100 -l 1.12
+
+1.12            Maintenance Release 1.12
+
+    This is another stable release of the xdg-launch package that provides
+    a "C"-language program that can be used to launch XDG desktop
+    applications with full startup notification and window manager
+    assistance from the command line. The command is able to launch desktop
+    applications, autostart entries and xsession entries.
+
+    This release is a maintenance release that updates the build system
+    further and fixes compilation with extra warning flags.
+
+    Included in the release is an autoconf tarball for building the package
+    from source. See the NEWS and TODO file in the release for more
+    information. Please report problems to the issues list on GitHub.
+
+git shortlog -e -n -w80,6,8 1.11...1.12
+
+Brian Bidulock <bidulock@openss7.org> (5):
+      post-release update
+      add dependencies to README
+      autoupdate configure.ac
+      update build flags
+      update copyright
+
 
 Release xdg-launch-1.11 released 2021-12-12
 -------------------------------------------
@@ -399,15 +429,4 @@ Brian Bidulock <bidulock@openss7.org> (93):
       update release files
       corrections to xdg-prefs updates
       post-release update
-
-
-Release xdg-launch-1.5 released 2017-05-07
-------------------------------------------
-
-git shortlog -e -n -w80,6,8 1.4...1.5
-
-Brian Bidulock <bidulock@openss7.org> (3):
-      search XFree problem in xdg-assist
-      strict prototypes and find screen better
-      update release files
 
