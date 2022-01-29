@@ -1,5 +1,22 @@
 # created with git log --stat=76 -M -C -500|fmt -sct -w80
 
+commit 41b49de474f77647b2fc71e3197d49fd16e7cdbc
+Author: Brian Bidulock <bidulock@openss7.org>
+Date:   Fri Jan 28 23:09:42 2022 -0700
+
+    update release files
+
+ AUTHORS      |   2 +-
+ ChangeLog    | 100 ++++++++++++++++++++++++++++++-------------------------
+ NEWS         |  43 +++++++++++++++++-------
+ README       |  52 ++++++++++++++---------------
+ README.md    |  52 ++++++++++++++---------------
+ RELEASE      |  11 +++---
+ RELEASE.md   |  11 +++---
+ configure.ac |  10 +++---
+ index.md     |  52 ++++++++++++++---------------
+ 9 files changed, 178 insertions(+), 155 deletions(-)
+
 commit 158b9044300ce7be58a063c8343df317602916c7
 Author: Brian Bidulock <bidulock@openss7.org>
 Date:   Fri Jan 28 23:05:56 2022 -0700
@@ -4915,12 +4932,3 @@ Date:   Fri May 22 20:41:00 2015 -0600
 
  src/xdg-launch.c | 8 ++++++++
  1 file changed, 8 insertions(+)
-
-commit 0eb31e5a84603bbaa2543a6a79f5ec4ee6ff7e17
-Author: Brian Bidulock <bidulock@openss7.org>
-Date:   Fri May 22 20:27:42 2015 -0600
-
-    properly handle mime types using gio library
-
- src/xdg-launch.c | 72 ++++++++++++++++++++++++++++++++++++++--------------
- 1 file changed, 53 insertions(+), 19 deletions(-)
