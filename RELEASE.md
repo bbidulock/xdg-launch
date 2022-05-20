@@ -1,6 +1,6 @@
-[xdg-launch -- release notes.  2022-01-29]: #
+[xdg-launch -- release notes.  2022-05-20]: #
 
-Maintenance Release 1.12
+Maintenance Release 1.13
 ========================
 
 This is another stable release of the xdg-launch package that provides a
