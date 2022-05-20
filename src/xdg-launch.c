@@ -3373,6 +3373,7 @@ lookup_file_by_name(Process *pr, const char *name)
 		case LaunchType_XSession:
 		case LaunchType_Session:
 		case LaunchType_Startup:
+		default:
 			/* need to look in applications subdirectory of XDG_DATA_HOME and 
 			   then each of the subdirectories in XDG_DATA_DIRS */
 			if ((env = getenv("XDG_DATA_DIRS")) && *env)
